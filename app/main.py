@@ -408,8 +408,17 @@ def steam_callback(request: Request, db: Session = Depends(get_db)) -> RedirectR
         if settings.closed_alpha and not allowlisted and not qa_access:
             raise HTTPException(403, "Закрытая альфа: этот Steam-аккаунт пока не приглашён")
         user = get_or_create_steam_user(db, steam_id64)
+        if user.status != "ACTIVE":
+            raise HTTPException(403, "account_suspended")
     except HTTPException as exc:
-        code = "steam_unavailable" if exc.status_code >= 500 else ("closed_alpha" if exc.status_code == 403 else "steam_rejected")
+        if exc.status_code >= 500:
+            code = "steam_unavailable"
+        elif exc.status_code == 403 and exc.detail == "account_suspended":
+            code = "account_suspended"
+        elif exc.status_code == 403:
+            code = "closed_alpha"
+        else:
+            code = "steam_rejected"
         response = RedirectResponse(f"/?auth_error={code}", status_code=303)
         response.delete_cookie(
             OPENID_COOKIE_NAME,

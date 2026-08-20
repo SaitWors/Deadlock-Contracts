@@ -428,7 +428,6 @@ def get_or_create_steam_user(db: Session, steam_id64: int) -> User:
     else:
         user.display_name = display_name
         user.avatar_url = avatar_url
-        user.status = "ACTIVE"
     db.commit()
     db.refresh(user)
     return user

@@ -1,4 +1,5 @@
 from __future__ import annotations
+from unittest.mock import patch
 
 import os
 import tempfile
@@ -25,6 +26,7 @@ from app.services.normalization import classify_mode, normalize_deadlock_match
 from app.services.providers import DeadlockApiProvider, HistoryResult
 from app.services.seed import MISSIONS_V2
 from app.worker import CompanionMatchNotReady, NoMatchYet, dispatch_outbox, process_job
+from app.models import SessionToken, User
 
 
 class NormalizationTests(unittest.TestCase):
@@ -271,7 +273,58 @@ class ConfigurationTests(unittest.TestCase):
 
 
 class EndToEndTests(unittest.TestCase):
+    def test_suspended_user_cannot_reactivate_via_steam_callback(self) -> None:
+        steam_id64 = 76561198765432100
+
+        with TestClient(app) as client:
+            with SessionLocal() as db:
+                user = User(
+                    steam_id64=steam_id64,
+                    account_id=steam_id64 - 76561197960265728,
+                    display_name="Suspended Steam User",
+                    status="SUSPENDED",
+                )
+                db.add(user)
+                db.commit()
+                db.refresh(user)
+                user_id = user.id
+
+            with (
+                patch("app.main.verify_steam_callback", return_value=steam_id64),
+                patch(
+                    "app.services.auth.fetch_steam_profile",
+                    return_value=("Suspended Steam User Updated", None),
+                ),
+            ):
+                response = client.get(
+                    "/auth/steam/callback",
+                    follow_redirects=False,
+                )
+
+            self.assertEqual(response.status_code, 303)
+            self.assertIn(
+                "auth_error=account_suspended",
+                response.headers["location"],
+            )
+
+            with SessionLocal() as db:
+                user = db.get(User, user_id)
+                self.assertIsNotNone(user)
+                self.assertEqual(user.status, "SUSPENDED")
+                self.assertEqual(
+                    user.display_name,
+                    "Suspended Steam User Updated",
+                )
+
+                sessions = (
+                    db.query(SessionToken)
+                    .filter(SessionToken.user_id == user_id)
+                    .count()
+                )
+                self.assertEqual(sessions, 0)
+
     def _drain_worker(self) -> None:
+
         # Initial discover may be retried before the explicit mock bind job.
         for _ in range(30):
             with SessionLocal() as db:
