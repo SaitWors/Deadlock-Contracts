@@ -174,7 +174,51 @@ def test_desktop_token_respects_account_status() -> None:
             db.commit()
         assert client.get("/api/desktop/v1/bootstrap", headers=headers).status_code == 403
 
+def test_companion_token_rejects_suspended_owner_without_recording_heartbeat() -> None:
+    with TestClient(app) as client:
+        headers = paired_headers(client)
+        token = headers["Authorization"].split(" ", 1)[1]
 
+        from app.models import CompanionEvent
+        from app.services.companion import get_device_by_token
+
+        with SessionLocal() as db:
+            device = get_device_by_token(db, token)
+            device_id = device.id
+
+            owner = db.get(User, device.user_id)
+            assert owner is not None
+
+            before_events = (
+                db.query(CompanionEvent)
+                .filter(CompanionEvent.device_id == device_id)
+                .count()
+            )
+
+            owner.status = "SUSPENDED"
+            db.commit()
+
+        hello = client.get(
+            "/api/companion/hello",
+            headers=headers,
+        )
+
+        heartbeat = client.post(
+            "/api/companion/heartbeat",
+            json={},
+            headers=headers,
+        )
+
+        with SessionLocal() as db:
+            after_events = (
+                db.query(CompanionEvent)
+                .filter(CompanionEvent.device_id == device_id)
+                .count()
+            )
+
+        assert hello.status_code == 403
+        assert heartbeat.status_code == 403
+        assert after_events == before_events
 
 def test_desktop_history_keeps_retry_attempt_and_uses_reward_ledger() -> None:
     with TestClient(app) as client:

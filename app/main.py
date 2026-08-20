@@ -902,14 +902,28 @@ def _serialize_submission(db: Session, item: EvidenceSubmission, viewer: User) -
     }
 
 
-def _companion_from_request(request: Request, db: Session) -> tuple[CompanionDevice, User]:
+def _companion_from_request(
+    request: Request,
+    db: Session,
+) -> tuple[CompanionDevice, User]:
     authorization = request.headers.get("authorization", "")
+
     if not authorization.lower().startswith("bearer "):
         raise HTTPException(401, "Требуется Bearer token Companion")
-    device = get_device_by_token(db, authorization.split(" ", 1)[1].strip())
+
+    device = get_device_by_token(
+        db,
+        authorization.split(" ", 1)[1].strip(),
+    )
+
     owner = db.get(User, device.user_id)
+
     if not owner:
         raise HTTPException(401, "Владелец Companion не найден")
+
+    if str(owner.status or "").upper() != "ACTIVE":
+        raise HTTPException(403, "Аккаунт недоступен")
+
     return device, owner
 
 
@@ -917,13 +931,11 @@ DESKTOP_API_VERSION = "desktop.v1"
 DESKTOP_SCHEMA_VERSION = 1
 DESKTOP_ACTIVE_BOARD_STATES = {"LOCKED", "VERIFYING", "REVIEW_REQUIRED"}
 
-
-def _desktop_context(request: Request, db: Session) -> tuple[CompanionDevice, User]:
-    device, owner = _companion_from_request(request, db)
-    if str(owner.status or "").upper() != "ACTIVE":
-        raise HTTPException(403, "Аккаунт недоступен")
-    return device, owner
-
+def _desktop_context(
+    request: Request,
+    db: Session,
+) -> tuple[CompanionDevice, User]:
+    return _companion_from_request(request, db)
 
 def _history_items(db: Session, user: User, limit: int = 200) -> list[dict[str, Any]]:
     safe_limit = max(1, min(200, int(limit)))
