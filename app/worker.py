@@ -32,7 +32,6 @@ from .services.evaluator import capability_available, evaluate_board
 from .services.jobs import claim_next_job, complete_job, enqueue_job, retry_job
 from .services.providers import DeadlockApiProvider, ProviderError, ProviderRateLimited
 from .services.seed import seed_missions
-from .services.schema import ensure_v03_schema
 
 logging.basicConfig(level=os.getenv("LOG_LEVEL", "INFO"), format="%(asctime)s %(levelname)s %(message)s")
 log = logging.getLogger("deadlock-contracts-worker")
@@ -114,8 +113,8 @@ def _resolve_settled_waiting_provider_reviews(db: Session) -> int:
 
 def init() -> None:
     settings.validate()
-    Base.metadata.create_all(engine)
-    ensure_v03_schema(engine)
+    if engine.dialect.name == "sqlite":
+        Base.metadata.create_all(engine)
     with SessionLocal() as db:
         seed_missions(db)
         stale_before = utcnow() - timedelta(minutes=10)

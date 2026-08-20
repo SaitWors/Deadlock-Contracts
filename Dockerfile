@@ -24,6 +24,10 @@ RUN pip install --no-cache-dir --requirement requirements.txt \
     && python -m pip check
 
 COPY --chown=app:app app ./app
+
+COPY --chown=app:app alembic.ini ./alembic.ini
+COPY --chown=app:app alembic ./alembic
+
 RUN rm -rf /app/app/static/assets /app/app/static/index.html /app/app/static/app.js \
     && mkdir -p /app/app/static/assets /app/runtime/evidence \
     && chown -R app:app /app/app/static /app/runtime

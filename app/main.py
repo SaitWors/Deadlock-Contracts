@@ -80,7 +80,6 @@ from .services.totp import verify_totp
 from .services.progression import user_progression
 from .services.adaptive_profile import build_adaptive_profile
 from .services.leaderboard import TRUSTED_REWARD_SOURCES, public_leaderboard as build_public_leaderboard
-from .services.schema import ensure_v03_schema
 
 log = logging.getLogger(__name__)
 STATIC = Path(__file__).parent / "static"
@@ -260,8 +259,8 @@ class EvidenceDecisionRequest(StrictModel):
 @asynccontextmanager
 async def lifespan(_: FastAPI):
     settings.validate()
-    Base.metadata.create_all(engine)
-    ensure_v03_schema(engine)
+    if engine.dialect.name == "sqlite":
+        Base.metadata.create_all(engine)
     Path(settings.evidence_dir).mkdir(parents=True, exist_ok=True)
     now = datetime.now(timezone.utc)
     with SessionLocal() as db:
