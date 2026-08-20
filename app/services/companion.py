@@ -160,6 +160,8 @@ def claim_pairing(db: Session, code: str, device_id: str, label: str, version: s
     user = db.get(User, pairing.user_id)
     if not user:
         raise HTTPException(404, "Пользователь не найден")
+    if user.status != "ACTIVE":
+        raise HTTPException(403, "Аккаунт заблокирован")
 
     existing = db.scalar(
         select(CompanionDevice).where(

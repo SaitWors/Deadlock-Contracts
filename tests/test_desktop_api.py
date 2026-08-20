@@ -9,7 +9,15 @@ from fastapi.testclient import TestClient
 
 from app.db import SessionLocal
 from app.main import app
-from app.models import BoardOption, Evaluation, Match, RewardLedgerEntry, User
+from app.models import (
+    BoardOption,
+    CompanionDevice,
+    CompanionPairing,
+    Evaluation,
+    Match,
+    RewardLedgerEntry,
+    User,
+)
 from app.services.companion import create_pairing
 
 
@@ -44,6 +52,59 @@ def paired_headers(client: TestClient) -> dict[str, str]:
         "Origin": "www.overwolf.com://deadlockcontracts",
     }
 
+def test_suspended_user_cannot_claim_pending_pairing() -> None:
+    unique = int(time.time_ns() % 1_000_000_000)
+
+    with TestClient(app) as client:
+        with SessionLocal() as db:
+            user = User(
+                account_id=8_100_000_000 + unique,
+                steam_id64=76_561_199_000_000_000 + unique,
+                display_name="Suspended Pairing Test",
+                status="ACTIVE",
+            )
+            db.add(user)
+            db.commit()
+            db.refresh(user)
+
+            user_id = user.id
+            code, pairing = create_pairing(db, user)
+            pairing_hash = pairing.code_hash
+
+            # Код был создан, пока пользователь был ACTIVE,
+            # затем аккаунт заблокировали.
+            user.status = "SUSPENDED"
+            db.commit()
+
+        claim = client.post(
+            "/api/companion/pairing/claim",
+            json={
+                "code": code,
+                "device_id": f"suspended-pair-{unique}",
+                "label": "Suspended Pairing Test",
+                "version": "0.5.2-alpha.3",
+            },
+            headers={
+                "Origin": "www.overwolf.com://deadlockcontracts",
+            },
+        )
+
+        assert claim.status_code == 403
+
+        with SessionLocal() as db:
+            device_count = (
+                db.query(CompanionDevice)
+                .filter(CompanionDevice.user_id == user_id)
+                .count()
+            )
+            assert device_count == 0
+
+            pending_pairing = db.get(
+                CompanionPairing,
+                pairing_hash,
+            )
+            assert pending_pairing is not None
+            assert pending_pairing.claimed_at is None
 
 def test_desktop_bootstrap_lock_and_reroll_use_bearer_authority() -> None:
     with TestClient(app) as client:
