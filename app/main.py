@@ -2052,14 +2052,48 @@ def admin_update_user_status(user_id: UUID, payload: AdminUserStatusRequest, own
     target.status = payload.status
     sessions_terminated = 0
     companions_revoked = 0
+    pairings_invalidated = 0
     if payload.status == "SUSPENDED":
         sessions_terminated = db.scalar(select(func.count()).select_from(SessionToken).where(SessionToken.user_id == target.id)) or 0
         db.execute(delete(SessionToken).where(SessionToken.user_id == target.id))
+        pairings_invalidated = (
+            db.scalar(
+                select(func.count())
+                .select_from(CompanionPairing)
+                .where(
+                    CompanionPairing.user_id == target.id,
+                    CompanionPairing.claimed_at.is_(None),
+                )
+            )
+            or 0
+        )
+
+        db.execute(
+            delete(CompanionPairing).where(
+                CompanionPairing.user_id == target.id,
+                CompanionPairing.claimed_at.is_(None),
+            )
+        )
         now = datetime.now(timezone.utc)
         for device in db.scalars(select(CompanionDevice).where(CompanionDevice.user_id == target.id, CompanionDevice.revoked_at.is_(None))).all():
             device.revoked_at = now
             companions_revoked += 1
-    db.add(AuditLog(user_id=owner.id, action="admin.user_status_updated", entity_type="user", entity_id=target.id, data={"old_status": old_status, "new_status": payload.status, "reason": payload.reason, "sessions_terminated": int(sessions_terminated), "companions_revoked": companions_revoked}))
+    db.add(
+        AuditLog(
+            user_id=owner.id,
+            action="admin.user_status_updated",
+            entity_type="user",
+            entity_id=target.id,
+            data={
+                "old_status": old_status,
+                "new_status": payload.status,
+                "reason": payload.reason,
+                "sessions_terminated": int(sessions_terminated),
+                "companions_revoked": companions_revoked,
+                "pairings_invalidated": int(pairings_invalidated),
+            },
+        )
+    )
     db.commit()
     db.refresh(target)
     return {"user": _admin_user_summary(db, target)}

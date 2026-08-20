@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from uuid import UUID
+
 import time
 from datetime import datetime, timezone
 
@@ -8,7 +10,11 @@ from sqlalchemy import select
 from fastapi.testclient import TestClient
 
 from app.db import SessionLocal
-from app.main import app
+from app.main import (
+    AdminUserStatusRequest,
+    admin_update_user_status,
+    app,
+)
 from app.models import (
     BoardOption,
     CompanionDevice,
@@ -17,6 +23,7 @@ from app.models import (
     Match,
     RewardLedgerEntry,
     User,
+    AuditLog,
 )
 from app.services.companion import create_pairing
 
@@ -105,6 +112,82 @@ def test_suspended_user_cannot_claim_pending_pairing() -> None:
             )
             assert pending_pairing is not None
             assert pending_pairing.claimed_at is None
+
+def test_suspending_user_invalidates_pending_pairing_code() -> None:
+    unique = int(time.time_ns() % 1_000_000_000)
+
+    with TestClient(app) as client:
+        with SessionLocal() as db:
+            audit_owner = User(
+                account_id=8_200_000_000 + unique,
+                steam_id64=76_561_200_000_000_000 + unique,
+                display_name="Suspension Audit Owner",
+                status="ACTIVE",
+            )
+            target = User(
+                account_id=8_300_000_000 + unique,
+                steam_id64=76_561_201_000_000_000 + unique,
+                display_name="Pending Pairing Target",
+                status="ACTIVE",
+            )
+            db.add_all([audit_owner, target])
+            db.commit()
+            db.refresh(audit_owner)
+            db.refresh(target)
+
+            target_id = str(target.id)
+
+            code, pairing = create_pairing(db, target)
+            pairing_hash = pairing.code_hash
+
+            assert db.get(CompanionPairing, pairing_hash) is not None
+
+            result = admin_update_user_status(
+                UUID(target_id),
+                AdminUserStatusRequest(
+                    status="SUSPENDED",
+                    reason="Suspension regression test",
+                ),
+                audit_owner,
+                db,
+            )
+
+            assert result["user"]["status"] == "SUSPENDED"
+
+            audit = (
+                db.query(AuditLog)
+                .filter(
+                    AuditLog.user_id == audit_owner.id,
+                    AuditLog.action == "admin.user_status_updated",
+                    AuditLog.entity_id == target.id,
+                )
+                .order_by(AuditLog.created_at.desc())
+                .first()
+            )
+
+            assert audit is not None
+            assert audit.data["pairings_invalidated"] == 1
+
+            pending = db.get(
+                CompanionPairing,
+                pairing_hash,
+            )
+            assert pending is None
+
+        old_code = client.post(
+            "/api/companion/pairing/claim",
+            json={
+                "code": code,
+                "device_id": f"invalidated-pair-{unique}",
+                "label": "Invalidated Pairing Test",
+                "version": "0.5.2-alpha.3",
+            },
+            headers={
+                "Origin": "www.overwolf.com://deadlockcontracts",
+            },
+        )
+
+        assert old_code.status_code == 410
 
 def test_desktop_bootstrap_lock_and_reroll_use_bearer_authority() -> None:
     with TestClient(app) as client:
