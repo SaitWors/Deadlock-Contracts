@@ -1,0 +1,171 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#080b0a">
+  <meta name="description" content="Deadlock Contracts — ежедневные контракты, которые проверяются по послематчевой статистике Deadlock.">
+  <title>Deadlock Contracts — предрелиз</title>
+  <link rel="icon" href="/static/assets/mark.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/static/styles.css">
+  <script src="/static/app.js" defer></script>
+</head>
+<body>
+  <a class="skip-link" href="#main">Перейти к содержимому</a>
+
+  <header class="site-header">
+    <div class="shell header-inner">
+      <a class="brand" href="/" aria-label="Deadlock Contracts — главная">
+        <img src="/static/assets/logo-horizontal.svg" alt="Deadlock Contracts" width="334" height="84">
+      </a>
+      <div class="header-actions">
+        <span class="release-pill">PRE-RELEASE · 0.9</span>
+        <button class="ghost-button hidden" id="logoutButton" type="button">Выйти</button>
+        <a class="steam-button compact" id="headerLogin" href="/auth/steam">Войти через Steam</a>
+      </div>
+    </div>
+  </header>
+
+  <main id="main">
+    <section id="landingView" class="landing-view">
+      <div class="hero-noise" aria-hidden="true"></div>
+      <div class="shell hero-grid">
+        <div class="hero-copy">
+          <p class="eyebrow">НЕОФИЦИАЛЬНЫЙ COMMUNITY-ПРОЕКТ</p>
+          <h1>Выберите контракт.<br><span>Сыграйте матч.</span><br>Закройте дело.</h1>
+          <p class="hero-lead">Ежедневная доска задач для Deadlock. Вы выбираете до трёх условий, играете следующий матч Standard, а сервис проверяет результат по итоговой статистике.</p>
+          <div class="hero-actions">
+            <a class="steam-button" href="/auth/steam">Войти через Steam</a>
+            <a class="text-link" href="#how-it-works">Как проходит проверка</a>
+          </div>
+          <div class="trust-row" aria-label="Ключевые свойства сервиса">
+            <span>Только post-match</span>
+            <span>Standard mode</span>
+            <span>Без пароля Steam</span>
+          </div>
+        </div>
+        <div class="hero-art" aria-label="Куратор показывает контракт">
+          <div class="hero-aura" aria-hidden="true"></div>
+          <img src="/static/assets/curator.webp" alt="Куратор Deadlock Contracts с контрактом" width="1536" height="1024">
+          <div class="curator-caption">
+            <span class="status-dot"></span>
+            <div><strong>THE CURATOR</strong><small>Доска подготовлена</small></div>
+          </div>
+        </div>
+      </div>
+
+      <section class="shell preview-section" aria-labelledby="preview-title">
+        <div class="section-heading">
+          <div><p class="eyebrow">DAILY BOARD</p><h2 id="preview-title">Сегодняшнее досье</h2></div>
+          <span class="section-note">Демонстрация механики</span>
+        </div>
+        <div class="preview-board">
+          <article class="preview-card selected"><span class="card-index">01</span><div><h3>Без лишних следов</h3><p>Завершите матч, умерев не более 4 раз.</p></div><strong>+110 XP</strong></article>
+          <article class="preview-card"><span class="card-index">02</span><div><h3>Соучастник</h3><p>Сделайте не менее 12 содействий.</p></div><strong>+90 XP</strong></article>
+          <article class="preview-card"><span class="card-index">03</span><div><h3>Капитал дела</h3><p>Накопите не менее 30 000 душ.</p></div><strong>+100 XP</strong></article>
+        </div>
+      </section>
+
+      <section id="how-it-works" class="process-section">
+        <div class="shell">
+          <div class="section-heading centered"><div><p class="eyebrow">VERIFICATION</p><h2>Как закрывается контракт</h2></div></div>
+          <ol class="process-grid">
+            <li><span>01</span><h3>Выбор</h3><p>Зафиксируйте от одного до трёх контрактов до начала матча.</p></li>
+            <li><span>02</span><h3>Матч</h3><p>Сыграйте следующий обычный матч Standard после фиксации.</p></li>
+            <li><span>03</span><h3>Проверка</h3><p>Worker на сервере получает итоговую статистику и проверяет условия.</p></li>
+            <li><span>04</span><h3>Вердикт</h3><p>Каждый контракт получает объяснимый статус и начисление XP.</p></li>
+          </ol>
+          <div class="honesty-panel">
+            <strong>Что уже работает в этой версии</strong>
+            <p>Steam-вход, ежедневная доска, фиксация условий, поиск первого подходящего матча, проверка статистики, история и XP. Ranked, live-данные и replay-анализ пока намеренно отключены.</p>
+          </div>
+        </div>
+      </section>
+
+      <section class="shell final-cta">
+        <img src="/static/assets/mark.svg" alt="" width="82" height="82">
+        <div><p class="eyebrow">TEST BUILD</p><h2>Готовы открыть первое дело?</h2><p>Предрелиз предназначен для ограниченного тестирования. Результаты могут задерживаться, если поставщик статистики ещё не обработал матч.</p></div>
+        <a class="steam-button" href="/auth/steam">Войти через Steam</a>
+      </section>
+    </section>
+
+    <section id="appView" class="app-view hidden" aria-labelledby="dashboardTitle">
+      <div class="shell app-shell">
+        <aside class="profile-panel">
+          <div class="profile-head">
+            <img id="userAvatar" class="avatar hidden" alt="" width="64" height="64" referrerpolicy="no-referrer">
+            <div class="avatar-fallback" id="avatarFallback" aria-hidden="true">DC</div>
+            <div><p class="eyebrow">INVESTIGATOR</p><h2 id="userName">Игрок</h2></div>
+          </div>
+          <div class="xp-block"><span>Общий баланс</span><strong><span id="userXp">0</span> XP</strong></div>
+          <nav class="app-nav" aria-label="Разделы кабинета">
+            <button class="nav-item active" type="button" data-tab="board">Сегодняшняя доска</button>
+            <button class="nav-item" type="button" data-tab="history">История дел</button>
+            <button class="nav-item" type="button" data-tab="settings">Данные и аккаунт</button>
+          </nav>
+          <div class="beta-note"><span class="status-dot"></span><p><strong>Предрелиз</strong><br>Сообщайте тестировщику время и ID матча при ошибке проверки.</p></div>
+        </aside>
+
+        <div class="workspace">
+          <section id="boardTab" class="tab-panel">
+            <div class="workspace-head">
+              <div><p class="eyebrow">STANDARD · POST-MATCH</p><h1 id="dashboardTitle">Сегодняшняя доска</h1><p id="boardDate" class="muted"></p></div>
+              <button id="syncButton" class="ghost-button" type="button">Проверить новый матч</button>
+            </div>
+
+            <div id="systemBanner" class="system-banner" role="status" aria-live="polite">
+              <span class="spinner hidden" id="systemSpinner" aria-hidden="true"></span>
+              <div><strong id="systemTitle">Загрузка доски…</strong><p id="systemText">Получаем актуальное состояние.</p></div>
+            </div>
+
+            <div class="board-toolbar">
+              <div><span>Выбрано</span><strong><span id="selectedCount">0</span>/3</strong></div>
+              <p>После фиксации изменить набор сегодня будет нельзя.</p>
+              <button id="lockButton" class="primary-button" type="button" disabled>Зафиксировать контракты</button>
+            </div>
+
+            <div id="contractGrid" class="contract-grid" aria-live="polite"></div>
+
+            <section class="evidence-panel hidden" id="evidencePanel" aria-labelledby="evidenceTitle">
+              <div class="section-heading compact"><div><p class="eyebrow">CASE EVIDENCE</p><h2 id="evidenceTitle">Результат проверки</h2></div><span id="boundMatchLabel" class="section-note"></span></div>
+              <div id="evidenceList" class="evidence-list"></div>
+            </section>
+          </section>
+
+          <section id="historyTab" class="tab-panel hidden" aria-labelledby="historyTitle">
+            <div class="workspace-head"><div><p class="eyebrow">ARCHIVE</p><h1 id="historyTitle">История дел</h1><p class="muted">Последние зафиксированные контракты и объяснение вердикта.</p></div></div>
+            <div id="historyList" class="history-list"></div>
+          </section>
+
+          <section id="settingsTab" class="tab-panel hidden" aria-labelledby="settingsTitle">
+            <div class="workspace-head"><div><p class="eyebrow">PRIVACY</p><h1 id="settingsTitle">Данные и аккаунт</h1><p class="muted">Сервис хранит Steam ID, отображаемое имя, итоговую статистику связанных матчей и историю контрактов.</p></div></div>
+            <div class="settings-card">
+              <h2>Безопасность входа</h2>
+              <p>Мы не получаем пароль Steam. Аутентификация проходит на стороне Steam OpenID, а браузер получает защищённую серверную сессию.</p>
+            </div>
+            <div class="settings-card danger-zone">
+              <h2>Удалить аккаунт</h2>
+              <p>Удаление необратимо: профиль, доски, история и XP будут удалены. Общие обезличенные записи матчей могут остаться, но связь с вашим аккаунтом будет удалена.</p>
+              <button id="deleteAccountButton" class="danger-button" type="button">Удалить мои данные</button>
+            </div>
+          </section>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="site-footer">
+    <div class="shell footer-inner"><span>Deadlock Contracts · Community project</span><span><a href="/privacy">Обработка данных</a> · <a href="/terms">Условия тестирования</a> · Не связан с Valve.</span></div>
+  </footer>
+
+  <div id="toastRegion" class="toast-region" aria-live="assertive" aria-atomic="true"></div>
+  <dialog id="confirmDialog" class="confirm-dialog">
+    <form method="dialog">
+      <p class="eyebrow" id="dialogEyebrow">ПОДТВЕРЖДЕНИЕ</p>
+      <h2 id="dialogTitle">Подтвердите действие</h2>
+      <p id="dialogText"></p>
+      <div class="dialog-actions"><button value="cancel" class="ghost-button">Отмена</button><button value="confirm" id="dialogConfirm" class="primary-button">Подтвердить</button></div>
+    </form>
+  </dialog>
+</body>
+</html>

@@ -1,0 +1,78 @@
+name: deadlock-contracts-v03-local
+
+services:
+  db:
+    image: postgres:17.6-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-deadlock_contracts}
+      POSTGRES_USER: ${POSTGRES_USER:-deadlock}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-deadlock_local_password}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-deadlock} -d ${POSTGRES_DB:-deadlock_contracts}"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+    expose:
+      - "5432"
+
+  web:
+    build: .
+    init: true
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment: &app-env
+      APP_ENV: development
+      APP_VERSION: 0.10.1-alpha.7
+      APP_BASE_URL: ${APP_BASE_URL:-http://localhost:8080}
+      TRUSTED_HOSTS: ${TRUSTED_HOSTS:-localhost,127.0.0.1,testserver}
+      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-deadlock}:${POSTGRES_PASSWORD:-deadlock_local_password}@db:5432/${POSTGRES_DB:-deadlock_contracts}
+      SESSION_SECRET: ${SESSION_SECRET:-local-only-session-secret-change-before-sharing-2026}
+      COOKIE_SECURE: "false"
+      TRUST_PROXY_HEADERS: "false"
+      DOCS_ENABLED: "true"
+      MATCH_PROVIDER: ${MATCH_PROVIDER:-mock}
+      DEADLOCK_API_BASE_URL: https://api.deadlock-api.com
+      DEADLOCK_API_KEY: ${DEADLOCK_API_KEY:-}
+      DEADLOCK_API_KEY_HEADER: ${DEADLOCK_API_KEY_HEADER:-X-API-Key}
+      DEADLOCK_FORCE_REFETCH: ${DEADLOCK_FORCE_REFETCH:-false}
+      STORE_PROVIDER_RAW: "false"
+      STEAM_WEB_API_KEY: ${STEAM_WEB_API_KEY:-}
+      ALLOW_DEMO_AUTH: ${ALLOW_DEMO_AUTH:-true}
+      ALLOW_DEV_ENDPOINTS: ${ALLOW_DEV_ENDPOINTS:-true}
+      DISCOVERY_RETRY_SECONDS: ${DISCOVERY_RETRY_SECONDS:-30}
+      MAX_DISCOVERY_ATTEMPTS: ${MAX_DISCOVERY_ATTEMPTS:-120}
+      MAX_REQUEST_BODY_BYTES: "12582912"
+      EVIDENCE_DIR: /app/runtime/evidence
+      ADMIN_STEAM_IDS: ${ADMIN_STEAM_IDS:-76561198083722456}
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
+      TELEGRAM_REVIEW_CHAT_ID: ${TELEGRAM_REVIEW_CHAT_ID:-}
+      DISCORD_REVIEW_WEBHOOK_URL: ${DISCORD_REVIEW_WEBHOOK_URL:-}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+    volumes:
+      - evidence_data:/app/runtime/evidence
+    ports:
+      - "127.0.0.1:${WEB_PORT:-8080}:8080"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import os, urllib.request; host=os.environ['TRUSTED_HOSTS'].split(',')[0]; req=urllib.request.Request('http://127.0.0.1:8080/api/health', headers={'Host': host}); urllib.request.urlopen(req, timeout=2)"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  worker:
+    build: .
+    init: true
+    restart: unless-stopped
+    command: ["python", "-m", "app.worker"]
+    depends_on:
+      db:
+        condition: service_healthy
+    environment: *app-env
+
+volumes:
+  postgres_data:
+  evidence_data:

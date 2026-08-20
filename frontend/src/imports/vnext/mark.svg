@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" role="img" aria-label="Deadlock Contracts">
+  <defs><radialGradient id="g"><stop offset="0" stop-color="#efffd8"/><stop offset=".35" stop-color="#8fe2a4"/><stop offset="1" stop-color="#2e7651"/></radialGradient></defs>
+  <g fill="none" stroke="#e9ddbf" stroke-width="7" stroke-linejoin="round">
+    <path d="M64 7 77 42l35 22-35 13-13 44-13-44L16 64l35-22Z"/>
+    <circle cx="64" cy="64" r="31" opacity=".75"/>
+  </g>
+  <circle cx="64" cy="64" r="17" fill="url(#g)" stroke="#173928" stroke-width="6"/>
+</svg>

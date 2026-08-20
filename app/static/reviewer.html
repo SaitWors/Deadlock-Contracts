@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="robots" content="noindex,nofollow,noarchive">
+  <meta name="theme-color" content="#07110c">
+  <title>Overwolf QA Access - Deadlock Contracts</title>
+  <link rel="stylesheet" href="/static/reviewer.css">
+</head>
+<body>
+  <div class="ambient ambient-a" aria-hidden="true"></div>
+  <div class="ambient ambient-b" aria-hidden="true"></div>
+  <div class="grid-overlay" aria-hidden="true"></div>
+
+  <main class="page-shell">
+    <header class="topbar">
+      <a class="brand" href="/" aria-label="Deadlock Contracts home">
+        <span class="brand-mark" aria-hidden="true"><span class="brand-core"></span></span>
+        <span class="brand-copy"><strong>DEADLOCK</strong><span>CONTRACTS</span></span>
+      </a>
+      <div class="qa-badge"><span class="qa-dot"></span>OVERWOLF QA</div>
+    </header>
+
+    <section class="review-card">
+      <div class="left-pane">
+        <div class="section-kicker">TEMPORARY REVIEWER GATEWAY</div>
+        <h1>Review the full<br><span>player flow.</span></h1>
+        <p class="lead">
+          A temporary access path for authorized Overwolf reviewers. It unlocks the Closed Alpha
+          player experience without requiring a pre-registered SteamID and never grants administrative access.
+        </p>
+
+        <div class="flow">
+          <article class="flow-step"><div class="flow-number">01</div><div><h2>Authorize</h2><p>Enter the private QA access code included with the first-build submission.</p></div></article>
+          <article class="flow-step"><div class="flow-number">02</div><div><h2>Sign in with Steam</h2><p>Continue through the official Steam OpenID flow using a Deadlock-enabled account.</p></div></article>
+          <article class="flow-step"><div class="flow-number">03</div><div><h2>Pair Companion</h2><p>Open Profile - Companion, generate a pairing code and connect the Overwolf app.</p></div></article>
+          <article class="flow-step"><div class="flow-number">04</div><div><h2>Close the case</h2><p>Select contracts, play Deadlock and verify the post-match evaluation on the website.</p></div></article>
+        </div>
+
+        <div class="trust-row"><span>PLAYER ACCESS ONLY</span><span>NO ADMIN PRIVILEGES</span><span>AUTO-EXPIRES</span></div>
+      </div>
+
+      <aside class="access-pane">
+        <div class="access-frame">
+          <div class="access-label">REVIEW AUTHORIZATION</div>
+          <div class="secure-icon" aria-hidden="true"><span></span></div>
+          <h2>Overwolf QA access</h2>
+          <p class="access-copy">Enter the review code supplied privately with this build.</p>
+
+          <form id="qaForm" autocomplete="off">
+            <label for="qaCode">QA ACCESS CODE</label>
+            <div class="input-wrap">
+              <input id="qaCode" name="qaCode" type="password" minlength="32" maxlength="128" required
+                     autocomplete="one-time-code" spellcheck="false" placeholder="••••••••••••••••••••••••">
+              <span class="input-status" aria-hidden="true"></span>
+            </div>
+            <button id="submitBtn" type="submit"><span>Continue with Steam</span><span class="arrow" aria-hidden="true">↗</span></button>
+            <div id="status" class="status" aria-live="polite"></div>
+          </form>
+
+          <div class="security-note">
+            <div class="security-line"><span class="shield-dot"></span>The access code is never placed in the URL.</div>
+            <div class="security-line"><span class="shield-dot"></span>Authorization uses a short-lived Secure, HttpOnly cookie.</div>
+            <div class="security-line"><span class="shield-dot"></span>The reviewer grant is consumed after Steam sign-in.</div>
+          </div>
+        </div>
+
+        <div class="access-footer"><span>DEADLOCK CONTRACTS</span><span>SECURE REVIEW CHANNEL</span></div>
+      </aside>
+    </section>
+
+    <footer class="footer">
+      <div>Deadlock Contracts is an independent community project.</div>
+      <nav><a href="/privacy">Privacy</a><a href="/terms">Terms</a></nav>
+    </footer>
+  </main>
+
+  <script src="/static/reviewer.js" defer></script>
+</body>
+</html>

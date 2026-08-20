@@ -1,0 +1,12 @@
+Deadlock Contracts Web/Backend v0.10.1-alpha.7
+Build date: 2026-08-19
+Base: 0.10.1-alpha.6 Adaptive Desktop + Debrief
+
+Release focus:
+- correlate Deadlock GEP match_outcome info updates with the exact Match ID and terminal session before using the result for contract settlement;
+- keep cached/getInfo outcome labels diagnostic-only to prevent stale previous-match wins from settling a new match;
+- accelerate cheap exact-metadata verification retries while keeping Steam fallback bounded;
+- re-run stalled VERIFYING/REVIEW_REQUIRED exact-match jobs through a new repair generation;
+- support both Closed Alpha and Web Open Beta in production preflight/deploy scripts.
+
+Trust model is unchanged: backend/evaluator/XP ledger remain authoritative.
