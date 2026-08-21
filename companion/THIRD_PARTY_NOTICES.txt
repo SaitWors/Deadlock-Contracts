@@ -1,0 +1,10 @@
+Deadlock Contracts Companion 0.5.2-alpha.3
+
+This package includes self-hosted font software distributed under the SIL Open Font License 1.1:
+
+- Inter
+- Roboto Condensed
+- Cormorant Garamond
+- Barlow Condensed
+
+The corresponding license texts are included in the licenses directory.

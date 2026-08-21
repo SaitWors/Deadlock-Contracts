@@ -1,0 +1,170 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="dark">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; base-uri 'none'; object-src 'none'; frame-src 'none'; connect-src 'self' https://deadlock-contracts.online; img-src 'self' data:; style-src 'self'; font-src 'self'; script-src 'self'">
+  <title>Deadlock Contracts</title>
+  <link rel="stylesheet" href="styles/tokens.css">
+  <link rel="stylesheet" href="styles/app.css">
+</head>
+<body>
+  <div class="app-shell">
+    <header id="titlebar" class="titlebar">
+      <button id="brandBtn" class="brand" type="button" data-view-target="hq" aria-label="Deadlock Contracts HQ">
+        <img src="assets/mark.svg" alt="" class="brand-mark">
+        <div class="brand-copy"><strong>DEADLOCK CONTRACTS</strong><span>COMPANION / M.C.G.</span></div>
+      </button>
+      <div class="title-status" aria-label="System status">
+        <span id="topServerStatus" class="status-chip"><i></i><b>SERVER</b><em>UNPAIRED</em></span>
+        <span id="topGameStatus" class="status-chip"><i></i><b>DEADLOCK</b><em>NOT RUNNING</em></span>
+      </div>
+      <div class="language-switch" aria-label="Language">
+        <button type="button" data-language="auto">AUTO</button><button type="button" data-language="en">EN</button><button type="button" data-language="ru">RU</button>
+      </div>
+      <div class="window-actions">
+        <button id="minimizeBtn" type="button" aria-label="Minimize">—</button><button id="closeBtn" type="button" aria-label="Close window">×</button>
+      </div>
+    </header>
+
+    <div id="offlineBar" class="system-bar" hidden><b id="offlineTitle">OFFLINE MODE</b><span id="offlineCopy">Live GEP continues locally. Server actions will resume after reconnection.</span></div>
+
+    <div class="app-body">
+      <aside class="sidebar">
+        <nav class="side-nav" aria-label="Main navigation">
+          <button class="active" type="button" data-view-target="hq"><span>01</span><b data-i18n="hq">HQ</b></button>
+          <button type="button" data-view-target="contracts"><span>02</span><b data-i18n="contracts">CONTRACTS</b><em id="navContractsCount"></em></button>
+          <button type="button" data-view-target="active"><span>03</span><b data-i18n="activeCase">ACTIVE CASE</b><em id="navActiveCount"></em></button>
+          <button type="button" data-view-target="debrief"><span>04</span><b data-i18n="debrief">DEBRIEF</b><em id="navDebriefCount"></em></button>
+          <button type="button" data-view-target="history"><span>05</span><b data-i18n="history">HISTORY</b></button>
+          <button type="button" data-view-target="profile"><span>06</span><b data-i18n="profile">PROFILE</b></button>
+          <button type="button" data-view-target="settings"><span>07</span><b data-i18n="settings">SETTINGS</b></button>
+        </nav>
+        <div class="sidebar-footer">
+          <button id="mcgBtn" class="mcg-credit" type="button"><span data-i18n="createdBy">CREATED BY</span><strong>M.C.G.</strong><small data-i18n="mcg">MANDARIN CREATOR GROUP</small></button>
+          <div class="build-mark"><span>QA CANDIDATE</span><b>0.5.2-alpha.3</b></div>
+        </div>
+      </aside>
+
+      <main id="workspace" class="workspace">
+        <section id="view-hq" class="view active" data-view="hq">
+          <div class="hero-panel">
+            <div class="hero-copy">
+              <span class="eyebrow" data-i18n="bureauSignal">BUREAU SIGNAL / ONLINE OPERATIONS</span>
+              <h1 data-i18n="operationsHq">OPERATIONS HQ</h1>
+              <h2 data-i18n="heroTitle">CHOOSE THE CASE. PLAY THE MATCH. CLOSE THE FILE.</h2>
+              <p data-i18n="heroBody">Deadlock Contracts turns ordinary matches into verified objectives. The Companion is your control room; the server keeps every verdict honest.</p>
+              <div class="hero-actions"><button class="primary-btn" type="button" data-view-target="contracts" data-i18n="openContracts">OPEN CONTRACTS</button><button class="secondary-btn" type="button" data-view-target="active" data-i18n="openActive">ACTIVE CASE</button></div>
+            </div>
+            <div class="hero-art" aria-hidden="true"><img src="assets/brand-hero.jpg" alt=""></div>
+          </div>
+
+          <div class="signal-grid">
+            <article class="signal-card"><span>DEADLOCK</span><strong id="hqGame">NOT RUNNING</strong><small id="hqPhase">Phase: —</small></article>
+            <article class="signal-card"><span>GEP / EVIDENCE</span><strong id="hqGep">WAITING</strong><small id="hqGepVersion">Version: —</small></article>
+            <article class="signal-card"><span>IDENTITY</span><strong id="hqIdentity">WAITING</strong><small id="hqSteam">Steam: —</small></article>
+            <article class="signal-card"><span>SERVER LEDGER</span><strong id="hqServer">UNPAIRED</strong><small id="hqServerTime">Last sync: —</small></article>
+          </div>
+          <div id="gepAlert" class="notice warning" hidden><b>GEP DEGRADED</b><span id="gepAlertText"></span></div>
+          <div id="hqOperations" class="operations-grid" aria-live="polite"></div>
+          <div id="hqCaseStrip" class="case-strip"></div>
+        </section>
+
+        <section id="view-contracts" class="view" data-view="contracts">
+          <div class="page-head">
+            <div><span class="eyebrow">DAILY BOARD / CONTRACTS 2.0</span><h1 data-i18n="contracts">CONTRACTS</h1><p data-i18n="contractsBody">Choose one to three server-issued contracts. Locking is final for this daily board.</p></div>
+            <div class="head-status"><span id="boardAuthority" class="outline-badge">SERVER AUTHORITY</span><small id="boardReset">RESET —</small></div>
+          </div>
+          <div id="modeTabs" class="mode-tabs" role="tablist"></div>
+          <article id="adaptiveIntel" class="adaptive-intel" aria-live="polite"></article>
+          <div id="boardToolbar" class="board-toolbar">
+            <div><b id="boardModeTitle">STANDARD BOARD</b><span id="boardMeta">Waiting for server</span></div>
+            <div class="toolbar-actions"><span id="selectionCount" class="selection-count">0 / 3 SELECTED</span><button id="rerollBtn" class="secondary-btn" type="button">REROLL</button><button id="lockBtn" class="primary-btn" type="button">LOCK CASE</button></div>
+          </div>
+          <div id="contractBoard" class="contract-grid" aria-live="polite"></div>
+        </section>
+
+        <section id="view-active" class="view" data-view="active">
+          <div class="page-head">
+            <div><span class="eyebrow">LIVE CASE / MATCH EVIDENCE</span><h1 data-i18n="activeCase">ACTIVE CASE</h1><p data-i18n="verifiedLater">Live values are provisional. The server issues the final verdict after the match.</p></div>
+            <span id="activeCaseBadge" class="outline-badge">NO ACTIVE CASE</span>
+          </div>
+          <div id="activeModeTabs" class="mode-tabs compact" role="tablist"></div>
+          <div class="active-layout">
+            <div id="activeCaseContent" class="case-stack"></div>
+            <article class="evidence-panel">
+              <div class="panel-head"><div><span class="eyebrow">CURRENT MATCH</span><h3 id="activeMatchTitle">WAITING FOR DEADLOCK</h3></div><span id="activeSession" class="outline-badge">NO SESSION</span></div>
+              <div class="evidence-grid">
+                <div><span data-i18n="kills">KILLS</span><strong id="statKills">—</strong></div><div><span data-i18n="deaths">DEATHS</span><strong id="statDeaths">—</strong></div>
+                <div><span data-i18n="assists">ASSISTS</span><strong id="statAssists">—</strong></div><div><span data-i18n="healing">HEALING</span><strong id="statHealing">—</strong></div>
+                <div><span data-i18n="heroDamage">HERO DAMAGE</span><strong id="statHeroDamage">—</strong></div><div><span data-i18n="objectDamage">OBJECT DAMAGE</span><strong id="statObjectDamage">—</strong></div>
+                <div><span data-i18n="souls">SOULS</span><strong id="statSouls">—</strong></div><div><span data-i18n="matchClock">MATCH CLOCK</span><strong id="statClock">—</strong></div>
+              </div>
+              <div class="authority-note"><b data-i18n="serverVerdict">SERVER VERDICT ONLY</b><span data-i18n="authorityCopy">The Companion records evidence but cannot complete a contract or grant XP.</span></div>
+            </article>
+          </div>
+        </section>
+
+        <section id="view-debrief" class="view" data-view="debrief">
+          <div class="page-head"><div><span class="eyebrow">POST-MATCH / SERVER VERDICT</span><h1 data-i18n="debrief">DEBRIEF</h1><p data-i18n="debriefBody">The latest server-evaluated match, XP ledger result and current adaptive baseline.</p></div><span id="debriefStatus" class="outline-badge">NO RESULT</span></div>
+          <div id="debriefContent" class="debrief-layout" aria-live="polite"></div>
+        </section>
+
+        <section id="view-history" class="view" data-view="history">
+          <div class="page-head"><div><span class="eyebrow">CASE ARCHIVE / SERVER LEDGER</span><h1 data-i18n="history">HISTORY</h1><p data-i18n="historyBody">Every locked assignment and its authoritative settlement record.</p></div><span id="historyTotal" class="outline-badge">0 RECORDS</span></div>
+          <div class="history-filters"><button class="active" type="button" data-history-filter="ALL">ALL</button><button type="button" data-history-filter="ACTIVE">ACTIVE</button><button type="button" data-history-filter="COMPLETED">COMPLETED</button><button type="button" data-history-filter="FAILED">FAILED</button></div>
+          <div id="historyList" class="history-list" aria-live="polite"></div>
+        </section>
+
+        <section id="view-profile" class="view" data-view="profile">
+          <div class="page-head"><div><span class="eyebrow">OPERATIVE RECORD / SERVER VERIFIED</span><h1 data-i18n="profile">PROFILE</h1><p data-i18n="profileBody">Identity, progression and performance by operation.</p></div><span id="profileLevelBadge" class="outline-badge">LEVEL —</span></div>
+          <div class="profile-grid">
+            <article class="profile-card identity-card"><img src="assets/curator-contract.jpg" alt=""><div><span data-i18n="account">ACCOUNT</span><h2 id="profileName">UNPAIRED OPERATIVE</h2><p id="profileSteam">Steam ID —</p><div id="profileBadges" class="badge-row"></div></div></article>
+            <article class="metric-card"><span>TOTAL XP</span><strong id="profileXp">—</strong><small id="profileXpNext">Server ledger</small></article>
+            <article class="metric-card"><span>COMPLETED</span><strong id="profileCompleted">—</strong><small id="profileReview">0 under review</small></article>
+            <article class="metric-card"><span>SUCCESS RATE</span><strong id="profileSuccess">—</strong><small id="profileFailed">0 failed</small></article>
+          </div>
+          <div id="profileProgress" class="level-progress"></div>
+          <div id="modeStats" class="mode-stat-grid"></div>
+          <div class="subsection-head"><span class="eyebrow" data-i18n="personalIntel">PERSONAL INTEL</span><p data-i18n="adaptiveBody">Server-built baseline from your verified recent matches. It changes only after final scored matches.</p></div>
+          <div id="adaptiveProfiles" class="adaptive-profile-grid"></div>
+        </section>
+
+        <section id="view-settings" class="view" data-view="settings">
+          <div class="page-head"><div><span class="eyebrow">SYSTEM / CONTROL</span><h1 data-i18n="settings">SETTINGS</h1><p data-i18n="settingsSecurity">No database credentials, master keys or settlement authority live in this package.</p></div></div>
+          <div class="settings-grid">
+            <article class="settings-card wide">
+              <div class="settings-head"><div><span class="eyebrow" data-i18n="pairTitle">CONNECT DEADLOCK CONTRACTS</span><h3 id="pairAccount">NOT PAIRED</h3></div><span id="pairBadge" class="outline-badge">NOT PAIRED</span></div>
+              <p data-i18n="pairBody">Create a short-lived code on the official site, then enter it here. The code is exchanged once; the resulting token is encrypted for the current Windows user.</p>
+              <div class="pair-row"><label class="sr-only" for="pairCode">Pairing code</label><input id="pairCode" type="text" inputmode="text" autocomplete="off" spellcheck="false" maxlength="12" placeholder="ABCD-EFGH"><button id="pairBtn" class="primary-btn" type="button" data-i18n="connect">CONNECT</button><button id="pairSiteBtn" class="secondary-btn" type="button" data-i18n="openWebsite">OPEN PAIRING PAGE</button></div>
+              <small id="pairMessage" data-i18n="pairHelp">Generate a short-lived code on the official site, then enter it here.</small>
+              <div class="settings-actions"><button id="disconnectBtn" class="text-btn danger-text" type="button" data-i18n="disconnect">DISCONNECT</button><button id="syncBtn" class="text-btn" type="button" data-i18n="syncNow">SYNC NOW</button></div>
+            </article>
+            <article class="settings-card"><span class="eyebrow" data-i18n="language">LANGUAGE</span><h3>AUTO / EN / RU</h3><p data-i18n="languageBody">Use the system language or keep a manual choice.</p><div class="language-switch settings-language"><button type="button" data-language="auto">AUTO</button><button type="button" data-language="en">EN</button><button type="button" data-language="ru">RU</button></div></article>
+            <article class="settings-card"><span class="eyebrow" data-i18n="overlay">OVERLAY</span><h3 id="hotkeyBinding">CTRL + SHIFT + C</h3><p data-i18n="overlayBody">A minimal click-through case widget. You can resize or reset it here.</p><div class="overlay-presets"><button type="button" data-overlay-scale="compact">S</button><button type="button" data-overlay-scale="regular">M</button><button type="button" data-overlay-scale="large">L</button></div><div class="settings-actions"><button id="overlayBtn" class="secondary-btn" type="button" data-i18n="showOverlay">SHOW / HIDE</button><button id="overlayResetBtn" class="text-btn" type="button" data-i18n="resetPosition">RESET POSITION</button><button id="hotkeyBtn" class="text-btn" type="button" data-i18n="hotkeySettings">HOTKEY</button></div></article>
+            <article class="settings-card"><span class="eyebrow" data-i18n="diagnostics">DIAGNOSTICS</span><h3 id="diagState">BACKGROUND READY</h3><p id="diagCopy">Diagnostics never include bearer tokens.</p><div class="settings-actions"><button id="reportBtn" class="secondary-btn" type="button" data-i18n="copyReport">COPY REPORT</button></div></article>
+            <article class="settings-card"><span class="eyebrow">APP UPDATE</span><h3 id="updateState">NOT CHECKED</h3><p data-i18n="updateBody">Release updates are delivered by Overwolf.</p><div class="settings-actions"><button id="updateBtn" class="secondary-btn" type="button" data-i18n="checkUpdate">CHECK UPDATE</button><button id="exitBtn" class="danger-btn" type="button" data-i18n="exitApp">EXIT APP</button></div></article>
+          </div>
+        </section>
+      </main>
+    </div>
+  </div>
+
+  <div id="ftue" class="ftue-backdrop" hidden>
+    <section class="ftue-card" role="dialog" aria-modal="true" aria-labelledby="ftueTitle">
+      <div class="ftue-copy"><span class="eyebrow" data-i18n="ftueEyebrow">WELCOME TO THE CONTRACT BUREAU</span><h1 id="ftueTitle" data-i18n="ftueTitle">YOUR NEXT MATCH HAS A FILE NUMBER</h1><p data-i18n="ftueBody">Pick one to three contracts, play the matching Deadlock mode, and wait for the server verdict. Live numbers are guidance, never a self-issued reward.</p><div class="ftue-points"><span><b>01</b><em data-i18n="ftueOne">Pair your website account</em></span><span><b>02</b><em data-i18n="ftueTwo">Lock a daily case before the match</em></span><span><b>03</b><em><span data-i18n="ftueThreePrefix">Toggle the overlay with</span> <strong id="ftueHotkey">Ctrl + Shift + C</strong></em></span></div><div class="ftue-actions"><button id="ftueContinue" class="primary-btn" type="button" data-i18n="continue">ENTER HQ</button><button id="ftuePair" class="secondary-btn" type="button" data-i18n="pairNow">PAIR ACCOUNT</button></div><small data-i18n="ftuePrivacy">Only your own game telemetry is collected for contract verification.</small></div>
+      <div class="ftue-art"><img src="assets/curator-contract.jpg" alt="Deadlock Contracts Curator"><div class="ftue-seal">PLAY<br>COMPLETE<br>EARN</div></div>
+    </section>
+  </div>
+
+  <div id="confirmModal" class="modal-backdrop" hidden>
+    <section class="modal-card" role="dialog" aria-modal="true" aria-labelledby="modalTitle"><span class="eyebrow">AUTHORITATIVE ACTION</span><h2 id="modalTitle">CONFIRM</h2><div id="modalBody"></div><div class="modal-actions"><button id="modalCancel" class="secondary-btn" type="button">CANCEL</button><button id="modalConfirm" class="primary-btn" type="button">CONFIRM</button></div></section>
+  </div>
+  <div id="toastRegion" class="toast-region" aria-live="polite" aria-atomic="true"></div>
+
+  <script src="src/shared.js"></script>
+  <script src="src/product.js"></script>
+  <script src="src/desktop.js"></script>
+</body>
+</html>

@@ -1,0 +1,125 @@
+{
+  "manifest_version": 1,
+  "type": "WebApp",
+  "meta": {
+    "name": "Deadlock Contracts Companion",
+    "author": "Deadlock Contracts",
+    "author_display": "Mandarin Creator Group (M.C.G.)",
+    "version": "0.5.2.3",
+    "minimum-overwolf-version": "0.305.0.9",
+    "minimum-gep-version": "311.0.0",
+    "description": "Choose daily Deadlock contracts, follow provisional live progress, and receive authoritative post-match verdicts, XP and history.",
+    "dock_button_title": "Deadlock Contracts",
+    "icon": "assets/icon.png",
+    "icon_gray": "assets/icon_gray.png",
+    "launcher_icon": "assets/launcher_icon.ico",
+    "window_icon": "assets/window_icon.png",
+    "splash_image": "assets/icon.png"
+  },
+  "permissions": [
+    "Extensions",
+    "GameInfo",
+    "Hotkeys"
+  ],
+  "max_rotation_log_files": 20,
+  "data": {
+    "game_targeting": {
+      "type": "dedicated",
+      "game_ids": [
+        24482
+      ]
+    },
+    "game_events": [
+      24482
+    ],
+    "hotkeys": {
+      "toggle_contract_overlay": {
+        "title": "Show / Hide Contract Overlay",
+        "action-type": "custom",
+        "default": "Ctrl+Shift+C",
+        "passthrough": true
+      }
+    },
+    "launch_events": [
+      {
+        "event": "GameLaunch",
+        "event_data": {
+          "game_ids": [
+            24482
+          ]
+        },
+        "start_minimized": true
+      }
+    ],
+    "start_window": "background",
+    "windows": {
+      "background": {
+        "file": "background.html",
+        "is_background_page": true
+      },
+      "desktop": {
+        "file": "index.html",
+        "size": {
+          "width": 1200,
+          "height": 700
+        },
+        "min_size": {
+          "width": 900,
+          "height": 620
+        },
+        "max_size": {
+          "width": 1600,
+          "height": 960
+        },
+        "resizable": true,
+        "show_in_taskbar": true,
+        "transparent": true,
+        "desktop_only": true,
+        "native_window": true,
+        "use_os_windowing": true,
+        "grab_focus_on_desktop": false,
+        "block_top_window_navigation": true,
+        "popup_blocker": true,
+        "mute": true,
+        "enable_top_isolation": true,
+        "disable_rightclick": true
+      },
+      "overlay": {
+        "file": "overlay.html",
+        "size": {
+          "width": 420,
+          "height": 320
+        },
+        "min_size": {
+          "width": 420,
+          "height": 320
+        },
+        "max_size": {
+          "width": 540,
+          "height": 360
+        },
+        "start_position": {
+          "top": 72,
+          "left": 72
+        },
+        "resizable": true,
+        "show_in_taskbar": false,
+        "transparent": true,
+        "in_game_only": true,
+        "clickthrough": false,
+        "ignore_keyboard_events": true,
+        "grab_keyboard_focus": false,
+        "restrict_to_game_bounds": true,
+        "keep_window_location": true,
+        "block_top_window_navigation": true,
+        "popup_blocker": true,
+        "mute": true,
+        "enable_top_isolation": true,
+        "disable_rightclick": true,
+        "style": "inputPassThrough"
+      }
+    },
+    "auto_relaunch_on_crash": true,
+    "process_name": "Deadlock Contracts"
+  }
+}
