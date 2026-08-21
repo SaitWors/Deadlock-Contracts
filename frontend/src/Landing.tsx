@@ -7,7 +7,10 @@ type GameMode = "STANDARD" | "RANKED" | "STREET BRAWL"
 type LeaderScope = "all_time" | "today" | "rare" | "mastery"
 type PublicPage = "home" | "contracts" | "how" | "campaigns" | "leaderboards"
 
-const NAV_ITEMS: Array<{ id: Exclude<PublicPage, "home"> label: string }> = [
+const NAV_ITEMS: Array<{
+  id: Exclude<PublicPage, "home">
+  label: string
+}> = [
   { id: "contracts", label: "CONTRACTS" },
   { id: "how", label: "HOW IT WORKS" },
   { id: "campaigns", label: "CAMPAIGNS · SOON" },
@@ -29,7 +32,10 @@ interface LeaderboardPayload {
   scope: LeaderScope
   generated_at: string
   reset_at: string | null
-  scoring: { label: string description: string }
+  scoring: {
+    label: string
+    description: string
+  }
   eligibility: string
   rows: LeaderboardRow[]
 }
@@ -333,7 +339,10 @@ function ScrambleText({
   className = "",
   style = {},
 }: {
-  lines: { text: string accent?: boolean }[]
+  lines: Array<{
+    text: string
+    accent?: boolean
+  }>
   className?: string
   style?: React.CSSProperties
 }) {

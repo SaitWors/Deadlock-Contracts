@@ -150,7 +150,11 @@ type ReviewMine = {
   id: string
   board_id: string
   status: string
-  reasons: Array<{ option_id: string title: string reason: string }>
+  reasons: Array<{
+    option_id: string
+    title: string
+    reason: string
+  }>
   context: Record<string, unknown>
   created_at: string
   reviewed_at: string | null
@@ -159,7 +163,10 @@ type ReviewMine = {
 type AdminReview = ReviewMine & {
   mode: Mode
   match_id: number | null
-  player: { display_name: string account_id: number | null }
+  player: {
+    display_name: string
+    account_id: number | null
+  }
   match_summary: {
     provider: string | null
     duration_s: number | null
@@ -434,7 +441,11 @@ type AdminMatchDetail = {
 }
 type AdminBoardRow = {
   board: AdminBoard
-  user: { id: string display_name: string steam_id64: string }
+  user: {
+    id: string
+    display_name: string
+    steam_id64: string
+  }
 }
 type AdminBoardDetail = {
   board: AdminBoard
@@ -452,7 +463,11 @@ type AdminBoardDetail = {
 type AdminCompanion = {
   id: string
   device_id: string
-  user: { id: string display_name: string steam_id64: string }
+  user: {
+    id: string
+    display_name: string
+    steam_id64: string
+  }
   status: CompanionDeviceStatus
   created_at: string | null
   revoked_at: string | null
@@ -487,14 +502,22 @@ type AdminMission = {
 type AdminGeneratorPreview = {
   mode: Mode
   generator_version?: string
-  boards: Array<{ seed: string fingerprint: string contracts: AdminMission[] }>
+  boards: Array<{
+    seed: string
+    fingerprint: string
+    contracts: AdminMission[]
+  }>
   stats: {
     templates_available: number
     metrics_available?: number
     boards_generated: number
     unique_boards: number
     duplicate_boards: number
-    contract_frequency: Array<{ key: string count: number slot_pct: number }>
+    contract_frequency: Array<{
+      key: string
+      count: number
+      slot_pct: number
+    }>
     categories: Record<string, number>
     rarities: Record<string, number>
     difficulties: Record<string, number>
@@ -527,7 +550,11 @@ type CompanionDeviceStatus = {
   label?: string
 }
 type CompanionStatus = { device: CompanionDeviceStatus }
-type CompanionPairing = { code: string expires_at: string server_url: string }
+type CompanionPairing = {
+  code: string
+  expires_at: string
+  server_url: string
+}
 type Tab = "home" | "quests" | "active" | "history" | "profile" | "admin"
 type QuestFilter = "ALL" | "COMBAT" | "SUPPORT" | "ECONOMY" | "SURVIVAL"
 
@@ -2905,7 +2932,10 @@ function AdminConsole({
             sort: userSort,
             limit: "100",
           })
-          const data = await api<{ items: AdminUserSummary[] total: number }>(
+          const data = await api<{
+            items: AdminUserSummary[]
+            total: number
+          }>(
             `/api/admin/users?${params}`,
             csrf,
           )
@@ -2942,7 +2972,10 @@ function AdminConsole({
             query: auditQuery,
             limit: "200",
           })
-          const data = await api<{ items: AdminAudit[] total: number }>(
+          const data = await api<{
+            items: AdminAudit[]
+            total: number
+          }>(
             `/api/admin/audit?${params}`,
             csrf,
           )
@@ -3293,7 +3326,10 @@ function AdminConsole({
       return
     setBusy(true)
     try {
-      const result = await api<{ already_queued: boolean match_id: number }>(
+      const result = await api<{
+        already_queued: boolean
+        match_id: number
+      }>(
         `/api/admin/boards/${boardId}/retry-verification`,
         csrf,
         { method: "POST" },
