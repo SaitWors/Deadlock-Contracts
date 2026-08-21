@@ -74,10 +74,28 @@ def test_failed_alpha3_motion_helper_is_not_part_of_runtime() -> None:
 
 
 def test_public_navigation_and_verified_leaderboard_are_restored() -> None:
-    assert "{ id: 'campaigns', label: 'CAMPAIGNS · SOON' }" in LANDING
-    assert "{ id: 'leaderboards', label: 'LEADERBOARD' }" in LANDING
-    assert "fetch(`/api/public/leaderboard?scope=${leaderScope}&limit=50`" in LANDING
+    normalized_landing = " ".join(
+        LANDING.replace('"', "'").split()
+    )
+
+    assert (
+        "{ id: 'campaigns', label: 'CAMPAIGNS · SOON' }"
+        in normalized_landing
+    )
+    assert (
+        "{ id: 'leaderboards', label: 'LEADERBOARD' }"
+        in normalized_landing
+    )
+
+    assert (
+        "fetch(`/api/public/leaderboard?scope=${leaderScope}&limit=50`"
+        in LANDING
+    )
     assert '@app.get("/api/public/leaderboard")' in MAIN
-    leaderboard_service = (ROOT / "app/services/leaderboard.py").read_text(encoding="utf-8")
-    assert 'TRUSTED_REWARD_SOURCES' in leaderboard_service
-    assert 'ADMIN_ADJUSTMENT' not in leaderboard_service
+
+    leaderboard_service = (
+        ROOT / "app/services/leaderboard.py"
+    ).read_text(encoding="utf-8")
+
+    assert "TRUSTED_REWARD_SOURCES" in leaderboard_service
+    assert "ADMIN_ADJUSTMENT" not in leaderboard_service
