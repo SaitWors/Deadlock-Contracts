@@ -1,0 +1,17 @@
+Deadlock Contracts Companion manifest validation status
+Date: 2026-08-19
+
+Manifest: manifest.json
+Official documentation: Overwolf "Validate your manifest.json"
+Official schema URL referenced there:
+https://raw.githubusercontent.com/overwolf/community-gists/master/overwolf-manifest-schema.json
+
+Status for this sandbox:
+- manifest JSON parse: PASS
+- project static manifest requirements: PASS
+- permissions/window/targeting/icon structural checks: PASS
+- current official schema reviewed via web research: PASS (documentation review)
+- fresh automated schema download + AJV validation in this sandbox: NOT EXECUTED because outbound DNS from the build container was blocked.
+
+Release rule:
+Do NOT call the current-schema validator PASS solely from this file. Before Overwolf submit, run the official schema validation again on a networked machine/CI using the current schema URL, then keep the validator output with the release evidence.

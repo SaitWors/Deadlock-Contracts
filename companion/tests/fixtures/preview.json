@@ -1,0 +1,1198 @@
+{
+  "version": "0.5.2-alpha.3",
+  "paired": true,
+  "account": {
+    "display_name": "QA OPERATIVE",
+    "steam_id64": "76561199000000000"
+  },
+  "game_running": true,
+  "steam_id64": "76561199000000000",
+  "identity_ok": true,
+  "phase": "GameInProgress",
+  "phase_display": "MATCH IN PROGRESS",
+  "mode_display": "STREET BRAWL",
+  "match_id": 42424242,
+  "session": {
+    "id": "qa-session-42424242",
+    "started_at": "2026-08-18T18:30:00Z"
+  },
+  "evidence": {
+    "kills": 8,
+    "deaths": 3,
+    "assists": 11,
+    "healing": 5200,
+    "hero_damage": 21580,
+    "object_damage": 3100,
+    "souls": 18740
+  },
+  "match_clock_s": 612,
+  "queue_count": 0,
+  "last_upload_status": "OK",
+  "last_synced_at": "2026-08-18T18:40:12Z",
+  "gep_version": "311.0.0",
+  "gep_public_version": "311.0.0",
+  "gep_updated": true,
+  "features": [
+    "gep_internal",
+    "game_info",
+    "match_info"
+  ],
+  "overlay_scale": "compact",
+  "product": {
+    "cache_version": 2,
+    "api_version": "desktop.v1",
+    "schema_version": 1,
+    "status": "ONLINE",
+    "stale": false,
+    "server_time": "2026-08-18T18:40:14Z",
+    "loaded_at": "2026-08-18T18:40:14Z",
+    "account": {
+      "id": "qa-user",
+      "display_name": "QA OPERATIVE",
+      "steam_id64": "76561199000000000",
+      "xp": 1840,
+      "access_role": "TESTER",
+      "badges": [
+        "EARLY_TESTER",
+        "TESTER"
+      ]
+    },
+    "device": {
+      "label": "Deadlock Contracts Desktop",
+      "version": "0.5.2-alpha.3"
+    },
+    "refresh": {
+      "free_per_day": 1,
+      "used": 0,
+      "remaining": 1,
+      "last_mode": null,
+      "reset_at": "2026-08-19T03:00:00Z",
+      "reset_hour_msk": 6
+    },
+    "boards": [
+      {
+        "id": "10000000-0000-4000-8000-000000000001",
+        "date": "2026-08-18",
+        "status": "OFFERED",
+        "game_match_mode": "STANDARD",
+        "generation": 0,
+        "generator_version": "contracts-3.0.0-alpha.1",
+        "attempts_used": 0,
+        "max_attempts": 3,
+        "attempts_remaining": 3,
+        "offered_at": "2026-08-18T03:00:00Z",
+        "locked_at": null,
+        "expires_at": "2026-08-19T03:00:00Z",
+        "daily_reset_at": "2026-08-19T03:00:00Z",
+        "options": [
+          {
+            "id": "11000000-0000-4000-8000-000000000001",
+            "title": "Красная папка",
+            "description": "В следующем обычном матче: сделайте не менее 10 киллов.",
+            "metric": "player.kills",
+            "operator": "gte",
+            "target": 10,
+            "reward_xp": 105,
+            "difficulty": "FOCUSED",
+            "rarity": "UNCOMMON",
+            "category": "COMBAT",
+            "conditions": [
+              {
+                "metric": "player.kills",
+                "operator": "gte",
+                "target": 10,
+                "capabilities": [
+                  "summary.kills"
+                ]
+              }
+            ],
+            "selected": false,
+            "status": "OFFERED",
+            "generator_meta": {
+              "adaptive": {
+                "enabled": true,
+                "kind": "CONSISTENCY",
+                "sample_size": 12,
+                "confidence": "MEDIUM",
+                "basis": [
+                  {
+                    "metric": "player.kills",
+                    "median": 7,
+                    "p60": 8,
+                    "p75": 10,
+                    "target": 10,
+                    "source": "p60"
+                  }
+                ]
+              }
+            }
+          },
+          {
+            "id": "11000000-0000-4000-8000-000000000002",
+            "title": "Согласованные показания",
+            "description": "В следующем обычном матче: сделайте не менее 15 ассистов и восстановите союзникам не менее 7 500 здоровья.",
+            "metric": "player.assists",
+            "operator": "gte",
+            "target": 15,
+            "reward_xp": 215,
+            "difficulty": "HARD",
+            "rarity": "RARE",
+            "category": "SUPPORT",
+            "conditions": [
+              {
+                "metric": "player.assists",
+                "operator": "gte",
+                "target": 15,
+                "capabilities": [
+                  "summary.assists"
+                ]
+              },
+              {
+                "metric": "player.healing",
+                "operator": "gte",
+                "target": 7500,
+                "capabilities": [
+                  "summary.healing"
+                ]
+              }
+            ],
+            "selected": false,
+            "status": "OFFERED",
+            "generator_meta": {
+              "adaptive": {
+                "enabled": true,
+                "kind": "CHALLENGE",
+                "sample_size": 12,
+                "confidence": "MEDIUM",
+                "basis": [
+                  {
+                    "metric": "player.assists",
+                    "median": 11,
+                    "p60": 12,
+                    "p75": 14,
+                    "target": 15,
+                    "source": "p75"
+                  }
+                ]
+              }
+            }
+          },
+          {
+            "id": "11000000-0000-4000-8000-000000000003",
+            "title": "Безупречное алиби",
+            "description": "В следующем обычном матче: умрите не более 6 раз.",
+            "metric": "player.deaths",
+            "operator": "lte",
+            "target": 6,
+            "reward_xp": 90,
+            "difficulty": "LIGHT",
+            "rarity": "COMMON",
+            "category": "SURVIVAL",
+            "conditions": [
+              {
+                "metric": "player.deaths",
+                "operator": "lte",
+                "target": 6,
+                "capabilities": [
+                  "summary.deaths"
+                ]
+              }
+            ],
+            "selected": false,
+            "status": "OFFERED",
+            "generator_meta": {
+              "adaptive": {
+                "enabled": true,
+                "kind": "CONSISTENCY",
+                "sample_size": 12,
+                "confidence": "MEDIUM",
+                "basis": [
+                  {
+                    "metric": "player.deaths",
+                    "median": 6,
+                    "p60": 6,
+                    "p75": 8,
+                    "target": 6,
+                    "source": "p60"
+                  }
+                ]
+              }
+            }
+          },
+          {
+            "id": "11000000-0000-4000-8000-000000000004",
+            "title": "Последний довод",
+            "description": "В следующем обычном матче: нанесите героям не менее 35 000 урона.",
+            "metric": "player.hero_damage",
+            "operator": "gte",
+            "target": 35000,
+            "reward_xp": 155,
+            "difficulty": "HARD",
+            "rarity": "UNCOMMON",
+            "category": "COMBAT",
+            "conditions": [
+              {
+                "metric": "player.hero_damage",
+                "operator": "gte",
+                "target": 35000,
+                "capabilities": [
+                  "summary.hero_damage"
+                ]
+              }
+            ],
+            "selected": false,
+            "status": "OFFERED",
+            "generator_meta": {
+              "adaptive": {
+                "enabled": true,
+                "kind": "CHALLENGE",
+                "sample_size": 12,
+                "confidence": "MEDIUM",
+                "basis": [
+                  {
+                    "metric": "player.hero_damage",
+                    "median": 25500,
+                    "p60": 27300,
+                    "p75": 31000,
+                    "target": 35000,
+                    "source": "p75"
+                  }
+                ]
+              }
+            }
+          },
+          {
+            "id": "11000000-0000-4000-8000-000000000005",
+            "title": "Полный расчёт / связанное дело",
+            "description": "В следующем обычном матче: завершите матч с ценностью не менее 32 000 душ и победите.",
+            "metric": "player.net_worth.final",
+            "operator": "gte",
+            "target": 32000,
+            "reward_xp": 240,
+            "difficulty": "HARD",
+            "rarity": "RARE",
+            "category": "ECONOMY",
+            "conditions": [
+              {
+                "metric": "player.net_worth.final",
+                "operator": "gte",
+                "target": 32000,
+                "capabilities": [
+                  "summary.net_worth"
+                ]
+              },
+              {
+                "metric": "match.win",
+                "operator": "eq",
+                "target": 1,
+                "capabilities": [
+                  "summary.win"
+                ]
+              }
+            ],
+            "selected": false,
+            "status": "OFFERED",
+            "generator_meta": {
+              "adaptive": {
+                "enabled": false,
+                "kind": "WILDCARD",
+                "sample_size": 12,
+                "confidence": "MEDIUM",
+                "basis": []
+              }
+            }
+          },
+          {
+            "id": "11000000-0000-4000-8000-000000000006",
+            "title": "Оперативная отметка",
+            "description": "В следующем обычном матче: достигните KDA не ниже 2,8.",
+            "metric": "player.kda",
+            "operator": "gte",
+            "target": 2.8,
+            "reward_xp": 125,
+            "difficulty": "FOCUSED",
+            "rarity": "UNCOMMON",
+            "category": "COMBAT",
+            "conditions": [
+              {
+                "metric": "player.kda",
+                "operator": "gte",
+                "target": 2.8,
+                "capabilities": [
+                  "summary.kda"
+                ]
+              }
+            ],
+            "selected": false,
+            "status": "OFFERED",
+            "generator_meta": {
+              "adaptive": {
+                "enabled": false,
+                "kind": "WILDCARD",
+                "sample_size": 12,
+                "confidence": "MEDIUM",
+                "basis": []
+              }
+            }
+          }
+        ]
+      },
+      {
+        "id": "20000000-0000-4000-8000-000000000001",
+        "date": "2026-08-18",
+        "status": "OFFERED",
+        "game_match_mode": "RANKED",
+        "generation": 0,
+        "generator_version": "contracts-3.0.0-alpha.1",
+        "attempts_used": 0,
+        "max_attempts": 3,
+        "attempts_remaining": 3,
+        "offered_at": "2026-08-18T03:00:00Z",
+        "locked_at": null,
+        "expires_at": "2026-08-19T03:00:00Z",
+        "daily_reset_at": "2026-08-19T03:00:00Z",
+        "options": [
+          {
+            "id": "22000000-0000-4000-8000-000000000001",
+            "title": "Рейтинговый капитал",
+            "description": "В следующем рейтинговом матче: завершите матч с ценностью не менее 37 000 душ.",
+            "metric": "player.net_worth.final",
+            "operator": "gte",
+            "target": 37000,
+            "reward_xp": 165,
+            "difficulty": "FOCUSED",
+            "rarity": "UNCOMMON",
+            "category": "ECONOMY",
+            "conditions": [
+              {
+                "metric": "player.net_worth.final",
+                "operator": "gte",
+                "target": 37000
+              }
+            ],
+            "selected": false,
+            "status": "OFFERED",
+            "generator_meta": {
+              "adaptive": {
+                "enabled": false,
+                "kind": "WILDCARD",
+                "sample_size": 7,
+                "confidence": "LOW",
+                "basis": []
+              }
+            }
+          },
+          {
+            "id": "22000000-0000-4000-8000-000000000002",
+            "title": "Контрольный выстрел",
+            "description": "В следующем рейтинговом матче: сделайте не менее 13 киллов.",
+            "metric": "player.kills",
+            "operator": "gte",
+            "target": 13,
+            "reward_xp": 205,
+            "difficulty": "HARD",
+            "rarity": "RARE",
+            "category": "COMBAT",
+            "conditions": [
+              {
+                "metric": "player.kills",
+                "operator": "gte",
+                "target": 13
+              }
+            ],
+            "selected": false,
+            "status": "OFFERED",
+            "generator_meta": {
+              "adaptive": {
+                "enabled": true,
+                "kind": "CHALLENGE",
+                "sample_size": 7,
+                "confidence": "LOW",
+                "basis": [
+                  {
+                    "metric": "player.kills",
+                    "median": 8,
+                    "p60": 9,
+                    "p75": 11,
+                    "target": 13,
+                    "source": "p75"
+                  }
+                ]
+              }
+            }
+          },
+          {
+            "id": "22000000-0000-4000-8000-000000000003",
+            "title": "Надёжный партнёр",
+            "description": "В следующем рейтинговом матче: сделайте не менее 17 ассистов.",
+            "metric": "player.assists",
+            "operator": "gte",
+            "target": 17,
+            "reward_xp": 150,
+            "difficulty": "FOCUSED",
+            "rarity": "UNCOMMON",
+            "category": "SUPPORT",
+            "conditions": [
+              {
+                "metric": "player.assists",
+                "operator": "gte",
+                "target": 17
+              }
+            ],
+            "selected": false,
+            "status": "OFFERED",
+            "generator_meta": {
+              "adaptive": {
+                "enabled": true,
+                "kind": "CONSISTENCY",
+                "sample_size": 7,
+                "confidence": "LOW",
+                "basis": [
+                  {
+                    "metric": "player.assists",
+                    "median": 12,
+                    "p60": 13,
+                    "p75": 15,
+                    "target": 17,
+                    "source": "p60"
+                  }
+                ]
+              }
+            }
+          },
+          {
+            "id": "22000000-0000-4000-8000-000000000004",
+            "title": "Под контролем",
+            "description": "В следующем рейтинговом матче: умрите не более 5 раз и победите.",
+            "metric": "player.deaths",
+            "operator": "lte",
+            "target": 5,
+            "reward_xp": 265,
+            "difficulty": "HARD",
+            "rarity": "RARE",
+            "category": "SURVIVAL",
+            "conditions": [
+              {
+                "metric": "player.deaths",
+                "operator": "lte",
+                "target": 5
+              },
+              {
+                "metric": "match.win",
+                "operator": "eq",
+                "target": 1
+              }
+            ],
+            "selected": false,
+            "status": "OFFERED",
+            "generator_meta": {
+              "adaptive": {
+                "enabled": false,
+                "kind": "WILDCARD",
+                "sample_size": 7,
+                "confidence": "LOW",
+                "basis": []
+              }
+            }
+          },
+          {
+            "id": "22000000-0000-4000-8000-000000000005",
+            "title": "Аргумент без возражений",
+            "description": "В следующем рейтинговом матче: нанесите героям не менее 47 000 урона.",
+            "metric": "player.hero_damage",
+            "operator": "gte",
+            "target": 47000,
+            "reward_xp": 230,
+            "difficulty": "HARD",
+            "rarity": "RARE",
+            "category": "COMBAT",
+            "conditions": [
+              {
+                "metric": "player.hero_damage",
+                "operator": "gte",
+                "target": 47000
+              }
+            ],
+            "selected": false,
+            "status": "OFFERED",
+            "generator_meta": {
+              "adaptive": {
+                "enabled": true,
+                "kind": "CHALLENGE",
+                "sample_size": 7,
+                "confidence": "LOW",
+                "basis": [
+                  {
+                    "metric": "player.hero_damage",
+                    "median": 29200,
+                    "p60": 30600,
+                    "p75": 34100,
+                    "target": 47000,
+                    "source": "p75"
+                  }
+                ]
+              }
+            }
+          },
+          {
+            "id": "22000000-0000-4000-8000-000000000006",
+            "title": "Полевой нотариус / особый протокол",
+            "description": "В следующем рейтинговом матче: восстановите 10 500 здоровья, сделайте 20 ассистов и победите.",
+            "metric": "player.healing",
+            "operator": "gte",
+            "target": 10500,
+            "reward_xp": 410,
+            "difficulty": "EXTREME",
+            "rarity": "EPIC",
+            "category": "SUPPORT",
+            "conditions": [
+              {
+                "metric": "player.healing",
+                "operator": "gte",
+                "target": 10500
+              },
+              {
+                "metric": "player.assists",
+                "operator": "gte",
+                "target": 20
+              },
+              {
+                "metric": "match.win",
+                "operator": "eq",
+                "target": 1
+              }
+            ],
+            "selected": false,
+            "status": "OFFERED",
+            "generator_meta": {
+              "adaptive": {
+                "enabled": false,
+                "kind": "WILDCARD",
+                "sample_size": 7,
+                "confidence": "LOW",
+                "basis": []
+              }
+            }
+          }
+        ]
+      },
+      {
+        "id": "30000000-0000-4000-8000-000000000001",
+        "date": "2026-08-18",
+        "status": "LOCKED",
+        "game_match_mode": "STREET_BRAWL",
+        "generation": 0,
+        "generator_version": "contracts-3.0.0-alpha.1",
+        "attempts_used": 0,
+        "max_attempts": 3,
+        "attempts_remaining": 3,
+        "offered_at": "2026-08-18T03:00:00Z",
+        "locked_at": "2026-08-18T18:20:00Z",
+        "expires_at": "2026-08-19T03:00:00Z",
+        "daily_reset_at": "2026-08-19T03:00:00Z",
+        "options": [
+          {
+            "id": "33000000-0000-4000-8000-000000000001",
+            "title": "Полевой нотариус",
+            "description": "В следующей Уличной стычке: восстановите союзникам не менее 6 500 здоровья.",
+            "metric": "player.healing",
+            "operator": "gte",
+            "target": 6500,
+            "reward_xp": 145,
+            "difficulty": "HARD",
+            "rarity": "UNCOMMON",
+            "category": "SUPPORT",
+            "conditions": [
+              {
+                "metric": "player.healing",
+                "operator": "gte",
+                "target": 6500
+              }
+            ],
+            "selected": true,
+            "status": "LOCKED",
+            "generator_meta": {
+              "adaptive": {
+                "enabled": false,
+                "kind": "COLD_START",
+                "sample_size": 4,
+                "confidence": "COLD_START",
+                "basis": []
+              }
+            }
+          },
+          {
+            "id": "33000000-0000-4000-8000-000000000002",
+            "title": "Жёсткий протокол / связанное дело",
+            "description": "В следующей Уличной стычке: сделайте не менее 13 киллов и не более 4 смертей.",
+            "metric": "player.kills",
+            "operator": "gte",
+            "target": 13,
+            "reward_xp": 285,
+            "difficulty": "EXTREME",
+            "rarity": "EPIC",
+            "category": "COMBAT",
+            "conditions": [
+              {
+                "metric": "player.kills",
+                "operator": "gte",
+                "target": 13
+              },
+              {
+                "metric": "player.deaths",
+                "operator": "lte",
+                "target": 4
+              }
+            ],
+            "selected": true,
+            "status": "LOCKED",
+            "generator_meta": {
+              "adaptive": {
+                "enabled": false,
+                "kind": "COLD_START",
+                "sample_size": 4,
+                "confidence": "COLD_START",
+                "basis": []
+              }
+            }
+          },
+          {
+            "id": "33000000-0000-4000-8000-000000000003",
+            "title": "Связной",
+            "description": "В следующей Уличной стычке: сделайте не менее 11 ассистов.",
+            "metric": "player.assists",
+            "operator": "gte",
+            "target": 11,
+            "reward_xp": 95,
+            "difficulty": "FOCUSED",
+            "rarity": "COMMON",
+            "category": "SUPPORT",
+            "conditions": [
+              {
+                "metric": "player.assists",
+                "operator": "gte",
+                "target": 11
+              }
+            ],
+            "selected": false,
+            "status": "OFFERED",
+            "generator_meta": {
+              "adaptive": {
+                "enabled": false,
+                "kind": "COLD_START",
+                "sample_size": 4,
+                "confidence": "COLD_START",
+                "basis": []
+              }
+            }
+          },
+          {
+            "id": "33000000-0000-4000-8000-000000000004",
+            "title": "Тихий свидетель",
+            "description": "В следующей Уличной стычке: умрите не более 5 раз.",
+            "metric": "player.deaths",
+            "operator": "lte",
+            "target": 5,
+            "reward_xp": 80,
+            "difficulty": "LIGHT",
+            "rarity": "COMMON",
+            "category": "SURVIVAL",
+            "conditions": [
+              {
+                "metric": "player.deaths",
+                "operator": "lte",
+                "target": 5
+              }
+            ],
+            "selected": false,
+            "status": "OFFERED",
+            "generator_meta": {
+              "adaptive": {
+                "enabled": false,
+                "kind": "COLD_START",
+                "sample_size": 4,
+                "confidence": "COLD_START",
+                "basis": []
+              }
+            }
+          },
+          {
+            "id": "33000000-0000-4000-8000-000000000005",
+            "title": "Красная папка",
+            "description": "В следующей Уличной стычке: нанесите героям не менее 23 000 урона.",
+            "metric": "player.hero_damage",
+            "operator": "gte",
+            "target": 23000,
+            "reward_xp": 130,
+            "difficulty": "HARD",
+            "rarity": "UNCOMMON",
+            "category": "COMBAT",
+            "conditions": [
+              {
+                "metric": "player.hero_damage",
+                "operator": "gte",
+                "target": 23000
+              }
+            ],
+            "selected": false,
+            "status": "OFFERED",
+            "generator_meta": {
+              "adaptive": {
+                "enabled": false,
+                "kind": "COLD_START",
+                "sample_size": 4,
+                "confidence": "COLD_START",
+                "basis": []
+              }
+            }
+          },
+          {
+            "id": "33000000-0000-4000-8000-000000000006",
+            "title": "Общий интерес",
+            "description": "В следующей Уличной стычке: победите.",
+            "metric": "match.win",
+            "operator": "eq",
+            "target": 1,
+            "reward_xp": 70,
+            "difficulty": "LIGHT",
+            "rarity": "COMMON",
+            "category": "SUPPORT",
+            "conditions": [
+              {
+                "metric": "match.win",
+                "operator": "eq",
+                "target": 1
+              }
+            ],
+            "selected": false,
+            "status": "OFFERED",
+            "generator_meta": {
+              "adaptive": {
+                "enabled": false,
+                "kind": "COLD_START",
+                "sample_size": 4,
+                "confidence": "COLD_START",
+                "basis": []
+              }
+            }
+          }
+        ]
+      }
+    ],
+    "active_cases": [
+      {
+        "board_id": "30000000-0000-4000-8000-000000000001",
+        "game_match_mode": "STREET_BRAWL",
+        "status": "LOCKED",
+        "locked_at": "2026-08-18T18:20:00Z",
+        "expires_at": "2026-08-19T03:00:00Z",
+        "attempts_used": 0,
+        "max_attempts": 3,
+        "attempts_remaining": 3,
+        "options": [
+          {
+            "id": "33000000-0000-4000-8000-000000000001",
+            "title": "Полевой нотариус",
+            "description": "В следующей Уличной стычке: восстановите союзникам не менее 6 500 здоровья.",
+            "metric": "player.healing",
+            "operator": "gte",
+            "target": 6500,
+            "reward_xp": 145,
+            "difficulty": "HARD",
+            "rarity": "UNCOMMON",
+            "category": "SUPPORT",
+            "conditions": [
+              {
+                "metric": "player.healing",
+                "operator": "gte",
+                "target": 6500
+              }
+            ],
+            "selected": true,
+            "status": "LOCKED",
+            "generator_meta": {
+              "adaptive": {
+                "enabled": false,
+                "kind": "COLD_START",
+                "sample_size": 4,
+                "confidence": "COLD_START",
+                "basis": []
+              }
+            }
+          },
+          {
+            "id": "33000000-0000-4000-8000-000000000002",
+            "title": "Жёсткий протокол / связанное дело",
+            "description": "В следующей Уличной стычке: сделайте не менее 13 киллов и не более 4 смертей.",
+            "metric": "player.kills",
+            "operator": "gte",
+            "target": 13,
+            "reward_xp": 285,
+            "difficulty": "EXTREME",
+            "rarity": "EPIC",
+            "category": "COMBAT",
+            "conditions": [
+              {
+                "metric": "player.kills",
+                "operator": "gte",
+                "target": 13
+              },
+              {
+                "metric": "player.deaths",
+                "operator": "lte",
+                "target": 4
+              }
+            ],
+            "selected": true,
+            "status": "LOCKED",
+            "generator_meta": {
+              "adaptive": {
+                "enabled": false,
+                "kind": "COLD_START",
+                "sample_size": 4,
+                "confidence": "COLD_START",
+                "basis": []
+              }
+            }
+          }
+        ]
+      }
+    ],
+    "progression": {
+      "level": 8,
+      "total_xp": 1840,
+      "level_xp": 290,
+      "next_level_xp": 625,
+      "xp_to_next": 335,
+      "progress_pct": 46.4,
+      "contracts_completed": 17,
+      "contracts_failed": 4,
+      "review_pending": 1,
+      "mode_stats": {
+        "STANDARD": {
+          "completed": 8,
+          "failed": 1,
+          "attempted": 9,
+          "xp": 810
+        },
+        "RANKED": {
+          "completed": 5,
+          "failed": 2,
+          "attempted": 7,
+          "xp": 690
+        },
+        "STREET_BRAWL": {
+          "completed": 4,
+          "failed": 1,
+          "attempted": 5,
+          "xp": 340
+        }
+      },
+      "hardest_completed": {
+        "title": "Дело особой важности",
+        "difficulty": "EXTREME",
+        "reward_xp": 410
+      }
+    },
+    "history": [
+      {
+        "assignment_id": "debrief-kills",
+        "board_id": "debrief-board",
+        "game_match_mode": "STANDARD",
+        "board_status": "PARTIALLY_SETTLED",
+        "attempts_used": 1,
+        "max_attempts": 3,
+        "title": "Семь печатей",
+        "status": "COMPLETED",
+        "reward_xp": 70,
+        "reward_granted_xp": 70,
+        "reward_granted_at": "2026-08-18T20:31:10Z",
+        "difficulty": "LIGHT",
+        "rarity": "COMMON",
+        "progress_current": 15,
+        "progress_target": 5,
+        "explanation": "Условие подтверждено серверным evaluator.",
+        "match_id": "100246793",
+        "last_attempt_match_id": "100246793",
+        "match_started_at": "2026-08-18T19:55:00Z",
+        "match_ended_at": "2026-08-18T20:30:00Z",
+        "latest_evaluation": {
+          "id": "eval-kills",
+          "status": "COMPLETED",
+          "revision": 1,
+          "match_id": "100246793",
+          "match_started_at": "2026-08-18T19:55:00Z",
+          "match_ended_at": "2026-08-18T20:30:00Z",
+          "evidence_level": "HIGH",
+          "evaluator_version": "contracts-evaluator",
+          "progress_current": 15,
+          "progress_target": 5,
+          "score": 1,
+          "explanation": "15 / 5 — условие выполнено.",
+          "created_at": "2026-08-18T20:31:00Z"
+        },
+        "locked_at": "2026-08-18T19:50:00Z",
+        "settled_at": "2026-08-18T20:31:05Z"
+      },
+      {
+        "assignment_id": "debrief-damage",
+        "board_id": "debrief-board",
+        "game_match_mode": "STANDARD",
+        "board_status": "LOCKED",
+        "attempts_used": 1,
+        "max_attempts": 3,
+        "title": "Аргумент без возражений",
+        "status": "LOCKED",
+        "reward_xp": 120,
+        "reward_granted_xp": 0,
+        "difficulty": "FOCUSED",
+        "rarity": "UNCOMMON",
+        "progress_current": null,
+        "progress_target": 33000,
+        "explanation": null,
+        "match_id": null,
+        "last_attempt_match_id": "100246793",
+        "latest_evaluation": {
+          "id": "eval-damage",
+          "status": "FAILED",
+          "revision": 1,
+          "match_id": "100246793",
+          "match_started_at": "2026-08-18T19:55:00Z",
+          "match_ended_at": "2026-08-18T20:30:00Z",
+          "evidence_level": "HIGH",
+          "evaluator_version": "contracts-evaluator",
+          "progress_current": 28668,
+          "progress_target": 33000,
+          "score": 0,
+          "explanation": "28 668 / 33 000 — цель не достигнута; дело остаётся активным.",
+          "created_at": "2026-08-18T20:31:00Z"
+        },
+        "locked_at": "2026-08-18T19:50:00Z",
+        "settled_at": null
+      },
+      {
+        "assignment_id": "h1",
+        "board_id": "b1",
+        "game_match_mode": "STANDARD",
+        "board_status": "SETTLED",
+        "attempts_used": 1,
+        "max_attempts": 3,
+        "title": "Сеть контактов",
+        "status": "COMPLETED",
+        "reward_xp": 125,
+        "difficulty": "FOCUSED",
+        "rarity": "UNCOMMON",
+        "progress_current": 16,
+        "progress_target": 15,
+        "explanation": "Условие подтверждено итоговой статистикой матча.",
+        "match_id": "42199101",
+        "locked_at": "2026-08-18T08:10:00Z",
+        "settled_at": "2026-08-18T08:58:00Z"
+      },
+      {
+        "assignment_id": "h2",
+        "board_id": "b2",
+        "game_match_mode": "RANKED",
+        "board_status": "SETTLED",
+        "attempts_used": 2,
+        "max_attempts": 3,
+        "title": "Рейтинговый капитал",
+        "status": "COMPLETED",
+        "reward_xp": 165,
+        "difficulty": "FOCUSED",
+        "rarity": "UNCOMMON",
+        "progress_current": 39120,
+        "progress_target": 37000,
+        "explanation": "Финальная ценность подтверждена сервером.",
+        "match_id": "42188220",
+        "locked_at": "2026-08-17T19:12:00Z",
+        "settled_at": "2026-08-17T20:04:00Z"
+      },
+      {
+        "assignment_id": "h3",
+        "board_id": "b3",
+        "game_match_mode": "STANDARD",
+        "board_status": "SETTLED",
+        "attempts_used": 3,
+        "max_attempts": 3,
+        "title": "Безупречное алиби",
+        "status": "FAILED",
+        "reward_xp": 90,
+        "difficulty": "LIGHT",
+        "rarity": "COMMON",
+        "progress_current": 9,
+        "progress_target": 6,
+        "explanation": "Лимит смертей превышен после третьей попытки.",
+        "match_id": "42166319",
+        "locked_at": "2026-08-16T16:00:00Z",
+        "settled_at": "2026-08-16T19:15:00Z"
+      },
+      {
+        "assignment_id": "h4",
+        "board_id": "b4",
+        "game_match_mode": "STREET_BRAWL",
+        "board_status": "SETTLED",
+        "attempts_used": 1,
+        "max_attempts": 3,
+        "title": "Общий интерес",
+        "status": "COMPLETED",
+        "reward_xp": 70,
+        "difficulty": "LIGHT",
+        "rarity": "COMMON",
+        "progress_current": 1,
+        "progress_target": 1,
+        "explanation": "Победа подтверждена результатом матча.",
+        "match_id": "42150108",
+        "locked_at": "2026-08-15T12:40:00Z",
+        "settled_at": "2026-08-15T13:02:00Z"
+      },
+      {
+        "assignment_id": "h5",
+        "board_id": "30000000-0000-4000-8000-000000000001",
+        "game_match_mode": "STREET_BRAWL",
+        "board_status": "LOCKED",
+        "attempts_used": 0,
+        "max_attempts": 3,
+        "title": "Полевой нотариус",
+        "status": "LOCKED",
+        "reward_xp": 145,
+        "difficulty": "HARD",
+        "rarity": "UNCOMMON",
+        "progress_current": null,
+        "progress_target": 6500,
+        "explanation": null,
+        "match_id": null,
+        "locked_at": "2026-08-18T18:20:00Z",
+        "settled_at": null
+      }
+    ],
+    "last_error": null,
+    "adaptive_profiles": {
+      "STANDARD": {
+        "version": "adaptive-profile-1",
+        "mode": "STANDARD",
+        "sample_size": 12,
+        "confidence": "MEDIUM",
+        "metrics": {
+          "player.kills": {
+            "n": 12,
+            "median": 7,
+            "p25": 5,
+            "p60": 8,
+            "p75": 10,
+            "best": 16
+          },
+          "player.deaths": {
+            "n": 12,
+            "median": 6,
+            "p25": 4,
+            "p60": 6,
+            "p75": 8,
+            "best": 3
+          },
+          "player.assists": {
+            "n": 12,
+            "median": 11,
+            "p25": 8,
+            "p60": 12,
+            "p75": 14,
+            "best": 21
+          },
+          "player.hero_damage": {
+            "n": 12,
+            "median": 25500,
+            "p25": 21000,
+            "p60": 27300,
+            "p75": 31000,
+            "best": 44120
+          },
+          "player.object_damage": {
+            "n": 12,
+            "median": 5100,
+            "p25": 3400,
+            "p60": 5600,
+            "p75": 6900,
+            "best": 10800
+          },
+          "player.healing": {
+            "n": 12,
+            "median": 1800,
+            "p25": 900,
+            "p60": 2100,
+            "p75": 3500,
+            "best": 7200
+          }
+        }
+      },
+      "RANKED": {
+        "version": "adaptive-profile-1",
+        "mode": "RANKED",
+        "sample_size": 7,
+        "confidence": "LOW",
+        "metrics": {
+          "player.kills": {
+            "n": 7,
+            "median": 8,
+            "p25": 6,
+            "p60": 9,
+            "p75": 11,
+            "best": 15
+          },
+          "player.assists": {
+            "n": 7,
+            "median": 12,
+            "p25": 9,
+            "p60": 13,
+            "p75": 15,
+            "best": 20
+          },
+          "player.hero_damage": {
+            "n": 7,
+            "median": 29200,
+            "p25": 25100,
+            "p60": 30600,
+            "p75": 34100,
+            "best": 41800
+          }
+        }
+      },
+      "STREET_BRAWL": {
+        "version": "adaptive-profile-1",
+        "mode": "STREET_BRAWL",
+        "sample_size": 4,
+        "confidence": "COLD_START",
+        "metrics": {
+          "player.kills": {
+            "n": 4,
+            "median": 9,
+            "p25": 7,
+            "p60": 10,
+            "p75": 11,
+            "best": 13
+          },
+          "player.assists": {
+            "n": 4,
+            "median": 10,
+            "p25": 8,
+            "p60": 11,
+            "p75": 12,
+            "best": 14
+          },
+          "player.hero_damage": {
+            "n": 4,
+            "median": 20100,
+            "p25": 18000,
+            "p60": 21500,
+            "p75": 23000,
+            "best": 25100
+          }
+        }
+      }
+    },
+    "server_features": [
+      "adaptive_profiles_v1",
+      "debrief_v1"
+    ]
+  },
+  "hotkey_binding": "Ctrl+Shift+C"
+}

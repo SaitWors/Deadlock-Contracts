@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; base-uri 'none'; object-src 'none'; connect-src 'self'; img-src 'self' data:; style-src 'self'; font-src 'self'; script-src 'self'">
+  <title>Deadlock Contracts Overlay</title>
+  <link rel="stylesheet" href="styles/tokens.css">
+  <link rel="stylesheet" href="styles/overlay.css">
+</head>
+<body>
+  <div id="overlayHoverSensor" class="overlay-hover-sensor" aria-hidden="true"></div>
+  <main id="overlayShell" class="overlay-shell">
+    <header>
+      <div><img src="assets/mark.svg" alt=""><b>DEADLOCK CONTRACTS</b></div>
+      <span id="overlayState">○ STANDBY</span>
+    </header>
+    <section>
+      <div class="overlay-meta"><span id="overlayMode">WAITING FOR MATCH</span><b id="overlayAttempt">NO ACTIVE CASE</b></div>
+      <article id="overlayFocus" class="overlay-focus" hidden>
+        <div class="focus-kicker"><span id="overlayMetric">OBJECTIVE</span><em id="overlayXp">0 XP</em></div>
+        <div class="focus-title-row"><b id="overlayTitle">WAITING FOR ACTIVITY</b><span id="overlayPercent">0%</span></div>
+        <div class="focus-numbers"><strong id="overlayCurrent">0</strong><span id="overlayTarget">/ 0</span><i id="overlayHint">LIVE · PROVISIONAL</i></div>
+        <progress id="overlayProgress" class="focus-track" max="100" value="0"></progress>
+      </article>
+      <div id="overlayEmpty" class="overlay-empty">WAITING FOR MATCH</div>
+      <footer><span id="overlayFoot">SERVER VERDICT · LIVE VALUES PROVISIONAL</span><b id="overlayHotkey">CTRL+SHIFT+C</b></footer>
+    </section>
+  </main>
+  <script src="src/shared.js"></script>
+  <script src="src/product.js"></script>
+  <script src="src/overlay-focus.js"></script>
+  <script src="src/overlay.js"></script>
+</body>
+</html>
