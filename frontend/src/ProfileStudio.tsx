@@ -2,7 +2,15 @@ import { useEffect, useMemo, useState } from "react"
 import { contractTitle, localizeServerText, t, useLanguage } from "./i18n"
 
 type Mode = "STANDARD" | "RANKED" | "STREET_BRAWL"
-type BadgeId = "CREATOR" | "ADMIN" | "DEVELOPER" | "STREAMER" | "EARLY_TESTER" | "TESTER" | "CONTRIBUTOR" | "PLAYER"
+type BadgeId =
+  | "CREATOR"
+  | "ADMIN"
+  | "DEVELOPER"
+  | "STREAMER"
+  | "EARLY_TESTER"
+  | "TESTER"
+  | "CONTRIBUTOR"
+  | "PLAYER"
 type User = {
   display_name: string
   avatar_url: string | null
@@ -12,12 +20,15 @@ type User = {
 type Progression = {
   level: number
   contracts_completed: number
-  mode_stats: Record<Mode, {
-    completed: number
-    failed: number
-    attempted: number
-    xp: number
-  }>
+  mode_stats: Record<
+    Mode,
+    {
+      completed: number
+      failed: number
+      attempted: number
+      xp: number
+    }
+  >
 }
 type ShowcaseItem = {
   id: string
@@ -61,20 +72,19 @@ const MODE_NAME: Record<Mode, string> = {
   RANKED: "Ranked",
   STREET_BRAWL: "Street Brawl",
 }
-const THEME_LABEL: Record<PublicProfile["theme"], {
-  title: string
-  caption: string
-}> = {
+const THEME_LABEL: Record<
+  PublicProfile["theme"],
+  {
+    title: string
+    caption: string
+  }
+> = {
   DOSSIER: { title: "DOSSIER", caption: "Основной стиль" },
   NOIR: { title: "NOIR", caption: "Сдержанный архив" },
   SIGNAL: { title: "SIGNAL", caption: "Больше tech-акцента" },
 }
 
-async function request<T>(
-  url: string,
-  csrf: string,
-  init: RequestInit = {},
-): Promise<T> {
+async function request<T>(url: string, csrf: string, init: RequestInit = {}): Promise<T> {
   const headers = new Headers(init.headers)
   headers.set("Accept", "application/json")
   if (init.body) headers.set("Content-Type", "application/json")
@@ -85,17 +95,12 @@ async function request<T>(
     headers,
     credentials: "same-origin",
   })
-  const data = await response
-    .json()
-    .catch(() => ({ detail: `HTTP ${response.status}` }))
+  const data = await response.json().catch(() => ({ detail: `HTTP ${response.status}` }))
   if (!response.ok) throw new Error(data.detail || `HTTP ${response.status}`)
   return data as T
 }
 
-function emptyProfile(
-  slug: string,
-  defaults?: LoadPayload["defaults"],
-): PublicProfile {
+function emptyProfile(slug: string, defaults?: LoadPayload["defaults"]): PublicProfile {
   return {
     slug,
     headline: defaults?.headline || "Deadlock Contract Runner",
@@ -111,13 +116,7 @@ function emptyProfile(
   }
 }
 
-export default function ProfileStudio({
-  csrf,
-  user,
-  progression,
-  onNotice,
-  onError,
-}: Props) {
+export default function ProfileStudio({ csrf, user, progression, onNotice, onError }: Props) {
   const { language, locale } = useLanguage()
   const [profile, setProfile] = useState<PublicProfile | null>(null)
   const [draft, setDraft] = useState<PublicProfile | null>(null)
@@ -130,26 +129,18 @@ export default function ProfileStudio({
     request<LoadPayload>("/api/profile/public", csrf)
       .then((data) => {
         if (!alive) return
-        const value =
-          data.profile || emptyProfile(data.suggested_slug, data.defaults)
+        const value = data.profile || emptyProfile(data.suggested_slug, data.defaults)
         setProfile(value)
         setDraft(value)
       })
-      .catch(
-        (reason) =>
-          alive &&
-          onError(localizeServerText((reason as Error).message, language)),
-      )
+      .catch((reason) => alive && onError(localizeServerText((reason as Error).message, language)))
       .finally(() => alive && setLoading(false))
     return () => {
       alive = false
     }
   }, [csrf, onError, language])
 
-  const dirty = useMemo(
-    () => JSON.stringify(profile) !== JSON.stringify(draft),
-    [profile, draft],
-  )
+  const dirty = useMemo(() => JSON.stringify(profile) !== JSON.stringify(draft), [profile, draft])
   if (loading || !draft)
     return (
       <article className="dc-public-studio dc-system-card">
@@ -161,12 +152,9 @@ export default function ProfileStudio({
       </article>
     )
 
-  const patch = <K extends keyof PublicProfile,>(
-    key: K,
-    value: PublicProfile[K],
-  ) => setDraft((current) => (current ? { ...current, [key]: value } : current))
-  const patchLink = (key: string, value: string) =>
-    patch("links", { ...draft.links, [key]: value })
+  const patch = <K extends keyof PublicProfile>(key: K, value: PublicProfile[K]) =>
+    setDraft((current) => (current ? { ...current, [key]: value } : current))
+  const patchLink = (key: string, value: string) => patch("links", { ...draft.links, [key]: value })
   const save = async () => {
     setSaving(true)
     try {
@@ -185,11 +173,10 @@ export default function ProfileStudio({
             .filter(([, value]) => value),
         ),
       }
-      const data = await request<{ profile: PublicProfile }>(
-        "/api/profile/public",
-        csrf,
-        { method: "PUT", body: JSON.stringify(payload) },
-      )
+      const data = await request<{ profile: PublicProfile }>("/api/profile/public", csrf, {
+        method: "PUT",
+        body: JSON.stringify(payload),
+      })
       setProfile(data.profile)
       setDraft(data.profile)
       onNotice(
@@ -264,10 +251,7 @@ export default function ProfileStudio({
               value={draft.bio}
               maxLength={360}
               rows={4}
-              placeholder={t(
-                language,
-                "Пара строк о стиле игры, героях или целях",
-              )}
+              placeholder={t(language, "Пара строк о стиле игры, героях или целях")}
               onChange={(event) => patch("bio", event.target.value)}
             />
             <small>{draft.bio.length}/360</small>
@@ -276,30 +260,30 @@ export default function ProfileStudio({
           <div className="dc-profile-theme-picker">
             <span>THEME</span>
             <div>
-              {(Object.keys(THEME_LABEL) as PublicProfile["theme"][]).map(
-                (theme) => (
-                  <button
-                    type="button"
-                    key={theme}
-                    className={draft.theme === theme ? "active" : ""}
-                    onClick={() => patch("theme", theme)}
-                  >
-                    <b>{THEME_LABEL[theme].title}</b>
-                    <small>{t(language, THEME_LABEL[theme].caption)}</small>
-                  </button>
-                ),
-              )}
+              {(Object.keys(THEME_LABEL) as PublicProfile["theme"][]).map((theme) => (
+                <button
+                  type="button"
+                  key={theme}
+                  className={draft.theme === theme ? "active" : ""}
+                  onClick={() => patch("theme", theme)}
+                >
+                  <b>{THEME_LABEL[theme].title}</b>
+                  <small>{t(language, THEME_LABEL[theme].caption)}</small>
+                </button>
+              ))}
             </div>
           </div>
 
           <div className="dc-profile-links">
             <span>SOCIAL LINKS</span>
-            {([
-              ["twitch", "Twitch", "https://twitch.tv/username"],
-              ["youtube", "YouTube", "https://youtube.com/@channel"],
-              ["telegram", "Telegram", "https://t.me/username"],
-              ["discord", "Discord", "https://discord.gg/invite"],
-            ] as const).map(([key, label, placeholder]) => (
+            {(
+              [
+                ["twitch", "Twitch", "https://twitch.tv/username"],
+                ["youtube", "YouTube", "https://youtube.com/@channel"],
+                ["telegram", "Telegram", "https://t.me/username"],
+                ["discord", "Discord", "https://discord.gg/invite"],
+              ] as const
+            ).map(([key, label, placeholder]) => (
               <label key={key}>
                 <span>{label}</span>
                 <input
@@ -325,13 +309,9 @@ export default function ProfileStudio({
               <input
                 type="checkbox"
                 checked={draft.show_showcase}
-                onChange={(event) =>
-                  patch("show_showcase", event.target.checked)
-                }
+                onChange={(event) => patch("show_showcase", event.target.checked)}
               />
-              {language === "ru"
-                ? "Contract showcase / витрина"
-                : "Contract showcase"}
+              {language === "ru" ? "Contract showcase / витрина" : "Contract showcase"}
             </label>
             <label>
               <input
@@ -350,37 +330,20 @@ export default function ProfileStudio({
               disabled={saving || !dirty || draft.slug.length < 3}
               onClick={() => void save()}
             >
-              {saving
-                ? language === "ru"
-                  ? "СОХРАНЯЕМ…"
-                  : "SAVING…"
-                : "SAVE DOSSIER"}
+              {saving ? (language === "ru" ? "СОХРАНЯЕМ…" : "SAVING…") : "SAVE DOSSIER"}
             </button>
             {profile?.public_url ? (
-              <a
-                className="dc-ghost"
-                href={profile.public_url}
-                target="_blank"
-                rel="noreferrer"
-              >
-                {language === "ru"
-                  ? "ОТКРЫТЬ PUBLIC PAGE ↗"
-                  : "OPEN PUBLIC PAGE ↗"}
+              <a className="dc-ghost" href={profile.public_url} target="_blank" rel="noreferrer">
+                {language === "ru" ? "ОТКРЫТЬ PUBLIC PAGE ↗" : "OPEN PUBLIC PAGE ↗"}
               </a>
             ) : null}
           </div>
         </div>
 
         <div className="dc-profile-live-preview">
-          <div className="dc-profile-preview-stamp">
-            LIVE PREVIEW / {draft.theme}
-          </div>
+          <div className="dc-profile-preview-stamp">LIVE PREVIEW / {draft.theme}</div>
           <div className="dc-profile-preview-identity">
-            {user.avatar_url ? (
-              <img src={user.avatar_url} alt="" />
-            ) : (
-              <div>DC</div>
-            )}
+            {user.avatar_url ? <img src={user.avatar_url} alt="" /> : <div>DC</div>}
             <div>
               <p>LEVEL {progression?.level || 1}</p>
               <h3>{user.display_name}</h3>
@@ -426,10 +389,7 @@ export default function ProfileStudio({
               ))}
               {!draft.showcase?.length && (
                 <small>
-                  {t(
-                    language,
-                    "Лучшие completed contracts появятся после первого сохранения",
-                  )}
+                  {t(language, "Лучшие completed contracts появятся после первого сохранения")}
                 </small>
               )}
             </div>

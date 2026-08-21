@@ -1,10 +1,4 @@
-import React, {
-  createContext,
-  useContext,
-  useEffect,
-  useMemo,
-  useState,
-} from "react"
+import React, { createContext, useContext, useEffect, useMemo, useState } from "react"
 
 export type Language = "en" | "ru"
 export type LanguageMode = "auto" | Language
@@ -13,9 +7,7 @@ const STORAGE_KEY = "dc.ui.language"
 
 function browserLanguage(): Language {
   if (typeof navigator === "undefined") return "en"
-  const languages = navigator.languages?.length
-    ? navigator.languages
-    : [navigator.language]
+  const languages = navigator.languages?.length ? navigator.languages : [navigator.language]
   for (const value of languages) {
     const tag = String(value || "").toLowerCase()
     if (tag === "ru" || tag.startsWith("ru-")) return "ru"
@@ -90,11 +82,7 @@ export function LanguageProvider({ children }: { children: React.ReactNode }) {
     }),
     [language, mode],
   )
-  return (
-    <LanguageContext.Provider value={value}>
-      {children}
-    </LanguageContext.Provider>
-  )
+  return <LanguageContext.Provider value={value}>{children}</LanguageContext.Provider>
 }
 
 export function useLanguage() {
@@ -113,25 +101,15 @@ export function LanguageSwitch({ compact = false }: { compact?: boolean }) {
         className={mode === "auto" ? "active" : ""}
         onClick={() => setMode("auto")}
         title={
-          language === "ru"
-            ? "Автоопределение по языку браузера"
-            : "Detect from browser language"
+          language === "ru" ? "Автоопределение по языку браузера" : "Detect from browser language"
         }
       >
         AUTO
       </button>
-      <button
-        type="button"
-        className={mode === "en" ? "active" : ""}
-        onClick={() => setMode("en")}
-      >
+      <button type="button" className={mode === "en" ? "active" : ""} onClick={() => setMode("en")}>
         EN
       </button>
-      <button
-        type="button"
-        className={mode === "ru" ? "active" : ""}
-        onClick={() => setMode("ru")}
-      >
+      <button type="button" className={mode === "ru" ? "active" : ""} onClick={() => setMode("ru")}>
         RU
       </button>
     </div>
@@ -157,8 +135,7 @@ const EN: Record<string, string> = {
     "Core board with no impact on your Deadlock rank",
   "Контракты без условий, которые мешают командной игре":
     "Contracts designed not to interfere with team play",
-  "Короткие контракты, настроенные под быстрый режим":
-    "Short contracts tuned for the faster mode",
+  "Короткие контракты, настроенные под быстрый режим": "Short contracts tuned for the faster mode",
   "можно выбрать": "available",
   выполнено: "completed",
   "в деле": "in case",
@@ -200,8 +177,7 @@ const EN: Record<string, string> = {
     "Each mode keeps a separate case chain. Match IDs, decisions and earned XP are stored here.",
   ВСЕ: "ALL",
   "Архив пока пуст": "Case archive is empty",
-  "Зафиксируйте дело и сыграйте соответствующий матч.":
-    "Lock a case and play an eligible match.",
+  "Зафиксируйте дело и сыграйте соответствующий матч.": "Lock a case and play an eligible match.",
   "Дело закрыто успешно": "Case closed successfully",
   "Дело продолжается": "Case remains active",
   "Решение по делу": "Case decision",
@@ -228,16 +204,13 @@ const EN: Record<string, string> = {
   "Удаление профиля уничтожит аккаунт, контрактные доски и опыт без возможности восстановления.":
     "Deleting your profile permanently removes your account, contract boards and XP.",
   "Удалить аккаунт и все данные?": "Delete your account and all data?",
-  "В одно дело можно выбрать максимум три контракта.":
-    "A case can contain up to three contracts.",
+  "В одно дело можно выбрать максимум три контракта.": "A case can contain up to three contracts.",
   "Доска пересобрана. Бесплатная пересборка на сегодня использована.":
     "Board rerolled. Today’s free reroll has been used.",
   "Код привязки создан. Введите его в Компаньоне Deadlock Contracts.":
     "Pairing code created. Enter it in the Deadlock Contracts Companion.",
-  "Отключить все привязанные устройства Компаньона?":
-    "Disconnect all paired Companion devices?",
-  "Компаньон отключён от аккаунта.":
-    "Companion disconnected from your account.",
+  "Отключить все привязанные устройства Компаньона?": "Disconnect all paired Companion devices?",
+  "Компаньон отключён от аккаунта.": "Companion disconnected from your account.",
   "ОБНОВЛЕНИЕ УТОЧНЯЕТСЯ": "RESET PENDING",
   "ДОСКА ОБНОВЛЯЕТСЯ": "BOARD RESETTING",
   "ОБНОВЛЕНИЕ ЧЕРЕЗ": "RESET IN",
@@ -268,8 +241,7 @@ const EN: Record<string, string> = {
   "Public dossier сохранён как private": "Public dossier saved as private",
   "Минимальный public profile: handle, bio, social links и showcase реальных контрактов. Без custom HTML, лишних widgets и отдельного визуального языка.":
     "A focused public profile: handle, bio, social links and a showcase of real verified contracts. No custom HTML, visual clutter or separate design language.",
-  "Пара строк о стиле игры, героях или целях":
-    "A few lines about your playstyle, heroes or goals",
+  "Пара строк о стиле игры, героях или целях": "A few lines about your playstyle, heroes or goals",
   "Лучшие completed contracts появятся после первого сохранения":
     "Your best completed contracts appear after the first save",
   "Зафиксируйте 1–3 задания до матча. После игры сервис найдёт нужный матч, проверит статистику и сохранит результат.":
@@ -277,8 +249,7 @@ const EN: Record<string, string> = {
   "Надёжный партнёр": "Reliable Partner",
   "Совершите не менее 10 содействий и умрите не более 7 раз.":
     "Record at least 10 assists and die no more than 7 times.",
-  "В последних матчах вы часто помогали команде.":
-    "Your recent matches show strong team support.",
+  "В последних матчах вы часто помогали команде.": "Your recent matches show strong team support.",
   "Убедительные доказательства": "Convincing Evidence",
   "Нанесите героям не менее 28 000 урона.": "Deal at least 28,000 hero damage.",
   "Сильный урон героям — понятная и проверяемая цель.":
@@ -293,8 +264,7 @@ const EN: Record<string, string> = {
   "Согласованный удар": "Coordinated Strike",
   "В группе из 3+ игроков совместно возьмите не менее 2 объектов.":
     "In a party of 3+, secure at least 2 objectives together.",
-  "Сезонное задание с повышенной наградой.":
-    "A seasonal objective with an increased reward.",
+  "Сезонное задание с повышенной наградой.": "A seasonal objective with an increased reward.",
   "Чистое досье": "Clean Dossier",
   "Завершите матч с соотношением убийств и смертей не ниже 2.0.":
     "Finish the match with a kill/death ratio of at least 2.0.",
@@ -334,10 +304,8 @@ const EN: Record<string, string> = {
   "От поставщика статистики": "From the match data provider",
   "Условия проверены": "Conditions verified",
   "Контракт выполнен": "Contract completed",
-  "Надёжный партнёр · 10 содействий, ≤7 смертей":
-    "Reliable Partner · 10 assists, ≤7 deaths",
-  "Содействия: 13 ≥ 10 ✓   Смерти: 5 ≤ 7 ✓":
-    "Assists: 13 ≥ 10 ✓   Deaths: 5 ≤ 7 ✓",
+  "Надёжный партнёр · 10 содействий, ≤7 смертей": "Reliable Partner · 10 assists, ≤7 deaths",
+  "Содействия: 13 ≥ 10 ✓   Смерти: 5 ≤ 7 ✓": "Assists: 13 ≥ 10 ✓   Deaths: 5 ≤ 7 ✓",
   "Контракт ещё не зафиксирован.": "No contract locked yet.",
   "Жду ваш выбор.": "Awaiting your selection.",
   "Выберите цель до матча.": "Choose an objective before the match.",
@@ -354,8 +322,7 @@ const EN: Record<string, string> = {
   "Как проходит проверка": "How verification works",
   "МАТЧ #48291031": "MATCH #48291031",
   ОБЫЧНЫЙ: "STANDARD",
-  '"Контракт — не наказание, а цель"':
-    '"A contract is an objective, not a punishment"',
+  '"Контракт — не наказание, а цель"': '"A contract is an objective, not a punishment"',
   "Частые вопросы": "Frequently asked questions",
   "Большие серии дел готовятся": "Long-form case campaigns are coming",
   "Сначала доводим daily boards для Standard, Ranked и Street Brawl. Кампании появятся отдельным обновлением.":
@@ -368,8 +335,7 @@ const EN: Record<string, string> = {
     "Only server-verified Deadlock Contracts results. Official Deadlock rank is not part of this board.",
   "Не удалось загрузить таблицу лидеров.": "Could not load the leaderboard.",
   "Загружаем правила подсчёта…": "Loading scoring rules…",
-  "Публичный профиль и статистика должны быть включены":
-    "Public profile and stats must be enabled",
+  "Публичный профиль и статистика должны быть включены": "Public profile and stats must be enabled",
   "Загружаем таблицу лидеров…": "Loading leaderboard…",
   "Пока никто не квалифицировался": "No qualified agents yet",
   "Нужен публичный профиль с открытой статистикой и хотя бы один результат для выбранной таблицы.":
@@ -400,8 +366,7 @@ const EN: Record<string, string> = {
     "Only an official Discord HTTPS link is allowed.",
   "Выберите от 1 до 3 контрактов.": "Choose 1 to 3 contracts.",
   "Доска уже зафиксирована.": "This board has already been locked.",
-  "Бесплатная пересборка уже использована.":
-    "Today’s free reroll has already been used.",
+  "Бесплатная пересборка уже использована.": "Today’s free reroll has already been used.",
   "Профиль не найден.": "Profile not found.",
 }
 
@@ -475,8 +440,7 @@ export function contractTitle(title: string, language: Language): string {
   for (const [suffix, translated] of Object.entries(SUFFIX_MAP)) {
     if (title.endsWith(suffix))
       return (
-        (TITLE_MAP[title.slice(0, -suffix.length)] ||
-          title.slice(0, -suffix.length)) + translated
+        (TITLE_MAP[title.slice(0, -suffix.length)] || title.slice(0, -suffix.length)) + translated
       )
   }
   return TITLE_MAP[title] || EN[title] || title
@@ -493,12 +457,8 @@ export type ContractConditionLike = {
   operator?: string
   target: number
 }
-export function conditionText(
-  condition: ContractConditionLike,
-  language: Language,
-): string {
-  const symbol =
-    condition.operator === "lte" ? "≤" : condition.operator === "eq" ? "=" : "≥"
+export function conditionText(condition: ContractConditionLike, language: Language): string {
+  const symbol = condition.operator === "lte" ? "≤" : condition.operator === "eq" ? "=" : "≥"
   const n = formatValue(Number(condition.target), language)
   const metric = condition.metric
   if (language === "ru") {
@@ -511,11 +471,9 @@ export function conditionText(
     if (metric === "player.kda") return `KDA ${symbol} ${n}`
     if (metric === "player.net_worth.final") return `${symbol} ${n} душ`
     if (metric === "player.hero_damage") return `${symbol} ${n} урона героям`
-    if (metric === "player.object_damage")
-      return `${symbol} ${n} урона объектам`
+    if (metric === "player.object_damage") return `${symbol} ${n} урона объектам`
     if (metric === "player.healing") return `${symbol} ${n} лечения`
-    if (metric === "player.scoreboard_healing")
-      return `${symbol} ${n} лечения по итоговой таблице`
+    if (metric === "player.scoreboard_healing") return `${symbol} ${n} лечения по итоговой таблице`
   } else {
     if (metric === "match.win") return "win the match"
     if (metric === "match.duration_s")
@@ -526,11 +484,9 @@ export function conditionText(
     if (metric === "player.kda") return `KDA ${symbol} ${n}`
     if (metric === "player.net_worth.final") return `${symbol} ${n} souls`
     if (metric === "player.hero_damage") return `${symbol} ${n} hero damage`
-    if (metric === "player.object_damage")
-      return `${symbol} ${n} objective damage`
+    if (metric === "player.object_damage") return `${symbol} ${n} objective damage`
     if (metric === "player.healing") return `${symbol} ${n} healing`
-    if (metric === "player.scoreboard_healing")
-      return `${symbol} ${n} scoreboard healing`
+    if (metric === "player.scoreboard_healing") return `${symbol} ${n} scoreboard healing`
   }
   return `${metric} ${symbol} ${n}`
 }
@@ -558,10 +514,7 @@ export function contractDescription(
   return `${prefix}: ${body}.`
 }
 
-export function localizeServerText(
-  text: string | null | undefined,
-  language: Language,
-): string {
+export function localizeServerText(text: string | null | undefined, language: Language): string {
   if (!text || language === "ru") return text || ""
   if (EN[text]) return EN[text]
   let value = text
@@ -571,14 +524,8 @@ export function localizeServerText(
     "Composite contract: $1/$2 conditions completed. ",
   )
   value = value.replace(/^Попытка (\d+)\/(\d+):\s*/i, "Attempt $1/$2: ")
-  value = value.replace(
-    /Осталось попыток:\s*(\d+)\./gi,
-    "Attempts remaining: $1.",
-  )
-  value = value.replace(
-    /Недостаточно итоговых данных:/gi,
-    "Missing final match data:",
-  )
+  value = value.replace(/Осталось попыток:\s*(\d+)\./gi, "Attempts remaining: $1.")
+  value = value.replace(/Недостаточно итоговых данных:/gi, "Missing final match data:")
   value = value.replace(
     /^Матч найден\. Ждём итоговые данные провайдера:\s*/i,
     "Match found. Waiting for final provider data: ",
@@ -617,10 +564,7 @@ export function localizeServerText(
   value = value.replace(/(\d[\d\s.,]*)\s*ассистов/gi, "$1 assists")
   value = value.replace(/(\d[\d\s.,]*)\s*душ/gi, "$1 souls")
   value = value.replace(/(\d[\d\s.,]*)\s*урона героям/gi, "$1 hero damage")
-  value = value.replace(
-    /(\d[\d\s.,]*)\s*урона объектам/gi,
-    "$1 objective damage",
-  )
+  value = value.replace(/(\d[\d\s.,]*)\s*урона объектам/gi, "$1 objective damage")
   value = value.replace(/(\d[\d\s.,]*)\s*лечения/gi, "$1 healing")
   value = value.replace(/(\d[\d\s.,]*)\s*мин\b/gi, "$1 min")
   return value

@@ -17,7 +17,15 @@ import {
 
 type Mode = "STANDARD" | "RANKED" | "STREET_BRAWL"
 type AccessRole = "OWNER" | "ADMIN" | "TESTER" | "PLAYER"
-type BadgeId = "CREATOR" | "ADMIN" | "DEVELOPER" | "STREAMER" | "EARLY_TESTER" | "TESTER" | "CONTRIBUTOR" | "PLAYER"
+type BadgeId =
+  | "CREATOR"
+  | "ADMIN"
+  | "DEVELOPER"
+  | "STREAMER"
+  | "EARLY_TESTER"
+  | "TESTER"
+  | "CONTRIBUTOR"
+  | "PLAYER"
 type User = {
   id: string
   display_name: string
@@ -134,12 +142,15 @@ type Progression = {
   contracts_completed: number
   contracts_failed: number
   review_pending: number
-  mode_stats: Record<Mode, {
-    completed: number
-    failed: number
-    attempted: number
-    xp: number
-  }>
+  mode_stats: Record<
+    Mode,
+    {
+      completed: number
+      failed: number
+      attempted: number
+      xp: number
+    }
+  >
   hardest_completed: {
     title: string
     difficulty: string
@@ -321,12 +332,14 @@ type AdminUserDetail = {
   user: AdminUserSummary
   adaptive_profiles: Record<Mode, AdaptiveProfile>
   boards: AdminBoard[]
-  devices: Array<CompanionDeviceStatus & {
-    id: string
-    device_id: string
-    created_at: string | null
-    revoked_at: string | null
-  }>
+  devices: Array<
+    CompanionDeviceStatus & {
+      id: string
+      device_id: string
+      created_at: string | null
+      revoked_at: string | null
+    }
+  >
   evidence: Array<{
     match_id: number
     mode: string | null
@@ -535,7 +548,18 @@ type AdminSystem = {
   counts: Record<string, number>
   server_time: string
 }
-type AdminSection = "overview" | "users" | "reviews" | "matches" | "boards" | "companions" | "missions" | "generator" | "jobs" | "audit" | "system"
+type AdminSection =
+  | "overview"
+  | "users"
+  | "reviews"
+  | "matches"
+  | "boards"
+  | "companions"
+  | "missions"
+  | "generator"
+  | "jobs"
+  | "audit"
+  | "system"
 type CompanionDeviceStatus = {
   paired: boolean
   online: boolean
@@ -566,11 +590,7 @@ class ApiError extends Error {
   }
 }
 
-async function api<T>(
-  url: string,
-  csrf: string,
-  init: RequestInit = {},
-): Promise<T> {
+async function api<T>(url: string, csrf: string, init: RequestInit = {}): Promise<T> {
   const headers = new Headers(init.headers)
   headers.set("Accept", "application/json")
   if (init.body) headers.set("Content-Type", "application/json")
@@ -581,24 +601,21 @@ async function api<T>(
     headers,
     credentials: "same-origin",
   })
-  const data = await response
-    .json()
-    .catch(() => ({ detail: `HTTP ${response.status}` }))
-  if (!response.ok)
-    throw new ApiError(
-      data.detail || `HTTP ${response.status}`,
-      response.status,
-    )
+  const data = await response.json().catch(() => ({ detail: `HTTP ${response.status}` }))
+  if (!response.ok) throw new ApiError(data.detail || `HTTP ${response.status}`, response.status)
   return data
 }
 
 const MODES: Mode[] = ["STANDARD", "RANKED", "STREET_BRAWL"]
-const MODE_META: Record<Mode, {
-  short: string
-  title: string
-  caption: string
-  bonus: string
-}> = {
+const MODE_META: Record<
+  Mode,
+  {
+    short: string
+    title: string
+    caption: string
+    bonus: string
+  }
+> = {
   STANDARD: {
     short: "STANDARD",
     title: "Standard",
@@ -658,13 +675,10 @@ const number = (value: number, language: Language = "ru") =>
   new Intl.NumberFormat(language === "ru" ? "ru-RU" : "en-US", {
     maximumFractionDigits: Number.isInteger(value) ? 0 : 1,
   }).format(value)
-const operatorSymbol = (value?: string) =>
-  value === "lte" ? "≤" : value === "eq" ? "=" : "≥"
+const operatorSymbol = (value?: string) => (value === "lte" ? "≤" : value === "eq" ? "=" : "≥")
 const targetLabel = (option: Option, language: Language = "ru") => {
   if ((option.conditions?.length || 0) > 1)
-    return `${option.conditions!.length} ${
-      language === "ru" ? "УСЛОВИЯ" : "CONDITIONS"
-    }`
+    return `${option.conditions!.length} ${language === "ru" ? "УСЛОВИЯ" : "CONDITIONS"}`
   return conditionText(
     {
       metric: option.metric,
@@ -674,11 +688,7 @@ const targetLabel = (option: Option, language: Language = "ru") => {
     language,
   ).toUpperCase()
 }
-const expiryLabel = (
-  value?: string,
-  now = Date.now(),
-  language: Language = "ru",
-) => {
+const expiryLabel = (value?: string, now = Date.now(), language: Language = "ru") => {
   if (!value) return t(language, "ОБНОВЛЕНИЕ УТОЧНЯЕТСЯ")
   const diff = new Date(value).getTime() - now
   if (diff <= 0) return t(language, "ДОСКА ОБНОВЛЯЕТСЯ")
@@ -713,15 +723,9 @@ const countdownHms = (value?: string | null, now = Date.now()) => {
 }
 
 const safeName = (value: string, language: Language = "ru") =>
-  /^Steam \d{17,20}$/.test(value)
-    ? language === "ru"
-      ? "Steam-профиль"
-      : "Steam profile"
-    : value
+  /^Steam \d{17,20}$/.test(value) ? (language === "ru" ? "Steam-профиль" : "Steam profile") : value
 const categoryGlyph = (value: string) =>
-  ({ COMBAT: "⌁", SUPPORT: "＋", ECONOMY: "◇", SURVIVAL: "◉", ALL: "◆" })[
-    value
-  ] || "◆"
+  ({ COMBAT: "⌁", SUPPORT: "＋", ECONOMY: "◇", SURVIVAL: "◉", ALL: "◆" })[value] || "◆"
 const categoryLabel = (value: string, language: Language = "ru") =>
   t(
     language,
@@ -746,11 +750,14 @@ const phaseLabel = (value?: string | null, language: Language = "ru") =>
     }[value || ""] || (value ? "Неизвестная фаза" : "—"),
   )
 
-const BADGE_META: Record<BadgeId, {
-  label: string
-  className: string
-  icon: "crown" | "shield" | "gear" | "stream" | "flask" | "star" | "player"
-}> = {
+const BADGE_META: Record<
+  BadgeId,
+  {
+    label: string
+    className: string
+    icon: "crown" | "shield" | "gear" | "stream" | "flask" | "star" | "player"
+  }
+> = {
   CREATOR: { label: "CREATOR", className: "creator", icon: "crown" },
   ADMIN: { label: "ADMIN", className: "admin", icon: "shield" },
   DEVELOPER: { label: "DEVELOPER", className: "developer", icon: "gear" },
@@ -802,9 +809,7 @@ function RoleIcon({
         <path d="M8 15h8" />
       </>
     ),
-    star: (
-      <path d="m12 3 2.2 5.3L20 9l-4.3 3.8 1.3 5.7-5-3-5 3 1.3-5.7L4 9l5.8-.7z" />
-    ),
+    star: <path d="m12 3 2.2 5.3L20 9l-4.3 3.8 1.3 5.7-5-3-5 3 1.3-5.7L4 9l5.8-.7z" />,
     player: (
       <>
         <circle cx="12" cy="12" r="7" />
@@ -829,18 +834,10 @@ function RoleIcon({
   )
 }
 
-function RoleBadge({
-  badge,
-  compact = false,
-}: {
-  badge: BadgeId
-  compact?: boolean
-}) {
+function RoleBadge({ badge, compact = false }: { badge: BadgeId; compact?: boolean }) {
   const meta = BADGE_META[badge]
   return (
-    <span
-      className={`dc-role-badge ${meta.className} ${compact ? "compact" : ""}`}
-    >
+    <span className={`dc-role-badge ${meta.className} ${compact ? "compact" : ""}`}>
       <RoleIcon name={meta.icon} />
       <span>{meta.label}</span>
     </span>
@@ -872,11 +869,7 @@ const joinLabel = (value?: string | null, language: Language = "ru") =>
       }).format(new Date(value))
     : "—"
 
-function Icon({
-  name,
-}: {
-  name: "hq" | "contract" | "case" | "profile" | "admin"
-}) {
+function Icon({ name }: { name: "hq" | "contract" | "case" | "profile" | "admin" }) {
   const paths: Record<string, React.ReactNode> = {
     hq: (
       <>
@@ -1059,8 +1052,7 @@ function useTilt(intensity = 10) {
 
   const onMouseLeave = useCallback((e: React.MouseEvent<HTMLElement>) => {
     e.currentTarget.style.transform = ""
-    e.currentTarget.style.transition =
-      "transform 0.45s cubic-bezier(0.34,1.2,0.64,1)"
+    e.currentTarget.style.transition = "transform 0.45s cubic-bezier(0.34,1.2,0.64,1)"
   }, [])
 
   return { onMouseMove, onMouseLeave }
@@ -1092,11 +1084,7 @@ function ModeTabs({
             }}
           >
             <span>{MODE_META[mode].short}</span>
-            <small>
-              {board
-                ? statusLabel(board.status, language)
-                : t(language, "ЗАГРУЗКА")}
-            </small>
+            <small>{board ? statusLabel(board.status, language) : t(language, "ЗАГРУЗКА")}</small>
           </button>
         )
       })}
@@ -1104,11 +1092,7 @@ function ModeTabs({
   )
 }
 
-export default function Dashboard({
-  initialSession,
-}: {
-  initialSession: SessionPayload
-}) {
+export default function Dashboard({ initialSession }: { initialSession: SessionPayload }) {
   const { language, locale } = useLanguage()
   const [user, setUser] = useState(initialSession.user)
   const [csrf] = useState(initialSession.csrf_token)
@@ -1143,9 +1127,7 @@ export default function Dashboard({
     setSelected((previous) => {
       const next = { ...previous }
       for (const board of data.boards) {
-        const locked = board.options
-          .filter((option) => option.selected)
-          .map((option) => option.id)
+        const locked = board.options.filter((option) => option.selected).map((option) => option.id)
         if (locked.length || board.status !== "OFFERED")
           next[board.game_match_mode] = new Set(locked)
       }
@@ -1153,29 +1135,19 @@ export default function Dashboard({
     })
   }, [csrf])
   const loadHistory = useCallback(
-    async () =>
-      setHistory(
-        (await api<{ items: HistoryItem[] }>("/api/history", csrf)).items,
-      ),
+    async () => setHistory((await api<{ items: HistoryItem[] }>("/api/history", csrf)).items),
     [csrf],
   )
   const loadProgression = useCallback(
-    async () =>
-      setProgression(await api<Progression>("/api/progression", csrf)),
+    async () => setProgression(await api<Progression>("/api/progression", csrf)),
     [csrf],
   )
   const loadReviews = useCallback(
-    async () =>
-      setReviews(
-        (await api<{ items: ReviewMine[] }>("/api/reviews/mine", csrf)).items,
-      ),
+    async () => setReviews((await api<{ items: ReviewMine[] }>("/api/reviews/mine", csrf)).items),
     [csrf],
   )
   const loadCompanion = useCallback(
-    async () =>
-      setCompanion(
-        (await api<CompanionStatus>("/api/companion/status", csrf)).device,
-      ),
+    async () => setCompanion((await api<CompanionStatus>("/api/companion/status", csrf)).device),
     [csrf],
   )
   const reloadAll = useCallback(async () => {
@@ -1216,17 +1188,10 @@ export default function Dashboard({
   const board = boards.find((item) => item.game_match_mode === mode) || null
   const selectedSet = selected[mode]
   const selectedOptions =
-    board?.options.filter(
-      (option) => selectedSet.has(option.id) || option.selected,
-    ) || []
-  const totalXp = selectedOptions.reduce(
-    (sum, option) => sum + option.reward_xp,
-    0,
-  )
+    board?.options.filter((option) => selectedSet.has(option.id) || option.selected) || []
+  const totalXp = selectedOptions.reduce((sum, option) => sum + option.reward_xp, 0)
   const visibleOptions =
-    board?.options.filter(
-      (option) => filter === "ALL" || option.category === filter,
-    ) || []
+    board?.options.filter((option) => filter === "ALL" || option.category === filter) || []
   const pendingReviewForBoard = reviews.find(
     (item) => item.board_id === board?.id && item.status === "PENDING",
   )
@@ -1243,20 +1208,17 @@ export default function Dashboard({
     xpRef.current.classList.add("xp-pop")
   }, [totalXp, mode])
 
-  const handleContractSceneMouseMove = useCallback(
-    (e: React.MouseEvent<HTMLDivElement>) => {
-      const rect = e.currentTarget.getBoundingClientRect()
-      e.currentTarget.style.setProperty(
-        "--spot-x",
-        `${((e.clientX - rect.left) / rect.width) * 100}%`,
-      )
-      e.currentTarget.style.setProperty(
-        "--spot-y",
-        `${((e.clientY - rect.top) / rect.height) * 100}%`,
-      )
-    },
-    [],
-  )
+  const handleContractSceneMouseMove = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
+    const rect = e.currentTarget.getBoundingClientRect()
+    e.currentTarget.style.setProperty(
+      "--spot-x",
+      `${((e.clientX - rect.left) / rect.width) * 100}%`,
+    )
+    e.currentTarget.style.setProperty(
+      "--spot-y",
+      `${((e.clientY - rect.top) / rect.height) * 100}%`,
+    )
+  }, [])
 
   const toggle = (id: string) => {
     if (!board || board.status !== "OFFERED") return
@@ -1264,9 +1226,7 @@ export default function Dashboard({
       const current = new Set(previous[mode])
       if (current.has(id)) current.delete(id)
       else if (current.size >= 3) {
-        setNotice(
-          t(language, "В одно дело можно выбрать максимум три контракта."),
-        )
+        setNotice(t(language, "В одно дело можно выбрать максимум три контракта."))
         return previous
       } else current.add(id)
       return { ...previous, [mode]: current }
@@ -1294,12 +1254,7 @@ export default function Dashboard({
     }
   }
   const reroll = async () => {
-    if (
-      !board ||
-      board.status !== "OFFERED" ||
-      !boardsPayload?.refresh.remaining
-    )
-      return
+    if (!board || board.status !== "OFFERED" || !boardsPayload?.refresh.remaining) return
     if (
       !confirm(
         language === "ru"
@@ -1313,12 +1268,7 @@ export default function Dashboard({
     try {
       await api(`/api/boards/${mode}/reroll`, csrf, { method: "POST" })
       setSelected((previous) => ({ ...previous, [mode]: new Set() }))
-      setNotice(
-        t(
-          language,
-          "Доска пересобрана. Бесплатная пересборка на сегодня использована.",
-        ),
-      )
+      setNotice(t(language, "Доска пересобрана. Бесплатная пересборка на сегодня использована."))
       await reloadAll()
     } catch (reason) {
       setError((reason as Error).message)
@@ -1329,27 +1279,17 @@ export default function Dashboard({
 
   const startCompanionPairing = async () => {
     try {
-      const data = await api<CompanionPairing>(
-        "/api/companion/pairing/start",
-        csrf,
-        { method: "POST" },
-      )
+      const data = await api<CompanionPairing>("/api/companion/pairing/start", csrf, {
+        method: "POST",
+      })
       setPairing(data)
-      setNotice(
-        t(
-          language,
-          "Код привязки создан. Введите его в Компаньоне Deadlock Contracts.",
-        ),
-      )
+      setNotice(t(language, "Код привязки создан. Введите его в Компаньоне Deadlock Contracts."))
     } catch (reason) {
       setError((reason as Error).message)
     }
   }
   const revokeCompanion = async () => {
-    if (
-      !confirm(t(language, "Отключить все привязанные устройства Компаньона?"))
-    )
-      return
+    if (!confirm(t(language, "Отключить все привязанные устройства Компаньона?"))) return
     try {
       await api("/api/companion/revoke", csrf, { method: "POST" })
       setPairing(null)
@@ -1373,12 +1313,8 @@ export default function Dashboard({
   const caseGroups = useMemo(() => {
     const map = new Map<string, HistoryItem[]>()
     history
-      .filter(
-        (item) => historyMode === "ALL" || item.game_match_mode === historyMode,
-      )
-      .forEach((item) =>
-        map.set(item.board_id, [...(map.get(item.board_id) || []), item]),
-      )
+      .filter((item) => historyMode === "ALL" || item.game_match_mode === historyMode)
+      .forEach((item) => map.set(item.board_id, [...(map.get(item.board_id) || []), item]))
     return [...map.entries()].map(([boardId, items]) => ({
       boardId,
       items,
@@ -1393,14 +1329,13 @@ export default function Dashboard({
   const shownName = safeName(user.display_name, language)
   const level = progression?.level || 1
   const progressPct = progression?.progress_pct || 0
-  const nav: Array<[Tab, string, "hq" | "contract" | "case" | "profile" | "admin"]> =
-    [
-      ["home", "HQ", "hq"],
-      ["quests", "CONTRACTS", "contract"],
-      ["active", "ACTIVE CASE", "case"],
-      ["history", "ARCHIVE", "case"],
-      ["profile", "PROFILE", "profile"],
-    ]
+  const nav: Array<[Tab, string, "hq" | "contract" | "case" | "profile" | "admin"]> = [
+    ["home", "HQ", "hq"],
+    ["quests", "CONTRACTS", "contract"],
+    ["active", "ACTIVE CASE", "case"],
+    ["history", "ARCHIVE", "case"],
+    ["profile", "PROFILE", "profile"],
+  ]
   if (user.is_admin) nav.push(["admin", "ADMIN", "admin"])
 
   return (
@@ -1430,11 +1365,7 @@ export default function Dashboard({
         ))}
         <div className="scanline-overlay" />
       </div>
-      <header
-        className={`dc-topbar dc-landing-shell-header ${
-          authScrolled ? "is-scrolled" : ""
-        }`}
-      >
+      <header className={`dc-topbar dc-landing-shell-header ${authScrolled ? "is-scrolled" : ""}`}>
         <div className="dc-landing-shell-inner">
           <button
             className="dc-brand dc-landing-shell-brand"
@@ -1450,9 +1381,7 @@ export default function Dashboard({
 
           <nav
             className="dc-landing-shell-nav"
-            aria-label={
-              language === "ru" ? "Основная навигация" : "Main navigation"
-            }
+            aria-label={language === "ru" ? "Основная навигация" : "Main navigation"}
           >
             {nav.map(([key, label]) => (
               <button
@@ -1466,8 +1395,7 @@ export default function Dashboard({
                 }}
               >
                 {label}
-                {key === "quests" &&
-                boards.some((item) => item.status === "OFFERED") ? (
+                {key === "quests" && boards.some((item) => item.status === "OFFERED") ? (
                   <em>{t(language, "НОВОЕ")}</em>
                 ) : null}
               </button>
@@ -1509,8 +1437,8 @@ export default function Dashboard({
               <span className="dc-auth-account-copy">
                 <b>{shownName}</b>
                 <small>
-                  {BADGE_META[user.badges?.[0] || "PLAYER"].label} · LVL {level}{" "}
-                  · {user.xp.toLocaleString(locale)} XP
+                  {BADGE_META[user.badges?.[0] || "PLAYER"].label} · LVL {level} ·{" "}
+                  {user.xp.toLocaleString(locale)} XP
                 </small>
               </span>
             </button>
@@ -1526,9 +1454,7 @@ export default function Dashboard({
               {t(language, "Выйти")}
             </button>
             <button
-              className={`dc-auth-menu-toggle ${
-                authMobileOpen ? "active" : ""
-              }`}
+              className={`dc-auth-menu-toggle ${authMobileOpen ? "active" : ""}`}
               type="button"
               aria-label={t(language, "Открыть меню")}
               aria-expanded={authMobileOpen}
@@ -1553,27 +1479,20 @@ export default function Dashboard({
             >
               <Icon name={icon} />
               <span>{label}</span>
-              {key === "quests" &&
-              boards.some((item) => item.status === "OFFERED") ? (
+              {key === "quests" && boards.some((item) => item.status === "OFFERED") ? (
                 <em>{t(language, "НОВОЕ")}</em>
               ) : null}
             </button>
           ))}
           <div className="dc-auth-mobile-language">
-            <span>
-              {language === "ru" ? "ЯЗЫК ИНТЕРФЕЙСА" : "INTERFACE LANGUAGE"}
-            </span>
+            <span>{language === "ru" ? "ЯЗЫК ИНТЕРФЕЙСА" : "INTERFACE LANGUAGE"}</span>
             <LanguageSwitch />
           </div>
           <div className="dc-auth-mobile-status">
-            <span
-              className={`dc-status-dot ${companion?.online ? "online" : ""}`}
-            />
+            <span className={`dc-status-dot ${companion?.online ? "online" : ""}`} />
             <p>
               <b>
-                {companion?.online
-                  ? t(language, "КОМПАНЬОН В СЕТИ")
-                  : t(language, "АВТОПРОВЕРКА")}
+                {companion?.online ? t(language, "КОМПАНЬОН В СЕТИ") : t(language, "АВТОПРОВЕРКА")}
               </b>
               <small>
                 {companion?.online
@@ -1602,9 +1521,7 @@ export default function Dashboard({
             className="dc-auth-mobile-logout"
             type="button"
             onClick={() =>
-              api("/api/auth/logout", csrf, { method: "POST" }).finally(() =>
-                location.assign("/"),
-              )
+              api("/api/auth/logout", csrf, { method: "POST" }).finally(() => location.assign("/"))
             }
           >
             {t(language, "Выйти из аккаунта")}
@@ -1614,11 +1531,7 @@ export default function Dashboard({
 
       <nav
         className="dc-mobile-bottom-nav"
-        aria-label={
-          language === "ru"
-            ? "Основная мобильная навигация"
-            : "Main mobile navigation"
-        }
+        aria-label={language === "ru" ? "Основная мобильная навигация" : "Main mobile navigation"}
       >
         {nav.map(([key, label, icon]) => (
           <button
@@ -1634,10 +1547,7 @@ export default function Dashboard({
           >
             <Icon name={icon} />
             <span>{label}</span>
-            {key === "quests" &&
-            boards.some((item) => item.status === "OFFERED") ? (
-              <i />
-            ) : null}
+            {key === "quests" && boards.some((item) => item.status === "OFFERED") ? <i /> : null}
           </button>
         ))}
       </nav>
@@ -1645,20 +1555,12 @@ export default function Dashboard({
       <div className="dc-app-shell dc-app-shell-topnav">
         <main className="dc-workspace">
           {notice && (
-            <button
-              type="button"
-              className="dc-toast"
-              onClick={() => setNotice("")}
-            >
+            <button type="button" className="dc-toast" onClick={() => setNotice("")}>
               {notice}
             </button>
           )}
           {error && (
-            <button
-              type="button"
-              className="dc-error"
-              onClick={() => setError("")}
-            >
+            <button type="button" className="dc-error" onClick={() => setError("")}>
               {localizeServerText(error, language)}
             </button>
           )}
@@ -1680,17 +1582,12 @@ export default function Dashboard({
                     )}
                   </p>
                   <div className="dc-command-actions">
-                    <button
-                      className="dc-primary"
-                      onClick={() => setTab("quests")}
-                    >
+                    <button className="dc-primary" onClick={() => setTab("quests")}>
                       OPEN CONTRACTS
                     </button>
                     <button
                       className="dc-ghost"
-                      onClick={() =>
-                        setTab(activeBoards.length ? "active" : "history")
-                      }
+                      onClick={() => setTab(activeBoards.length ? "active" : "history")}
                     >
                       {activeBoards.length ? "ACTIVE CASE" : "CASE ARCHIVE"}
                     </button>
@@ -1729,12 +1626,9 @@ export default function Dashboard({
               <section className="dc-v3-mode-overview">
                 {MODES.map((item) => {
                   const b = boards.find((x) => x.game_match_mode === item)
-                  const chosen =
-                    b?.options.filter((x) => x.selected).length || 0
+                  const chosen = b?.options.filter((x) => x.selected).length || 0
                   const done =
-                    b?.options.filter(
-                      (x) => x.selected && x.status === "COMPLETED",
-                    ).length || 0
+                    b?.options.filter((x) => x.selected && x.status === "COMPLETED").length || 0
                   return (
                     <button
                       key={item}
@@ -1746,11 +1640,7 @@ export default function Dashboard({
                     >
                       <header>
                         <span>{MODE_META[item].short}</span>
-                        <em>
-                          {b
-                            ? statusLabel(b.status, language)
-                            : t(language, "ЗАГРУЗКА")}
-                        </em>
+                        <em>{b ? statusLabel(b.status, language) : t(language, "ЗАГРУЗКА")}</em>
                       </header>
                       <h3>{MODE_META[item].title}</h3>
                       <p>{t(language, MODE_META[item].caption)}</p>
@@ -1778,9 +1668,7 @@ export default function Dashboard({
                   <strong>{level}</strong>
                   <small>
                     {progression?.xp_to_next ?? "—"} XP{" "}
-                    {language === "ru"
-                      ? "до следующего уровня"
-                      : "to next level"}
+                    {language === "ru" ? "до следующего уровня" : "to next level"}
                   </small>
                 </article>
                 <article>
@@ -1791,11 +1679,7 @@ export default function Dashboard({
                 <article>
                   <span>TODAY</span>
                   <strong>
-                    {boards.reduce(
-                      (sum, b) =>
-                        sum + b.options.filter((o) => o.selected).length,
-                      0,
-                    )}
+                    {boards.reduce((sum, b) => sum + b.options.filter((o) => o.selected).length, 0)}
                     <i>/9</i>
                   </strong>
                   <small>{t(language, "контрактов зафиксировано")}</small>
@@ -1813,16 +1697,12 @@ export default function Dashboard({
           )}
 
           {tab === "quests" && (
-            <div
-              className="dc-motion-contract-scene"
-              onMouseMove={handleContractSceneMouseMove}
-            >
+            <div className="dc-motion-contract-scene" onMouseMove={handleContractSceneMouseMove}>
               <div className="dc-motion-spotlight" aria-hidden="true" />
               <section className="dc-work-head dc-page-head dc-v3-quest-head dc-motion-contract-head">
                 <div>
                   <p className="dc-eyebrow">
-                    DAILY BOARD ·{" "}
-                    {expiryLabel(board?.expires_at, clock, language)}
+                    DAILY BOARD · {expiryLabel(board?.expires_at, clock, language)}
                   </p>
                   <h1>{t(language, "Соберите дело")}</h1>
                   <p>
@@ -1867,34 +1747,22 @@ export default function Dashboard({
                 <div>
                   <span>BOARD RESET</span>
                   <strong>
-                    {countdownHms(
-                      board?.daily_reset_at || boardsPayload?.refresh.reset_at,
-                      clock,
-                    )}
+                    {countdownHms(board?.daily_reset_at || boardsPayload?.refresh.reset_at, clock)}
                   </strong>
                   <small>{t(language, "Каждый день в 06:00 МСК")}</small>
                 </div>
 
                 <div
                   className={
-                    board &&
-                    ["LOCKED", "VERIFYING", "REVIEW_REQUIRED"].includes(
-                      board.status,
-                    )
+                    board && ["LOCKED", "VERIFYING", "REVIEW_REQUIRED"].includes(board.status)
                       ? "active"
                       : ""
                   }
                 >
                   <span>CASE TTL</span>
                   <strong>
-                    {board &&
-                    ["LOCKED", "VERIFYING", "REVIEW_REQUIRED"].includes(
-                      board.status,
-                    )
-                      ? countdownHms(
-                          board.case_expires_at || board.expires_at,
-                          clock,
-                        )
+                    {board && ["LOCKED", "VERIFYING", "REVIEW_REQUIRED"].includes(board.status)
+                      ? countdownHms(board.case_expires_at || board.expires_at, clock)
                       : board?.status === "OFFERED"
                         ? t(language, "НЕ ПРИНЯТО")
                         : statusLabel(board?.status || "", language)}
@@ -1913,10 +1781,7 @@ export default function Dashboard({
 
               {board && (
                 <>
-                  <section
-                    key={`${mode}-${board.generation}`}
-                    className="dc-motion-mode-note"
-                  >
+                  <section key={`${mode}-${board.generation}`} className="dc-motion-mode-note">
                     <div>
                       <span className="dc-live-dot" />
                       <b>{MODE_META[mode].title}</b>
@@ -1941,39 +1806,29 @@ export default function Dashboard({
                   )}
 
                   <div className="dc-filter-row dc-motion-filter-row">
-                    {([
-                      "ALL",
-                      "COMBAT",
-                      "SUPPORT",
-                      "ECONOMY",
-                      "SURVIVAL",
-                    ] as QuestFilter[]).map((item) => (
-                      <button
-                        key={item}
-                        className={filter === item ? "active" : ""}
-                        onClick={(e) => {
-                          ripple(e)
-                          setFilter(item)
-                        }}
-                      >
-                        <i>{categoryGlyph(item)}</i>
-                        {categoryLabel(item, language)}
-                        {item !== "ALL" && (
-                          <span>
-                            {
-                              board.options.filter((x) => x.category === item)
-                                .length
-                            }
-                          </span>
-                        )}
-                      </button>
-                    ))}
+                    {(["ALL", "COMBAT", "SUPPORT", "ECONOMY", "SURVIVAL"] as QuestFilter[]).map(
+                      (item) => (
+                        <button
+                          key={item}
+                          className={filter === item ? "active" : ""}
+                          onClick={(e) => {
+                            ripple(e)
+                            setFilter(item)
+                          }}
+                        >
+                          <i>{categoryGlyph(item)}</i>
+                          {categoryLabel(item, language)}
+                          {item !== "ALL" && (
+                            <span>{board.options.filter((x) => x.category === item).length}</span>
+                          )}
+                        </button>
+                      ),
+                    )}
                   </div>
 
                   <section className="dc-contract-grid dc-contract-board dc-v3-contract-grid dc-motion-contract-grid">
                     {visibleOptions.map((option, index) => {
-                      const chosen =
-                        selectedSet.has(option.id) || option.selected
+                      const chosen = selectedSet.has(option.id) || option.selected
                       const state =
                         board.status === "OFFERED"
                           ? chosen
@@ -1988,9 +1843,7 @@ export default function Dashboard({
                           className={`contract-card dc-contract dc-v3-contract dc-motion-contract-card ${
                             chosen ? "selected" : ""
                           } rarity-${option.rarity.toLowerCase()} diff-${option.difficulty.toLowerCase()} cat-${option.category.toLowerCase()}`}
-                          style={
-                            { "--card-index": index } as React.CSSProperties
-                          }
+                          style={{ "--card-index": index } as React.CSSProperties}
                           disabled={board.status !== "OFFERED"}
                           onClick={(e) => {
                             ripple(e)
@@ -2001,16 +1854,11 @@ export default function Dashboard({
                         >
                           <div className="holo-overlay" />
                           <div className="dc-motion-card-sheen" />
-                          {chosen && (
-                            <div className="dc-check dc-motion-check">✓</div>
-                          )}
+                          {chosen && <div className="dc-check dc-motion-check">✓</div>}
                           <div className="dc-contract-top">
                             <span>
                               <i>{categoryGlyph(option.category)}</i>
-                              {categoryLabel(
-                                option.category,
-                                language,
-                              ).toUpperCase()}
+                              {categoryLabel(option.category, language).toUpperCase()}
                             </span>
                             <em>
                               {language === "ru" ? "ШАНС" : "DROP"} ~
@@ -2018,13 +1866,8 @@ export default function Dashboard({
                             </em>
                           </div>
                           <div className="dc-v3-tags">
-                            <span>
-                              {DIFFICULTY_LABEL[option.difficulty] ||
-                                option.difficulty}
-                            </span>
-                            <span>
-                              {RARITY_LABEL[option.rarity] || option.rarity}
-                            </span>
+                            <span>{DIFFICULTY_LABEL[option.difficulty] || option.difficulty}</span>
+                            <span>{RARITY_LABEL[option.rarity] || option.rarity}</span>
                             {(option.conditions?.length || 0) > 1 && (
                               <span>
                                 {option.conditions!.length}{" "}
@@ -2057,9 +1900,7 @@ export default function Dashboard({
                               </span>
                               <span>
                                 {language === "ru" ? "НАГРАДА" : "REWARD"}
-                                <b className={chosen ? "neon-text" : ""}>
-                                  +{option.reward_xp} XP
-                                </b>
+                                <b className={chosen ? "neon-text" : ""}>+{option.reward_xp} XP</b>
                               </span>
                             </div>
                             <div className="dc-contract-foot">
@@ -2069,9 +1910,7 @@ export default function Dashboard({
                                   ? "ДО 3 ПОПЫТОК · АВТОПРОВЕРКА"
                                   : "UP TO 3 ATTEMPTS · AUTO VERIFY"}
                               </span>
-                              <strong className={chosen ? "chosen" : ""}>
-                                {state}
-                              </strong>
+                              <strong className={chosen ? "chosen" : ""}>{state}</strong>
                             </div>
                           </div>
                         </button>
@@ -2092,8 +1931,7 @@ export default function Dashboard({
                         <div className="dc-motion-selected-pills">
                           {selectedOptions.map((option) => (
                             <span key={option.id}>
-                              {contractTitle(option.title, language)}{" "}
-                              <b>+{option.reward_xp} XP</b>
+                              {contractTitle(option.title, language)} <b>+{option.reward_xp} XP</b>
                             </span>
                           ))}
                         </div>
@@ -2144,8 +1982,8 @@ export default function Dashboard({
                       ) : (
                         <span className="dc-board-locked">
                           {statusLabel(board.status, language)} ·{" "}
-                          {language === "ru" ? "МАТЧЕЙ" : "MATCHES"}{" "}
-                          {board.attempts_used}/{board.max_attempts}
+                          {language === "ru" ? "МАТЧЕЙ" : "MATCHES"} {board.attempts_used}/
+                          {board.max_attempts}
                         </span>
                       )}
                     </div>
@@ -2167,12 +2005,7 @@ export default function Dashboard({
                                 : t(language, "Автоматический поиск матча")}
                       </h2>
                       <div>
-                        <p>
-                          {localizeServerText(
-                            board.provider_status.message,
-                            language,
-                          )}
-                        </p>
+                        <p>{localizeServerText(board.provider_status.message, language)}</p>
                         {board.provider_status.phase === "SEARCHING" && (
                           <p>
                             {t(
@@ -2205,31 +2038,18 @@ export default function Dashboard({
               {activeBoards.length ? (
                 <section className="dc-active-case-grid">
                   {activeBoards.map((activeBoard) => {
-                    const lockedOptions = activeBoard.options.filter(
-                      (option) => option.selected,
-                    )
-                    const expiry =
-                      activeBoard.case_expires_at || activeBoard.expires_at
+                    const lockedOptions = activeBoard.options.filter((option) => option.selected)
+                    const expiry = activeBoard.case_expires_at || activeBoard.expires_at
                     return (
-                      <article
-                        className="dc-active-case-card"
-                        key={activeBoard.id}
-                      >
+                      <article className="dc-active-case-card" key={activeBoard.id}>
                         <header>
                           <div>
                             <p className="dc-eyebrow">
-                              {MODE_META[activeBoard.game_match_mode].short} /
-                              CASE
+                              {MODE_META[activeBoard.game_match_mode].short} / CASE
                             </p>
-                            <h2>
-                              {language === "ru"
-                                ? "ДЕЛО ЗАФИКСИРОВАНО"
-                                : "CASE LOCKED"}
-                            </h2>
+                            <h2>{language === "ru" ? "ДЕЛО ЗАФИКСИРОВАНО" : "CASE LOCKED"}</h2>
                           </div>
-                          <span
-                            className={`dc-badge ${activeBoard.status.toLowerCase()}`}
-                          >
+                          <span className={`dc-badge ${activeBoard.status.toLowerCase()}`}>
                             {statusLabel(activeBoard.status, language)}
                           </span>
                         </header>
@@ -2263,8 +2083,7 @@ export default function Dashboard({
                           <span>
                             {language === "ru" ? "ПОПЫТКИ" : "ATTEMPTS"}
                             <b>
-                              {activeBoard.attempts_used}/
-                              {activeBoard.max_attempts}
+                              {activeBoard.attempts_used}/{activeBoard.max_attempts}
                             </b>
                           </span>
                           <span>
@@ -2283,10 +2102,7 @@ export default function Dashboard({
                           </span>
                           <span>
                             {language === "ru" ? "ФАЗА" : "PHASE"}
-                            <b>
-                              {activeBoard.provider_status?.phase ||
-                                "SEARCHING"}
-                            </b>
+                            <b>{activeBoard.provider_status?.phase || "SEARCHING"}</b>
                           </span>
                           <span>
                             {language === "ru" ? "МАТЧ" : "MATCH"}
@@ -2318,21 +2134,13 @@ export default function Dashboard({
               ) : (
                 <section className="dc-active-empty">
                   <img src={markImage} alt="" />
-                  <h2>
-                    {language === "ru"
-                      ? "Активного дела пока нет"
-                      : "No active case yet"}
-                  </h2>
+                  <h2>{language === "ru" ? "Активного дела пока нет" : "No active case yet"}</h2>
                   <p>
                     {language === "ru"
                       ? "Выберите от одного до трёх контрактов на доске и зафиксируйте их до начала матча."
                       : "Choose one to three board contracts and lock them before the match begins."}
                   </p>
-                  <button
-                    className="dc-primary"
-                    type="button"
-                    onClick={() => setTab("quests")}
-                  >
+                  <button className="dc-primary" type="button" onClick={() => setTab("quests")}>
                     {language === "ru" ? "ОТКРЫТЬ КОНТРАКТЫ" : "OPEN CONTRACTS"}
                   </button>
                 </section>
@@ -2387,24 +2195,15 @@ export default function Dashboard({
                   <article className="dc-case-file empty">
                     <img src={markImage} alt="" />
                     <h2>{t(language, "Архив пока пуст")}</h2>
-                    <p>
-                      {t(
-                        language,
-                        "Зафиксируйте дело и сыграйте соответствующий матч.",
-                      )}
-                    </p>
+                    <p>{t(language, "Зафиксируйте дело и сыграйте соответствующий матч.")}</p>
                   </article>
                 )}
                 {caseGroups.map((group, index) => {
-                  const done = group.items.filter(
-                    (x) => x.status === "COMPLETED",
-                  ).length
+                  const done = group.items.filter((x) => x.status === "COMPLETED").length
                   const reward = group.items
                     .filter((x) => x.status === "COMPLETED")
                     .reduce((sum, x) => sum + x.reward_xp, 0)
-                  const hasReview = group.items.some(
-                    (x) => x.status === "REVIEW_REQUIRED",
-                  )
+                  const hasReview = group.items.some((x) => x.status === "REVIEW_REQUIRED")
                   return (
                     <article className="dc-case-file" key={group.boardId}>
                       <div className="dc-case-file-no">
@@ -2423,20 +2222,14 @@ export default function Dashboard({
                                 ? t(language, "Данные уточняются")
                                 : done === group.items.length
                                   ? t(language, "Дело закрыто успешно")
-                                  : group.items.some(
-                                        (x) => x.status === "LOCKED",
-                                      )
+                                  : group.items.some((x) => x.status === "LOCKED")
                                     ? t(language, "Дело продолжается")
                                     : t(language, "Решение по делу")}
                             </h2>
                           </div>
                           <span
                             className={`dc-badge ${
-                              hasReview
-                                ? "review_required"
-                                : done
-                                  ? "completed"
-                                  : "failed"
+                              hasReview ? "review_required" : done ? "completed" : "failed"
                             }`}
                           >
                             {done}/{group.items.length} COMPLETED
@@ -2463,13 +2256,9 @@ export default function Dashboard({
                               <p>
                                 <b>{contractTitle(item.title, language)}</b>
                                 <small>
-                                  {localizeServerText(
-                                    item.explanation,
-                                    language,
-                                  ) || statusLabel(item.status, language)}{" "}
-                                  ·{" "}
-                                  {DIFFICULTY_LABEL[item.difficulty] ||
-                                    item.difficulty}
+                                  {localizeServerText(item.explanation, language) ||
+                                    statusLabel(item.status, language)}{" "}
+                                  · {DIFFICULTY_LABEL[item.difficulty] || item.difficulty}
                                 </small>
                               </p>
                               <em>
@@ -2488,13 +2277,8 @@ export default function Dashboard({
                               group.items[0].board_status || "",
                             )
                               ? ` · ${
-                                  language === "ru"
-                                    ? "ДО ЗАКРЫТИЯ"
-                                    : "EXPIRES IN"
-                                } ${countdownHms(
-                                  group.items[0].case_expires_at,
-                                  clock,
-                                )}`
+                                  language === "ru" ? "ДО ЗАКРЫТИЯ" : "EXPIRES IN"
+                                } ${countdownHms(group.items[0].case_expires_at, clock)}`
                               : ""}
                           </span>
                           <strong>
@@ -2535,9 +2319,7 @@ export default function Dashboard({
                       <div className="dc-avatar-fallback">DC</div>
                     )}
                     <div className="dc-identity-copy">
-                      <p className="dc-eyebrow">
-                        CONTRACT RUNNER · LEVEL {level}
-                      </p>
+                      <p className="dc-eyebrow">CONTRACT RUNNER · LEVEL {level}</p>
                       <h2>{shownName}</h2>
                       <RoleBadgeList badges={user.badges} />
                       <span className="dc-steam-state">
@@ -2549,8 +2331,7 @@ export default function Dashboard({
                     <div>
                       <span>LEVEL {level}</span>
                       <b>
-                        {progression?.level_xp || 0} /{" "}
-                        {progression?.next_level_xp || 0} XP
+                        {progression?.level_xp || 0} / {progression?.next_level_xp || 0} XP
                       </b>
                     </div>
                     <i>
@@ -2579,11 +2360,9 @@ export default function Dashboard({
                     className="dc-ghost"
                     onClick={async () => {
                       try {
-                        const data = await api<{ user: User }>(
-                          "/api/profile/refresh",
-                          csrf,
-                          { method: "POST" },
-                        )
+                        const data = await api<{ user: User }>("/api/profile/refresh", csrf, {
+                          method: "POST",
+                        })
                         setUser(data.user)
                         await loadProgression()
                       } catch (reason) {
@@ -2605,10 +2384,8 @@ export default function Dashboard({
                         <p>
                           <b>{MODE_META[item].title}</b>
                           <small>
-                            {stat?.attempted || 0}{" "}
-                            {language === "ru" ? "контрактов" : "contracts"} ·{" "}
-                            {stat?.completed || 0}{" "}
-                            {language === "ru" ? "выполнено" : "completed"}
+                            {stat?.attempted || 0} {language === "ru" ? "контрактов" : "contracts"}{" "}
+                            · {stat?.completed || 0} {language === "ru" ? "выполнено" : "completed"}
                           </small>
                         </p>
                         <em>+{stat?.xp || 0} XP</em>
@@ -2619,10 +2396,7 @@ export default function Dashboard({
                     <span>HARDEST CASE</span>
                     <b>
                       {progression?.hardest_completed
-                        ? contractTitle(
-                            progression.hardest_completed.title,
-                            language,
-                          )
+                        ? contractTitle(progression.hardest_completed.title, language)
                         : t(language, "Пока нет")}
                     </b>
                     <small>
@@ -2653,11 +2427,7 @@ export default function Dashboard({
                     </div>
                     <span
                       className={`dc-companion-state ${
-                        companion?.online
-                          ? "online"
-                          : companion?.paired
-                            ? "paired"
-                            : ""
+                        companion?.online ? "online" : companion?.paired ? "paired" : ""
                       }`}
                     >
                       <i />
@@ -2687,8 +2457,8 @@ export default function Dashboard({
                         <span>{t(language, "РЕЖИМ")}</span>
                         <b>
                           {companion.game_match_mode
-                            ? MODE_META[(companion.game_match_mode as Mode)]
-                                ?.short || companion.game_match_mode
+                            ? MODE_META[companion.game_match_mode as Mode]?.short ||
+                              companion.game_match_mode
                             : "—"}
                         </b>
                       </div>
@@ -2706,13 +2476,13 @@ export default function Dashboard({
                       <small>
                         {language === "ru" ? (
                           <>
-                            Введите этот код в установленном Компаньоне.
-                            Действует до {fmt(pairing.expires_at, language)}.
+                            Введите этот код в установленном Компаньоне. Действует до{" "}
+                            {fmt(pairing.expires_at, language)}.
                           </>
                         ) : (
                           <>
-                            Enter this code in the installed Companion. Valid
-                            until {fmt(pairing.expires_at, language)}.
+                            Enter this code in the installed Companion. Valid until{" "}
+                            {fmt(pairing.expires_at, language)}.
                           </>
                         )}
                       </small>
@@ -2737,10 +2507,7 @@ export default function Dashboard({
                     )}
 
                     {!companion?.online && (
-                      <button
-                        className="dc-ghost"
-                        onClick={startCompanionPairing}
-                      >
+                      <button className="dc-ghost" onClick={startCompanionPairing}>
                         {companion?.paired
                           ? t(language, "Перепривязать")
                           : t(language, "У меня уже установлен")}
@@ -2753,10 +2520,7 @@ export default function Dashboard({
                       </button>
                     )}
 
-                    <button
-                      className="dc-ghost"
-                      onClick={() => void loadCompanion()}
-                    >
+                    <button className="dc-ghost" onClick={() => void loadCompanion()}>
                       {t(language, "Обновить статус")}
                     </button>
                   </div>
@@ -2836,9 +2600,7 @@ function adaptiveMeta(option: Record<string, unknown>) {
     confidence: String(adaptive.confidence || "COLD_START"),
     sample: Number(adaptive.sample_size || 0),
     weakest: adaptive.weakest_metric ? String(adaptive.weakest_metric) : "",
-    basis: Array.isArray(adaptive.basis)
-      ? adaptive.basis as Array<Record<string, unknown>>
-      : [],
+    basis: Array.isArray(adaptive.basis) ? (adaptive.basis as Array<Record<string, unknown>>) : [],
   }
 }
 
@@ -2888,15 +2650,12 @@ function AdminConsole({
   const [companionQuery, setCompanionQuery] = useState("")
   const [companionState, setCompanionState] = useState("ALL")
   const [companionVersion, setCompanionVersion] = useState("ALL")
-  const [companionVersions, setCompanionVersions] =
-    useState<Record<string, number>>({})
+  const [companionVersions, setCompanionVersions] = useState<Record<string, number>>({})
   const [missions, setMissions] = useState<AdminMission[]>([])
   const [missionQuery, setMissionQuery] = useState("")
   const [missionMode, setMissionMode] = useState("ALL")
   const [missionStatus, setMissionStatus] = useState("ALL")
-  const [selectedMission, setSelectedMission] = useState<AdminMission | null>(
-    null,
-  )
+  const [selectedMission, setSelectedMission] = useState<AdminMission | null>(null)
   const [missionDraft, setMissionDraft] = useState<AdminMission | null>(null)
   const [generatorMode, setGeneratorMode] = useState<Mode>("STANDARD")
   const [generatorBoards, setGeneratorBoards] = useState("12")
@@ -2904,12 +2663,10 @@ function AdminConsole({
   const [generator, setGenerator] = useState<AdminGeneratorPreview | null>(null)
   const [system, setSystem] = useState<AdminSystem | null>(null)
   const [busy, setBusy] = useState(false)
-  const [identityRole, setIdentityRole] =
-    useState<"PLAYER" | "TESTER" | "ADMIN">("PLAYER")
-  const [identityBadges, setIdentityBadges] =
-    useState<Array<"DEVELOPER" | "STREAMER" | "EARLY_TESTER" | "CONTRIBUTOR">>(
-      [],
-    )
+  const [identityRole, setIdentityRole] = useState<"PLAYER" | "TESTER" | "ADMIN">("PLAYER")
+  const [identityBadges, setIdentityBadges] = useState<
+    Array<"DEVELOPER" | "STREAMER" | "EARLY_TESTER" | "CONTRIBUTOR">
+  >([])
 
   const loadAuth = useCallback(async () => {
     const data = await api<AdminAuthStatus>("/api/admin/auth/status", csrf)
@@ -2935,21 +2692,13 @@ function AdminConsole({
           const data = await api<{
             items: AdminUserSummary[]
             total: number
-          }>(
-            `/api/admin/users?${params}`,
-            csrf,
-          )
+          }>(`/api/admin/users?${params}`, csrf)
           setUsers(data.items)
           setUserTotal(data.total)
         }
         if (target === "reviews")
           setReviews(
-            (
-              await api<{ items: AdminReview[] }>(
-                "/api/admin/auto-reviews?status=ALL",
-                csrf,
-              )
-            ).items,
+            (await api<{ items: AdminReview[] }>("/api/admin/auto-reviews?status=ALL", csrf)).items,
           )
         if (target === "jobs") {
           const params = new URLSearchParams({
@@ -2958,14 +2707,7 @@ function AdminConsole({
             query: jobQuery,
             limit: "200",
           })
-          setJobs(
-            (
-              await api<{ items: AdminJob[] }>(
-                `/api/admin/jobs?${params}`,
-                csrf,
-              )
-            ).items,
-          )
+          setJobs((await api<{ items: AdminJob[] }>(`/api/admin/jobs?${params}`, csrf)).items)
         }
         if (target === "audit") {
           const params = new URLSearchParams({
@@ -2975,10 +2717,7 @@ function AdminConsole({
           const data = await api<{
             items: AdminAudit[]
             total: number
-          }>(
-            `/api/admin/audit?${params}`,
-            csrf,
-          )
+          }>(`/api/admin/audit?${params}`, csrf)
           setAudit(data.items)
           setAuditTotal(data.total)
         }
@@ -2990,12 +2729,7 @@ function AdminConsole({
             limit: "150",
           })
           setMatches(
-            (
-              await api<{ items: AdminMatch[] }>(
-                `/api/admin/matches?${params}`,
-                csrf,
-              )
-            ).items,
+            (await api<{ items: AdminMatch[] }>(`/api/admin/matches?${params}`, csrf)).items,
           )
         }
         if (target === "boards") {
@@ -3006,12 +2740,7 @@ function AdminConsole({
             limit: "150",
           })
           setBoards(
-            (
-              await api<{ items: AdminBoardRow[] }>(
-                `/api/admin/boards?${params}`,
-                csrf,
-              )
-            ).items,
+            (await api<{ items: AdminBoardRow[] }>(`/api/admin/boards?${params}`, csrf)).items,
           )
         }
         if (target === "companions") {
@@ -3036,23 +2765,15 @@ function AdminConsole({
             limit: "500",
           })
           setMissions(
-            (
-              await api<{ items: AdminMission[] }>(
-                `/api/admin/missions?${params}`,
-                csrf,
-              )
-            ).items,
+            (await api<{ items: AdminMission[] }>(`/api/admin/missions?${params}`, csrf)).items,
           )
         }
-        if (target === "system")
-          setSystem(await api<AdminSystem>("/api/admin/system", csrf))
+        if (target === "system") setSystem(await api<AdminSystem>("/api/admin/system", csrf))
       } catch (reason) {
         const error = reason as ApiError
         if (error.status === 403)
           setAuth((previous) =>
-            previous
-              ? { ...previous, elevated: false, expires_at: null }
-              : previous,
+            previous ? { ...previous, elevated: false, expires_at: null } : previous,
           )
         setError(error.message)
       }
@@ -3105,9 +2826,7 @@ function AdminConsole({
       })
       setAuth(data)
       setCode("")
-      setNotice(
-        `Административный доступ подтверждён на ${data.ttl_minutes} минут.`,
-      )
+      setNotice(`Административный доступ подтверждён на ${data.ttl_minutes} минут.`)
     } catch (reason) {
       setError((reason as Error).message)
     } finally {
@@ -3119,9 +2838,7 @@ function AdminConsole({
     try {
       await api("/api/admin/auth/lock", csrf, { method: "POST" })
       setAuth((previous) =>
-        previous
-          ? { ...previous, elevated: false, expires_at: null }
-          : previous,
+        previous ? { ...previous, elevated: false, expires_at: null } : previous,
       )
       setDetail(null)
       setNotice("Административная сессия заблокирована.")
@@ -3140,12 +2857,8 @@ function AdminConsole({
         setIdentityRole(data.user.access_role as "PLAYER" | "TESTER" | "ADMIN")
       setIdentityBadges(
         data.user.badges.filter(
-          (
-            item,
-          ): item is "DEVELOPER" | "STREAMER" | "EARLY_TESTER" | "CONTRIBUTOR" =>
-            ["DEVELOPER", "STREAMER", "EARLY_TESTER", "CONTRIBUTOR"].includes(
-              item,
-            ),
+          (item): item is "DEVELOPER" | "STREAMER" | "EARLY_TESTER" | "CONTRIBUTOR" =>
+            ["DEVELOPER", "STREAMER", "EARLY_TESTER", "CONTRIBUTOR"].includes(item),
         ),
       )
     } catch (reason) {
@@ -3153,28 +2866,14 @@ function AdminConsole({
     }
   }
 
-  const toggleIdentityBadge = (
-    badge: "DEVELOPER" | "STREAMER" | "EARLY_TESTER" | "CONTRIBUTOR",
-  ) =>
+  const toggleIdentityBadge = (badge: "DEVELOPER" | "STREAMER" | "EARLY_TESTER" | "CONTRIBUTOR") =>
     setIdentityBadges((current) =>
-      current.includes(badge)
-        ? current.filter((item) => item !== badge)
-        : [...current, badge],
+      current.includes(badge) ? current.filter((item) => item !== badge) : [...current, badge],
     )
 
   const saveIdentity = async () => {
-    if (
-      !detail ||
-      !auth?.can_manage_roles ||
-      detail.user.access_role === "OWNER"
-    )
-      return
-    if (
-      !confirm(
-        `Сохранить роль и публичные бейджи для ${detail.user.display_name}?`,
-      )
-    )
-      return
+    if (!detail || !auth?.can_manage_roles || detail.user.access_role === "OWNER") return
+    if (!confirm(`Сохранить роль и публичные бейджи для ${detail.user.display_name}?`)) return
     setBusy(true)
     try {
       await api(`/api/admin/users/${detail.user.id}/identity`, csrf, {
@@ -3184,9 +2883,7 @@ function AdminConsole({
           badges: identityBadges,
         }),
       })
-      setNotice(
-        "Роль и публичные бейджи обновлены. Изменение записано в аудит.",
-      )
+      setNotice("Роль и публичные бейджи обновлены. Изменение записано в аудит.")
       await openUser(detail.user.id)
       await loadSection("users")
       await reloadAll()
@@ -3198,8 +2895,7 @@ function AdminConsole({
   }
 
   const revokeCompanionFor = async (item: AdminUserSummary) => {
-    if (!confirm(`Отозвать все токены Companion у ${item.display_name}?`))
-      return
+    if (!confirm(`Отозвать все токены Companion у ${item.display_name}?`)) return
     try {
       await api(`/api/admin/users/${item.id}/revoke-companion`, csrf, {
         method: "POST",
@@ -3213,8 +2909,7 @@ function AdminConsole({
   }
 
   const terminateSessionsFor = async (item: AdminUserSummary) => {
-    if (!confirm(`Завершить все веб-сессии пользователя ${item.display_name}?`))
-      return
+    if (!confirm(`Завершить все веб-сессии пользователя ${item.display_name}?`)) return
     try {
       await api(`/api/admin/users/${item.id}/terminate-sessions`, csrf, {
         method: "POST",
@@ -3232,9 +2927,7 @@ function AdminConsole({
     const next = item.status === "ACTIVE" ? "SUSPENDED" : "ACTIVE"
     const reason = prompt(
       `Причина изменения статуса ${item.display_name} → ${next}:`,
-      next === "SUSPENDED"
-        ? "Временная блокировка администратором"
-        : "Разблокировка владельцем",
+      next === "SUSPENDED" ? "Временная блокировка администратором" : "Разблокировка владельцем",
     )?.trim()
     if (!reason) return
     try {
@@ -3262,10 +2955,7 @@ function AdminConsole({
       setError("Введите ненулевое целое изменение XP.")
       return
     }
-    const reason = prompt(
-      "Причина корректировки XP:",
-      "Ручная корректировка владельцем",
-    )?.trim()
+    const reason = prompt("Причина корректировки XP:", "Ручная корректировка владельцем")?.trim()
     if (!reason) return
     try {
       await api(`/api/admin/users/${item.id}/xp-adjust`, csrf, {
@@ -3301,18 +2991,14 @@ function AdminConsole({
 
   const openMatch = async (matchId: number) => {
     try {
-      setMatchDetail(
-        await api<AdminMatchDetail>(`/api/admin/matches/${matchId}`, csrf),
-      )
+      setMatchDetail(await api<AdminMatchDetail>(`/api/admin/matches/${matchId}`, csrf))
     } catch (reason) {
       setError((reason as Error).message)
     }
   }
   const openBoard = async (boardId: string) => {
     try {
-      setBoardDetail(
-        await api<AdminBoardDetail>(`/api/admin/boards/${boardId}`, csrf),
-      )
+      setBoardDetail(await api<AdminBoardDetail>(`/api/admin/boards/${boardId}`, csrf))
     } catch (reason) {
       setError((reason as Error).message)
     }
@@ -3329,11 +3015,7 @@ function AdminConsole({
       const result = await api<{
         already_queued: boolean
         match_id: number
-      }>(
-        `/api/admin/boards/${boardId}/retry-verification`,
-        csrf,
-        { method: "POST" },
-      )
+      }>(`/api/admin/boards/${boardId}/retry-verification`, csrf, { method: "POST" })
       setNotice(
         result.already_queued
           ? `Проверка матча #${result.match_id} уже находится в очереди.`
@@ -3348,11 +3030,7 @@ function AdminConsole({
     }
   }
   const revokeDevice = async (item: AdminCompanion) => {
-    if (
-      !confirm(
-        `Отозвать устройство ${item.device_id} пользователя ${item.user.display_name}?`,
-      )
-    )
+    if (!confirm(`Отозвать устройство ${item.device_id} пользователя ${item.user.display_name}?`))
       return
     try {
       await api(`/api/admin/companions/${item.id}/revoke`, csrf, {
@@ -3386,8 +3064,7 @@ function AdminConsole({
     ] as const
     const body: Record<string, unknown> = {}
     for (const field of fields)
-      if (missionDraft[field] !== selectedMission[field])
-        body[field] = missionDraft[field]
+      if (missionDraft[field] !== selectedMission[field]) body[field] = missionDraft[field]
     if (!Object.keys(body).length) {
       setNotice("Изменений шаблона нет.")
       return
@@ -3407,9 +3084,7 @@ function AdminConsole({
       )
       setSelectedMission(data.mission)
       setMissionDraft({ ...data.mission })
-      setNotice(
-        "Шаблон обновлён. Существующие уже выданные карточки не переписаны.",
-      )
+      setNotice("Шаблон обновлён. Существующие уже выданные карточки не переписаны.")
       await loadSection("missions")
     } catch (reason) {
       setError((reason as Error).message)
@@ -3458,9 +3133,8 @@ function AdminConsole({
           <p className="dc-eyebrow">SECURE ZONE / TOTP</p>
           <h1>Admin console</h1>
           <p>
-            SteamID уже проверен. Для доступа к данным игроков требуется
-            отдельное TOTP-подтверждение. Код не сохраняется и не передаётся
-            клиентам.
+            SteamID уже проверен. Для доступа к данным игроков требуется отдельное
+            TOTP-подтверждение. Код не сохраняется и не передаётся клиентам.
           </p>
           <div className="dc-admin-unlock-form">
             <input
@@ -3470,18 +3144,12 @@ function AdminConsole({
               maxLength={6}
               placeholder="000000"
               value={code}
-              onChange={(event) =>
-                setCode(event.target.value.replace(/\D/g, ""))
-              }
+              onChange={(event) => setCode(event.target.value.replace(/\D/g, ""))}
               onKeyDown={(event) => {
                 if (event.key === "Enter") void unlock()
               }}
             />
-            <button
-              className="dc-primary"
-              disabled={busy}
-              onClick={() => void unlock()}
-            >
+            <button className="dc-primary" disabled={busy} onClick={() => void unlock()}>
               {busy ? "Проверяем…" : "Разблокировать"}
             </button>
           </div>
@@ -3511,9 +3179,7 @@ function AdminConsole({
     Object.entries(data).map(([key, value]) => (
       <div className="dc-admin-kv" key={key}>
         <span>{key}</span>
-        <b>
-          {typeof value === "object" ? JSON.stringify(value) : String(value)}
-        </b>
+        <b>{typeof value === "object" ? JSON.stringify(value) : String(value)}</b>
       </div>
     ))
 
@@ -3524,10 +3190,9 @@ function AdminConsole({
           <p className="dc-eyebrow">OPERATIONS CONSOLE / ADMIN MAX</p>
           <h1>Operations console</h1>
           <p>
-            Control plane для пользователей, матчей, дел, Companion, очередей и
-            каталога контрактов. Прямого SQL, shell-доступа и отображения
-            секретов нет. Опасные изменения доступны только OWNER и всегда
-            попадают в audit.
+            Control plane для пользователей, матчей, дел, Companion, очередей и каталога контрактов.
+            Прямого SQL, shell-доступа и отображения секретов нет. Опасные изменения доступны только
+            OWNER и всегда попадают в audit.
           </p>
         </div>
         <div className="dc-admin-session">
@@ -3575,8 +3240,7 @@ function AdminConsole({
                   <span>ИГРОКИ</span>
                   <b>{overview.users}</b>
                   <small>
-                    +{overview.users_new_24h} за 24ч · +{overview.users_new_7d}{" "}
-                    за 7д
+                    +{overview.users_new_24h} за 24ч · +{overview.users_new_7d} за 7д
                   </small>
                 </article>
                 <article>
@@ -3604,11 +3268,7 @@ function AdminConsole({
                   <b>{overview.failed_jobs}</b>
                   <small>{overview.pending_jobs} pending</small>
                 </article>
-                <article
-                  className={
-                    overview.verification_health.stuck_15m ? "warn" : ""
-                  }
-                >
+                <article className={overview.verification_health.stuck_15m ? "warn" : ""}>
                   <span>VERIFYING</span>
                   <b>{overview.verification_health.verifying_options}</b>
                   <small>
@@ -3646,9 +3306,7 @@ function AdminConsole({
                 </article>
                 <article
                   className={`dc-panel ${
-                    overview.verification_health.stuck_15m
-                      ? "dc-admin-health-warn"
-                      : ""
+                    overview.verification_health.stuck_15m ? "dc-admin-health-warn" : ""
                   }`}
                 >
                   <h3>Verification health</h3>
@@ -3664,9 +3322,7 @@ function AdminConsole({
                     <span>STUCK &gt; 15M</span>
                     <b>{overview.verification_health.stuck_15m}</b>
                   </div>
-                  {Object.keys(
-                    overview.verification_health.missing_capabilities,
-                  ).length > 0 && (
+                  {Object.keys(overview.verification_health.missing_capabilities).length > 0 && (
                     <details>
                       <summary>Missing capabilities</summary>
                       {kv(overview.verification_health.missing_capabilities)}
@@ -3728,20 +3384,14 @@ function AdminConsole({
               value={query}
               onChange={(event) => setQuery(event.target.value)}
             />
-            <select
-              value={userRole}
-              onChange={(event) => setUserRole(event.target.value)}
-            >
+            <select value={userRole} onChange={(event) => setUserRole(event.target.value)}>
               <option value="ALL">Все роли</option>
               <option>OWNER</option>
               <option>ADMIN</option>
               <option>TESTER</option>
               <option>PLAYER</option>
             </select>
-            <select
-              value={userStatus}
-              onChange={(event) => setUserStatus(event.target.value)}
-            >
+            <select value={userStatus} onChange={(event) => setUserStatus(event.target.value)}>
               <option value="ALL">Все статусы</option>
               <option>ACTIVE</option>
               <option>SUSPENDED</option>
@@ -3755,32 +3405,22 @@ function AdminConsole({
               <option value="PAIRED">Paired</option>
               <option value="NONE">Нет</option>
             </select>
-            <select
-              value={userSort}
-              onChange={(event) => setUserSort(event.target.value)}
-            >
+            <select value={userSort} onChange={(event) => setUserSort(event.target.value)}>
               <option value="NEWEST">Новые</option>
               <option value="XP">По XP</option>
               <option value="NAME">По имени</option>
             </select>
-            <button
-              className="dc-ghost"
-              onClick={() => void loadSection("users")}
-            >
+            <button className="dc-ghost" onClick={() => void loadSection("users")}>
               Применить
             </button>
             <small>{userTotal} найдено</small>
           </div>
-          <div
-            className={`dc-admin-users-layout ${detail ? "has-detail" : ""}`}
-          >
+          <div className={`dc-admin-users-layout ${detail ? "has-detail" : ""}`}>
             <div className="dc-admin-users-list">
               {users.map((item) => (
                 <button
                   key={item.id}
-                  className={`dc-admin-user-row ${
-                    selectedUserId === item.id ? "active" : ""
-                  }`}
+                  className={`dc-admin-user-row ${selectedUserId === item.id ? "active" : ""}`}
                   onClick={() => void openUser(item.id)}
                 >
                   <div>
@@ -3826,9 +3466,8 @@ function AdminConsole({
                       <h2>{detail.user.display_name}</h2>
                       <RoleBadgeList badges={detail.user.badges} />
                       <small>
-                        Account ID {detail.user.account_id ?? "—"} · XP{" "}
-                        {detail.user.xp} · {detail.user.status} · с нами с{" "}
-                        {joinLabel(detail.user.created_at)}
+                        Account ID {detail.user.account_id ?? "—"} · XP {detail.user.xp} ·{" "}
+                        {detail.user.status} · с нами с {joinLabel(detail.user.created_at)}
                       </small>
                     </div>
                     <div className="dc-admin-user-actions">
@@ -3846,22 +3485,16 @@ function AdminConsole({
                           Завершить сессии
                         </button>
                       )}
-                      {auth.can_manage_roles &&
-                        detail.user.access_role !== "OWNER" && (
-                          <button
-                            className="dc-ghost"
-                            onClick={() => void changeUserStatus(detail.user)}
-                          >
-                            {detail.user.status === "ACTIVE"
-                              ? "Приостановить"
-                              : "Активировать"}
-                          </button>
-                        )}
-                      {auth.can_manage_roles && (
+                      {auth.can_manage_roles && detail.user.access_role !== "OWNER" && (
                         <button
                           className="dc-ghost"
-                          onClick={() => void adjustXp(detail.user)}
+                          onClick={() => void changeUserStatus(detail.user)}
                         >
+                          {detail.user.status === "ACTIVE" ? "Приостановить" : "Активировать"}
+                        </button>
+                      )}
+                      {auth.can_manage_roles && (
+                        <button className="dc-ghost" onClick={() => void adjustXp(detail.user)}>
                           Корректировать XP
                         </button>
                       )}
@@ -3873,8 +3506,7 @@ function AdminConsole({
                         <div>
                           <span>ДОСТУП И ПУБЛИЧНЫЕ БЕЙДЖИ</span>
                           <p>
-                            Права проверяются сервером. Бейджи меняют только
-                            отображение профиля.
+                            Права проверяются сервером. Бейджи меняют только отображение профиля.
                           </p>
                         </div>
                         {detail.user.access_role === "OWNER" ? (
@@ -3896,38 +3528,22 @@ function AdminConsole({
                             <select
                               value={identityRole}
                               onChange={(event) =>
-                                setIdentityRole(
-                                  event.target
-                                    .value as "PLAYER" | "TESTER" | "ADMIN",
-                                )
+                                setIdentityRole(event.target.value as "PLAYER" | "TESTER" | "ADMIN")
                               }
                             >
-                              <option value="PLAYER">
-                                PLAYER — обычный игрок
-                              </option>
-                              <option value="TESTER">
-                                TESTER — участник тестирования
-                              </option>
-                              <option value="ADMIN">
-                                ADMIN — административный доступ + TOTP
-                              </option>
+                              <option value="PLAYER">PLAYER — обычный игрок</option>
+                              <option value="TESTER">TESTER — участник тестирования</option>
+                              <option value="ADMIN">ADMIN — административный доступ + TOTP</option>
                             </select>
                           </label>
                           <div className="dc-admin-badge-picker">
-                            {([
-                              "DEVELOPER",
-                              "STREAMER",
-                              "EARLY_TESTER",
-                              "CONTRIBUTOR",
-                            ] as const).map((badge) => (
+                            {(
+                              ["DEVELOPER", "STREAMER", "EARLY_TESTER", "CONTRIBUTOR"] as const
+                            ).map((badge) => (
                               <button
                                 key={badge}
                                 type="button"
-                                className={
-                                  identityBadges.includes(badge)
-                                    ? "selected"
-                                    : ""
-                                }
+                                className={identityBadges.includes(badge) ? "selected" : ""}
                                 aria-pressed={identityBadges.includes(badge)}
                                 onClick={() => toggleIdentityBadge(badge)}
                               >
@@ -3936,8 +3552,8 @@ function AdminConsole({
                             ))}
                           </div>
                           <small className="dc-admin-identity-warning">
-                            OWNER через веб назначить нельзя. Снятие ADMIN
-                            автоматически сбрасывает MFA elevation его сессий.
+                            OWNER через веб назначить нельзя. Снятие ADMIN автоматически сбрасывает
+                            MFA elevation его сессий.
                           </small>
                         </>
                       )}
@@ -3956,9 +3572,7 @@ function AdminConsole({
                     </div>
                     <div>
                       <span>DEADLOCK</span>
-                      <b>
-                        {detail.user.companion.game_running ? "RUNNING" : "—"}
-                      </b>
+                      <b>{detail.user.companion.game_running ? "RUNNING" : "—"}</b>
                     </div>
                     <div>
                       <span>PHASE</span>
@@ -3971,44 +3585,40 @@ function AdminConsole({
                   </div>
                   <h3>Adaptive Contracts profile</h3>
                   <div className="dc-admin-adaptive-grid">
-                    {(["STANDARD", "RANKED", "STREET_BRAWL"] as Mode[]).map(
-                      (mode) => {
-                        const profile = detail.adaptive_profiles[mode]
-                        return (
-                          <article className="dc-panel" key={mode}>
-                            <header>
-                              <div>
-                                <b>{mode}</b>
-                                <small>
-                                  {profile.sample_size} verified matches
-                                </small>
-                              </div>
-                              <span
-                                className={`dc-admin-confidence ${profile.confidence.toLowerCase()}`}
-                              >
-                                {profile.confidence}
-                              </span>
-                            </header>
-                            <div className="dc-admin-adaptive-metrics">
-                              {ADAPTIVE_METRICS.map(([metric, label]) => {
-                                const row = profile.metrics[metric]
-                                if (!row) return null
-                                return (
-                                  <div key={metric}>
-                                    <span>{label}</span>
-                                    <b>{adaptiveValue(metric, row.median)}</b>
-                                    <small>
-                                      P75 {adaptiveValue(metric, row.p75)} ·
-                                      best {adaptiveValue(metric, row.best)}
-                                    </small>
-                                  </div>
-                                )
-                              })}
+                    {(["STANDARD", "RANKED", "STREET_BRAWL"] as Mode[]).map((mode) => {
+                      const profile = detail.adaptive_profiles[mode]
+                      return (
+                        <article className="dc-panel" key={mode}>
+                          <header>
+                            <div>
+                              <b>{mode}</b>
+                              <small>{profile.sample_size} verified matches</small>
                             </div>
-                          </article>
-                        )
-                      },
-                    )}
+                            <span
+                              className={`dc-admin-confidence ${profile.confidence.toLowerCase()}`}
+                            >
+                              {profile.confidence}
+                            </span>
+                          </header>
+                          <div className="dc-admin-adaptive-metrics">
+                            {ADAPTIVE_METRICS.map(([metric, label]) => {
+                              const row = profile.metrics[metric]
+                              if (!row) return null
+                              return (
+                                <div key={metric}>
+                                  <span>{label}</span>
+                                  <b>{adaptiveValue(metric, row.median)}</b>
+                                  <small>
+                                    P75 {adaptiveValue(metric, row.p75)} · best{" "}
+                                    {adaptiveValue(metric, row.best)}
+                                  </small>
+                                </div>
+                              )
+                            })}
+                          </div>
+                        </article>
+                      )
+                    })}
                   </div>
                   <h3>Последние дела</h3>
                   <div className="dc-admin-table">
@@ -4048,15 +3658,11 @@ function AdminConsole({
                         <span>#{match.match_id}</span>
                         <span>{match.mode}</span>
                         <span>
-                          {match.duration_s
-                            ? `${Math.round(match.duration_s / 60)} мин`
-                            : "—"}
+                          {match.duration_s ? `${Math.round(match.duration_s / 60)} мин` : "—"}
                         </span>
                         <span>
-                          K/D/A {match.kills ?? "—"}/{match.deaths ?? "—"}/
-                          {match.assists ?? "—"} · dmg{" "}
-                          {match.hero_damage ?? "—"} · souls{" "}
-                          {match.souls ?? "—"}
+                          K/D/A {match.kills ?? "—"}/{match.deaths ?? "—"}/{match.assists ?? "—"} ·
+                          dmg {match.hero_damage ?? "—"} · souls {match.souls ?? "—"}
                         </span>
                       </button>
                     ))}
@@ -4084,11 +3690,7 @@ function AdminConsole({
                       <div className="dc-admin-compact-list">
                         {detail.sessions.map((item, index) => (
                           <div key={index}>
-                            <b>
-                              {item.admin_elevated
-                                ? "ADMIN ELEVATED"
-                                : "WEB SESSION"}
-                            </b>
+                            <b>{item.admin_elevated ? "ADMIN ELEVATED" : "WEB SESSION"}</b>
                             <span>last {fmt(item.last_seen_at)}</span>
                             <small>expires {fmt(item.expires_at)}</small>
                           </div>
@@ -4104,8 +3706,7 @@ function AdminConsole({
                           <div key={index}>
                             <b>{item.event_type}</b>
                             <span>
-                              #{item.match_id || "—"} · {item.mode || "—"} ·{" "}
-                              {item.phase || "—"}
+                              #{item.match_id || "—"} · {item.mode || "—"} · {item.phase || "—"}
                             </span>
                             <small>{fmt(item.created_at)}</small>
                           </div>
@@ -4142,12 +3743,8 @@ function AdminConsole({
           csrf={csrf}
           reload={async () => {
             setReviews(
-              (
-                await api<{ items: AdminReview[] }>(
-                  "/api/admin/auto-reviews?status=ALL",
-                  csrf,
-                )
-              ).items,
+              (await api<{ items: AdminReview[] }>("/api/admin/auto-reviews?status=ALL", csrf))
+                .items,
             )
             await reloadAll()
           }}
@@ -4163,53 +3760,35 @@ function AdminConsole({
               inputMode="numeric"
               placeholder="Match ID"
               value={matchQuery}
-              onChange={(event) =>
-                setMatchQuery(event.target.value.replace(/\D/g, ""))
-              }
+              onChange={(event) => setMatchQuery(event.target.value.replace(/\D/g, ""))}
             />
-            <select
-              value={matchMode}
-              onChange={(event) => setMatchMode(event.target.value)}
-            >
+            <select value={matchMode} onChange={(event) => setMatchMode(event.target.value)}>
               <option value="ALL">Все режимы</option>
               <option>STANDARD</option>
               <option>RANKED</option>
               <option>STREET_BRAWL</option>
               <option>UNKNOWN</option>
             </select>
-            <select
-              value={matchScoring}
-              onChange={(event) => setMatchScoring(event.target.value)}
-            >
+            <select value={matchScoring} onChange={(event) => setMatchScoring(event.target.value)}>
               <option value="ALL">Любой scoring</option>
               <option>SCORED</option>
               <option>NOT_SCORED</option>
             </select>
-            <button
-              className="dc-ghost"
-              onClick={() => void loadSection("matches")}
-            >
+            <button className="dc-ghost" onClick={() => void loadSection("matches")}>
               Найти
             </button>
           </div>
-          <div
-            className={`dc-admin-master-detail ${
-              matchDetail ? "has-detail" : ""
-            }`}
-          >
+          <div className={`dc-admin-master-detail ${matchDetail ? "has-detail" : ""}`}>
             <div className="dc-admin-master-list">
               {matches.map((item) => (
-                <button
-                  key={item.match_id}
-                  onClick={() => void openMatch(item.match_id)}
-                >
+                <button key={item.match_id} onClick={() => void openMatch(item.match_id)}>
                   <b>#{item.match_id}</b>
                   <span>
                     {item.mode} · {item.scoring_status}
                   </span>
                   <small>
-                    {fmt(item.started_at)} · {item.participants} игроков ·{" "}
-                    {item.bound_contracts} contracts · {item.reviews} review
+                    {fmt(item.started_at)} · {item.participants} игроков · {item.bound_contracts}{" "}
+                    contracts · {item.reviews} review
                   </small>
                 </button>
               ))}
@@ -4279,19 +3858,13 @@ function AdminConsole({
               value={boardQuery}
               onChange={(event) => setBoardQuery(event.target.value)}
             />
-            <select
-              value={boardMode}
-              onChange={(event) => setBoardMode(event.target.value)}
-            >
+            <select value={boardMode} onChange={(event) => setBoardMode(event.target.value)}>
               <option value="ALL">Все режимы</option>
               <option>STANDARD</option>
               <option>RANKED</option>
               <option>STREET_BRAWL</option>
             </select>
-            <select
-              value={boardStatus}
-              onChange={(event) => setBoardStatus(event.target.value)}
-            >
+            <select value={boardStatus} onChange={(event) => setBoardStatus(event.target.value)}>
               <option value="ALL">Все статусы</option>
               <option>OFFERED</option>
               <option>LOCKED</option>
@@ -4300,31 +3873,20 @@ function AdminConsole({
               <option>SETTLED</option>
               <option>EXPIRED</option>
             </select>
-            <button
-              className="dc-ghost"
-              onClick={() => void loadSection("boards")}
-            >
+            <button className="dc-ghost" onClick={() => void loadSection("boards")}>
               Найти
             </button>
           </div>
-          <div
-            className={`dc-admin-master-detail ${
-              boardDetail ? "has-detail" : ""
-            }`}
-          >
+          <div className={`dc-admin-master-detail ${boardDetail ? "has-detail" : ""}`}>
             <div className="dc-admin-master-list">
               {boards.map((item) => (
-                <button
-                  key={item.board.id}
-                  onClick={() => void openBoard(item.board.id)}
-                >
+                <button key={item.board.id} onClick={() => void openBoard(item.board.id)}>
                   <b>{item.user.display_name}</b>
                   <span>
                     {item.board.mode} · {item.board.status}
                   </span>
                   <small>
-                    {item.board.id.slice(0, 8)} ·{" "}
-                    {item.board.generator_version || "legacy"} ·{" "}
+                    {item.board.id.slice(0, 8)} · {item.board.generator_version || "legacy"} ·{" "}
                     {item.board.attempts_used}/{item.board.max_attempts}
                   </small>
                 </button>
@@ -4343,22 +3905,18 @@ function AdminConsole({
                   <div className="dc-admin-detail-head">
                     <div>
                       <p className="dc-eyebrow">
-                        {boardDetail.board.generator_version ||
-                          "LEGACY GENERATOR"}
+                        {boardDetail.board.generator_version || "LEGACY GENERATOR"}
                       </p>
                       <h2>Дело {boardDetail.board.id.slice(0, 8)}</h2>
                       <p>
-                        {boardDetail.user?.display_name} ·{" "}
-                        {boardDetail.user?.steam_id64}
+                        {boardDetail.user?.display_name} · {boardDetail.user?.steam_id64}
                       </p>
                     </div>
                     {boardDetail.board.status === "VERIFYING" && (
                       <button
                         className="dc-primary"
                         disabled={busy}
-                        onClick={() =>
-                          void retryBoardVerification(boardDetail.board.id)
-                        }
+                        onClick={() => void retryBoardVerification(boardDetail.board.id)}
                       >
                         {busy ? "Ставим в очередь…" : "RECHECK VERIFYING"}
                       </button>
@@ -4380,8 +3938,7 @@ function AdminConsole({
                     <div>
                       <span>ATTEMPTS</span>
                       <b>
-                        {boardDetail.board.attempts_used}/
-                        {boardDetail.board.max_attempts}
+                        {boardDetail.board.attempts_used}/{boardDetail.board.max_attempts}
                       </b>
                     </div>
                   </div>
@@ -4393,9 +3950,7 @@ function AdminConsole({
                       return (
                         <article
                           className={`dc-panel ${
-                            String(row.status) === "VERIFYING"
-                              ? "dc-admin-health-warn"
-                              : ""
+                            String(row.status) === "VERIFYING" ? "dc-admin-health-warn" : ""
                           }`}
                           key={String(row.id)}
                         >
@@ -4403,9 +3958,8 @@ function AdminConsole({
                             <div>
                               <b>{String(row.title || "Contract")}</b>
                               <small>
-                                {String(row.metric)} · target{" "}
-                                {String(row.target)} · {String(row.reward_xp)}{" "}
-                                XP
+                                {String(row.metric)} · target {String(row.target)} ·{" "}
+                                {String(row.reward_xp)} XP
                               </small>
                             </div>
                             <span>{String(row.status)}</span>
@@ -4413,11 +3967,7 @@ function AdminConsole({
                           <div className="dc-admin-mini-grid">
                             <div>
                               <span>ADAPTIVE</span>
-                              <b>
-                                {adaptive.enabled
-                                  ? adaptive.kind
-                                  : "WILDCARD / OFF"}
-                              </b>
+                              <b>{adaptive.enabled ? adaptive.kind : "WILDCARD / OFF"}</b>
                             </div>
                             <div>
                               <span>CONFIDENCE</span>
@@ -4433,16 +3983,12 @@ function AdminConsole({
                             </div>
                           </div>
                           {adaptive.weakest && (
-                            <p className="dc-admin-code-line">
-                              weakest: {adaptive.weakest}
-                            </p>
+                            <p className="dc-admin-code-line">weakest: {adaptive.weakest}</p>
                           )}
                           {adaptive.basis.length > 0 && (
                             <details>
                               <summary>Why this contract / basis</summary>
-                              <pre>
-                                {JSON.stringify(adaptive.basis, null, 2)}
-                              </pre>
+                              <pre>{JSON.stringify(adaptive.basis, null, 2)}</pre>
                             </details>
                           )}
                           <small>{String(row.explanation || "")}</small>
@@ -4510,30 +4056,20 @@ function AdminConsole({
                   <option key={value}>{value}</option>
                 ))}
             </select>
-            <button
-              className="dc-ghost"
-              onClick={() => void loadSection("companions")}
-            >
+            <button className="dc-ghost" onClick={() => void loadSection("companions")}>
               Применить
             </button>
           </div>
           <div className="dc-admin-companion-grid">
             {companions.map((item) => (
-              <article
-                key={item.id}
-                className={`dc-panel ${item.status.online ? "online" : ""}`}
-              >
+              <article key={item.id} className={`dc-panel ${item.status.online ? "online" : ""}`}>
                 <header>
                   <div>
                     <b>{item.user.display_name}</b>
                     <small>{item.user.steam_id64}</small>
                   </div>
                   <span>
-                    {item.status.online
-                      ? "ONLINE"
-                      : item.revoked_at
-                        ? "REVOKED"
-                        : "OFFLINE"}
+                    {item.status.online ? "ONLINE" : item.revoked_at ? "REVOKED" : "OFFLINE"}
                   </span>
                 </header>
                 <p className="dc-admin-code-line">{item.device_id}</p>
@@ -4560,10 +4096,7 @@ function AdminConsole({
                   {String(item.status.identity_ok ?? "—")}
                 </small>
                 {!item.revoked_at && (
-                  <button
-                    className="dc-ghost"
-                    onClick={() => void revokeDevice(item)}
-                  >
+                  <button className="dc-ghost" onClick={() => void revokeDevice(item)}>
                     Отозвать устройство
                   </button>
                 )}
@@ -4581,10 +4114,7 @@ function AdminConsole({
               value={missionQuery}
               onChange={(event) => setMissionQuery(event.target.value)}
             />
-            <select
-              value={missionMode}
-              onChange={(event) => setMissionMode(event.target.value)}
-            >
+            <select value={missionMode} onChange={(event) => setMissionMode(event.target.value)}>
               <option value="ALL">Все режимы</option>
               <option>STANDARD</option>
               <option>RANKED</option>
@@ -4598,18 +4128,11 @@ function AdminConsole({
               <option>PUBLISHED</option>
               <option>DISABLED</option>
             </select>
-            <button
-              className="dc-ghost"
-              onClick={() => void loadSection("missions")}
-            >
+            <button className="dc-ghost" onClick={() => void loadSection("missions")}>
               Найти
             </button>
           </div>
-          <div
-            className={`dc-admin-master-detail ${
-              missionDraft ? "has-detail" : ""
-            }`}
-          >
+          <div className={`dc-admin-master-detail ${missionDraft ? "has-detail" : ""}`}>
             <div className="dc-admin-master-list">
               {missions.map((item) => (
                 <button
@@ -4622,8 +4145,8 @@ function AdminConsole({
                     {item.game_match_mode} · {item.rarity} · {item.difficulty}
                   </span>
                   <small>
-                    {item.key} v{item.version} · {item.metric} {item.operator}{" "}
-                    {item.target} · {item.reward_xp} XP
+                    {item.key} v{item.version} · {item.metric} {item.operator} {item.target} ·{" "}
+                    {item.reward_xp} XP
                   </small>
                 </button>
               ))}
@@ -4832,22 +4355,18 @@ function AdminConsole({
                   <div className="dc-admin-kv">
                     <span>METRIC</span>
                     <b>
-                      {missionDraft.metric} {missionDraft.operator}{" "}
-                      {missionDraft.target}
+                      {missionDraft.metric} {missionDraft.operator} {missionDraft.target}
                     </b>
                   </div>
                   <div className="dc-admin-kv">
                     <span>CAPABILITIES</span>
-                    <b>
-                      {missionDraft.required_capabilities.join(", ") || "—"}
-                    </b>
+                    <b>{missionDraft.required_capabilities.join(", ") || "—"}</b>
                   </div>
                   <small>
-                    Contracts 2.0 использует Status, Drop weight, Category,
-                    Metric и Capabilities как атомы генерации. Target / Reward
-                    XP / Base XP остаются reference/legacy-полями: цели и
-                    награда новых динамических контрактов рассчитываются
-                    генератором. Уже выданные BoardOption хранят собственные
+                    Contracts 2.0 использует Status, Drop weight, Category, Metric и Capabilities
+                    как атомы генерации. Target / Reward XP / Base XP остаются
+                    reference/legacy-полями: цели и награда новых динамических контрактов
+                    рассчитываются генератором. Уже выданные BoardOption хранят собственные
                     snapshot-поля.
                   </small>
                 </>
@@ -4866,17 +4385,14 @@ function AdminConsole({
               <p className="dc-eyebrow">CONTRACT FACTORY / DRY RUN</p>
               <h2>Generator Lab</h2>
               <p>
-                Contracts 2.0 собирает новые цели и составные условия
-                детерминированно. Preview ничего не пишет в БД и показывает
-                реальное разнообразие будущих досок.
+                Contracts 2.0 собирает новые цели и составные условия детерминированно. Preview
+                ничего не пишет в БД и показывает реальное разнообразие будущих досок.
               </p>
             </div>
             <div className="dc-admin-filterbar">
               <select
                 value={generatorMode}
-                onChange={(event) =>
-                  setGeneratorMode(event.target.value as Mode)
-                }
+                onChange={(event) => setGeneratorMode(event.target.value as Mode)}
               >
                 <option>STANDARD</option>
                 <option>RANKED</option>
@@ -4892,16 +4408,10 @@ function AdminConsole({
               <input
                 value={generatorSeed}
                 onChange={(event) =>
-                  setGeneratorSeed(
-                    event.target.value.replace(/[^A-Za-z0-9._:-]/g, ""),
-                  )
+                  setGeneratorSeed(event.target.value.replace(/[^A-Za-z0-9._:-]/g, ""))
                 }
               />
-              <button
-                className="dc-primary"
-                disabled={busy}
-                onClick={() => void runGenerator()}
-              >
+              <button className="dc-primary" disabled={busy} onClick={() => void runGenerator()}>
                 {busy ? "Генерируем…" : "Сгенерировать preview"}
               </button>
             </div>
@@ -4924,9 +4434,7 @@ function AdminConsole({
                   <span>УНИКАЛЬНЫХ</span>
                   <b>{generator.stats.unique_boards}</b>
                 </article>
-                <article
-                  className={generator.stats.duplicate_boards ? "warn" : ""}
-                >
+                <article className={generator.stats.duplicate_boards ? "warn" : ""}>
                   <span>ДУБЛЕЙ</span>
                   <b>{generator.stats.duplicate_boards}</b>
                 </article>
@@ -4950,14 +4458,12 @@ function AdminConsole({
                 </article>
                 <article className="dc-panel">
                   <h3>Частые базовые атомы</h3>
-                  {generator.stats.contract_frequency
-                    .slice(0, 8)
-                    .map((item) => (
-                      <div className="dc-admin-kv" key={item.key}>
-                        <span>{item.key}</span>
-                        <b>{item.slot_pct}%</b>
-                      </div>
-                    ))}
+                  {generator.stats.contract_frequency.slice(0, 8).map((item) => (
+                    <div className="dc-admin-kv" key={item.key}>
+                      <span>{item.key}</span>
+                      <b>{item.slot_pct}%</b>
+                    </div>
+                  ))}
                 </article>
               </div>
               <div className="dc-admin-generator-boards">
@@ -4972,8 +4478,7 @@ function AdminConsole({
                         <span>{item.title}</span>
                         <small>
                           {item.rarity} · {item.difficulty} · {item.category} ·{" "}
-                          {item.conditions?.length || 1} усл. · {item.reward_xp}{" "}
-                          XP
+                          {item.conditions?.length || 1} усл. · {item.reward_xp} XP
                         </small>
                       </div>
                     ))}
@@ -4993,20 +4498,14 @@ function AdminConsole({
               value={jobQuery}
               onChange={(event) => setJobQuery(event.target.value)}
             />
-            <select
-              value={jobStatus}
-              onChange={(event) => setJobStatus(event.target.value)}
-            >
+            <select value={jobStatus} onChange={(event) => setJobStatus(event.target.value)}>
               <option value="ALL">Все статусы</option>
               <option>PENDING</option>
               <option>RUNNING</option>
               <option>DONE</option>
               <option>FAILED</option>
             </select>
-            <select
-              value={jobType}
-              onChange={(event) => setJobType(event.target.value)}
-            >
+            <select value={jobType} onChange={(event) => setJobType(event.target.value)}>
               <option value="ALL">Все типы</option>
               <option>discover_match</option>
               <option>resolve_companion_match</option>
@@ -5014,10 +4513,7 @@ function AdminConsole({
               <option>evaluate_match</option>
               <option>refresh_review_match</option>
             </select>
-            <button
-              className="dc-ghost"
-              onClick={() => void loadSection("jobs")}
-            >
+            <button className="dc-ghost" onClick={() => void loadSection("jobs")}>
               Применить
             </button>
           </div>
@@ -5025,9 +4521,7 @@ function AdminConsole({
             {jobs.map((job) => (
               <article
                 key={job.id}
-                className={`dc-admin-job ${
-                  job.status === "FAILED" ? "failed" : ""
-                }`}
+                className={`dc-admin-job ${job.status === "FAILED" ? "failed" : ""}`}
               >
                 <header>
                   <div>
@@ -5047,10 +4541,7 @@ function AdminConsole({
                   <pre>{JSON.stringify(job.payload || {}, null, 2)}</pre>
                 </details>
                 {job.status === "FAILED" && (
-                  <button
-                    className="dc-ghost"
-                    onClick={() => void retryJob(job)}
-                  >
+                  <button className="dc-ghost" onClick={() => void retryJob(job)}>
                     Повторить безопасно
                   </button>
                 )}
@@ -5068,10 +4559,7 @@ function AdminConsole({
               value={auditQuery}
               onChange={(event) => setAuditQuery(event.target.value)}
             />
-            <button
-              className="dc-ghost"
-              onClick={() => void loadSection("audit")}
-            >
+            <button className="dc-ghost" onClick={() => void loadSection("audit")}>
               Найти
             </button>
             <small>{auditTotal} событий</small>
@@ -5133,8 +4621,8 @@ function AdminConsole({
               </div>
               <article className="dc-panel">
                 <small>
-                  Секреты, токены, пароли и значения Docker secrets намеренно не
-                  доступны через этот endpoint.
+                  Секреты, токены, пароли и значения Docker secrets намеренно не доступны через этот
+                  endpoint.
                 </small>
               </article>
             </>
@@ -5162,22 +4650,16 @@ function AdminReviewDesk({
   setError: (value: string) => void
   setNotice: (value: string) => void
 }) {
-  const [decisions, setDecisions] =
-    useState<Record<string, Record<string, "COMPLETED" | "FAILED" | "VOID">>>(
-      {},
-    )
+  const [decisions, setDecisions] = useState<
+    Record<string, Record<string, "COMPLETED" | "FAILED" | "VOID">>
+  >({})
 
-  const [manualValues, setManualValues] =
-    useState<Record<string, Record<string, string>>>({})
+  const [manualValues, setManualValues] = useState<Record<string, Record<string, string>>>({})
   const submit = async (review: AdminReview) => {
-    const pending = review.contracts.filter(
-      (item) => item.status === "REVIEW_REQUIRED",
-    )
+    const pending = review.contracts.filter((item) => item.status === "REVIEW_REQUIRED")
     const map = decisions[review.id] || {}
     if (pending.some((item) => !map[item.id])) {
-      setError(
-        "Укажите решение по каждому контракту, который ждёт внутренней проверки.",
-      )
+      setError("Укажите решение по каждому контракту, который ждёт внутренней проверки.")
       return
     }
     try {
@@ -5189,8 +4671,7 @@ function AdminReviewDesk({
           options: pending.map((item) => {
             const raw = (manualValues[review.id]?.[item.id] || "").trim()
             const parsed = raw ? Number(raw.replace(",", ".")) : null
-            const fact =
-              parsed !== null && Number.isFinite(parsed) ? parsed : null
+            const fact = parsed !== null && Number.isFinite(parsed) ? parsed : null
             const status = map[item.id]
 
             return {
@@ -5224,8 +4705,8 @@ function AdminReviewDesk({
           <p className="dc-eyebrow">INTERNAL REVIEW / STAFF ONLY</p>
           <h1>Internal review</h1>
           <p>
-            Сюда автоматически попадают только матчи, где провайдеру не хватило
-            данных. Пользователь ничего не загружает.
+            Сюда автоматически попадают только матчи, где провайдеру не хватило данных. Пользователь
+            ничего не загружает.
           </p>
         </div>
       </section>
@@ -5270,8 +4751,7 @@ function AdminReviewDesk({
               <span>
                 K / D / A{" "}
                 <b>
-                  {review.match_summary.kills ?? "—"} /{" "}
-                  {review.match_summary.deaths ?? "—"} /{" "}
+                  {review.match_summary.kills ?? "—"} / {review.match_summary.deaths ?? "—"} /{" "}
                   {review.match_summary.assists ?? "—"}
                 </b>
               </span>
@@ -5301,9 +4781,7 @@ function AdminReviewDesk({
                     <span>
                       <button
                         className={
-                          decisions[review.id]?.[contract.id] === "COMPLETED"
-                            ? "active ok"
-                            : ""
+                          decisions[review.id]?.[contract.id] === "COMPLETED" ? "active ok" : ""
                         }
                         onClick={() =>
                           setDecisions((prev) => ({
@@ -5319,9 +4797,7 @@ function AdminReviewDesk({
                       </button>
                       <button
                         className={
-                          decisions[review.id]?.[contract.id] === "FAILED"
-                            ? "active bad"
-                            : ""
+                          decisions[review.id]?.[contract.id] === "FAILED" ? "active bad" : ""
                         }
                         onClick={() =>
                           setDecisions((prev) => ({
@@ -5337,9 +4813,7 @@ function AdminReviewDesk({
                       </button>
                       <button
                         className={
-                          decisions[review.id]?.[contract.id] === "VOID"
-                            ? "active void"
-                            : ""
+                          decisions[review.id]?.[contract.id] === "VOID" ? "active void" : ""
                         }
                         onClick={() =>
                           setDecisions((prev) => ({

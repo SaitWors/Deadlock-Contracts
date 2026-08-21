@@ -13,7 +13,16 @@ type SessionPayload = {
     xp: number
     status: string
     access_role: "OWNER" | "ADMIN" | "TESTER" | "PLAYER"
-    badges: Array<"CREATOR" | "ADMIN" | "DEVELOPER" | "STREAMER" | "EARLY_TESTER" | "TESTER" | "CONTRIBUTOR" | "PLAYER">
+    badges: Array<
+      | "CREATOR"
+      | "ADMIN"
+      | "DEVELOPER"
+      | "STREAMER"
+      | "EARLY_TESTER"
+      | "TESTER"
+      | "CONTRIBUTOR"
+      | "PLAYER"
+    >
     created_at: string | null
     is_admin: boolean
     can_manage_roles: boolean
@@ -60,18 +69,14 @@ function SessionApp() {
       >
         <div className="text-center">
           <div className="dc-loader mx-auto mb-4" />
-          <p
-            className="text-xs tracking-[0.28em] uppercase"
-            style={{ color: "#7AB384" }}
-          >
+          <p className="text-xs tracking-[0.28em] uppercase" style={{ color: "#7AB384" }}>
             {language === "ru" ? "ОТКРЫВАЕМ ВАШЕ ДЕЛО" : "OPENING YOUR CASE"}
           </p>
         </div>
       </main>
     )
   }
-  if (!session.authenticated || !session.user || !session.csrf_token)
-    return <Landing />
+  if (!session.authenticated || !session.user || !session.csrf_token) return <Landing />
   return (
     <Dashboard
       initialSession={{

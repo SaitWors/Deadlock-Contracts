@@ -1,13 +1,7 @@
 import { useEffect, useState } from "react"
 import logoImage from "@/imports/logo-horizontal.svg"
 import markImage from "@/imports/mark.svg"
-import {
-  contractTitle,
-  LanguageSwitch,
-  localizeServerText,
-  MCGCredit,
-  useLanguage,
-} from "./i18n"
+import { contractTitle, LanguageSwitch, localizeServerText, MCGCredit, useLanguage } from "./i18n"
 
 type Mode = "STANDARD" | "RANKED" | "STREET_BRAWL"
 type Showcase = {
@@ -38,12 +32,15 @@ type Profile = {
   stats: null | {
     contracts_completed: number
     contracts_failed: number
-    mode_stats: Record<Mode, {
-      completed: number
-      failed: number
-      attempted: number
-      xp: number
-    }>
+    mode_stats: Record<
+      Mode,
+      {
+        completed: number
+        failed: number
+        attempted: number
+        xp: number
+      }
+    >
     hardest_completed: {
       title: string
       difficulty: string
@@ -94,11 +91,7 @@ export default function PublicDossier({ slug }: { slug: string }) {
           <LanguageSwitch compact />
         </div>
         <p>PUBLIC DOSSIER / 404</p>
-        <h1>
-          {language === "ru"
-            ? "Public dossier не найден"
-            : "Public dossier not found"}
-        </h1>
+        <h1>{language === "ru" ? "Public dossier не найден" : "Public dossier not found"}</h1>
         <a href="/">{language === "ru" ? "НА ГЛАВНУЮ" : "BACK TO HOME"}</a>
         <MCGCredit language={language} />
       </main>
@@ -107,11 +100,7 @@ export default function PublicDossier({ slug }: { slug: string }) {
     return (
       <main className="dc-public-page dc-public-missing">
         <div className="dc-loader" />
-        <p>
-          {language === "ru"
-            ? "ОТКРЫВАЕМ PUBLIC DOSSIER"
-            : "OPENING PUBLIC DOSSIER"}
-        </p>
+        <p>{language === "ru" ? "ОТКРЫВАЕМ PUBLIC DOSSIER" : "OPENING PUBLIC DOSSIER"}</p>
       </main>
     )
 
@@ -174,32 +163,25 @@ export default function PublicDossier({ slug }: { slug: string }) {
           <section className="dc-public-panel">
             <div className="dc-public-section-title">
               <span>01</span>
-              <h2>
-                {language === "ru" ? "Mode record / результаты" : "Mode record"}
-              </h2>
+              <h2>{language === "ru" ? "Mode record / результаты" : "Mode record"}</h2>
             </div>
             <div className="dc-public-mode-grid">
-              {(["STANDARD", "RANKED", "STREET_BRAWL"] as Mode[]).map(
-                (mode) => {
-                  const stat = profile.stats!.mode_stats[mode]
-                  return (
-                    <article key={mode}>
-                      <span>{MODE_NAME[mode]}</span>
-                      <b>
-                        {stat?.completed || 0}
-                        <small>
-                          {language === "ru" ? " выполнено" : " completed"}
-                        </small>
-                      </b>
-                      <p>
-                        {stat?.attempted || 0}{" "}
-                        {language === "ru" ? "попыток" : "attempts"} · +
-                        {stat?.xp || 0} XP
-                      </p>
-                    </article>
-                  )
-                },
-              )}
+              {(["STANDARD", "RANKED", "STREET_BRAWL"] as Mode[]).map((mode) => {
+                const stat = profile.stats!.mode_stats[mode]
+                return (
+                  <article key={mode}>
+                    <span>{MODE_NAME[mode]}</span>
+                    <b>
+                      {stat?.completed || 0}
+                      <small>{language === "ru" ? " выполнено" : " completed"}</small>
+                    </b>
+                    <p>
+                      {stat?.attempted || 0} {language === "ru" ? "попыток" : "attempts"} · +
+                      {stat?.xp || 0} XP
+                    </p>
+                  </article>
+                )
+              })}
             </div>
           </section>
         )}
@@ -208,11 +190,7 @@ export default function PublicDossier({ slug }: { slug: string }) {
           <section className="dc-public-panel">
             <div className="dc-public-section-title">
               <span>02</span>
-              <h2>
-                {language === "ru"
-                  ? "Contract showcase / витрина"
-                  : "Contract showcase"}
-              </h2>
+              <h2>{language === "ru" ? "Contract showcase / витрина" : "Contract showcase"}</h2>
             </div>
             <div className="dc-public-showcase">
               {profile.showcase.map((item) => (

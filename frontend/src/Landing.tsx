@@ -77,8 +77,7 @@ const CONTRACTS: Contract[] = [
     category: "HERO",
     difficulty: "SKILL",
     title: "Специалист: Haze",
-    condition:
-      "Сыграйте на Haze и войдите в верхнюю половину команды по урону героям.",
+    condition: "Сыграйте на Haze и войдите в верхнюю половину команды по урону героям.",
     meta: "STANDARD · 1 MATCH · FINAL STATS",
     xp: 200,
     recommendation: "Вы давно не играли на Haze.",
@@ -322,8 +321,7 @@ function CustomCursor() {
           zIndex: 99998,
           transform: "translate(-50%,-50%)",
           boxShadow: "0 0 6px rgba(122,179,132,0.12)",
-          transition:
-            "width 0.2s ease, height 0.2s ease, border-color 0.2s, box-shadow 0.2s",
+          transition: "width 0.2s ease, height 0.2s ease, border-color 0.2s, box-shadow 0.2s",
         }}
       />
     </>
@@ -331,8 +329,7 @@ function CustomCursor() {
 }
 
 // ─── Scramble text ─────────────────────────────────────────────────
-const SCRAMBLE_CHARS =
-  "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%^"
+const SCRAMBLE_CHARS = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%^"
 
 function ScrambleText({
   lines,
@@ -370,9 +367,7 @@ function ScrambleText({
               const reveal = charIdx / fullText.length
               if (ch === " ") return " "
               if (reveal < progress) return ch
-              return SCRAMBLE_CHARS[
-                Math.floor(Math.random() * SCRAMBLE_CHARS.length)
-              ]
+              return SCRAMBLE_CHARS[Math.floor(Math.random() * SCRAMBLE_CHARS.length)]
             })
             .join("")
           const color = line.accent ? "#7AB384" : "#F1E4C8"
@@ -515,9 +510,7 @@ function CuratorTyper() {
   }, [phase, msgIdx, visible, language])
 
   return (
-    <span
-      style={{ color: "#7AB384", textShadow: "0 0 10px rgba(122,179,132,0.5)" }}
-    >
+    <span style={{ color: "#7AB384", textShadow: "0 0 10px rgba(122,179,132,0.5)" }}>
       {text}
       <span className="typer-cursor" />
     </span>
@@ -625,8 +618,7 @@ function useTilt(intensity = 10) {
 
   const onMouseLeave = useCallback((e: React.MouseEvent<HTMLElement>) => {
     e.currentTarget.style.transform = ""
-    e.currentTarget.style.transition =
-      "transform 0.45s cubic-bezier(0.34,1.2,0.64,1)"
+    e.currentTarget.style.transition = "transform 0.45s cubic-bezier(0.34,1.2,0.64,1)"
   }, [])
 
   return { onMouseMove, onMouseLeave }
@@ -651,13 +643,7 @@ function SteamIcon() {
 function AnimatedEyeLogo() {
   return (
     <div className="eye-glow" style={{ display: "inline-flex" }}>
-      <svg
-        width="22"
-        height="22"
-        viewBox="0 0 22 22"
-        fill="none"
-        aria-hidden="true"
-      >
+      <svg width="22" height="22" viewBox="0 0 22 22" fill="none" aria-hidden="true">
         <g className="eye-spin" style={{ transformOrigin: "11px 11px" }}>
           <path
             d="M11 1 L21 11 L11 21 L1 11 Z"
@@ -700,9 +686,7 @@ function SteamButton({
         color: "#F1E4C8",
         border: "1px solid #7AB384",
         borderRadius: "5px",
-        fontFamily: large
-          ? "Roboto Condensed, Barlow Condensed, sans-serif"
-          : "Inter, sans-serif",
+        fontFamily: large ? "Roboto Condensed, Barlow Condensed, sans-serif" : "Inter, sans-serif",
         letterSpacing: large ? "0.07em" : "0",
         boxShadow: "0 0 14px rgba(122,179,132,0.3)",
       }}
@@ -762,9 +746,7 @@ export default function Landing() {
   const { language } = useLanguage()
   const pageFromHash = (): PublicPage => {
     const value = window.location.hash.replace("#", "") as PublicPage
-    return ["home", "contracts", "how", "campaigns", "leaderboards"].includes(
-      value,
-    )
+    return ["home", "contracts", "how", "campaigns", "leaderboards"].includes(value)
       ? value
       : "home"
   }
@@ -776,9 +758,7 @@ export default function Landing() {
   const [gameMode, setGameMode] = useState<GameMode>("STANDARD")
   const [openFaq, setOpenFaq] = useState<number | null>(null)
   const [leaderScope, setLeaderScope] = useState<LeaderScope>("all_time")
-  const [leaderboard, setLeaderboard] = useState<LeaderboardPayload | null>(
-    null,
-  )
+  const [leaderboard, setLeaderboard] = useState<LeaderboardPayload | null>(null)
   const [leaderLoading, setLeaderLoading] = useState(false)
   const [leaderError, setLeaderError] = useState<string | null>(null)
   const xpRef = useRef<HTMLSpanElement>(null)
@@ -854,9 +834,7 @@ export default function Landing() {
     ...contract,
     title: t(language, contract.title),
     condition: t(language, contract.condition),
-    recommendation: contract.recommendation
-      ? t(language, contract.recommendation)
-      : undefined,
+    recommendation: contract.recommendation ? t(language, contract.recommendation) : undefined,
   }))
   const timelineSteps = TIMELINE_STEPS.map((step) => ({
     ...step,
@@ -868,8 +846,7 @@ export default function Landing() {
     a: t(language, item.a),
   }))
   const totalXP = selected.reduce(
-    (sum, id) =>
-      sum + (contracts.find((contract) => contract.id === id)?.xp ?? 0),
+    (sum, id) => sum + (contracts.find((contract) => contract.id === id)?.xp ?? 0),
     0,
   )
 
@@ -882,10 +859,7 @@ export default function Landing() {
   }
 
   return (
-    <div
-      className="min-h-screen"
-      style={{ backgroundColor: "#080C0B", color: "#F1E4C8" }}
-    >
+    <div className="min-h-screen" style={{ backgroundColor: "#080C0B", color: "#F1E4C8" }}>
       <CustomCursor />
 
       {/* ── HEADER ── */}
@@ -894,9 +868,7 @@ export default function Landing() {
         style={{
           height: "72px",
           backgroundColor: scrolled ? "rgba(8,12,11,0.92)" : "transparent",
-          borderBottom: scrolled
-            ? "1px solid #26352E"
-            : "1px solid transparent",
+          borderBottom: scrolled ? "1px solid #26352E" : "1px solid transparent",
           backdropFilter: scrolled ? "blur(18px)" : "none",
           boxShadow: scrolled
             ? "0 4px 40px rgba(0,0,0,0.6), 0 0 40px rgba(122,179,132,0.04)"
@@ -1054,8 +1026,7 @@ export default function Landing() {
               style={{
                 width: "500px",
                 height: "500px",
-                background:
-                  "radial-gradient(circle, rgba(69,127,91,0.22) 0%, transparent 70%)",
+                background: "radial-gradient(circle, rgba(69,127,91,0.22) 0%, transparent 70%)",
                 top: "5%",
                 left: "44%",
               }}
@@ -1065,8 +1036,7 @@ export default function Landing() {
               style={{
                 width: "320px",
                 height: "320px",
-                background:
-                  "radial-gradient(circle, rgba(38,84,61,0.28) 0%, transparent 70%)",
+                background: "radial-gradient(circle, rgba(38,84,61,0.28) 0%, transparent 70%)",
                 bottom: "8%",
                 left: "6%",
               }}
@@ -1076,8 +1046,7 @@ export default function Landing() {
               style={{
                 width: "220px",
                 height: "220px",
-                background:
-                  "radial-gradient(circle, rgba(148,194,143,0.1) 0%, transparent 70%)",
+                background: "radial-gradient(circle, rgba(148,194,143,0.1) 0%, transparent 70%)",
                 top: "18%",
                 right: "4%",
               }}
@@ -1149,8 +1118,7 @@ export default function Landing() {
                   ]}
                   className="font-extrabold leading-none mb-6"
                   style={{
-                    fontFamily:
-                      "Roboto Condensed, Barlow Condensed, sans-serif",
+                    fontFamily: "Roboto Condensed, Barlow Condensed, sans-serif",
                     fontSize: "clamp(52px, 6.5vw, 76px)",
                     letterSpacing: "-0.01em",
                     display: "block",
@@ -1233,8 +1201,7 @@ export default function Landing() {
                         className="text-[10px] font-bold tracking-widest"
                         style={{
                           color: "#7AB384",
-                          fontFamily:
-                            "Roboto Condensed, Barlow Condensed, sans-serif",
+                          fontFamily: "Roboto Condensed, Barlow Condensed, sans-serif",
                           textShadow: "0 0 8px rgba(122,179,132,0.5)",
                         }}
                       >
@@ -1255,8 +1222,7 @@ export default function Landing() {
                     <h3
                       className="font-bold mb-2 relative"
                       style={{
-                        fontFamily:
-                          "Roboto Condensed, Barlow Condensed, sans-serif",
+                        fontFamily: "Roboto Condensed, Barlow Condensed, sans-serif",
                         fontSize: "20px",
                         color: "#F1E4C8",
                       }}
@@ -1267,37 +1233,27 @@ export default function Landing() {
                       className="text-sm mb-4 leading-relaxed relative"
                       style={{ color: "#B6AC94" }}
                     >
-                      {t(
-                        language,
-                        "Совершите не менее 10 содействий и умрите не более 7 раз.",
-                      )}
+                      {t(language, "Совершите не менее 10 содействий и умрите не более 7 раз.")}
                     </p>
                     <div
                       className="flex justify-between items-center pt-3 relative"
                       style={{ borderTop: "1px solid #26352E" }}
                     >
-                      <span
-                        className="text-[11px]"
-                        style={{ color: "#7F8478" }}
-                      >
+                      <span className="text-[11px]" style={{ color: "#7F8478" }}>
                         STANDARD · 1 MATCH · AUTO VERIFY
                       </span>
                       <span
                         className="font-bold text-sm"
                         style={{
                           color: "#7AB384",
-                          fontFamily:
-                            "Roboto Condensed, Barlow Condensed, sans-serif",
+                          fontFamily: "Roboto Condensed, Barlow Condensed, sans-serif",
                           textShadow: "0 0 8px rgba(122,179,132,0.4)",
                         }}
                       >
                         +120 XP
                       </span>
                     </div>
-                    <div
-                      className="mt-3 pt-3 relative"
-                      style={{ borderTop: "1px solid #1A2520" }}
-                    >
+                    <div className="mt-3 pt-3 relative" style={{ borderTop: "1px solid #1A2520" }}>
                       <p
                         className="italic"
                         style={{
@@ -1307,12 +1263,7 @@ export default function Landing() {
                           lineHeight: 1.5,
                         }}
                       >
-                        “
-                        {t(
-                          language,
-                          "В последних матчах вы часто помогали команде.",
-                        )}
-                        ”
+                        “{t(language, "В последних матчах вы часто помогали команде.")}”
                       </p>
                     </div>
                   </div>
@@ -1346,10 +1297,7 @@ export default function Landing() {
                     >
                       {icon}
                     </span>
-                    <span
-                      className="text-xs font-medium"
-                      style={{ color: "#B6AC94" }}
-                    >
+                    <span className="text-xs font-medium" style={{ color: "#B6AC94" }}>
                       {text}
                     </span>
                   </div>
@@ -1377,8 +1325,7 @@ export default function Landing() {
                     <div
                       className="font-extrabold mb-1"
                       style={{
-                        fontFamily:
-                          "Roboto Condensed, Barlow Condensed, sans-serif",
+                        fontFamily: "Roboto Condensed, Barlow Condensed, sans-serif",
                         fontSize: "clamp(28px,3.5vw,42px)",
                         color: "#7AB384",
                         textShadow: "0 0 16px rgba(122,179,132,0.4)",
@@ -1386,10 +1333,7 @@ export default function Landing() {
                     >
                       <AnimatedCounter target={target} suffix={suffix} />
                     </div>
-                    <div
-                      className="text-xs font-medium"
-                      style={{ color: "#7F8478" }}
-                    >
+                    <div className="text-xs font-medium" style={{ color: "#7F8478" }}>
                       {label}
                     </div>
                   </div>
@@ -1420,8 +1364,7 @@ export default function Landing() {
               style={{
                 width: "600px",
                 height: "400px",
-                background:
-                  "radial-gradient(ellipse, rgba(38,84,61,0.07) 0%, transparent 70%)",
+                background: "radial-gradient(ellipse, rgba(38,84,61,0.07) 0%, transparent 70%)",
                 top: "50%",
                 left: "50%",
                 transform: "translate(-50%,-50%)",
@@ -1444,35 +1387,28 @@ export default function Landing() {
                       boxShadow: "0 0 14px rgba(59,81,69,0.2)",
                     }}
                   >
-                    {(["STANDARD", "RANKED", "STREET BRAWL"] as GameMode[]).map(
-                      (mode, i) => (
-                        <button
-                          key={mode}
-                          onClick={(e) => {
-                            setGameMode(mode)
-                            ripple(e)
-                          }}
-                          className={`px-5 py-2 text-sm font-semibold transition-all duration-200 ${
-                            gameMode === mode ? "mode-tab-active" : ""
-                          }`}
-                          style={{
-                            backgroundColor:
-                              gameMode === mode ? "#1A2F22" : "transparent",
-                            color: gameMode === mode ? "#94C28F" : "#7F8478",
-                            borderRight: i < 2 ? "1px solid #3B5145" : "none",
-                            fontFamily:
-                              "Roboto Condensed, Barlow Condensed, sans-serif",
-                            letterSpacing: "0.06em",
-                            textShadow:
-                              gameMode === mode
-                                ? "0 0 10px rgba(122,179,132,0.5)"
-                                : "none",
-                          }}
-                        >
-                          {mode}
-                        </button>
-                      ),
-                    )}
+                    {(["STANDARD", "RANKED", "STREET BRAWL"] as GameMode[]).map((mode, i) => (
+                      <button
+                        key={mode}
+                        onClick={(e) => {
+                          setGameMode(mode)
+                          ripple(e)
+                        }}
+                        className={`px-5 py-2 text-sm font-semibold transition-all duration-200 ${
+                          gameMode === mode ? "mode-tab-active" : ""
+                        }`}
+                        style={{
+                          backgroundColor: gameMode === mode ? "#1A2F22" : "transparent",
+                          color: gameMode === mode ? "#94C28F" : "#7F8478",
+                          borderRight: i < 2 ? "1px solid #3B5145" : "none",
+                          fontFamily: "Roboto Condensed, Barlow Condensed, sans-serif",
+                          letterSpacing: "0.06em",
+                          textShadow: gameMode === mode ? "0 0 10px rgba(122,179,132,0.5)" : "none",
+                        }}
+                      >
+                        {mode}
+                      </button>
+                    ))}
                   </div>
                 </div>
               </Reveal>
@@ -1516,8 +1452,7 @@ export default function Landing() {
                             className="text-[10px] font-bold tracking-widest"
                             style={{
                               color: catColor,
-                              fontFamily:
-                                "Roboto Condensed, Barlow Condensed, sans-serif",
+                              fontFamily: "Roboto Condensed, Barlow Condensed, sans-serif",
                               textShadow: `0 0 8px ${catColor}99`,
                             }}
                           >
@@ -1538,8 +1473,7 @@ export default function Landing() {
                         <h3
                           className="font-bold mb-2 flex-1"
                           style={{
-                            fontFamily:
-                              "Roboto Condensed, Barlow Condensed, sans-serif",
+                            fontFamily: "Roboto Condensed, Barlow Condensed, sans-serif",
                             fontSize: "18px",
                             color: "#F1E4C8",
                             lineHeight: 1.2,
@@ -1553,26 +1487,17 @@ export default function Landing() {
                         >
                           {c.condition}
                         </p>
-                        <div
-                          className="mt-auto pt-3"
-                          style={{ borderTop: "1px solid #1A2520" }}
-                        >
-                          <div
-                            className="text-[10px] mb-1.5"
-                            style={{ color: "#7F8478" }}
-                          >
+                        <div className="mt-auto pt-3" style={{ borderTop: "1px solid #1A2520" }}>
+                          <div className="text-[10px] mb-1.5" style={{ color: "#7F8478" }}>
                             {gameMode} · 1 MATCH · AUTO VERIFY
                           </div>
                           <div
                             className="font-bold"
                             style={{
                               color: "#7AB384",
-                              fontFamily:
-                                "Roboto Condensed, Barlow Condensed, sans-serif",
+                              fontFamily: "Roboto Condensed, Barlow Condensed, sans-serif",
                               fontSize: "16px",
-                              textShadow: isSelected
-                                ? "0 0 12px rgba(122,179,132,0.7)"
-                                : "none",
+                              textShadow: isSelected ? "0 0 12px rgba(122,179,132,0.7)" : "none",
                             }}
                           >
                             +{c.xp} XP
@@ -1589,22 +1514,17 @@ export default function Landing() {
                 <div
                   className="border p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4 transition-all duration-300"
                   style={{
-                    backgroundColor:
-                      selected.length > 0 ? "#0C1510" : "#080C0B",
+                    backgroundColor: selected.length > 0 ? "#0C1510" : "#080C0B",
                     borderColor: selected.length > 0 ? "#3B5145" : "#1A2520",
                     borderRadius: "6px",
-                    boxShadow:
-                      selected.length > 0
-                        ? "0 0 24px rgba(69,127,91,0.14)"
-                        : "none",
+                    boxShadow: selected.length > 0 ? "0 0 24px rgba(69,127,91,0.14)" : "none",
                   }}
                 >
                   <div className="min-w-0">
                     <div
                       className="font-bold mb-1.5"
                       style={{
-                        fontFamily:
-                          "Roboto Condensed, Barlow Condensed, sans-serif",
+                        fontFamily: "Roboto Condensed, Barlow Condensed, sans-serif",
                         fontSize: "18px",
                         color: "#F1E4C8",
                       }}
@@ -1654,8 +1574,7 @@ export default function Landing() {
                           ref={xpRef}
                           className="xp-pop font-bold"
                           style={{
-                            fontFamily:
-                              "Roboto Condensed, Barlow Condensed, sans-serif",
+                            fontFamily: "Roboto Condensed, Barlow Condensed, sans-serif",
                             fontSize: "22px",
                             color: "#7AB384",
                             textShadow:
@@ -1694,20 +1613,13 @@ export default function Landing() {
                     <button
                       className="btn-primary text-sm font-bold px-5 py-2.5"
                       style={{
-                        backgroundColor:
-                          selected.length > 0 ? "#457F5B" : "#151D19",
+                        backgroundColor: selected.length > 0 ? "#457F5B" : "#151D19",
                         color: selected.length > 0 ? "#F1E4C8" : "#7F8478",
-                        border: `1px solid ${
-                          selected.length > 0 ? "#7AB384" : "#26352E"
-                        }`,
+                        border: `1px solid ${selected.length > 0 ? "#7AB384" : "#26352E"}`,
                         borderRadius: "4px",
-                        fontFamily:
-                          "Roboto Condensed, Barlow Condensed, sans-serif",
+                        fontFamily: "Roboto Condensed, Barlow Condensed, sans-serif",
                         letterSpacing: "0.05em",
-                        boxShadow:
-                          selected.length > 0
-                            ? "0 0 14px rgba(122,179,132,0.3)"
-                            : "none",
+                        boxShadow: selected.length > 0 ? "0 0 14px rgba(122,179,132,0.3)" : "none",
                       }}
                       onClick={ripple}
                     >
@@ -1736,8 +1648,7 @@ export default function Landing() {
               style={{
                 width: "400px",
                 height: "400px",
-                background:
-                  "radial-gradient(circle, rgba(114,151,166,0.06) 0%, transparent 70%)",
+                background: "radial-gradient(circle, rgba(114,151,166,0.06) 0%, transparent 70%)",
                 top: "20%",
                 right: "-5%",
               }}
@@ -1766,8 +1677,7 @@ export default function Landing() {
                       textShadow: "0 0 8px rgba(122,179,132,0.3)",
                     }}
                   >
-                    {t(language, "Как проходит проверка")}{" "}
-                    <span className="arrow-bounce">→</span>
+                    {t(language, "Как проходит проверка")} <span className="arrow-bounce">→</span>
                   </a>
                 </div>
               </Reveal>
@@ -1779,8 +1689,7 @@ export default function Landing() {
                     backgroundColor: "#0E1512",
                     borderColor: "#26352E",
                     borderRadius: "6px",
-                    boxShadow:
-                      "0 0 30px rgba(0,0,0,0.4), inset 0 1px 0 rgba(122,179,132,0.06)",
+                    boxShadow: "0 0 30px rgba(0,0,0,0.4), inset 0 1px 0 rgba(122,179,132,0.06)",
                   }}
                   onMouseMove={tilt.onMouseMove}
                   onMouseLeave={tilt.onMouseLeave}
@@ -1796,8 +1705,7 @@ export default function Landing() {
                     <span
                       className="text-[11px] font-bold tracking-widest"
                       style={{
-                        fontFamily:
-                          "Roboto Condensed, Barlow Condensed, sans-serif",
+                        fontFamily: "Roboto Condensed, Barlow Condensed, sans-serif",
                         color: "#7F8478",
                       }}
                     >
@@ -1841,8 +1749,7 @@ export default function Landing() {
                           <div
                             className="w-px flex-1 my-1"
                             style={{
-                              background:
-                                "linear-gradient(to bottom, #3B5145, #26352E)",
+                              background: "linear-gradient(to bottom, #3B5145, #26352E)",
                               minHeight: "24px",
                             }}
                           />
@@ -1850,19 +1757,14 @@ export default function Landing() {
                       </div>
                       <div className="pb-5 last:pb-0">
                         <div className="flex flex-wrap items-baseline gap-x-3 mb-0.5">
-                          <span
-                            className="text-[11px] font-mono"
-                            style={{ color: "#7F8478" }}
-                          >
+                          <span className="text-[11px] font-mono" style={{ color: "#7F8478" }}>
                             {step.time}
                           </span>
                           <span
                             className="text-sm font-semibold"
                             style={{
                               color: step.success ? "#7AB384" : "#F1E4C8",
-                              textShadow: step.success
-                                ? "0 0 10px rgba(122,179,132,0.6)"
-                                : "none",
+                              textShadow: step.success ? "0 0 10px rgba(122,179,132,0.6)" : "none",
                             }}
                           >
                             {step.label}
@@ -1893,8 +1795,7 @@ export default function Landing() {
               style={{
                 width: "350px",
                 height: "280px",
-                background:
-                  "radial-gradient(ellipse, rgba(69,127,91,0.1) 0%, transparent 70%)",
+                background: "radial-gradient(ellipse, rgba(69,127,91,0.1) 0%, transparent 70%)",
                 top: "50%",
                 left: "50%",
                 transform: "translate(-50%,-50%)",
@@ -1922,8 +1823,7 @@ export default function Landing() {
                 <div
                   className="font-bold"
                   style={{
-                    fontFamily:
-                      "Roboto Condensed, Barlow Condensed, sans-serif",
+                    fontFamily: "Roboto Condensed, Barlow Condensed, sans-serif",
                     fontSize: "clamp(24px,3.5vw,38px)",
                     minHeight: "1.3em",
                   }}
@@ -1954,8 +1854,7 @@ export default function Landing() {
               style={{
                 width: "300px",
                 height: "300px",
-                background:
-                  "radial-gradient(circle, rgba(138,120,174,0.07) 0%, transparent 70%)",
+                background: "radial-gradient(circle, rgba(138,120,174,0.07) 0%, transparent 70%)",
                 top: "30%",
                 left: "-5%",
               }}
@@ -1964,9 +1863,7 @@ export default function Landing() {
               <Reveal>
                 <div className="text-center mb-10">
                   <Eyebrow>FAQ / SYSTEM</Eyebrow>
-                  <SectionHeading>
-                    {t(language, "Частые вопросы")}
-                  </SectionHeading>
+                  <SectionHeading>{t(language, "Частые вопросы")}</SectionHeading>
                 </div>
               </Reveal>
 
@@ -1980,10 +1877,7 @@ export default function Landing() {
                         backgroundColor: "#0E1512",
                         borderColor: openFaq === i ? "#3B5145" : "#26352E",
                         borderRadius: "6px",
-                        boxShadow:
-                          openFaq === i
-                            ? "0 0 16px rgba(122,179,132,0.09)"
-                            : "none",
+                        boxShadow: openFaq === i ? "0 0 16px rgba(122,179,132,0.09)" : "none",
                         transition: "border-color 0.2s, box-shadow 0.2s",
                       }}
                     >
@@ -1991,10 +1885,7 @@ export default function Landing() {
                         className="w-full px-5 py-4 flex items-center justify-between gap-4 text-left"
                         onClick={() => setOpenFaq(openFaq === i ? null : i)}
                       >
-                        <span
-                          className="font-semibold text-sm"
-                          style={{ color: "#F1E4C8" }}
-                        >
+                        <span className="font-semibold text-sm" style={{ color: "#F1E4C8" }}>
                           {item.q}
                         </span>
                         <span
@@ -2003,8 +1894,7 @@ export default function Landing() {
                             color: "#7AB384",
                             textShadow: "0 0 8px rgba(122,179,132,0.5)",
                             transform: openFaq === i ? "rotate(45deg)" : "none",
-                            transition:
-                              "transform 0.28s cubic-bezier(0.34,1.56,0.64,1)",
+                            transition: "transform 0.28s cubic-bezier(0.34,1.56,0.64,1)",
                             display: "inline-block",
                           }}
                         >
@@ -2015,15 +1905,11 @@ export default function Landing() {
                         style={{
                           maxHeight: openFaq === i ? "200px" : "0px",
                           overflow: "hidden",
-                          transition:
-                            "max-height 0.35s cubic-bezier(0.16,1,0.3,1)",
+                          transition: "max-height 0.35s cubic-bezier(0.16,1,0.3,1)",
                         }}
                       >
                         <div className="px-5 pb-5">
-                          <p
-                            className="text-sm leading-relaxed"
-                            style={{ color: "#B6AC94" }}
-                          >
+                          <p className="text-sm leading-relaxed" style={{ color: "#B6AC94" }}>
                             {item.a}
                           </p>
                         </div>
@@ -2044,9 +1930,7 @@ export default function Landing() {
           <div className="max-w-[900px] mx-auto text-center relative">
             <Reveal>
               <Eyebrow>CAMPAIGNS · SOON</Eyebrow>
-              <SectionHeading>
-                {t(language, "Большие серии дел готовятся")}
-              </SectionHeading>
+              <SectionHeading>{t(language, "Большие серии дел готовятся")}</SectionHeading>
               <p
                 className="text-sm leading-relaxed mt-5 mx-auto max-w-[620px]"
                 style={{ color: "#B6AC94" }}
@@ -2088,9 +1972,7 @@ export default function Landing() {
             <Reveal>
               <div className="text-center mb-8">
                 <Eyebrow>VERIFIED LEADERBOARD</Eyebrow>
-                <SectionHeading>
-                  {t(language, "Лучшие агенты бюро")}
-                </SectionHeading>
+                <SectionHeading>{t(language, "Лучшие агенты бюро")}</SectionHeading>
                 <p
                   className="text-sm leading-relaxed mt-4 mx-auto max-w-[720px]"
                   style={{ color: "#B6AC94" }}
@@ -2105,26 +1987,23 @@ export default function Landing() {
 
             <Reveal delay={80}>
               <div className="flex flex-wrap justify-center gap-2 mb-7">
-                {([
-                  ["all_time", "ALL TIME"],
-                  ["today", "TODAY"],
-                  ["rare", "RARE"],
-                  ["mastery", "MASTERY"],
-                ] as Array<[LeaderScope, string]>).map(([scope, label]) => (
+                {(
+                  [
+                    ["all_time", "ALL TIME"],
+                    ["today", "TODAY"],
+                    ["rare", "RARE"],
+                    ["mastery", "MASTERY"],
+                  ] as Array<[LeaderScope, string]>
+                ).map(([scope, label]) => (
                   <button
                     key={scope}
                     onClick={() => setLeaderScope(scope)}
                     className="px-4 py-2 text-xs font-bold tracking-[0.14em] border transition-all"
                     style={{
                       color: leaderScope === scope ? "#F1E4C8" : "#7F8478",
-                      borderColor:
-                        leaderScope === scope ? "#457F5B" : "#26352E",
-                      backgroundColor:
-                        leaderScope === scope ? "#0A1510" : "#0A0F0D",
-                      boxShadow:
-                        leaderScope === scope
-                          ? "0 0 16px rgba(122,179,132,0.12)"
-                          : "none",
+                      borderColor: leaderScope === scope ? "#457F5B" : "#26352E",
+                      backgroundColor: leaderScope === scope ? "#0A1510" : "#0A0F0D",
+                      boxShadow: leaderScope === scope ? "0 0 16px rgba(122,179,132,0.12)" : "none",
                       borderRadius: "4px",
                     }}
                   >
@@ -2163,160 +2042,128 @@ export default function Landing() {
                         t(language, "Загружаем правила подсчёта…")}
                     </div>
                   </div>
-                  <div
-                    className="text-[10px] tracking-[0.14em]"
-                    style={{ color: "#5F685F" }}
-                  >
-                    {t(
-                      language,
-                      "Публичный профиль и статистика должны быть включены",
-                    )}
+                  <div className="text-[10px] tracking-[0.14em]" style={{ color: "#5F685F" }}>
+                    {t(language, "Публичный профиль и статистика должны быть включены")}
                   </div>
                 </div>
 
                 {leaderLoading && (
-                  <div
-                    className="px-5 py-16 text-center text-sm"
-                    style={{ color: "#7F8478" }}
-                  >
+                  <div className="px-5 py-16 text-center text-sm" style={{ color: "#7F8478" }}>
                     {t(language, "Загружаем таблицу лидеров…")}
                   </div>
                 )}
                 {!leaderLoading && leaderError && (
-                  <div
-                    className="px-5 py-16 text-center text-sm"
-                    style={{ color: "#B65E58" }}
-                  >
+                  <div className="px-5 py-16 text-center text-sm" style={{ color: "#B65E58" }}>
                     {leaderError}
                   </div>
                 )}
-                {!leaderLoading &&
-                  !leaderError &&
-                  leaderboard?.rows.length === 0 && (
-                    <div className="px-5 py-16 text-center">
-                      <div
-                        className="text-sm font-semibold mb-2"
-                        style={{ color: "#F1E4C8" }}
-                      >
-                        {t(language, "Пока никто не квалифицировался")}
-                      </div>
-                      <div className="text-xs" style={{ color: "#7F8478" }}>
-                        {t(
-                          language,
-                          "Нужен публичный профиль с открытой статистикой и хотя бы один результат для выбранной таблицы.",
-                        )}
-                      </div>
+                {!leaderLoading && !leaderError && leaderboard?.rows.length === 0 && (
+                  <div className="px-5 py-16 text-center">
+                    <div className="text-sm font-semibold mb-2" style={{ color: "#F1E4C8" }}>
+                      {t(language, "Пока никто не квалифицировался")}
                     </div>
-                  )}
-                {!leaderLoading &&
-                  !leaderError &&
-                  leaderboard &&
-                  leaderboard.rows.length > 0 && (
-                    <div>
-                      <div
-                        className="grid grid-cols-[54px_1fr_90px_100px] md:grid-cols-[64px_1fr_90px_120px_120px] gap-3 px-4 md:px-5 py-3 text-[9px] font-bold tracking-[0.18em] uppercase"
+                    <div className="text-xs" style={{ color: "#7F8478" }}>
+                      {t(
+                        language,
+                        "Нужен публичный профиль с открытой статистикой и хотя бы один результат для выбранной таблицы.",
+                      )}
+                    </div>
+                  </div>
+                )}
+                {!leaderLoading && !leaderError && leaderboard && leaderboard.rows.length > 0 && (
+                  <div>
+                    <div
+                      className="grid grid-cols-[54px_1fr_90px_100px] md:grid-cols-[64px_1fr_90px_120px_120px] gap-3 px-4 md:px-5 py-3 text-[9px] font-bold tracking-[0.18em] uppercase"
+                      style={{
+                        color: "#5F685F",
+                        borderBottom: "1px solid #1A2520",
+                      }}
+                    >
+                      <span>#</span>
+                      <span>PLAYER</span>
+                      <span>LEVEL</span>
+                      <span className="hidden md:block">CASES</span>
+                      <span className="text-right">SCORE</span>
+                    </div>
+                    {leaderboard.rows.map((row) => (
+                      <a
+                        key={row.slug}
+                        href={`/u/${row.slug}`}
+                        className="grid grid-cols-[54px_1fr_90px_100px] md:grid-cols-[64px_1fr_90px_120px_120px] gap-3 px-4 md:px-5 py-3.5 items-center transition-colors"
                         style={{
-                          color: "#5F685F",
-                          borderBottom: "1px solid #1A2520",
+                          borderBottom: "1px solid #152019",
+                          color: "#F1E4C8",
                         }}
+                        onMouseEnter={(event) =>
+                          (event.currentTarget.style.backgroundColor = "#0D1712")
+                        }
+                        onMouseLeave={(event) =>
+                          (event.currentTarget.style.backgroundColor = "transparent")
+                        }
                       >
-                        <span>#</span>
-                        <span>PLAYER</span>
-                        <span>LEVEL</span>
-                        <span className="hidden md:block">CASES</span>
-                        <span className="text-right">SCORE</span>
-                      </div>
-                      {leaderboard.rows.map((row) => (
-                        <a
-                          key={row.slug}
-                          href={`/u/${row.slug}`}
-                          className="grid grid-cols-[54px_1fr_90px_100px] md:grid-cols-[64px_1fr_90px_120px_120px] gap-3 px-4 md:px-5 py-3.5 items-center transition-colors"
+                        <span
+                          className="font-bold text-sm"
                           style={{
-                            borderBottom: "1px solid #152019",
-                            color: "#F1E4C8",
+                            color: row.rank <= 3 ? "#C9AE72" : "#7F8478",
+                            fontFamily: "Roboto Condensed, Barlow Condensed, sans-serif",
                           }}
-                          onMouseEnter={(event) =>
-                            (event.currentTarget.style.backgroundColor =
-                              "#0D1712")
-                          }
-                          onMouseLeave={(event) =>
-                            (event.currentTarget.style.backgroundColor =
-                              "transparent")
-                          }
                         >
-                          <span
-                            className="font-bold text-sm"
-                            style={{
-                              color: row.rank <= 3 ? "#C9AE72" : "#7F8478",
-                              fontFamily:
-                                "Roboto Condensed, Barlow Condensed, sans-serif",
-                            }}
-                          >
-                            {String(row.rank).padStart(2, "0")}
-                          </span>
-                          <span className="flex items-center gap-3 min-w-0">
-                            {row.avatar_url ? (
-                              <img
-                                src={row.avatar_url}
-                                alt=""
-                                className="w-8 h-8 rounded-sm object-cover border"
-                                style={{ borderColor: "#26352E" }}
-                                loading="lazy"
-                                referrerPolicy="no-referrer"
-                              />
-                            ) : (
-                              <span
-                                className="w-8 h-8 border grid place-items-center text-[10px]"
-                                style={{
-                                  borderColor: "#26352E",
-                                  color: "#7AB384",
-                                  backgroundColor: "#0E1512",
-                                }}
-                              >
-                                DC
-                              </span>
-                            )}
-                            <span className="min-w-0">
-                              <span className="block text-sm font-semibold truncate">
-                                {row.display_name}
-                              </span>
-                              <span
-                                className="block text-[10px] truncate"
-                                style={{ color: "#5F685F" }}
-                              >
-                                @{row.slug}
-                              </span>
+                          {String(row.rank).padStart(2, "0")}
+                        </span>
+                        <span className="flex items-center gap-3 min-w-0">
+                          {row.avatar_url ? (
+                            <img
+                              src={row.avatar_url}
+                              alt=""
+                              className="w-8 h-8 rounded-sm object-cover border"
+                              style={{ borderColor: "#26352E" }}
+                              loading="lazy"
+                              referrerPolicy="no-referrer"
+                            />
+                          ) : (
+                            <span
+                              className="w-8 h-8 border grid place-items-center text-[10px]"
+                              style={{
+                                borderColor: "#26352E",
+                                color: "#7AB384",
+                                backgroundColor: "#0E1512",
+                              }}
+                            >
+                              DC
+                            </span>
+                          )}
+                          <span className="min-w-0">
+                            <span className="block text-sm font-semibold truncate">
+                              {row.display_name}
+                            </span>
+                            <span
+                              className="block text-[10px] truncate"
+                              style={{ color: "#5F685F" }}
+                            >
+                              @{row.slug}
                             </span>
                           </span>
-                          <span
-                            className="text-sm font-bold"
-                            style={{ color: "#B6AC94" }}
-                          >
-                            LVL {row.level}
-                          </span>
-                          <span
-                            className="hidden md:block text-sm"
-                            style={{ color: "#7F8478" }}
-                          >
-                            {row.contracts_completed}
-                          </span>
-                          <span
-                            className="text-right text-base font-bold"
-                            style={{
-                              color: "#7AB384",
-                              fontFamily:
-                                "Roboto Condensed, Barlow Condensed, sans-serif",
-                              textShadow: "0 0 10px rgba(122,179,132,0.18)",
-                            }}
-                          >
-                            {row.score.toLocaleString(
-                              language === "ru" ? "ru-RU" : "en-US",
-                            )}
-                          </span>
-                        </a>
-                      ))}
-                    </div>
-                  )}
+                        </span>
+                        <span className="text-sm font-bold" style={{ color: "#B6AC94" }}>
+                          LVL {row.level}
+                        </span>
+                        <span className="hidden md:block text-sm" style={{ color: "#7F8478" }}>
+                          {row.contracts_completed}
+                        </span>
+                        <span
+                          className="text-right text-base font-bold"
+                          style={{
+                            color: "#7AB384",
+                            fontFamily: "Roboto Condensed, Barlow Condensed, sans-serif",
+                            textShadow: "0 0 10px rgba(122,179,132,0.18)",
+                          }}
+                        >
+                          {row.score.toLocaleString(language === "ru" ? "ru-RU" : "en-US")}
+                        </span>
+                      </a>
+                    ))}
+                  </div>
+                )}
               </div>
             </Reveal>
 
@@ -2349,28 +2196,23 @@ export default function Landing() {
               className="logo-container"
               style={{ height: "38px", width: "auto", marginBottom: "14px" }}
             />
-            <p
-              className="text-xs leading-relaxed mb-5 max-w-[260px]"
-              style={{ color: "#7F8478" }}
-            >
+            <p className="text-xs leading-relaxed mb-5 max-w-[260px]" style={{ color: "#7F8478" }}>
               {t(
                 language,
                 "Неофициальный проект для игроков Deadlock. Не связан с Valve Corporation.",
               )}
             </p>
             <div className="flex flex-wrap gap-5">
-              {["Discord", "Статус", "Изменения", "Источники данных"].map(
-                (l) => (
-                  <a
-                    key={l}
-                    href="#"
-                    className="text-xs nav-link transition-colors hover:text-[#7AB384]"
-                    style={{ color: "#7F8478" }}
-                  >
-                    {t(language, l)}
-                  </a>
-                ),
-              )}
+              {["Discord", "Статус", "Изменения", "Источники данных"].map((l) => (
+                <a
+                  key={l}
+                  href="#"
+                  className="text-xs nav-link transition-colors hover:text-[#7AB384]"
+                  style={{ color: "#7F8478" }}
+                >
+                  {t(language, l)}
+                </a>
+              ))}
             </div>
           </div>
           <div>
@@ -2383,12 +2225,7 @@ export default function Landing() {
             >
               PLATFORM
             </div>
-            {[
-              "CONTRACTS",
-              "HOW IT WORKS",
-              "CAMPAIGNS · SOON",
-              "LEADERBOARD",
-            ].map((l) => (
+            {["CONTRACTS", "HOW IT WORKS", "CAMPAIGNS · SOON", "LEADERBOARD"].map((l) => (
               <a
                 key={l}
                 href="#"
