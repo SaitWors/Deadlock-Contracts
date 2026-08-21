@@ -49,6 +49,7 @@ from .models import (
     RewardLedgerEntry,
     SessionToken,
     User,
+    OutboxEvent,
 )
 from .security import RequestSecurityMiddleware, SecurityHeadersMiddleware
 from .services.auth import (
@@ -2494,6 +2495,74 @@ def admin_generator_preview(payload: AdminGeneratorPreviewRequest, admin: User =
     }
 
 
+def _outbox_health(
+    db: Session,
+    now: datetime | None = None,
+) -> dict:
+    now = now or datetime.now(timezone.utc)
+
+    active_where = (
+        OutboxEvent.published_at.is_(None),
+        OutboxEvent.dead_lettered_at.is_(None),
+    )
+
+    pending = int(
+        db.scalar(
+            select(func.count())
+            .select_from(OutboxEvent)
+            .where(
+                *active_where,
+                OutboxEvent.attempts == 0,
+            )
+        )
+        or 0
+    )
+
+    retrying = int(
+        db.scalar(
+            select(func.count())
+            .select_from(OutboxEvent)
+            .where(
+                *active_where,
+                OutboxEvent.attempts > 0,
+            )
+        )
+        or 0
+    )
+
+    dead_letter = int(
+        db.scalar(
+            select(func.count())
+            .select_from(OutboxEvent)
+            .where(OutboxEvent.dead_lettered_at.is_not(None))
+        )
+        or 0
+    )
+
+    oldest = db.scalar(
+        select(OutboxEvent.created_at)
+        .where(*active_where)
+        .order_by(OutboxEvent.created_at.asc())
+        .limit(1)
+    )
+
+    oldest_pending_seconds: int | None = None
+    if oldest is not None:
+        if oldest.tzinfo is None:
+            oldest = oldest.replace(tzinfo=timezone.utc)
+
+        oldest_pending_seconds = max(
+            0,
+            int((now - oldest).total_seconds()),
+        )
+
+    return {
+        "pending": pending,
+        "retrying": retrying,
+        "dead_letter": dead_letter,
+        "oldest_pending_seconds": oldest_pending_seconds,
+    }
+
 @app.get("/api/admin/system")
 def admin_system(admin: User = Depends(_require_admin), db: Session = Depends(get_db)) -> dict:
     now = datetime.now(timezone.utc)
@@ -2506,6 +2575,7 @@ def admin_system(admin: User = Depends(_require_admin), db: Session = Depends(ge
         "security": {"totp_configured": bool(settings.admin_totp_secret), "owner_allowlist_count": len(settings.admin_steam_ids), "admin_session_ttl_minutes": settings.admin_session_ttl_minutes, "docs_enabled": settings.docs_enabled, "demo_auth": settings.allow_demo_auth, "dev_endpoints": settings.allow_dev_endpoints, "cookie_secure": settings.cookie_secure, "trusted_hosts": list(settings.trusted_hosts)},
         "limits": {"global_rate_limit_per_minute": settings.global_rate_limit_per_minute, "auth_rate_limit_per_10_minutes": settings.auth_rate_limit_per_10_minutes, "sync_rate_limit_per_hour": settings.sync_rate_limit_per_hour, "max_request_body_bytes": settings.max_request_body_bytes, "max_provider_response_bytes": settings.max_provider_response_bytes},
         "counts": {"users": int(db.scalar(select(func.count()).select_from(User)) or 0), "missions": int(db.scalar(select(func.count()).select_from(MissionDefinition)) or 0), "matches": int(db.scalar(select(func.count()).select_from(Match)) or 0), "boards": int(db.scalar(select(func.count()).select_from(ContractBoard)) or 0), "jobs": int(db.scalar(select(func.count()).select_from(Job)) or 0), "audit": int(db.scalar(select(func.count()).select_from(AuditLog)) or 0)},
+        "outbox": _outbox_health(db, now),
         "server_time": now.isoformat(),
     }
 

@@ -6,7 +6,7 @@ import tempfile
 import unittest
 from dataclasses import replace
 from pathlib import Path
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 # Configuration is read when app modules are imported.
 _tmp = tempfile.TemporaryDirectory(prefix="dc-mvp-tests-")
@@ -20,13 +20,19 @@ from fastapi.testclient import TestClient
 
 from app.config import settings
 from app.db import SessionLocal
-from app.main import app
+from app.main import _outbox_health, app
 from app.services.jobs import claim_next_job, complete_job, retry_job
 from app.services.normalization import classify_mode, normalize_deadlock_match
 from app.services.providers import DeadlockApiProvider, HistoryResult
 from app.services.seed import MISSIONS_V2
-from app.worker import CompanionMatchNotReady, NoMatchYet, dispatch_outbox, process_job
-from app.models import SessionToken, User
+from app.worker import (
+    CompanionMatchNotReady,
+    NoMatchYet,
+    OUTBOX_MAX_ATTEMPTS,
+    dispatch_outbox,
+    process_job,
+)
+from app.models import OutboxEvent, SessionToken, User, utcnow
 
 
 class NormalizationTests(unittest.TestCase):
@@ -273,6 +279,171 @@ class ConfigurationTests(unittest.TestCase):
 
 
 class EndToEndTests(unittest.TestCase):
+
+    def test_outbox_health_reports_pending_retry_and_dead_letter(self) -> None:
+        with TestClient(app):
+            now = utcnow()
+
+            with SessionLocal() as db:
+                before = _outbox_health(db, now)
+
+                pending = OutboxEvent(
+                    event_type="test.pending",
+                    aggregate_id="outbox-health-pending",
+                    payload={},
+                    attempts=0,
+                    run_after=now,
+                    created_at=now - timedelta(seconds=30),
+                )
+
+                retrying = OutboxEvent(
+                    event_type="test.retry",
+                    aggregate_id="outbox-health-retry",
+                    payload={},
+                    attempts=2,
+                    run_after=now + timedelta(minutes=1),
+                    created_at=now - timedelta(seconds=20),
+                )
+
+                dead = OutboxEvent(
+                    event_type="test.dead",
+                    aggregate_id="outbox-health-dead",
+                    payload={},
+                    attempts=OUTBOX_MAX_ATTEMPTS,
+                    run_after=now,
+                    dead_lettered_at=now,
+                    created_at=now - timedelta(seconds=10),
+                )
+
+                db.add_all([pending, retrying, dead])
+                db.commit()
+
+                ids = [pending.id, retrying.id, dead.id]
+
+                try:
+                    after = _outbox_health(db, now)
+
+                    assert after["pending"] == before["pending"] + 1
+                    assert after["retrying"] == before["retrying"] + 1
+                    assert after["dead_letter"] == before["dead_letter"] + 1
+
+                    assert after["oldest_pending_seconds"] is not None
+                    assert after["oldest_pending_seconds"] >= 20
+
+                finally:
+                    db.query(OutboxEvent).filter(
+                        OutboxEvent.id.in_(ids)
+                    ).delete(synchronize_session=False)
+
+                    db.commit()
+
+    def test_outbox_poison_event_moves_to_dead_letter_after_retry_budget(self) -> None:
+        with TestClient(app):
+            with SessionLocal() as db:
+                event = OutboxEvent(
+                    event_type="assignment.settled",
+                    aggregate_id="dead-letter-test",
+                    payload={
+                        "status": "COMPLETED",
+                        "reward_xp": 100,
+                        "assignment_id": "dead-letter-assignment",
+                        "user_id": "00000000-0000-0000-0000-000000000000",
+                    },
+                    attempts=OUTBOX_MAX_ATTEMPTS - 1,
+                    run_after=utcnow() - timedelta(seconds=1),
+                )
+
+                db.add(event)
+                db.commit()
+                event_id = event.id
+
+                assert dispatch_outbox(db) is True
+
+                db.expire_all()
+                event = db.get(OutboxEvent, event_id)
+
+                assert event is not None
+                assert event.attempts == OUTBOX_MAX_ATTEMPTS
+                assert event.published_at is None
+                assert event.dead_lettered_at is not None
+                assert event.last_error
+
+                db.delete(event)
+                db.commit()
+
+    def test_outbox_poison_event_retries_without_starving_newer_event(self) -> None:
+        with TestClient(app):
+            now = utcnow()
+
+            with SessionLocal() as db:
+                poison = OutboxEvent(
+                    event_type="assignment.settled",
+                    aggregate_id="poison-outbox-test",
+                    payload={
+                        "status": "COMPLETED",
+                        "reward_xp": 100,
+                        "assignment_id": "poison-assignment",
+                        "user_id": "00000000-0000-0000-0000-000000000000",
+                    },
+                    run_after=now,
+                    created_at=now,
+                )
+
+                healthy = OutboxEvent(
+                    event_type="assignment.settled",
+                    aggregate_id="healthy-outbox-test",
+                    payload={
+                        "status": "FAILED",
+                        "reward_xp": 0,
+                        "assignment_id": "healthy-assignment",
+                        "user_id": "00000000-0000-0000-0000-000000000000",
+                    },
+                    run_after=now,
+                    created_at=now + timedelta(seconds=1),
+                )
+
+                db.add_all([poison, healthy])
+                db.commit()
+
+                poison_id = poison.id
+                healthy_id = healthy.id
+
+                assert dispatch_outbox(db) is True
+
+                db.expire_all()
+                poison = db.get(OutboxEvent, poison_id)
+                healthy = db.get(OutboxEvent, healthy_id)
+
+                assert poison is not None
+                assert poison.attempts == 1
+                assert poison.published_at is None
+                assert poison.dead_lettered_at is None
+                assert poison.run_after is not None
+
+                run_after = poison.run_after
+                if run_after.tzinfo is None:
+                    run_after = run_after.replace(tzinfo=timezone.utc)
+
+                assert run_after > now
+
+                assert healthy is not None
+                assert healthy.published_at is None
+
+                # Poison is delayed, so the newer healthy event can proceed.
+                assert dispatch_outbox(db) is True
+
+                db.expire_all()
+                healthy = db.get(OutboxEvent, healthy_id)
+
+                assert healthy is not None
+                assert healthy.published_at is not None
+
+                db.query(OutboxEvent).filter(
+                    OutboxEvent.id.in_([poison_id, healthy_id])
+                ).delete(synchronize_session=False)
+
+                db.commit()
+
     def test_suspended_user_cannot_reactivate_via_steam_callback(self) -> None:
         steam_id64 = 76561198765432100
 

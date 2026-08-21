@@ -2108,15 +2108,36 @@ def handle_evaluate(db: Session, job: Job) -> None:
     elif not ready_option_ids:
         evaluate_board(db, board.id, match.id)
 
+OUTBOX_MAX_ATTEMPTS = 8
+OUTBOX_RETRY_BASE_SECONDS = 10
+OUTBOX_RETRY_MAX_SECONDS = 15 * 60
+
+
+def _outbox_retry_delay(attempt: int) -> int:
+    exponent = max(0, min(int(attempt) - 1, 6))
+    return min(
+        OUTBOX_RETRY_MAX_SECONDS,
+        OUTBOX_RETRY_BASE_SECONDS * (2 ** exponent),
+    )
 
 def dispatch_outbox(db: Session) -> bool:
+    now = utcnow()
+
     event = db.scalar(
         select(OutboxEvent)
-        .where(OutboxEvent.published_at.is_(None))
-        .order_by(OutboxEvent.created_at.asc())
+        .where(
+            OutboxEvent.published_at.is_(None),
+            OutboxEvent.dead_lettered_at.is_(None),
+            OutboxEvent.run_after <= now,
+        )
+        .order_by(
+            OutboxEvent.run_after.asc(),
+            OutboxEvent.created_at.asc(),
+        )
         .limit(1)
         .with_for_update(skip_locked=True)
     )
+
     if not event:
         return False
     try:
@@ -2177,12 +2198,39 @@ def dispatch_outbox(db: Session) -> bool:
             event.last_error = "Duplicate reward prevented by unique source constraint"
             db.commit()
     except Exception as exc:
+        event_id = event.id
         db.rollback()
-        event = db.get(OutboxEvent, event.id)
+
+        event = db.scalar(
+            select(OutboxEvent)
+            .where(OutboxEvent.id == event_id)
+            .with_for_update()
+        )
+
         if event:
-            event.attempts += 1
+            event.attempts = int(event.attempts or 0) + 1
             event.last_error = str(exc)[:4000]
+
+            if event.attempts >= OUTBOX_MAX_ATTEMPTS:
+                event.dead_lettered_at = utcnow()
+                log.error(
+                    "Outbox event %s moved to dead letter after %s attempts",
+                    event.id,
+                    event.attempts,
+                )
+            else:
+                delay = _outbox_retry_delay(event.attempts)
+                event.run_after = utcnow() + timedelta(seconds=delay)
+                log.warning(
+                    "Outbox event %s failed; retry %s/%s in %ss",
+                    event.id,
+                    event.attempts,
+                    OUTBOX_MAX_ATTEMPTS,
+                    delay,
+                )
+
             db.commit()
+
         log.exception("Outbox dispatch failed")
     return True
 
