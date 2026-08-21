@@ -2,7 +2,7 @@ name: deadlock-contracts
 
 x-app-env: &app-env
   APP_ENV: production
-  APP_VERSION: 0.10.1-alpha.7
+  APP_VERSION: 0.10.1-alpha.8
   APP_BASE_URL: https://${DOMAIN:?Set DOMAIN in .env.production}
   TRUSTED_HOSTS: ${DOMAIN},www.${DOMAIN}
   CONTACT_EMAIL: ${CONTACT_EMAIL:?Set CONTACT_EMAIL in .env.production}

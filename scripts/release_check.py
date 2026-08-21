@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 from __future__ import annotations
 
+import json
 import re
 import sys
 from pathlib import Path
@@ -32,7 +33,11 @@ def main() -> int:
     errors: list[str] = []
     required = [
         ".env.production.example",
-        "INSTALL_0.10.1_ALPHA7_RU.md",
+        "INSTALL_0.10.1_ALPHA8_RU.md",
+        "release.json",
+        "alembic.ini",
+        "app/migrate.py",
+        "alembic/versions/0004_add_outbox_retry_scheduling.py",
         "compose.prod.yaml",
         "Dockerfile",
         "app/main.py",
@@ -76,7 +81,12 @@ def main() -> int:
         config = text(root / "app/config.py")
         compose = text(root / "compose.prod.yaml")
         package = text(root / "frontend/package.json")
-        expected = "0.10.1-alpha.7"
+        release = json.loads(
+            text(root / "release.json")
+        )
+        expected = str(
+            release["web_version"]
+        )
         if f'"{expected}"' not in config or f"APP_VERSION: {expected}" not in compose or f'"version": "{expected}"' not in package:
             fail(errors, "release version is not aligned across backend, Compose, and frontend")
 
@@ -89,6 +99,31 @@ def main() -> int:
             fail(errors, "remote Google Fonts dependency is still present")
 
         landing = text(root / "frontend/src/Landing.tsx")
+
+        if 'href="#"' in landing:
+            fail(
+                errors,
+                "landing still contains dead href=# links",
+            )
+
+        if (
+            "INTERACTIVE PREVIEW / NOT SAVED"
+            not in landing
+        ):
+            fail(
+                errors,
+                "landing preview is not marked as non-persistent",
+            )
+
+        if (
+            "ПРЕДПРОСМОТР · НЕ СОХРАНЯЕТСЯ"
+            not in landing
+        ):
+            fail(
+                errors,
+                "landing preview CTA is still action-like",
+            )
+
         for marker in ("const RECENT_RESULTS", "const LEADERBOARD:"):
             if marker in landing:
                 fail(errors, f"fabricated landing dataset remains: {marker}")

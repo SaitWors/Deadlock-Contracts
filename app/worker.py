@@ -2182,7 +2182,7 @@ def dispatch_outbox(db: Session) -> bool:
                 settings.discord_review_webhook_url,
                 data=body,
                 method="POST",
-                headers={"Content-Type": "application/json", "User-Agent": "DeadlockContracts/0.9.8"},
+                headers={"Content-Type": "application/json", "User-Agent": f"DeadlockContracts/{settings.app_version}"},
             )
             with urllib.request.urlopen(request, timeout=8) as response:
                 if response.status not in {200, 204}:

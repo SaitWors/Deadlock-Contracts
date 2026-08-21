@@ -613,7 +613,7 @@ def me(request: Request, user: User | None = Depends(current_user_optional)) -> 
         "csrf_token": csrf_for_request(request) if user else None,
         "release": {
             "version": settings.app_version,
-            "label": "0.9.13-rc1 Admin Console MAX",
+            "label": f"{settings.app_version} Alpha",
             "post_match_only": True,
             "modes": list(GAME_MODES),
             "manual_verification": False,
@@ -875,7 +875,7 @@ def _notify_review_channel(submission: EvidenceSubmission, user: User, board: Co
                 return "Проверка через Discord не настроена"
             url = settings.discord_review_webhook_url
             body = json.dumps({"content": text, "allowed_mentions": {"parse": []}}).encode()
-        req = urllib.request.Request(url, data=body, method="POST", headers={"Content-Type": "application/json", "User-Agent": "DeadlockContracts/0.9.2"})
+        req = urllib.request.Request(url, data=body, method="POST", headers={"Content-Type": "application/json", "User-Agent": f"DeadlockContracts/{settings.app_version}"})
         with urllib.request.urlopen(req, timeout=8) as response:
             if response.status not in {200, 204}:
                 return f"Notification returned HTTP {response.status}"
@@ -2902,6 +2902,21 @@ def terms_page() -> FileResponse:
 
 @app.get("/support", include_in_schema=False)
 def support_page() -> FileResponse:
+    return FileResponse(STATIC / "legal.html")
+
+
+@app.get("/status", include_in_schema=False)
+def public_status_page() -> FileResponse:
+    return FileResponse(STATIC / "legal.html")
+
+
+@app.get("/changelog", include_in_schema=False)
+def changelog_page() -> FileResponse:
+    return FileResponse(STATIC / "legal.html")
+
+
+@app.get("/data-sources", include_in_schema=False)
+def data_sources_page() -> FileResponse:
     return FileResponse(STATIC / "legal.html")
 
 

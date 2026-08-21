@@ -1,26 +1,101 @@
 "use strict";
-const documentType = window.location.pathname === "/terms" ? "terms" : window.location.pathname === "/support" ? "support" : "privacy";
-const documentId = documentType === "terms" ? "termsDocument" : documentType === "support" ? "supportDocument" : "privacyDocument";
-const active = document.getElementById(documentId);
-active.classList.remove("hidden");
-const title = documentType === "terms" ? "условия" : documentType === "support" ? "поддержка" : "обработка данных";
-document.title = `Deadlock Contracts — ${title}`;
-fetch("/api/status", { credentials: "same-origin", headers: { Accept: "application/json" } })
-  .then((response) => response.ok ? response.json() : Promise.reject(new Error("status")))
+
+const documents = {
+  "/privacy": {
+    id: "privacyDocument",
+    title: "обработка данных",
+  },
+  "/terms": {
+    id: "termsDocument",
+    title: "условия",
+  },
+  "/support": {
+    id: "supportDocument",
+    title: "поддержка",
+  },
+  "/status": {
+    id: "statusDocument",
+    title: "статус",
+  },
+  "/changelog": {
+    id: "changelogDocument",
+    title: "изменения",
+  },
+  "/data-sources": {
+    id: "dataSourcesDocument",
+    title: "источники данных",
+  },
+};
+
+const current =
+  documents[window.location.pathname] ||
+  documents["/privacy"];
+
+const active =
+  document.getElementById(current.id);
+
+if (active) {
+  active.classList.remove("hidden");
+}
+
+document.title =
+  `Deadlock Contracts — ${current.title}`;
+
+fetch("/api/status", {
+  credentials: "same-origin",
+  headers: {
+    Accept: "application/json",
+  },
+})
+  .then((response) => {
+    if (!response.ok) {
+      throw new Error("status");
+    }
+
+    return response.json();
+  })
   .then((data) => {
-    document.querySelectorAll(".legalContact").forEach((link) => {
-      if (data.contact_email) {
-        link.textContent = data.contact_email;
-        link.href = `mailto:${data.contact_email}`;
-      } else {
-        link.textContent = "владельца тестовой группы";
-        link.removeAttribute("href");
-      }
-    });
+    document
+      .querySelectorAll(".legalContact")
+      .forEach((link) => {
+        if (data.contact_email) {
+          link.textContent =
+            data.contact_email;
+          link.href =
+            `mailto:${data.contact_email}`;
+        } else {
+          link.textContent =
+            "владельца тестовой группы";
+          link.removeAttribute("href");
+        }
+      });
+
+    const status =
+      document.getElementById(
+        "publicStatus",
+      );
+
+    if (status) {
+      status.textContent =
+        JSON.stringify(data, null, 2);
+    }
   })
   .catch(() => {
-    document.querySelectorAll(".legalContact").forEach((link) => {
-      link.textContent = "владельца тестовой группы";
-      link.removeAttribute("href");
-    });
+    document
+      .querySelectorAll(".legalContact")
+      .forEach((link) => {
+        link.textContent =
+          "владельца тестовой группы";
+        link.removeAttribute("href");
+      });
+
+    const status =
+      document.getElementById(
+        "publicStatus",
+      );
+
+    if (status) {
+      status.textContent =
+        "Публичный status endpoint сейчас недоступен.";
+    }
   });
