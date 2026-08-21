@@ -11,9 +11,9 @@ MAIN = (ROOT / "app/main.py").read_text(encoding="utf-8")
 
 
 def test_release_version_is_consistent() -> None:
-    assert 'os.getenv("APP_VERSION", "0.10.1-alpha.7")' in CONFIG
-    assert "APP_VERSION: 0.10.1-alpha.7" in (ROOT / "compose.prod.yaml").read_text(encoding="utf-8")
-    assert '"version": "0.10.1-alpha.7"' in (ROOT / "frontend/package.json").read_text(encoding="utf-8")
+    assert 'os.getenv("APP_VERSION", "0.10.1-alpha.8")' in CONFIG
+    assert "APP_VERSION: 0.10.1-alpha.8" in (ROOT / "compose.prod.yaml").read_text(encoding="utf-8")
+    assert '"version": "0.10.1-alpha.8"' in (ROOT / "frontend/package.json").read_text(encoding="utf-8")
 
 
 def test_landing_is_exact_legacy_motion_restore() -> None:
@@ -99,3 +99,32 @@ def test_public_navigation_and_verified_leaderboard_are_restored() -> None:
 
     assert "TRUSTED_REWARD_SOURCES" in leaderboard_service
     assert "ADMIN_ADJUSTMENT" not in leaderboard_service
+
+
+def test_alpha8_public_release_hygiene() -> None:
+    release = (
+        ROOT / "release.json"
+    ).read_text(encoding="utf-8")
+
+    assert '"web_version": "0.10.1-alpha.8"' in release
+    assert '"companion_version": "0.5.2-alpha.3"' in release
+    assert '"companion_manifest_version": "0.5.2.3"' in release
+
+    assert 'href="#"' not in LANDING
+    assert "INTERACTIVE PREVIEW / NOT SAVED" in LANDING
+    assert "ПРЕДПРОСМОТР · НЕ СОХРАНЯЕТСЯ" in LANDING
+
+    legal = (
+        ROOT / "app/static/legal.html"
+    ).read_text(encoding="utf-8")
+
+    for route, document_id in (
+        ("/privacy", "privacyDocument"),
+        ("/terms", "termsDocument"),
+        ("/support", "supportDocument"),
+        ("/status", "statusDocument"),
+        ("/changelog", "changelogDocument"),
+        ("/data-sources", "dataSourcesDocument"),
+    ):
+        assert f'@app.get("{route}"' in MAIN
+        assert document_id in legal

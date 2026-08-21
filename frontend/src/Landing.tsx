@@ -1375,10 +1375,19 @@ export default function Landing() {
               <Reveal>
                 <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-5 mb-10">
                   <div>
-                    <Eyebrow>DAILY BOARD / DEMO</Eyebrow>
+                    <Eyebrow>INTERACTIVE PREVIEW / NOT SAVED</Eyebrow>
                     <SectionHeading>
                       {t(language, "Выберите цель на следующий матч")}
                     </SectionHeading>
+                    <p
+                      className="text-xs leading-relaxed mt-3 max-w-[620px]"
+                      style={{ color: "#7F8478" }}
+                    >
+                      {t(
+                        language,
+                        "Интерактивный пример. Выбор ниже не сохраняется и не создаёт настоящий контракт. Реальные контракты доступны после входа в кабинете.",
+                      )}
+                    </p>
                   </div>
                   <div
                     className="flex rounded overflow-hidden shrink-0"
@@ -1621,11 +1630,10 @@ export default function Landing() {
                         letterSpacing: "0.05em",
                         boxShadow: selected.length > 0 ? "0 0 14px rgba(122,179,132,0.3)" : "none",
                       }}
-                      onClick={ripple}
+                      disabled
+                      aria-disabled="true"
                     >
-                      {selected.length > 0
-                        ? t(language, "Зафиксировать →")
-                        : t(language, "Войти для выбора")}
+                      {t(language, "ПРЕДПРОСМОТР · НЕ СОХРАНЯЕТСЯ")}
                     </button>
                   </div>
                 </div>
@@ -1670,7 +1678,7 @@ export default function Landing() {
                     )}
                   </p>
                   <a
-                    href="#"
+                    href="#how"
                     className="text-sm font-medium inline-flex items-center gap-1.5"
                     style={{
                       color: "#7AB384",
@@ -2203,14 +2211,31 @@ export default function Landing() {
               )}
             </p>
             <div className="flex flex-wrap gap-5">
-              {["Discord", "Статус", "Изменения", "Источники данных"].map((l) => (
+              {[
+                {
+                  label: language === "ru" ? "Поддержка" : "Support",
+                  href: "/support",
+                },
+                {
+                  label: language === "ru" ? "Статус" : "Status",
+                  href: "/status",
+                },
+                {
+                  label: language === "ru" ? "Изменения" : "Changelog",
+                  href: "/changelog",
+                },
+                {
+                  label: language === "ru" ? "Источники данных" : "Data sources",
+                  href: "/data-sources",
+                },
+              ].map((item) => (
                 <a
-                  key={l}
-                  href="#"
+                  key={item.href}
+                  href={item.href}
                   className="text-xs nav-link transition-colors hover:text-[#7AB384]"
                   style={{ color: "#7F8478" }}
                 >
-                  {t(language, l)}
+                  {item.label}
                 </a>
               ))}
             </div>
@@ -2225,14 +2250,31 @@ export default function Landing() {
             >
               PLATFORM
             </div>
-            {["CONTRACTS", "HOW IT WORKS", "CAMPAIGNS · SOON", "LEADERBOARD"].map((l) => (
+            {[
+              {
+                label: "CONTRACTS",
+                href: "#contracts",
+              },
+              {
+                label: "HOW IT WORKS",
+                href: "#how",
+              },
+              {
+                label: "CAMPAIGNS · SOON",
+                href: "#campaigns",
+              },
+              {
+                label: "LEADERBOARD",
+                href: "#leaderboards",
+              },
+            ].map((item) => (
               <a
-                key={l}
-                href="#"
+                key={item.href}
+                href={item.href}
                 className="nav-link block text-xs mb-3 transition-colors hover:text-[#7AB384]"
                 style={{ color: "#B6AC94" }}
               >
-                {t(language, l)}
+                {t(language, item.label)}
               </a>
             ))}
           </div>
@@ -2246,14 +2288,31 @@ export default function Landing() {
             >
               DOCUMENTS
             </div>
-            {["PRIVACY", "TERMS", "API", "CONTACT"].map((l) => (
+            {[
+              {
+                label: language === "ru" ? "Данные" : "Privacy",
+                href: "/privacy",
+              },
+              {
+                label: language === "ru" ? "Условия" : "Terms",
+                href: "/terms",
+              },
+              {
+                label: language === "ru" ? "Источники данных" : "Data sources",
+                href: "/data-sources",
+              },
+              {
+                label: language === "ru" ? "Контакт" : "Contact",
+                href: "/support",
+              },
+            ].map((item) => (
               <a
-                key={l}
-                href="#"
+                key={item.href}
+                href={item.href}
                 className="nav-link block text-xs mb-3 transition-colors hover:text-[#7AB384]"
                 style={{ color: "#B6AC94" }}
               >
-                {t(language, l)}
+                {item.label}
               </a>
             ))}
           </div>

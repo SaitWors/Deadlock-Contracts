@@ -313,6 +313,9 @@ const EN: Record<string, string> = {
   "Куратор наблюдает.": "The Curator is watching.",
   "Условия зафиксированы. Ждём матч.": "Conditions locked. Awaiting match.",
   "Выберите цель на следующий матч": "Choose an objective for your next match",
+  "Интерактивный пример. Выбор ниже не сохраняется и не создаёт настоящий контракт. Реальные контракты доступны после входа в кабинете.":
+    "Interactive preview. The selection below is not saved and does not create a real contract. Real contracts are available after signing in to the dashboard.",
+  "ПРЕДПРОСМОТР · НЕ СОХРАНЯЕТСЯ": "PREVIEW · NOT SAVED",
   Сбросить: "Reset",
   "Зафиксировать →": "Lock contracts →",
   "Войти для выбора": "Sign in to choose",
