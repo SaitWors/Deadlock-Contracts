@@ -2,9 +2,11 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 import fs from 'node:fs'
 import path from 'node:path'
+import { fileURLToPath } from 'node:url'
 
-const root = path.resolve(path.dirname(new URL(import.meta.url).pathname), '..')
+const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const read = relative => fs.readFileSync(path.join(root, relative), 'utf8')
+const releaseMetadata = JSON.parse(fs.readFileSync(path.join(root, '..', 'release.json'), 'utf8'))
 const manifest = JSON.parse(read('manifest.json'))
 const runtimeText = [
   'background.html', 'index.html', 'overlay.html',
@@ -15,10 +17,17 @@ const runtimeText = [
 test('manifest preserves app identity and advances the QA build', () => {
   assert.equal(manifest.meta.name, 'Deadlock Contracts Companion')
   assert.equal(manifest.meta.author, 'Deadlock Contracts')
-  assert.equal(manifest.meta.version, '0.5.2.4')
+  assert.equal(manifest.meta.version, releaseMetadata.companion_manifest_version)
   assert.equal(manifest.meta['minimum-gep-version'], '311.0.0')
   assert.equal(manifest.data.start_window, 'background')
   assert.equal(manifest.data.process_name, 'Deadlock Contracts')
+})
+
+test('all user-visible release versions match release.json', () => {
+  const version = releaseMetadata.companion_version
+  assert.match(read('index.html'), new RegExp(`<b>${version.replaceAll('.', '\\.')}</b>`))
+  assert.match(read('src/desktop.js'), new RegExp(`version: '${version.replaceAll('.', '\\.')}'`))
+  assert.ok(read('THIRD_PARTY_NOTICES.txt').startsWith(`Deadlock Contracts Companion ${version}\n`))
 })
 
 test('public product has a responsive desktop hub', () => {
@@ -175,4 +184,14 @@ test('evidence v7 distinguishes real match_outcome info updates from cached getI
   assert.match(background, /state\.matchOutcomeEventMatchId = Number\(state\.matchId\)/)
   assert.match(background, /match_outcome_event_at:/)
   assert.match(background, /match_outcome_event_match_id:/)
+})
+
+
+test('overlay hidden elements cannot be resurrected by display grid rules', () => {
+  const css = read('styles/overlay.css')
+
+  assert.match(
+    css,
+    /\[hidden\]\s*\{[^}]*display:\s*none\s*!important\s*;/s,
+  )
 })

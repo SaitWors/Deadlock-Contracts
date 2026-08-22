@@ -30,6 +30,13 @@
     return sameMatch(finalizedMatchId, currentMatchId)
   }
 
+  function hasTerminalGameplayProof({
+    matchClockS,
+  }) {
+    const clock = Number(matchClockS)
+    return Number.isFinite(clock) && clock > 0
+  }
+
   function finalUploadKey(payload) {
     const id = matchId(payload?.match_id)
     const session = String(payload?.session_id || '').trim()
@@ -55,6 +62,7 @@
     sameMatch,
     shouldSuppressLifecycle,
     shouldSuppressModeUpdate,
+    hasTerminalGameplayProof,
     finalUploadKey,
     shouldQueueFinalUpload,
   }

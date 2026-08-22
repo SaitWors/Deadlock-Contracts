@@ -7,7 +7,10 @@ import { fileURLToPath } from 'node:url'
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const work = path.dirname(root)
-const releaseName = 'Deadlock-Contracts-Companion-0.5.2-alpha.4'
+const releaseMetadata = JSON.parse(fs.readFileSync(path.join(work, 'release.json'), 'utf8'))
+const companionVersion = String(releaseMetadata.companion_version || '')
+if (!companionVersion) throw new Error('release.json companion_version is required')
+const releaseName = `Deadlock-Contracts-Companion-${companionVersion}`
 const bundleName = `${releaseName}-QA`
 const releaseDirectory = path.join(work, 'release')
 const qaRoot = path.join(releaseDirectory, bundleName)

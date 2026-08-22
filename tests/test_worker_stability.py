@@ -310,6 +310,8 @@ class MatchFinalityRegressionTests(unittest.TestCase):
                 session_started_at="2026-08-15T04:54:14+00:00",
                 session_ended_at="2026-08-15T05:04:38+00:00",
                 session_end_reason="phase_postgame",
+                match_clock_s=608,
+                match_clock_observed_at="2026-08-15T05:04:38+00:00",
                 local_team="AMBER",
                 match_outcome="AMBER",
                 event_type="match_ended",
@@ -658,7 +660,7 @@ class MatchFinalityRegressionTests(unittest.TestCase):
             self.assertEqual(final["event_type"], "match_ended")
             self.assertEqual(final["end_reason"], "phase_postgame")
 
-    def test_explicit_match_ended_survives_missing_session_object(self) -> None:
+    def test_explicit_match_ended_without_gameplay_proof_is_rejected(self) -> None:
         from sqlalchemy import create_engine
         from app.db import Base
         from app.models import CompanionEvent
@@ -681,9 +683,64 @@ class MatchFinalityRegressionTests(unittest.TestCase):
             ))
             db.commit()
             final = _companion_finalization_from_events(db, user, 99529660)
-            self.assertIsNotNone(final)
-            assert final is not None
-            self.assertEqual(final["event_type"], "match_ended")
+            self.assertIsNone(final)
+
+    def test_long_wall_clock_session_without_match_clock_is_rejected(self) -> None:
+        from sqlalchemy import create_engine, select
+
+        from app.db import Base
+        from app.models import Job
+        from app.services.companion import record_snapshot
+        from app.worker import _companion_finalization_from_events
+
+        engine = create_engine("sqlite+pysqlite:///:memory:")
+        Base.metadata.create_all(engine)
+        db, user, device = self._base(
+            engine,
+            device_id="device-wall-clock-only-test",
+        )
+
+        ended = datetime(2026, 8, 15, 5, 4, 38, tzinfo=timezone.utc)
+
+        with db:
+            record_snapshot(
+                db,
+                device,
+                user,
+                game_running=True,
+                steam_id64=user.steam_id64,
+                phase="PostGame",
+                game_mode_raw={
+                    "match_mode": "Unranked",
+                    "game_mode": "Normal",
+                },
+                match_id=99529661,
+                gep_version="311.3.2",
+                version="0.5.2-alpha.4",
+                live_stats={"kills": 5},
+                session_id="session-wall-clock-only",
+                session_started_at=(
+                    ended - timedelta(hours=2)
+                ).isoformat(),
+                session_ended_at=ended.isoformat(),
+                session_end_reason="match_end",
+                match_clock_s=None,
+                local_team="SAPPHIRE",
+                match_outcome="SAPPHIRE",
+                event_type="match_ended",
+            )
+
+            self.assertIsNone(
+                _companion_finalization_from_events(
+                    db,
+                    user,
+                    99529661,
+                )
+            )
+            self.assertEqual(
+                list(db.scalars(select(Job)).all()),
+                [],
+            )
 
     def test_trusted_final_gep_match_can_score_non_duration_contract_without_duration(self) -> None:
         from app.services.evaluator import _result
@@ -782,6 +839,138 @@ class MatchFinalityRegressionTests(unittest.TestCase):
             self.assertEqual(final["match_clock_s"], 608)
 
 
+
+
+    def test_real_100960330_style_early_match_end_is_ignored(self) -> None:
+        """A 9-second MatchIntro terminal signal must not consume a match.
+
+        Production match 100960330 emitted an early match_end before the
+        actual GameInProgress session. The real terminal event arrived about
+        eighteen minutes later with match_clock and final stats.
+        """
+        from sqlalchemy import create_engine, select
+        from app.db import Base
+        from app.models import Job
+        from app.services.companion import record_snapshot
+        from app.worker import _companion_finalization_from_events
+
+        engine = create_engine(
+            "sqlite+pysqlite:///:memory:"
+        )
+        Base.metadata.create_all(engine)
+
+        db, user, device = self._base(
+            engine,
+            device_id="device-100960330-regression",
+        )
+
+        with db:
+            record_snapshot(
+                db,
+                device,
+                user,
+                game_running=True,
+                steam_id64=user.steam_id64,
+                phase="MatchIntro",
+                game_mode_raw={
+                    "match_mode": "Unranked",
+                    "game_mode": "StreetBrawl",
+                },
+                match_id=100960330,
+                gep_version="311.2.2",
+                version="0.5.2-alpha.4",
+                live_stats=None,
+                session_id="session-false-start",
+                session_started_at="2026-08-22T10:20:58+00:00",
+                session_ended_at="2026-08-22T10:21:07+00:00",
+                session_end_reason="match_end",
+                match_clock_s=None,
+                local_team=None,
+                match_outcome=None,
+                event_type="match_ended",
+            )
+
+            self.assertIsNone(
+                _companion_finalization_from_events(
+                    db,
+                    user,
+                    100960330,
+                )
+            )
+
+            self.assertEqual(
+                list(
+                    db.scalars(
+                        select(Job)
+                    ).all()
+                ),
+                [],
+            )
+
+            record_snapshot(
+                db,
+                device,
+                user,
+                game_running=True,
+                steam_id64=user.steam_id64,
+                phase="PostGame",
+                game_mode_raw={
+                    "match_mode": "Unranked",
+                    "game_mode": "StreetBrawl",
+                },
+                match_id=100960330,
+                gep_version="311.2.2",
+                version="0.5.2-alpha.4",
+                live_stats={
+                    "kills": 1,
+                    "deaths": 2,
+                    "assists": 11,
+                    "hero_damage": 15412,
+                    "object_damage": 1600,
+                    "healing": 17303,
+                    "souls": 48000,
+                },
+                session_id="session-real-match",
+                session_started_at="2026-08-22T10:21:08+00:00",
+                session_ended_at="2026-08-22T10:39:11+00:00",
+                session_end_reason="phase_postgame",
+                match_clock_s=1062,
+                local_team="SAPPHIRE",
+                match_outcome="SAPPHIRE",
+                event_type="match_ended",
+            )
+
+            final = (
+                _companion_finalization_from_events(
+                    db,
+                    user,
+                    100960330,
+                )
+            )
+
+            self.assertIsNotNone(final)
+            assert final is not None
+
+            self.assertEqual(
+                final["phase"],
+                "PostGame",
+            )
+
+            self.assertEqual(
+                final["match_clock_s"],
+                1062,
+            )
+
+            jobs = list(
+                db.scalars(
+                    select(Job)
+                ).all()
+            )
+
+            self.assertEqual(
+                len(jobs),
+                1,
+            )
 
 
 if __name__ == "__main__":
@@ -1045,6 +1234,136 @@ class OutcomeInfoUpdateV7Tests(unittest.TestCase):
             self.assertIn("summary.result", merged["capabilities"])
             self.assertTrue(merged["raw_summary"]["companion_result"]["trusted_for_scoring"])
 
+    def test_late_exact_outcome_requeues_completed_final_resolver_once(self) -> None:
+        from sqlalchemy import create_engine, select
+
+        from app.db import Base
+        from app.models import Job
+        from app.services.companion import record_snapshot
+
+        engine = create_engine("sqlite+pysqlite:///:memory:")
+        Base.metadata.create_all(engine)
+        db, user, device = self._base(engine)
+
+        match_id = 100300002
+        ended = datetime.now(timezone.utc)
+        started = ended - timedelta(minutes=13)
+
+        def upload_outcome(*, event_match_id: int, observed: datetime) -> None:
+            record_snapshot(
+                db,
+                device,
+                user,
+                game_running=True,
+                steam_id64=user.steam_id64,
+                phase="PostGame",
+                game_mode_raw={
+                    "match_mode": "Unranked",
+                    "game_mode": "Normal",
+                },
+                match_id=match_id,
+                gep_version="311.3.2",
+                version="0.5.2-alpha.4",
+                live_stats={"kills": 5},
+                session_id="session-late-outcome-v7",
+                session_started_at=started.isoformat(),
+                session_ended_at=ended.isoformat(),
+                session_end_reason="match_end",
+                match_clock_s=780,
+                match_clock_observed_at=ended.isoformat(),
+                local_team="SAPPHIRE",
+                match_outcome="SAPPHIRE",
+                match_outcome_event_at=observed.isoformat(),
+                match_outcome_event_match_id=event_match_id,
+                event_type="heartbeat",
+            )
+
+        with db:
+            record_snapshot(
+                db,
+                device,
+                user,
+                game_running=True,
+                steam_id64=user.steam_id64,
+                phase="PostGame",
+                game_mode_raw={
+                    "match_mode": "Unranked",
+                    "game_mode": "Normal",
+                },
+                match_id=match_id,
+                gep_version="311.3.2",
+                version="0.5.2-alpha.4",
+                live_stats={"kills": 5},
+                session_id="session-late-outcome-v7",
+                session_started_at=started.isoformat(),
+                session_ended_at=ended.isoformat(),
+                session_end_reason="match_end",
+                match_clock_s=780,
+                match_clock_observed_at=ended.isoformat(),
+                local_team="SAPPHIRE",
+                match_outcome=None,
+                event_type="match_ended",
+            )
+
+            final_key = (
+                "companion-resolve-auto-final-v3:"
+                f"{user.id}:{match_id}"
+            )
+            final_job = db.scalar(
+                select(Job).where(
+                    Job.idempotency_key == final_key
+                )
+            )
+            self.assertIsNotNone(final_job)
+            assert final_job is not None
+            final_job.status = "DONE"
+            db.commit()
+
+            observed = ended + timedelta(seconds=2)
+            upload_outcome(
+                event_match_id=match_id - 1,
+                observed=observed,
+            )
+
+            late_jobs = list(
+                db.scalars(
+                    select(Job).where(
+                        Job.idempotency_key.like(
+                            "companion-resolve-auto-outcome-v1:%"
+                        )
+                    )
+                ).all()
+            )
+            self.assertEqual(late_jobs, [])
+
+            upload_outcome(
+                event_match_id=match_id,
+                observed=observed,
+            )
+            upload_outcome(
+                event_match_id=match_id,
+                observed=observed,
+            )
+
+            late_jobs = list(
+                db.scalars(
+                    select(Job).where(
+                        Job.idempotency_key.like(
+                            "companion-resolve-auto-outcome-v1:%"
+                        )
+                    )
+                ).all()
+            )
+
+            self.assertEqual(len(late_jobs), 1)
+            self.assertEqual(
+                late_jobs[0].payload["external_match_id"],
+                match_id,
+            )
+            self.assertTrue(
+                late_jobs[0].payload["late_outcome_repair"]
+            )
+
     def test_wrong_match_id_or_old_outcome_marker_stays_diagnostic_only(self) -> None:
         from sqlalchemy import create_engine
         from app.db import Base
@@ -1067,6 +1386,8 @@ class OutcomeInfoUpdateV7Tests(unittest.TestCase):
                 session_id="session-current",
                 session_started_at=(ended - timedelta(minutes=30)).isoformat(),
                 session_ended_at=ended.isoformat(), session_end_reason="match_end",
+                match_clock_s=1800,
+                match_clock_observed_at=ended.isoformat(),
                 local_team="AMBER", match_outcome="AMBER", event_type="match_ended",
             )
             later = ended + timedelta(seconds=10)

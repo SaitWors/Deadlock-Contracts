@@ -1,6 +1,6 @@
-# Deadlock Contracts Web/Backend v0.10.1-alpha.7
+# Deadlock Contracts Web/Backend v0.10.1-alpha.8
 
-**0.10.1-alpha.7:** trusted outcome-info correlation for win contracts, faster bounded post-match verification, startup repair generation and Open-Beta-aware deploy gates.
+**0.10.1-alpha.8:** release-aligned Companion metadata, stricter terminal gameplay proof, dependency security updates and migration-safe deploys.
 
 Backend remains authoritative: Companion/GEP evidence is accepted only through strict exact-match/session correlation; provider facts win on conflict.
 
@@ -26,9 +26,9 @@ Backend remains authoritative: Companion/GEP evidence is accepted only through s
 
 ## Документы
 
-- установка/обновление: `INSTALL_0.10.1_ALPHA7_RU.md`;
-- изменения: `RELEASE_NOTES_0.10.1_ALPHA7_RU.md`;
-- проверки: `TEST_REPORT_0.10.1_ALPHA7_RU.md`;
+- установка/обновление: `INSTALL_0.10.1_ALPHA8_RU.md`;
+- изменения: `RELEASE_NOTES_0.10.1_ALPHA8_RU.md`;
+- проверки: `TEST_REPORT_0.10.1_ALPHA8_RU.md`;
 - trust/security: `SECURITY_AND_TRUST_RU.md`.
 
 ## Проверка

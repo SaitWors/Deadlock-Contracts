@@ -368,6 +368,169 @@ def _register_direct_match_job(
     return []
 
 
+def _register_late_outcome_repair_job(
+    db: Session,
+    *,
+    device: CompanionDevice,
+    user: User,
+    mode: str,
+    match_id: int,
+    identity_ok: bool | None,
+    final_snapshot: bool,
+    local_team: str | None,
+    match_outcome: str | None,
+    match_outcome_event_at: str | None,
+    match_outcome_event_match_id: int | None,
+) -> None:
+    """Queue one exact-match repair if trusted outcome arrives after final-v3 finished."""
+    if not final_snapshot or match_id <= 0:
+        return
+
+    if (
+        user.steam_id64 is not None
+        and identity_ok is not True
+    ):
+        return
+
+    valid_teams = {"AMBER", "SAPPHIRE"}
+
+    normalized_local = str(
+        local_team or ""
+    ).strip().upper()
+
+    normalized_outcome = str(
+        match_outcome or ""
+    ).strip().upper()
+
+    if (
+        normalized_local not in valid_teams
+        or normalized_outcome not in valid_teams
+    ):
+        return
+
+    try:
+        event_match_id = int(
+            match_outcome_event_match_id
+        )
+    except (TypeError, ValueError):
+        return
+
+    if event_match_id != int(match_id):
+        return
+
+    try:
+        observed = datetime.fromisoformat(
+            str(
+                match_outcome_event_at or ""
+            ).replace(
+                "Z",
+                "+00:00",
+            )
+        )
+    except ValueError:
+        return
+
+    if observed.tzinfo is None:
+        return
+
+    observed_utc = observed.astimezone(
+        timezone.utc
+    )
+
+    final_key = (
+        "companion-resolve-auto-final-v3:"
+        f"{user.id}:{match_id}"
+    )
+
+    prior_final = db.scalar(
+        select(Job).where(
+            Job.idempotency_key == final_key
+        )
+    )
+
+    # PENDING sees the late event when it runs.
+    # FAILED is reopened by _register_direct_match_job.
+    if (
+        prior_final is None
+        or prior_final.status
+        not in {"RUNNING", "DONE"}
+    ):
+        return
+
+    event_token = observed_utc.strftime(
+        "%Y%m%dT%H%M%S%fZ"
+    )
+
+    key = (
+        "companion-resolve-auto-outcome-v1:"
+        f"{user.id}:{match_id}:{event_token}"
+    )
+
+    existing = db.scalar(
+        select(Job).where(
+            Job.idempotency_key == key
+        )
+    )
+
+    if existing:
+        return
+
+    now = utcnow()
+
+    db.add(
+        Job(
+            type="resolve_companion_match_auto",
+            payload={
+                "user_id": user.id,
+                "external_match_id": int(
+                    match_id
+                ),
+                "device_id": device.id,
+                "detected_at": now.isoformat(),
+                "final_signal": True,
+                "late_outcome_repair": True,
+                "mode_hint": (
+                    mode
+                    if mode in VALID_MODES
+                    else None
+                ),
+                "match_outcome_event_at": (
+                    observed_utc.isoformat()
+                ),
+            },
+            status="PENDING",
+            attempts=0,
+            max_attempts=60,
+            run_after=now,
+            idempotency_key=key,
+        )
+    )
+
+
+def _has_terminal_gameplay_proof(
+    *,
+    match_clock_s: int | None,
+    session_started_at: str | None,
+    session_ended_at: str | None,
+) -> bool:
+    """Require observable in-game time; wall clock alone cannot consume an attempt."""
+    del session_started_at, session_ended_at
+
+    try:
+        clock = (
+            int(match_clock_s)
+            if match_clock_s is not None
+            else None
+        )
+    except (TypeError, ValueError):
+        return False
+
+    return (
+        clock is not None
+        and 0 < clock <= 6 * 60 * 60
+    )
+
+
 def record_snapshot(
     db: Session,
     device: CompanionDevice,
@@ -460,11 +623,23 @@ def record_snapshot(
     # Phase alone is insufficient: it may flicker or be replayed. Queue a
     # final resolver only from an explicit match_ended event or a persisted
     # session-end marker emitted by the Companion.
+    terminal_gameplay_proof = (
+        _has_terminal_gameplay_proof(
+            match_clock_s=match_clock_s,
+            session_started_at=session_started_at,
+            session_ended_at=session_ended_at,
+        )
+    )
+
     final_snapshot = bool(
-        event_type == "match_ended"
-        or (
-            session_ended_at
-            and end_reason in {"match_end", "phase_postgame"}
+        terminal_gameplay_proof
+        and (
+            event_type == "match_ended"
+            or (
+                session_ended_at
+                and end_reason
+                in {"match_end", "phase_postgame"}
+            )
         )
     )
 
@@ -478,6 +653,20 @@ def record_snapshot(
             steam_id64=steam_id64,
             live_stats=clean_stats,
         )
+        _register_late_outcome_repair_job(
+            db,
+            device=db_device,
+            user=user,
+            mode=mode,
+            match_id=db_device.current_match_id,
+            identity_ok=identity_ok,
+            final_snapshot=final_snapshot,
+            local_team=local_team,
+            match_outcome=match_outcome,
+            match_outcome_event_at=match_outcome_event_at,
+            match_outcome_event_match_id=match_outcome_event_match_id,
+        )
+
         direct = (
             _register_direct_match_job(
                 db,
@@ -493,7 +682,21 @@ def record_snapshot(
     else:
         direct = []
 
-    woken = wake_discovery(db, user.id, mode) if match_id and event_type in {"match_started", "match_ended"} else []
+    woken = (
+        wake_discovery(
+            db,
+            user.id,
+            mode,
+        )
+        if (
+            match_id
+            and (
+                event_type == "match_started"
+                or final_snapshot
+            )
+        )
+        else []
+    )
     db.commit()
     db.refresh(db_device)
     return db_device, woken, direct

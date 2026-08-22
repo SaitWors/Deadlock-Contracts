@@ -15,6 +15,10 @@ diagnostic-only и не получает settlement authority.
 Street Brawl продолжает использовать отдельную capability
 `gep.scoreboard_healing`.
 
+Terminal lifecycle теперь требует gameplay proof: положительный
+match clock. Одна фаза `PostGame` и одна только длительность открытого
+окна не могут закрыть матч до реального начала игры.
+
 ## Compatibility
 
 Manifest version: `0.5.2.4`.

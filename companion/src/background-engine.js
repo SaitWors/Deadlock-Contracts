@@ -73,6 +73,8 @@ const state = {
 
 let logLines = []
 let syncTimer = 0
+let finalSyncTimer = 0
+const FINAL_SNAPSHOT_DELAY_MS = 3000
 let flushInProgress = false
 let recoveryTimers = []
 let productRefreshInProgress = false
@@ -500,6 +502,39 @@ function persistSession() {
 
 function finishSession(reason = 'match_end') {
   if (!state.session) return false
+
+  if (
+    ['match_end', 'phase_postgame'].includes(reason)
+  ) {
+    const hasGameplayProof =
+      window.DCSessionGuard.hasTerminalGameplayProof({
+        matchClockS:
+          state.session.match_clock_s
+          ?? state.matchClockS,
+      })
+
+    if (!hasGameplayProof) {
+      log(
+        'UNCONFIRMED_FINAL_SIGNAL_IGNORED',
+        {
+          reason,
+          matchId:
+            state.session.match_id
+            || state.matchId
+            || null,
+          phase: state.phase || null,
+          matchClockS:
+            state.session.match_clock_s
+            ?? state.matchClockS
+            ?? null,
+          sessionId: state.session.id,
+        },
+      )
+
+      return false
+    }
+  }
+
   const wasEnded = !!state.session.ended_at
   const promotedToMatchEnd = wasEnded && reason === 'match_end' && state.session.end_reason !== 'match_end'
   if (!wasEnded) state.session.ended_at = nowIso()
@@ -661,12 +696,32 @@ function mergeEvidence(next, source = 'roster') {
   if (!next) return false
 
   if (sameFinalizedMatch()) {
-    logStaleFinalizedOnce('STALE_FINALIZED_EVIDENCE_IGNORED', {
-      matchId: state.matchId,
-      source,
-      sessionId: state.session?.id || null,
-    })
-    return false
+    const sameFinalSession = (
+      state.finalized?.session_id
+      && state.session?.id
+      && String(state.finalized.session_id)
+        === String(state.session.id)
+    )
+
+    const finalUploadPending = (
+      sameFinalSession
+      && !state.finalized?.upload_queued_at
+    )
+
+    // Deadlock can update the final roster immediately after PostGame/
+    // match_end. Accept monotonic corrections for the same terminal
+    // session until its final snapshot is actually queued.
+    if (!finalUploadPending) {
+      logStaleFinalizedOnce(
+        'STALE_FINALIZED_EVIDENCE_IGNORED',
+        {
+          matchId: state.matchId,
+          source,
+          sessionId: state.session?.id || null,
+        },
+      )
+      return false
+    }
   }
 
   ensureSession(`evidence:${source}`)
@@ -1022,8 +1077,24 @@ async function sendSnapshot(eventType = 'heartbeat') {
 
 function scheduleSync(eventType = 'heartbeat') {
   if (!state.token) return
+
+  if (eventType === 'match_ended') {
+    clearTimeout(finalSyncTimer)
+
+    finalSyncTimer = setTimeout(() => {
+      finalSyncTimer = 0
+      void sendSnapshot('match_ended')
+    }, FINAL_SNAPSHOT_DELAY_MS)
+
+    return
+  }
+
   clearTimeout(syncTimer)
-  syncTimer = setTimeout(() => void sendSnapshot(eventType), 250)
+
+  syncTimer = setTimeout(() => {
+    syncTimer = 0
+    void sendSnapshot(eventType)
+  }, 250)
 }
 
 function detectTransitionEvent() {
@@ -1201,7 +1272,10 @@ function applyInfoUpdate(info) {
       }
     }
 
-    if (info.info) extractKnown({ res: info.info })
+    // Preserve the original onInfoUpdates2 envelope.
+    // `feature + info` is the provenance marker that distinguishes a
+    // real info-update from getInfo()/cached state.
+    if (info.info) extractKnown(info)
   } catch (error) {
     log('INFO_UPDATE_PARSE_ERROR', String(error))
   }
@@ -1335,16 +1409,29 @@ function handleNewEvents(info) {
     if (name === 'kill' || name === 'death' || name === 'assist') applyLocalEvent(name)
     if (name === 'match_end') {
       const changed = finishSession('match_end')
-      if (!changed && sameFinalizedMatch()) {
-        logStaleFinalizedOnce('DUPLICATE_MATCH_END_EVENT_IGNORED', {
-          matchId: state.matchId,
-          sessionId: state.session?.id || null,
-        })
+
+      if (!changed) {
+        if (sameFinalizedMatch()) {
+          logStaleFinalizedOnce(
+            'DUPLICATE_MATCH_END_EVENT_IGNORED',
+            {
+              matchId: state.matchId,
+              sessionId: state.session?.id || null,
+            },
+          )
+        }
+
+        // Refresh cached GEP state, but do NOT emit a terminal upload.
+        getInfo('heartbeat')
         continue
       }
+
+      // Give Deadlock a small terminal stabilization window for the
+      // final roster and match_outcome info update. This timer is
+      // independent from normal heartbeat coalescing.
       getInfo('match_ended')
       scheduleHistoryRecovery()
-      setTimeout(() => void sendSnapshot('match_ended'), 1000)
+      scheduleSync('match_ended')
     }
   }
   updateUi()

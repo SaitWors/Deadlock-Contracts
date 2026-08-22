@@ -10,6 +10,12 @@
 - PostgreSQL schema changes переведены на Alembic.
 - Добавлен отдельный migration step.
 - Outbox получил retries, backoff и dead-letter handling.
+- Ложный pre-game `match_end` больше не становится финалом только
+  из-за фазы `PostGame`: требуется gameplay proof.
+- Production deploy теперь запускает Alembic migration до
+  пересоздания web/worker и останавливается при ошибке миграции.
+- FastAPI и python-multipart обновлены до проверенных актуальных версий;
+  dependency audit добавлен в CI.
 
 ## Release gate
 
@@ -29,9 +35,10 @@ Status, Changelog и Data Sources.
 Каноническая версия:
 `0.5.2-alpha.4`, manifest `0.5.2.4`.
 
-## Known follow-up
+## Обязательный follow-up перед Overwolf
 
-`summary.healing` и часть terminal `summary.result`
-требуют отдельного reliability fix.
+Автоматические проверки закрыты, но exact OPK всё ещё должен пройти
+реальный Windows/Overwolf/Deadlock QA, testing channel и антивирусную
+проверку до submission.
 
 Защита от stale previous-match evidence не ослабляется.

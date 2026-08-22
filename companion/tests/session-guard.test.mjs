@@ -40,3 +40,51 @@ test('queues one match_ended snapshot per exact match and session', () => {
     payload: { match_id: 100180759, session_id: 'session-next' },
   }), true)
 })
+
+
+test('rejects a pre-game match_end without gameplay proof', () => {
+  assert.equal(
+    Guard.hasTerminalGameplayProof({
+      phase: 'MatchIntro',
+      matchClockS: null,
+      elapsedSeconds: 9,
+    }),
+    false,
+  )
+
+  assert.equal(
+    Guard.hasTerminalGameplayProof({
+      phase: 'GameInProgress',
+      matchClockS: 1062,
+      elapsedSeconds: 1080,
+    }),
+    true,
+  )
+
+  assert.equal(
+    Guard.hasTerminalGameplayProof({
+      phase: 'PostGame',
+      matchClockS: null,
+      elapsedSeconds: 10,
+    }),
+    false,
+  )
+
+  assert.equal(
+    Guard.hasTerminalGameplayProof({
+      phase: 'PostGame',
+      matchClockS: 1,
+      elapsedSeconds: 10,
+    }),
+    true,
+  )
+
+  assert.equal(
+    Guard.hasTerminalGameplayProof({
+      phase: 'MatchIntro',
+      matchClockS: null,
+      elapsedSeconds: 120,
+    }),
+    false,
+  )
+})
