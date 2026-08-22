@@ -47,7 +47,7 @@
 - XP берётся только из trusted reward-ledger sources; `ADMIN_ADJUSTMENT` не маскируется под reward контракта;
 - malformed adaptive numbers не превращаются в NaN/Infinity UI;
 - FTUE i18n больше не уничтожает DOM-элемент динамического hotkey.
-- ложный pre-game `match_end` больше не считается финалом только из-за фазы `PostGame`; нужен положительный match clock или сессия не короче 60 секунд.
+- ложный pre-game `match_end` больше не считается финалом только из-за фазы `PostGame` или длительности окна; нужен положительный match clock.
 
 ## Граница доверия
 

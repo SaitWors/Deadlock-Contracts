@@ -683,6 +683,63 @@ class MatchFinalityRegressionTests(unittest.TestCase):
             final = _companion_finalization_from_events(db, user, 99529660)
             self.assertIsNone(final)
 
+    def test_long_wall_clock_session_without_match_clock_is_rejected(self) -> None:
+        from sqlalchemy import create_engine, select
+
+        from app.db import Base
+        from app.models import Job
+        from app.services.companion import record_snapshot
+        from app.worker import _companion_finalization_from_events
+
+        engine = create_engine("sqlite+pysqlite:///:memory:")
+        Base.metadata.create_all(engine)
+        db, user, device = self._base(
+            engine,
+            device_id="device-wall-clock-only-test",
+        )
+
+        ended = datetime(2026, 8, 15, 5, 4, 38, tzinfo=timezone.utc)
+
+        with db:
+            record_snapshot(
+                db,
+                device,
+                user,
+                game_running=True,
+                steam_id64=user.steam_id64,
+                phase="PostGame",
+                game_mode_raw={
+                    "match_mode": "Unranked",
+                    "game_mode": "Normal",
+                },
+                match_id=99529661,
+                gep_version="311.3.2",
+                version="0.5.2-alpha.4",
+                live_stats={"kills": 5},
+                session_id="session-wall-clock-only",
+                session_started_at=(
+                    ended - timedelta(hours=2)
+                ).isoformat(),
+                session_ended_at=ended.isoformat(),
+                session_end_reason="match_end",
+                match_clock_s=None,
+                local_team="SAPPHIRE",
+                match_outcome="SAPPHIRE",
+                event_type="match_ended",
+            )
+
+            self.assertIsNone(
+                _companion_finalization_from_events(
+                    db,
+                    user,
+                    99529661,
+                )
+            )
+            self.assertEqual(
+                list(db.scalars(select(Job)).all()),
+                [],
+            )
+
     def test_trusted_final_gep_match_can_score_non_duration_contract_without_duration(self) -> None:
         from app.services.evaluator import _result
         option = SimpleNamespace(
@@ -1174,6 +1231,136 @@ class OutcomeInfoUpdateV7Tests(unittest.TestCase):
             self.assertTrue(merged["participant"]["won"])
             self.assertIn("summary.result", merged["capabilities"])
             self.assertTrue(merged["raw_summary"]["companion_result"]["trusted_for_scoring"])
+
+    def test_late_exact_outcome_requeues_completed_final_resolver_once(self) -> None:
+        from sqlalchemy import create_engine, select
+
+        from app.db import Base
+        from app.models import Job
+        from app.services.companion import record_snapshot
+
+        engine = create_engine("sqlite+pysqlite:///:memory:")
+        Base.metadata.create_all(engine)
+        db, user, device = self._base(engine)
+
+        match_id = 100300002
+        ended = datetime.now(timezone.utc)
+        started = ended - timedelta(minutes=13)
+
+        def upload_outcome(*, event_match_id: int, observed: datetime) -> None:
+            record_snapshot(
+                db,
+                device,
+                user,
+                game_running=True,
+                steam_id64=user.steam_id64,
+                phase="PostGame",
+                game_mode_raw={
+                    "match_mode": "Unranked",
+                    "game_mode": "Normal",
+                },
+                match_id=match_id,
+                gep_version="311.3.2",
+                version="0.5.2-alpha.4",
+                live_stats={"kills": 5},
+                session_id="session-late-outcome-v7",
+                session_started_at=started.isoformat(),
+                session_ended_at=ended.isoformat(),
+                session_end_reason="match_end",
+                match_clock_s=780,
+                match_clock_observed_at=ended.isoformat(),
+                local_team="SAPPHIRE",
+                match_outcome="SAPPHIRE",
+                match_outcome_event_at=observed.isoformat(),
+                match_outcome_event_match_id=event_match_id,
+                event_type="heartbeat",
+            )
+
+        with db:
+            record_snapshot(
+                db,
+                device,
+                user,
+                game_running=True,
+                steam_id64=user.steam_id64,
+                phase="PostGame",
+                game_mode_raw={
+                    "match_mode": "Unranked",
+                    "game_mode": "Normal",
+                },
+                match_id=match_id,
+                gep_version="311.3.2",
+                version="0.5.2-alpha.4",
+                live_stats={"kills": 5},
+                session_id="session-late-outcome-v7",
+                session_started_at=started.isoformat(),
+                session_ended_at=ended.isoformat(),
+                session_end_reason="match_end",
+                match_clock_s=780,
+                match_clock_observed_at=ended.isoformat(),
+                local_team="SAPPHIRE",
+                match_outcome=None,
+                event_type="match_ended",
+            )
+
+            final_key = (
+                "companion-resolve-auto-final-v3:"
+                f"{user.id}:{match_id}"
+            )
+            final_job = db.scalar(
+                select(Job).where(
+                    Job.idempotency_key == final_key
+                )
+            )
+            self.assertIsNotNone(final_job)
+            assert final_job is not None
+            final_job.status = "DONE"
+            db.commit()
+
+            observed = ended + timedelta(seconds=2)
+            upload_outcome(
+                event_match_id=match_id - 1,
+                observed=observed,
+            )
+
+            late_jobs = list(
+                db.scalars(
+                    select(Job).where(
+                        Job.idempotency_key.like(
+                            "companion-resolve-auto-outcome-v1:%"
+                        )
+                    )
+                ).all()
+            )
+            self.assertEqual(late_jobs, [])
+
+            upload_outcome(
+                event_match_id=match_id,
+                observed=observed,
+            )
+            upload_outcome(
+                event_match_id=match_id,
+                observed=observed,
+            )
+
+            late_jobs = list(
+                db.scalars(
+                    select(Job).where(
+                        Job.idempotency_key.like(
+                            "companion-resolve-auto-outcome-v1:%"
+                        )
+                    )
+                ).all()
+            )
+
+            self.assertEqual(len(late_jobs), 1)
+            self.assertEqual(
+                late_jobs[0].payload["external_match_id"],
+                match_id,
+            )
+            self.assertTrue(
+                late_jobs[0].payload["late_outcome_repair"]
+            )
 
     def test_wrong_match_id_or_old_outcome_marker_stays_diagnostic_only(self) -> None:
         from sqlalchemy import create_engine

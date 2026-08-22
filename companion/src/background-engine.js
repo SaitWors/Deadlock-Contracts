@@ -506,23 +506,11 @@ function finishSession(reason = 'match_end') {
   if (
     ['match_end', 'phase_postgame'].includes(reason)
   ) {
-    const startedAt = Date.parse(
-      state.session.started_at || '',
-    )
-
-    const elapsedSeconds = Number.isFinite(startedAt)
-      ? Math.max(
-          0,
-          (Date.now() - startedAt) / 1000,
-        )
-      : null
-
     const hasGameplayProof =
       window.DCSessionGuard.hasTerminalGameplayProof({
         matchClockS:
           state.session.match_clock_s
           ?? state.matchClockS,
-        elapsedSeconds,
       })
 
     if (!hasGameplayProof) {
@@ -539,7 +527,6 @@ function finishSession(reason = 'match_end') {
             state.session.match_clock_s
             ?? state.matchClockS
             ?? null,
-          elapsedSeconds,
           sessionId: state.session.id,
         },
       )

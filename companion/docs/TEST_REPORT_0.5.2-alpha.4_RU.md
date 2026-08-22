@@ -19,7 +19,7 @@
 Ожидаемый gate перед commit:
 
 - Companion: 44/44;
-- backend: 97/97;
+- backend: 99/99;
 - Python dependency audit: обязательный GitHub CI gate (`pip-audit`);
 - JS syntax: PASS;
 - Companion release-check: PASS;

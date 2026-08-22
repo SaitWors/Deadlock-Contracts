@@ -32,23 +32,9 @@
 
   function hasTerminalGameplayProof({
     matchClockS,
-    elapsedSeconds,
   }) {
     const clock = Number(matchClockS)
-
-    if (
-      Number.isFinite(clock)
-      && clock > 0
-    ) {
-      return true
-    }
-
-    const elapsed = Number(elapsedSeconds)
-
-    return (
-      Number.isFinite(elapsed)
-      && elapsed >= 60
-    )
+    return Number.isFinite(clock) && clock > 0
   }
 
   function finalUploadKey(payload) {

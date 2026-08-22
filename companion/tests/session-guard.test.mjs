@@ -85,6 +85,6 @@ test('rejects a pre-game match_end without gameplay proof', () => {
       matchClockS: null,
       elapsedSeconds: 120,
     }),
-    true,
+    false,
   )
 })

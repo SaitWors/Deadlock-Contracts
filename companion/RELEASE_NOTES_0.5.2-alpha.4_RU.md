@@ -16,8 +16,8 @@ Street Brawl продолжает использовать отдельную ca
 `gep.scoreboard_healing`.
 
 Terminal lifecycle теперь требует gameplay proof: положительный
-match clock либо сессию не короче 60 секунд. Одна фаза `PostGame`
-не может закрыть матч до реального начала игры.
+match clock. Одна фаза `PostGame` и одна только длительность открытого
+окна не могут закрыть матч до реального начала игры.
 
 ## Compatibility
 
