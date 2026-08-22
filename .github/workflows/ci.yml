@@ -194,28 +194,28 @@ jobs:
           node scripts/package-release.mjs
 
           test -f \
-            dist/Deadlock-Contracts-Companion-0.5.2-alpha.3.opk
+            dist/Deadlock-Contracts-Companion-0.5.2-alpha.4.opk
 
           sha256sum \
-            dist/Deadlock-Contracts-Companion-0.5.2-alpha.3.opk \
+            dist/Deadlock-Contracts-Companion-0.5.2-alpha.4.opk \
             | tee \
-              dist/Deadlock-Contracts-Companion-0.5.2-alpha.3.opk.sha256
+              dist/Deadlock-Contracts-Companion-0.5.2-alpha.4.opk.sha256
 
           unzip -t \
-            dist/Deadlock-Contracts-Companion-0.5.2-alpha.3.opk
+            dist/Deadlock-Contracts-Companion-0.5.2-alpha.4.opk
 
           unzip -l \
-            dist/Deadlock-Contracts-Companion-0.5.2-alpha.3.opk \
+            dist/Deadlock-Contracts-Companion-0.5.2-alpha.4.opk \
             | grep -E \
                 'manifest.json|src/background-engine.js|index.html'
 
       - name: Upload Companion OPK
         uses: actions/upload-artifact@v4
         with:
-          name: Deadlock-Contracts-Companion-0.5.2-alpha.3
+          name: Deadlock-Contracts-Companion-0.5.2-alpha.4
           path: |
-            companion/dist/Deadlock-Contracts-Companion-0.5.2-alpha.3.opk
-            companion/dist/Deadlock-Contracts-Companion-0.5.2-alpha.3.opk.sha256
+            companion/dist/Deadlock-Contracts-Companion-0.5.2-alpha.4.opk
+            companion/dist/Deadlock-Contracts-Companion-0.5.2-alpha.4.opk.sha256
           if-no-files-found: error
           retention-days: 14
 

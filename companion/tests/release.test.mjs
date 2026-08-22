@@ -15,7 +15,7 @@ const runtimeText = [
 test('manifest preserves app identity and advances the QA build', () => {
   assert.equal(manifest.meta.name, 'Deadlock Contracts Companion')
   assert.equal(manifest.meta.author, 'Deadlock Contracts')
-  assert.equal(manifest.meta.version, '0.5.2.3')
+  assert.equal(manifest.meta.version, '0.5.2.4')
   assert.equal(manifest.meta['minimum-gep-version'], '311.0.0')
   assert.equal(manifest.data.start_window, 'background')
   assert.equal(manifest.data.process_name, 'Deadlock Contracts')
@@ -164,7 +164,11 @@ test('overlay is single-focus, mode-strict and includes 3 second activity routin
 test('evidence v7 distinguishes real match_outcome info updates from cached getInfo labels', () => {
   const background = read('src/background-engine.js')
   assert.match(background, /EVIDENCE_SCHEMA_VERSION = 7/)
-  assert.match(background, /applyMatchOutcome\(mi\.match_outcome, 'get_info'\)/)
+  assert.match(background, /function extractMatchInfo\(mi, source = 'get_info'\)/)
+  assert.match(background, /applyMatchOutcome\(mi\.match_outcome, source\)/)
+  assert.match(background, /function classifyInfoSource\(result\)/)
+  assert.match(background, /const source = classifyInfoSource\(result\)/)
+  assert.match(background, /extractMatchInfo\(res\.match_info, source\)/)
   assert.match(background, /applyMatchOutcome\(value, 'info_update'\)/)
   assert.match(background, /source === 'info_update' && state\.matchId/)
   assert.match(background, /state\.matchOutcomeEventAt = nowIso\(\)/)

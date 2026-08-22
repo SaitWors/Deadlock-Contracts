@@ -5,7 +5,7 @@ import process from 'node:process'
 import { execFileSync } from 'node:child_process'
 
 const root = path.resolve(path.dirname(new URL(import.meta.url).pathname), '..')
-const release = '0.5.2-alpha.3'
+const release = '0.5.2-alpha.4'
 const dist = path.join(root, 'dist')
 const staging = path.join(dist, '.opk-staging')
 const opk = path.join(dist, `Deadlock-Contracts-Companion-${release}.opk`)

@@ -7,7 +7,7 @@ import { fileURLToPath } from 'node:url'
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const work = path.dirname(root)
-const releaseName = 'Deadlock-Contracts-Companion-0.5.2-alpha.3'
+const releaseName = 'Deadlock-Contracts-Companion-0.5.2-alpha.4'
 const bundleName = `${releaseName}-QA`
 const releaseDirectory = path.join(work, 'release')
 const qaRoot = path.join(releaseDirectory, bundleName)
@@ -45,15 +45,15 @@ copyFile(path.join(root, 'dist', 'SHA256SUMS.txt'), path.join(qaRoot, 'OPK', 'SH
 
 const qaDocuments = [
   'README_RU.md',
-  'BUILD_INFO_0.5.2-alpha.3.txt',
+  'BUILD_INFO_0.5.2-alpha.4.txt',
   'THIRD_PARTY_NOTICES.txt',
   'docs/DESIGN_PARITY_RU.md',
   'docs/MANIFEST_SCHEMA_VALIDATION_2026-08-19.txt',
   'docs/OVERWOLF_QA_HANDOFF_RU.md',
   'docs/OVERWOLF_RELEASE_MATRIX_RU.md',
-  'docs/OVERLAY_FOCUS_0.5.2-alpha.3_RU.md',
+  'docs/OVERLAY_FOCUS_0.5.2-alpha.4_RU.md',
   'docs/SECURITY_MODEL_RU.md',
-  'docs/TEST_REPORT_0.5.2-alpha.3_RU.md',
+  'docs/TEST_REPORT_0.5.2-alpha.4_RU.md',
 ]
 for (const relative of qaDocuments) {
   copyFile(path.join(root, relative), path.join(qaRoot, 'QA_DOCS', path.basename(relative)))
@@ -65,7 +65,7 @@ const evidenceFiles = fs.existsSync(evidenceRoot)
 for (const file of evidenceFiles) copyFile(path.join(evidenceRoot, file), path.join(qaRoot, 'QA_EVIDENCE', file))
 
 const sourceFiles = [
-  'BUILD_INFO_0.5.2-alpha.3.txt',
+  'BUILD_INFO_0.5.2-alpha.4.txt',
   'QA_BUNDLE_START_HERE_RU.md',
   'README_RU.md',
   'THIRD_PARTY_NOTICES.txt',
