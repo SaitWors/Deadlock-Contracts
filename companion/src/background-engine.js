@@ -1,5 +1,5 @@
 const FEATURES = ['gep_internal', 'game_info', 'match_info']
-const VERSION = '0.5.2-alpha.3'
+const VERSION = '0.5.2-alpha.4'
 const EVIDENCE_SCHEMA_VERSION = 7
 const BRIDGE_STATE_VERSION = 1
 const GAME_ID = 24482
@@ -1120,17 +1120,25 @@ function updateUi() {
   publishBridgeState()
 }
 
-function extractMatchInfo(mi) {
+function extractMatchInfo(mi, source = 'get_info') {
   if (!mi || typeof mi !== 'object') return
   if (mi.match_id != null) setMatchId(parseMaybeJson(mi.match_id), 'getInfo')
-  if (mi.match_outcome != null) applyMatchOutcome(mi.match_outcome, 'get_info')
+  if (mi.match_outcome != null) applyMatchOutcome(mi.match_outcome, source)
   if (mi.team_score != null) applyTeamScore(mi.team_score)
   for (const [key, raw] of Object.entries(mi)) {
     if (key.startsWith('roster')) applyLocalRoster(raw)
   }
 }
 
+function classifyInfoSource(result) {
+  return result?.feature && result?.info ? 'info_update' : 'get_info'
+}
+
 function extractKnown(result) {
+  // getInfo() returns { success, res }; onInfoUpdates2 can return
+  // { feature, info }. Deadlock documentation also shows flat key/value|data
+  // updates, handled by the feature/category/key branch below.
+  const source = classifyInfoSource(result)
   const res = result && (result.res || result.info || result)
   if (!res || typeof res !== 'object') return
   state.lastInfoAt = nowIso()
@@ -1147,7 +1155,7 @@ function extractKnown(result) {
     if (gi.match_history != null) applyMatchHistory(gi.match_history)
   }
 
-  if (res.match_info) extractMatchInfo(res.match_info)
+  if (res.match_info) extractMatchInfo(res.match_info, source)
 
   if (res.gep_internal && res.gep_internal.version_info != null) {
     const vi = parseMaybeJson(res.gep_internal.version_info)

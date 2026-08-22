@@ -1,4 +1,4 @@
-# Deadlock Contracts Companion 0.5.2-alpha.3
+# Deadlock Contracts Companion 0.5.2-alpha.4
 
 Pre-submission кандидат публичного Overwolf-приложения. Desktop — основной gameplay hub; backend остаётся единственным authority для контрактов, verdict и XP, а сайт используется для Steam-входа, pairing, deep history/public dossier и admin.
 
@@ -24,13 +24,13 @@ Pre-submission кандидат публичного Overwolf-приложени
 
 ## Обязательная серверная версия
 
-Сначала разверните **Web/Backend `0.10.1-alpha.6`**. Companion проверяет additive feature flags (`adaptive_profiles_v1`, `debrief_v1`) и не выдумывает Adaptive/Debrief данные при подключении к старому серверу.
+Сначала разверните **Web/Backend `0.10.1-alpha.8`**. Companion проверяет additive feature flags (`adaptive_profiles_v1`, `debrief_v1`) и не выдумывает Adaptive/Debrief данные при подключении к старому серверу.
 
 ## Файлы релиза
 
 После `node scripts/package-release.mjs`:
 
-- `dist/Deadlock-Contracts-Companion-0.5.2-alpha.3.opk` — packed OPK;
+- `dist/Deadlock-Contracts-Companion-0.5.2-alpha.4.opk` — packed OPK;
 - `dist/SHA256SUMS.txt` — его SHA-256.
 
 OPK — ZIP normal compression с `manifest.json` в корне. Preview fixture, tests, docs и server code в OPK не входят.

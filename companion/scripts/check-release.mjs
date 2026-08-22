@@ -6,8 +6,8 @@ const root = path.resolve(path.dirname(new URL(import.meta.url).pathname), '..')
 const manifest = JSON.parse(fs.readFileSync(path.join(root, 'manifest.json'), 'utf8'))
 const errors = []
 const warnings = []
-const expectedRuntimeVersion = '0.5.2-alpha.3'
-const expectedManifestVersion = '0.5.2.3'
+const expectedRuntimeVersion = '0.5.2-alpha.4'
+const expectedManifestVersion = '0.5.2.4'
 
 const requiredMeta = ['name', 'author', 'version', 'minimum-overwolf-version', 'minimum-gep-version', 'description', 'dock_button_title', 'icon', 'icon_gray', 'launcher_icon', 'window_icon']
 for (const key of requiredMeta) if (!manifest.meta?.[key]) errors.push(`manifest.meta.${key} is required`)

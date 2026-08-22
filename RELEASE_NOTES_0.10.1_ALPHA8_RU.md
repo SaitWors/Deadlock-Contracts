@@ -27,7 +27,7 @@ Status, Changelog и Data Sources.
 ## Companion
 
 Каноническая версия:
-`0.5.2-alpha.3`, manifest `0.5.2.3`.
+`0.5.2-alpha.4`, manifest `0.5.2.4`.
 
 ## Known follow-up
 

@@ -1,11 +1,11 @@
-# Overwolf QA handoff — Companion 0.5.2-alpha.3
+# Overwolf QA handoff — Companion 0.5.2-alpha.4
 
 ## Candidate
 
 - Product: Deadlock Contracts Companion
-- Runtime: `0.5.2-alpha.3`
-- Manifest: `0.5.2.3`
-- Backend: `0.10.1-alpha.6`
+- Runtime: `0.5.2-alpha.4`
+- Manifest: `0.5.2.4`
+- Backend: `0.10.1-alpha.8`
 - Desktop API: `desktop.v1 / schema 1`
 - Game: Deadlock / `24482`
 - Default overlay hotkey: `Ctrl+Shift+C` (actual binding is read dynamically)

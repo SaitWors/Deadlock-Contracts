@@ -823,10 +823,10 @@ def merge_companion_evidence(
         "assists": ("assists", "summary.assists"),
         "hero_damage": ("hero_damage", "summary.hero_damage"),
         "object_damage": ("object_damage", "summary.object_damage"),
-        # Overwolf exposes live `hero_healing`, but Street Brawl can report a
-        # different aggregate than the final scoreboard/provider summary. Keep
-        # the value for diagnostics, but do not advertise summary.healing as a
-        # contract-grade capability unless the upstream provider supplied it.
+        # Keep live GEP healing non-authoritative here. Standard/Ranked receive
+        # summary.healing only below after trusted exact-match finalization.
+        # Street Brawl keeps a separate scoreboard-healing capability because
+        # its aggregate can differ from provider teammate-healing semantics.
         "healing": ("healing", None),
         "souls": ("net_worth", "summary.net_worth"),
     }
@@ -895,12 +895,13 @@ def merge_companion_evidence(
             else None,
         }
 
-        if (
-            evidence_mode == "STREET_BRAWL"
-            and evidence.healing is not None
-        ):
-            capabilities.add("gep.scoreboard_healing")
-            contributed.append("scoreboard_healing_final")
+        if evidence.healing is not None:
+            if evidence_mode in {"STANDARD", "RANKED"}:
+                capabilities.add("summary.healing")
+                contributed.append("healing_final")
+            elif evidence_mode == "STREET_BRAWL":
+                capabilities.add("gep.scoreboard_healing")
+                contributed.append("scoreboard_healing_final")
 
     if companion_result:
         raw_summary["companion_result"] = {

@@ -1,19 +1,19 @@
-# Deadlock Contracts Companion — QA candidate 0.5.2-alpha.3
+# Deadlock Contracts Companion — QA candidate 0.5.2-alpha.4
 
 Это pre-submission комплект, а не заявление об одобрении Overwolf.
 
 ## Порядок
 
-1. Развернуть **Backend/Web `0.10.1-alpha.6`**.
+1. Развернуть **Backend/Web `0.10.1-alpha.8`**.
 2. Проверить production health/ready, pairing и server feature flags.
-3. Установить packed `Deadlock-Contracts-Companion-0.5.2-alpha.3.opk` через Overwolf Developer Options.
+3. Установить packed `Deadlock-Contracts-Companion-0.5.2-alpha.4.opk` через Overwolf Developer Options.
 4. Пройти `OVERWOLF_QA_HANDOFF_RU.md` на реальном Overwolf Client + Deadlock.
 5. Проверить финальный OPK антивирусом/VirusTotal и только затем использовать его для submission.
 
 ## Что реально закрыто автоматикой 2026-08-19
 
-- Companion unit/release/session/product suite: **29/29 PASS**.
-- Backend/Web `0.10.1-alpha.6`: **76/76 PASS**.
+- Companion unit/release/session/product suite: **39/39 PASS**.
+- Backend/Web `0.10.1-alpha.8`: **93/93 PASS**.
 - `node scripts/check-release.mjs`: PASS.
 - JS syntax `src/*.js`: PASS.
 - DOM ID/reference audit: PASS.
