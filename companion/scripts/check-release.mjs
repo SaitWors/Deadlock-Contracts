@@ -1,13 +1,18 @@
 import fs from 'node:fs'
 import path from 'node:path'
 import process from 'node:process'
+import { fileURLToPath } from 'node:url'
 
-const root = path.resolve(path.dirname(new URL(import.meta.url).pathname), '..')
+const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
+const releaseMetadata = JSON.parse(fs.readFileSync(path.join(root, '..', 'release.json'), 'utf8'))
 const manifest = JSON.parse(fs.readFileSync(path.join(root, 'manifest.json'), 'utf8'))
 const errors = []
 const warnings = []
-const expectedRuntimeVersion = '0.5.2-alpha.4'
-const expectedManifestVersion = '0.5.2.4'
+const expectedRuntimeVersion = String(releaseMetadata.companion_version || '')
+const expectedManifestVersion = String(releaseMetadata.companion_manifest_version || '')
+
+if (!expectedRuntimeVersion) errors.push('release.json companion_version is required')
+if (!expectedManifestVersion) errors.push('release.json companion_manifest_version is required')
 
 const requiredMeta = ['name', 'author', 'version', 'minimum-overwolf-version', 'minimum-gep-version', 'description', 'dock_button_title', 'icon', 'icon_gray', 'launcher_icon', 'window_icon']
 for (const key of requiredMeta) if (!manifest.meta?.[key]) errors.push(`manifest.meta.${key} is required`)
@@ -119,7 +124,12 @@ if (!manifest.meta?.launcher_icon || !fs.existsSync(launcher)) {
 const indexHtml = fs.readFileSync(path.join(root, 'index.html'), 'utf8')
 const overlayHtml = fs.readFileSync(path.join(root, 'overlay.html'), 'utf8')
 const backgroundSource = fs.readFileSync(path.join(root, 'src/background-engine.js'), 'utf8')
+const desktopSource = fs.readFileSync(path.join(root, 'src/desktop.js'), 'utf8')
 const productSource = fs.readFileSync(path.join(root, 'src/product.js'), 'utf8')
+const notices = fs.readFileSync(path.join(root, 'THIRD_PARTY_NOTICES.txt'), 'utf8')
+if (!indexHtml.includes(`<b>${expectedRuntimeVersion}</b>`)) errors.push('desktop build mark is out of sync with release.json')
+if (!desktopSource.includes(`version: '${expectedRuntimeVersion}'`)) errors.push('Desktop fallback version is out of sync with release.json')
+if (!notices.startsWith(`Deadlock Contracts Companion ${expectedRuntimeVersion}\n`)) errors.push('THIRD_PARTY_NOTICES header is out of sync with release.json')
 if (!indexHtml.includes('id="view-debrief"') || !indexHtml.includes('id="adaptiveIntel"')) errors.push('Adaptive Contracts / Debrief desktop surfaces are missing')
 if (!indexHtml.includes('id="ftueHotkey"') || !overlayHtml.includes('id="overlayHotkey"')) errors.push('dynamic hotkey reminder surfaces are missing')
 if (!overlayHtml.includes('id="overlayHoverSensor"') || !overlayHtml.includes('src/overlay-focus.js')) errors.push('activity-focused dodge overlay surface is missing')

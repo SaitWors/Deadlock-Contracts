@@ -206,3 +206,39 @@ test('Desktop additive feature flags are preserved for safe client capability ga
   const state = Product.normalizeBootstrap(bootstrap({ desktop_features: ['adaptive_profiles_v1', 'debrief_v1'] }))
   assert.deepEqual(state.server_features, ['adaptive_profiles_v1', 'debrief_v1'])
 })
+
+
+test('selectedContracts exposes all 1-3 active selected contracts and caps malformed overflow', () => {
+  const make = id => ({
+    id,
+    title: id,
+    selected: true,
+  })
+
+  assert.deepEqual(
+    Product.selectedContracts({
+      options: [
+        make('one'),
+        make('two'),
+        make('three'),
+      ],
+    }).map(item => item.id),
+    ['one', 'two', 'three'],
+  )
+
+  assert.deepEqual(
+    Product.selectedContracts({
+      options: [
+        make('one'),
+        {
+          ...make('hidden'),
+          selected: false,
+        },
+        make('two'),
+        make('three'),
+        make('overflow'),
+      ],
+    }).map(item => item.id),
+    ['one', 'two', 'three'],
+  )
+})

@@ -22,12 +22,16 @@ PY
 log "Expected version: $EXPECTED_VERSION"
 
 ./scripts/preflight.sh
-log "Building web + worker"
-"${COMPOSE[@]}" build web worker
+log "Building migrate + web + worker"
+"${COMPOSE[@]}" build migrate web worker
 
 IMAGE_VERSION="$(docker run --rm --entrypoint python deadlock-contracts-web -c 'from app.config import settings; print(settings.app_version)' 2>/dev/null || true)"
 [[ "$IMAGE_VERSION" == "$EXPECTED_VERSION" ]] || fail "built image version mismatch: expected=$EXPECTED_VERSION image=$IMAGE_VERSION"
 log "Built image version verified: $IMAGE_VERSION"
+
+log "Applying database migrations"
+"${COMPOSE[@]}" run --rm migrate
+log "Database migrations completed"
 
 log "Recreating web + worker"
 "${COMPOSE[@]}" up -d --no-deps --force-recreate web worker

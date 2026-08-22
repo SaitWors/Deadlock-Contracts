@@ -658,7 +658,7 @@ class MatchFinalityRegressionTests(unittest.TestCase):
             self.assertEqual(final["event_type"], "match_ended")
             self.assertEqual(final["end_reason"], "phase_postgame")
 
-    def test_explicit_match_ended_survives_missing_session_object(self) -> None:
+    def test_explicit_match_ended_without_gameplay_proof_is_rejected(self) -> None:
         from sqlalchemy import create_engine
         from app.db import Base
         from app.models import CompanionEvent
@@ -681,9 +681,7 @@ class MatchFinalityRegressionTests(unittest.TestCase):
             ))
             db.commit()
             final = _companion_finalization_from_events(db, user, 99529660)
-            self.assertIsNotNone(final)
-            assert final is not None
-            self.assertEqual(final["event_type"], "match_ended")
+            self.assertIsNone(final)
 
     def test_trusted_final_gep_match_can_score_non_duration_contract_without_duration(self) -> None:
         from app.services.evaluator import _result
@@ -782,6 +780,138 @@ class MatchFinalityRegressionTests(unittest.TestCase):
             self.assertEqual(final["match_clock_s"], 608)
 
 
+
+
+    def test_real_100960330_style_early_match_end_is_ignored(self) -> None:
+        """A 9-second MatchIntro terminal signal must not consume a match.
+
+        Production match 100960330 emitted an early match_end before the
+        actual GameInProgress session. The real terminal event arrived about
+        eighteen minutes later with match_clock and final stats.
+        """
+        from sqlalchemy import create_engine, select
+        from app.db import Base
+        from app.models import Job
+        from app.services.companion import record_snapshot
+        from app.worker import _companion_finalization_from_events
+
+        engine = create_engine(
+            "sqlite+pysqlite:///:memory:"
+        )
+        Base.metadata.create_all(engine)
+
+        db, user, device = self._base(
+            engine,
+            device_id="device-100960330-regression",
+        )
+
+        with db:
+            record_snapshot(
+                db,
+                device,
+                user,
+                game_running=True,
+                steam_id64=user.steam_id64,
+                phase="MatchIntro",
+                game_mode_raw={
+                    "match_mode": "Unranked",
+                    "game_mode": "StreetBrawl",
+                },
+                match_id=100960330,
+                gep_version="311.2.2",
+                version="0.5.2-alpha.4",
+                live_stats=None,
+                session_id="session-false-start",
+                session_started_at="2026-08-22T10:20:58+00:00",
+                session_ended_at="2026-08-22T10:21:07+00:00",
+                session_end_reason="match_end",
+                match_clock_s=None,
+                local_team=None,
+                match_outcome=None,
+                event_type="match_ended",
+            )
+
+            self.assertIsNone(
+                _companion_finalization_from_events(
+                    db,
+                    user,
+                    100960330,
+                )
+            )
+
+            self.assertEqual(
+                list(
+                    db.scalars(
+                        select(Job)
+                    ).all()
+                ),
+                [],
+            )
+
+            record_snapshot(
+                db,
+                device,
+                user,
+                game_running=True,
+                steam_id64=user.steam_id64,
+                phase="PostGame",
+                game_mode_raw={
+                    "match_mode": "Unranked",
+                    "game_mode": "StreetBrawl",
+                },
+                match_id=100960330,
+                gep_version="311.2.2",
+                version="0.5.2-alpha.4",
+                live_stats={
+                    "kills": 1,
+                    "deaths": 2,
+                    "assists": 11,
+                    "hero_damage": 15412,
+                    "object_damage": 1600,
+                    "healing": 17303,
+                    "souls": 48000,
+                },
+                session_id="session-real-match",
+                session_started_at="2026-08-22T10:21:08+00:00",
+                session_ended_at="2026-08-22T10:39:11+00:00",
+                session_end_reason="phase_postgame",
+                match_clock_s=1062,
+                local_team="SAPPHIRE",
+                match_outcome="SAPPHIRE",
+                event_type="match_ended",
+            )
+
+            final = (
+                _companion_finalization_from_events(
+                    db,
+                    user,
+                    100960330,
+                )
+            )
+
+            self.assertIsNotNone(final)
+            assert final is not None
+
+            self.assertEqual(
+                final["phase"],
+                "PostGame",
+            )
+
+            self.assertEqual(
+                final["match_clock_s"],
+                1062,
+            )
+
+            jobs = list(
+                db.scalars(
+                    select(Job)
+                ).all()
+            )
+
+            self.assertEqual(
+                len(jobs),
+                1,
+            )
 
 
 if __name__ == "__main__":

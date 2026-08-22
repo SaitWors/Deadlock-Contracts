@@ -471,7 +471,7 @@ function CuratorTyper() {
   const [text, setText] = useState("")
   const [msgIdx, setMsgIdx] = useState(0)
   const [phase, setPhase] = useState<"typing" | "waiting" | "erasing">("typing")
-  const visible = useReveal()
+  const [revealRef, visible] = useReveal<HTMLSpanElement>()
 
   useEffect(() => {
     if (!visible) return
@@ -510,7 +510,10 @@ function CuratorTyper() {
   }, [phase, msgIdx, visible, language])
 
   return (
-    <span style={{ color: "#7AB384", textShadow: "0 0 10px rgba(122,179,132,0.5)" }}>
+    <span
+      ref={revealRef}
+      style={{ color: "#7AB384", textShadow: "0 0 10px rgba(122,179,132,0.5)" }}
+    >
       {text}
       <span className="typer-cursor" />
     </span>
@@ -518,30 +521,25 @@ function CuratorTyper() {
 }
 
 // ─── Section reveal hook ───────────────────────────────────────────
-function useReveal(threshold = 0.12): boolean {
+function useReveal<T extends Element>(threshold = 0.12): [(el: T | null) => void, boolean] {
   const [visible, setVisible] = useState(false)
-  const ref = useRef<Element | null>(null)
+  const [element, setElement] = useState<T | null>(null)
 
-  const setRef = useCallback(
-    (el: Element | null) => {
-      ref.current = el
-      if (!el) return
-      const obs = new IntersectionObserver(
-        ([entry]) => {
-          if (entry.isIntersecting) {
-            setVisible(true)
-            obs.disconnect()
-          }
-        },
-        { threshold },
-      )
-      obs.observe(el)
-    },
-    [threshold],
-  )
+  const setRef = useCallback((el: T | null) => setElement(el), [])
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  return visible as any
+  useEffect(() => {
+    if (!element || visible) return
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) setVisible(true)
+      },
+      { threshold },
+    )
+    observer.observe(element)
+    return () => observer.disconnect()
+  }, [element, threshold, visible])
+
+  return [setRef, visible]
 }
 
 // ─── Reveal wrapper ────────────────────────────────────────────────
@@ -925,8 +923,11 @@ export default function Landing() {
             </div>
             <button
               className="lg:hidden p-2"
+              type="button"
               onClick={() => setMobileOpen((v) => !v)}
               aria-label={t(language, "Открыть меню")}
+              aria-expanded={mobileOpen}
+              aria-controls="mobile-navigation"
               style={{ color: "#B6AC94", transition: "color 0.2s" }}
               onMouseEnter={(e) => (e.currentTarget.style.color = "#7AB384")}
               onMouseLeave={(e) => (e.currentTarget.style.color = "#B6AC94")}
@@ -957,6 +958,7 @@ export default function Landing() {
         </div>
         {mobileOpen && (
           <div
+            id="mobile-navigation"
             className="lg:hidden px-6 py-4 flex flex-col gap-2"
             style={{
               backgroundColor: "rgba(8,12,11,0.98)",
@@ -1137,6 +1139,7 @@ export default function Landing() {
                 <div className="flex flex-wrap gap-3 mb-5">
                   <SteamButton large />
                   <button
+                    type="button"
                     className="btn-ghost px-6 py-3.5 text-sm font-medium inline-flex items-center gap-2"
                     style={{
                       backgroundColor: "transparent",
@@ -1398,6 +1401,7 @@ export default function Landing() {
                   >
                     {(["STANDARD", "RANKED", "STREET BRAWL"] as GameMode[]).map((mode, i) => (
                       <button
+                        type="button"
                         key={mode}
                         onClick={(e) => {
                           setGameMode(mode)
@@ -1406,6 +1410,7 @@ export default function Landing() {
                         className={`px-5 py-2 text-sm font-semibold transition-all duration-200 ${
                           gameMode === mode ? "mode-tab-active" : ""
                         }`}
+                        aria-pressed={gameMode === mode}
                         style={{
                           backgroundColor: gameMode === mode ? "#1A2F22" : "transparent",
                           color: gameMode === mode ? "#94C28F" : "#7F8478",
@@ -1428,9 +1433,10 @@ export default function Landing() {
                     const isSelected = selected.includes(c.id)
                     const catColor = CATEGORY_COLOR[c.category]
                     return (
-                      <div
+                      <button
+                        type="button"
                         key={c.id}
-                        className={`contract-card border p-4 flex flex-col cursor-pointer select-none ${
+                        className={`contract-card border p-4 flex flex-col cursor-pointer select-none text-left w-full ${
                           isSelected ? "selected" : ""
                         }`}
                         style={{
@@ -1439,6 +1445,8 @@ export default function Landing() {
                           borderRadius: "6px",
                         }}
                         onClick={() => toggleContract(c.id)}
+                        aria-pressed={isSelected}
+                        aria-label={`${c.title}: ${c.condition}`}
                         onMouseMove={cardTilt.onMouseMove}
                         onMouseLeave={cardTilt.onMouseLeave}
                       >
@@ -1512,7 +1520,7 @@ export default function Landing() {
                             +{c.xp} XP
                           </div>
                         </div>
-                      </div>
+                      </button>
                     )
                   })}
                 </div>
@@ -1890,8 +1898,12 @@ export default function Landing() {
                       }}
                     >
                       <button
+                        id={`faq-question-${i}`}
+                        type="button"
                         className="w-full px-5 py-4 flex items-center justify-between gap-4 text-left"
                         onClick={() => setOpenFaq(openFaq === i ? null : i)}
+                        aria-expanded={openFaq === i}
+                        aria-controls={`faq-answer-${i}`}
                       >
                         <span className="font-semibold text-sm" style={{ color: "#F1E4C8" }}>
                           {item.q}
@@ -1910,6 +1922,10 @@ export default function Landing() {
                         </span>
                       </button>
                       <div
+                        id={`faq-answer-${i}`}
+                        role="region"
+                        aria-labelledby={`faq-question-${i}`}
+                        aria-hidden={openFaq !== i}
                         style={{
                           maxHeight: openFaq === i ? "200px" : "0px",
                           overflow: "hidden",
@@ -2004,8 +2020,10 @@ export default function Landing() {
                   ] as Array<[LeaderScope, string]>
                 ).map(([scope, label]) => (
                   <button
+                    type="button"
                     key={scope}
                     onClick={() => setLeaderScope(scope)}
+                    aria-pressed={leaderScope === scope}
                     className="px-4 py-2 text-xs font-bold tracking-[0.14em] border transition-all"
                     style={{
                       color: leaderScope === scope ? "#F1E4C8" : "#7F8478",

@@ -10,16 +10,18 @@
 4. Пройти `OVERWOLF_QA_HANDOFF_RU.md` на реальном Overwolf Client + Deadlock.
 5. Проверить финальный OPK антивирусом/VirusTotal и только затем использовать его для submission.
 
-## Что реально закрыто автоматикой 2026-08-19
+## Что реально закрыто автоматикой 2026-08-22
 
-- Companion unit/release/session/product suite: **39/39 PASS**.
-- Backend/Web `0.10.1-alpha.8`: **93/93 PASS**.
+- Companion unit/release/session/product suite: **44/44 PASS**.
+- Предыдущий серверный Backend/Web candidate: **97/97 PASS**;
+  exact GitHub commit должен повторно пройти собственный CI.
 - `node scripts/check-release.mjs`: PASS.
 - JS syntax `src/*.js`: PASS.
 - DOM ID/reference audit: PASS.
 - EN/RU i18n parity + used-key audit: PASS.
 - launcher ICO: только 16/32/48/256 layers, size gate PASS; PNG icon dimensions/size PASS.
 - package secret/CSP/permission/runtime-asset checks: PASS.
+- повторная сборка exact OPK даёт тот же SHA-256: PASS.
 - current official Overwolf manifest schema/documentation reviewed; a fresh automated schema download was blocked by sandbox DNS, so official AJV validation remains a pre-submit recheck instead of a claimed PASS.
 
 ## Что НЕ было автоматически доказано в sandbox
@@ -45,6 +47,7 @@
 - XP берётся только из trusted reward-ledger sources; `ADMIN_ADJUSTMENT` не маскируется под reward контракта;
 - malformed adaptive numbers не превращаются в NaN/Infinity UI;
 - FTUE i18n больше не уничтожает DOM-элемент динамического hotkey.
+- ложный pre-game `match_end` больше не считается финалом только из-за фазы `PostGame`; нужен положительный match clock или сессия не короче 60 секунд.
 
 ## Граница доверия
 

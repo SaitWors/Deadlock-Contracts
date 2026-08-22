@@ -326,6 +326,10 @@ body.custom-cursor * { cursor: none !important; }
   pointer-events: none;
 }
 .contract-card:hover::before { opacity: 1; }
+.contract-card:focus-visible {
+  outline: 2px solid #94C28F;
+  outline-offset: 3px;
+}
 .contract-card.selected {
   border-color: #7AB384 !important;
   box-shadow: 0 0 30px rgba(122,179,132,0.25), 0 0 70px rgba(122,179,132,0.1), inset 0 0 0 1px rgba(122,179,132,0.35) !important;

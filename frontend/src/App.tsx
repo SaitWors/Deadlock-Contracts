@@ -41,9 +41,19 @@ function SessionApp() {
   const { language } = useLanguage()
   const [session, setSession] = useState<SessionPayload | null>(null)
   const [failed, setFailed] = useState(false)
+  const [attempt, setAttempt] = useState(0)
 
   useEffect(() => {
     const controller = new AbortController()
+    let active = true
+    let timedOut = false
+    setFailed(false)
+    setSession(null)
+    const timeout = window.setTimeout(() => {
+      timedOut = true
+      controller.abort()
+    }, 12_000)
+
     fetch("/api/me", {
       credentials: "same-origin",
       signal: controller.signal,
@@ -53,14 +63,64 @@ function SessionApp() {
         if (!response.ok) throw new Error(`HTTP ${response.status}`)
         return response.json() as Promise<SessionPayload>
       })
-      .then(setSession)
-      .catch((error) => {
-        if (error?.name !== "AbortError") setFailed(true)
+      .then((payload) => {
+        if (active) setSession(payload)
       })
-    return () => controller.abort()
-  }, [])
+      .catch((error) => {
+        if (active && (timedOut || error?.name !== "AbortError")) setFailed(true)
+      })
+      .finally(() => window.clearTimeout(timeout))
+    return () => {
+      active = false
+      window.clearTimeout(timeout)
+      controller.abort()
+    }
+  }, [attempt])
 
-  if (failed) return <Landing />
+  if (failed) {
+    return (
+      <main
+        className="min-h-screen grid place-items-center px-6"
+        style={{ backgroundColor: "#080C0B", color: "#F1E4C8" }}
+      >
+        <section
+          role="alert"
+          className="w-full max-w-lg border p-7 text-center"
+          style={{ backgroundColor: "#0E1512", borderColor: "#3B5145", borderRadius: "6px" }}
+        >
+          <p
+            className="text-xs font-semibold tracking-[0.22em] uppercase mb-3"
+            style={{ color: "#7AB384" }}
+          >
+            {language === "ru" ? "СЕРВИС ВРЕМЕННО НЕДОСТУПЕН" : "SERVICE TEMPORARILY UNAVAILABLE"}
+          </p>
+          <h1 className="text-2xl font-bold mb-3">
+            {language === "ru" ? "Не удалось открыть ваше дело" : "We could not open your case"}
+          </h1>
+          <p className="text-sm leading-relaxed mb-6" style={{ color: "#B6AC94" }}>
+            {language === "ru"
+              ? "Проверьте соединение и попробуйте ещё раз. Если ошибка повторяется, загляните на страницу статуса."
+              : "Check your connection and try again. If the error continues, check the status page."}
+          </p>
+          <div className="flex flex-wrap justify-center gap-3">
+            <button
+              type="button"
+              className="btn-primary px-5 py-2.5 text-sm font-bold"
+              onClick={() => setAttempt((value) => value + 1)}
+            >
+              {language === "ru" ? "ПОВТОРИТЬ" : "TRY AGAIN"}
+            </button>
+            <a className="btn-ghost px-5 py-2.5 text-sm" href="/status">
+              {language === "ru" ? "СТАТУС" : "STATUS"}
+            </a>
+            <a className="btn-ghost px-5 py-2.5 text-sm" href="/support">
+              {language === "ru" ? "ПОДДЕРЖКА" : "SUPPORT"}
+            </a>
+          </div>
+        </section>
+      </main>
+    )
+  }
   if (!session) {
     return (
       <main

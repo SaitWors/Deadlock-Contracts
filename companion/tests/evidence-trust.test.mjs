@@ -234,3 +234,116 @@ test('release requires GEP version that contains Deadlock winning_team', () => {
     '311.0.0',
   )
 })
+
+
+test('applyInfoUpdate preserves nested onInfoUpdates2 provenance end to end', () => {
+  const outcomeCalls = []
+
+  const classifyInfoSource = compileFunction(
+    'classifyInfoSource',
+  )
+
+  const extractMatchInfo = compileFunction(
+    'extractMatchInfo',
+    {
+      setMatchId() {},
+      parseMaybeJson(value) {
+        return value
+      },
+      applyMatchOutcome(value, source) {
+        outcomeCalls.push({
+          value,
+          source,
+        })
+      },
+      applyTeamScore() {},
+      applyLocalRoster() {},
+    },
+  )
+
+  const state = {}
+
+  const extractKnown = compileFunction(
+    'extractKnown',
+    {
+      classifyInfoSource,
+      state,
+      nowIso() {
+        return '2026-08-22T10:39:13.000Z'
+      },
+      setMatchId() {},
+      parseMaybeJson(value) {
+        return value
+      },
+      asSteamIdString(value) {
+        return String(value)
+      },
+      applyPhaseValue() {},
+      applyGameModeValue() {},
+      applyMatchHistory() {},
+      extractMatchInfo,
+      persistSession() {},
+      updateUi() {},
+    },
+  )
+
+  const applyInfoUpdate = compileFunction(
+    'applyInfoUpdate',
+    {
+      state,
+      nowIso() {
+        return '2026-08-22T10:39:13.000Z'
+      },
+      parseMaybeJson(value) {
+        if (typeof value !== 'string') return value
+
+        try {
+          return JSON.parse(value)
+        } catch {
+          return value
+        }
+      },
+      asSteamIdString(value) {
+        return String(value)
+      },
+      applyPhaseValue() {},
+      applyGameModeValue() {},
+      applyMatchHistory() {},
+      setMatchId() {},
+      applyMatchOutcome() {},
+      applyTeamScore() {},
+      applyLocalRoster() {},
+      extractKnown,
+      persistSession() {},
+      updateUi() {},
+      scheduleSync() {},
+      detectTransitionEvent() {
+        return 'heartbeat'
+      },
+      log() {},
+    },
+  )
+
+  const nested = {
+    feature: 'match_info',
+    info: {
+      match_info: {
+        match_outcome:
+          '{"winning_team":"SAPPHIRE"}',
+      },
+    },
+  }
+
+  applyInfoUpdate(nested)
+
+  assert.deepEqual(
+    outcomeCalls,
+    [
+      {
+        value:
+          '{"winning_team":"SAPPHIRE"}',
+        source: 'info_update',
+      },
+    ],
+  )
+})

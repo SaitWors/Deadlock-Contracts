@@ -655,9 +655,10 @@ def _companion_finalization_from_events(
     heartbeats for hours after the real ``match_ended`` event. Any fixed
     ``LIMIT N`` over the newest events can therefore lose the terminal marker.
 
-    Accepted evidence:
-      * an authenticated ``match_ended`` event for the exact Match ID; or
-      * an authenticated persisted session end marker with a trusted reason.
+    Accepted evidence combines an authenticated terminal lifecycle signal for
+    the exact Match ID with gameplay proof: a positive observed match clock or
+    a persisted session lasting at least sixty seconds. Phase alone is not
+    proof because Deadlock can briefly emit/replay ``PostGame`` before play.
 
     ``match_outcome`` is deliberately excluded from finality because Deadlock
     GEP can retain the previous match outcome after the current Match ID has
@@ -721,6 +722,35 @@ def _companion_finalization_from_events(
             match_clock_s = None
         if match_clock_s is not None and not (0 <= match_clock_s <= 6 * 60 * 60):
             match_clock_s = None
+
+        wall_duration_s = None
+
+        if (
+            started_at is not None
+            and ended_at is not None
+        ):
+            wall_duration_s = (
+                aware(ended_at)
+                - aware(started_at)
+            ).total_seconds()
+
+        gameplay_proof = bool(
+            (
+                match_clock_s is not None
+                and match_clock_s > 0
+            )
+            or (
+                wall_duration_s is not None
+                and wall_duration_s >= 60
+            )
+        )
+
+        # Production match 100960330 emitted an authenticated match_end
+        # during MatchIntro about nine seconds after the first session
+        # marker. It must not become server-authoritative finality.
+        if not gameplay_proof:
+            continue
+
         match_clock_observed_at = _parse_companion_datetime(
             session.get("match_clock_observed_at")
         )

@@ -368,6 +368,49 @@ def _register_direct_match_job(
     return []
 
 
+def _has_terminal_gameplay_proof(
+    *,
+    match_clock_s: int | None,
+    session_started_at: str | None,
+    session_ended_at: str | None,
+) -> bool:
+    if (
+        match_clock_s is not None
+        and int(match_clock_s) > 0
+    ):
+        return True
+
+    try:
+        started = datetime.fromisoformat(
+            str(session_started_at).replace(
+                "Z",
+                "+00:00",
+            )
+        )
+        ended = datetime.fromisoformat(
+            str(session_ended_at).replace(
+                "Z",
+                "+00:00",
+            )
+        )
+    except (TypeError, ValueError):
+        return False
+
+    if started.tzinfo is None:
+        started = started.replace(
+            tzinfo=timezone.utc,
+        )
+
+    if ended.tzinfo is None:
+        ended = ended.replace(
+            tzinfo=timezone.utc,
+        )
+
+    return (
+        ended - started
+    ).total_seconds() >= 60
+
+
 def record_snapshot(
     db: Session,
     device: CompanionDevice,
@@ -460,11 +503,23 @@ def record_snapshot(
     # Phase alone is insufficient: it may flicker or be replayed. Queue a
     # final resolver only from an explicit match_ended event or a persisted
     # session-end marker emitted by the Companion.
+    terminal_gameplay_proof = (
+        _has_terminal_gameplay_proof(
+            match_clock_s=match_clock_s,
+            session_started_at=session_started_at,
+            session_ended_at=session_ended_at,
+        )
+    )
+
     final_snapshot = bool(
-        event_type == "match_ended"
-        or (
-            session_ended_at
-            and end_reason in {"match_end", "phase_postgame"}
+        terminal_gameplay_proof
+        and (
+            event_type == "match_ended"
+            or (
+                session_ended_at
+                and end_reason
+                in {"match_end", "phase_postgame"}
+            )
         )
     )
 
@@ -493,7 +548,21 @@ def record_snapshot(
     else:
         direct = []
 
-    woken = wake_discovery(db, user.id, mode) if match_id and event_type in {"match_started", "match_ended"} else []
+    woken = (
+        wake_discovery(
+            db,
+            user.id,
+            mode,
+        )
+        if (
+            match_id
+            and (
+                event_type == "match_started"
+                or final_snapshot
+            )
+        )
+        else []
+    )
     db.commit()
     db.refresh(db_device)
     return db_device, woken, direct

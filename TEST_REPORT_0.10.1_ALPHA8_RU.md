@@ -17,5 +17,17 @@
 После push GitHub CI дополнительно выполняет
 PostgreSQL migration smoke и release Docker build.
 
-Known follow-up:
-summary.healing / terminal summary.result evidence reliability.
+На серверном candidate до синхронизации с GitHub подтверждено:
+
+- backend: **97/97 PASS**;
+
+На exact GitHub candidate подтверждено локально:
+
+- Companion: **44/44 PASS**;
+- frontend TypeScript + production build: PASS;
+- Companion release check + reproducible OPK SHA-256/integrity: PASS.
+
+Для exact GitHub commit backend suite и Python dependency audit остаются
+обязательными GitHub CI gates.
+
+Остаётся обязательный ручной Windows/Overwolf/Deadlock QA exact OPK.

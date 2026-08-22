@@ -9,7 +9,7 @@
   const PREVIEW = typeof overwolf === 'undefined' && new URLSearchParams(location.search).get('preview') === '1'
 
   const fallback = {
-    version: '0.5.2-alpha.3', paired: false, account: null, game_running: false, steam_id64: null,
+    version: '0.5.2-alpha.4', paired: false, account: null, game_running: false, steam_id64: null,
     identity_ok: null, phase: null, phase_display: '—', mode_display: '—', match_id: null,
     session: null, evidence: {}, match_clock_s: null, queue_count: 0, last_upload_status: '—',
     gep_version: null, gep_public_version: null, gep_updated: null, last_error: '', overlay_scale: 'compact', hotkey_binding: 'Ctrl+Shift+C',

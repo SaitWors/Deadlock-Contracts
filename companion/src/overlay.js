@@ -99,6 +99,88 @@
     card.classList.add('focus-progressing')
   }
 
+  function renderSelected(activeCase, candidate) {
+    const container = $('overlaySelected')
+    if (!container) return
+
+    const options = Product.selectedContracts(activeCase)
+
+    if (!options.length) {
+      container.replaceChildren()
+      container.removeAttribute('data-signature')
+      setVisible(container, false)
+      return
+    }
+
+    const signature = options
+      .map(option => `${option.id}:${option.title}`)
+      .join('|')
+
+    if (
+      container.getAttribute('data-signature')
+      !== signature
+    ) {
+      const fragment =
+        document.createDocumentFragment()
+
+      options.forEach((option, index) => {
+        const item =
+          document.createElement('div')
+
+        item.className = 'selected-contract'
+        item.dataset.optionId =
+          String(option.id || '')
+        item.title =
+          String(
+            option.title
+            || 'Selected contract',
+          )
+
+        const number =
+          document.createElement('span')
+
+        number.textContent =
+          String(index + 1)
+
+        const title =
+          document.createElement('b')
+
+        title.textContent =
+          String(
+            option.title
+            || 'UNTITLED CONTRACT',
+          )
+
+        item.append(number, title)
+        fragment.appendChild(item)
+      })
+
+      container.replaceChildren(fragment)
+
+      container.setAttribute(
+        'data-signature',
+        signature,
+      )
+    }
+
+    const focusedId =
+      String(candidate?.option?.id || '')
+
+    for (
+      const item
+      of container.children
+    ) {
+      item.classList.toggle(
+        'active',
+        !!focusedId
+          && item.dataset.optionId
+            === focusedId,
+      )
+    }
+
+    setVisible(container, true)
+  }
+
   function renderCandidate(candidate, live, pending) {
     const option = candidate?.option
     const condition = candidate?.condition || option?.conditions?.[0]
@@ -147,6 +229,7 @@
     const live = !!snapshot?.game_running && !!active && !verifying
     const hotkey = String(snapshot?.hotkey_binding || 'Ctrl+Shift+C')
 
+    setVisible($('overlaySelected'), false)
     if ($('overlayHotkey')) $('overlayHotkey').textContent = hotkey.toUpperCase()
     $('overlayState').className = live ? 'live' : verifying ? 'warn' : ''
     $('overlayState').textContent = live ? '● LIVE' : verifying ? '◐ VERIFYING' : '○ STANDBY'
@@ -208,6 +291,8 @@
       progressOf: (condition, value) => Product.conditionProgress(condition, value),
     })
 
+    renderSelected(active, focus.candidate)
+
     if (!renderCandidate(focus.candidate, live, focus.pending)) {
       setVisible($('overlayFocus'), false)
       setVisible($('overlayEmpty'), true)
@@ -216,7 +301,7 @@
     $('overlayFoot').textContent = verifying
       ? 'AWAITING SERVER VERDICT'
       : live
-        ? focus.pending ? 'ACTIVITY DETECTED · SWITCHING AFTER 3 SEC' : 'ONE LIVE OBJECTIVE · SERVER VERDICT FINAL'
+        ? focus.pending ? 'ACTIVITY DETECTED · SWITCHING AFTER 3 SEC' : `${Product.selectedContracts(active).length} SELECTED · ONE ACTIVITY FOCUS · SERVER FINAL`
         : 'SERVER STATE'
   }
 

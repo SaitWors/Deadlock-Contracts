@@ -2,6 +2,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 LANDING = (ROOT / "frontend/src/Landing.tsx").read_text(encoding="utf-8")
+APP = (ROOT / "frontend/src/App.tsx").read_text(encoding="utf-8")
 DASHBOARD = (ROOT / "frontend/src/Dashboard.tsx").read_text(encoding="utf-8")
 INDEX_CSS = (ROOT / "frontend/src/index.css").read_text(encoding="utf-8")
 VNEXT_CSS = (ROOT / "frontend/src/vnext.css").read_text(encoding="utf-8")
@@ -128,3 +129,26 @@ def test_alpha8_public_release_hygiene() -> None:
     ):
         assert f'@app.get("{route}"' in MAIN
         assert document_id in legal
+
+
+def test_public_shell_does_not_mask_backend_outages_as_a_signed_out_session() -> None:
+    assert "if (failed) return <Landing />" not in APP
+    assert "SERVICE TEMPORARILY UNAVAILABLE" in APP
+    assert "setAttempt((value) => value + 1)" in APP
+    assert 'href="/status"' in APP
+    assert 'href="/support"' in APP
+
+
+def test_landing_reveal_and_contract_preview_are_keyboard_accessible() -> None:
+    assert "return [setRef, visible]" in LANDING
+    assert "ref={revealRef}" in LANDING
+    assert "aria-pressed={isSelected}" in LANDING
+    assert "aria-expanded={openFaq === i}" in LANDING
+
+
+def test_deploy_runs_migrations_before_recreating_services() -> None:
+    deploy = (ROOT / "scripts/deploy-current.sh").read_text(encoding="utf-8")
+    migrate = '"${COMPOSE[@]}" run --rm migrate'
+    recreate = '"${COMPOSE[@]}" up -d --no-deps --force-recreate web worker'
+    assert migrate in deploy
+    assert deploy.index(migrate) < deploy.index(recreate)

@@ -1,4 +1,4 @@
-# Overwolf release matrix — 0.5.2-alpha.3
+# Overwolf release matrix — 0.5.2-alpha.4
 
 Сверено с официальной документацией Overwolf 2026-08-19.
 

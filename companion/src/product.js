@@ -275,6 +275,12 @@
     return (normalized && cases.find(item => item.game_match_mode === normalized)) || cases[0] || null
   }
 
+  function selectedContracts(activeCase) {
+    return cleanArray(activeCase?.options)
+      .filter(option => option?.selected !== false)
+      .slice(0, 3)
+  }
+
   function adaptiveProfileFor(product, mode) {
     const normalized = normalizeMode(mode)
     if (!normalized) return null
@@ -472,6 +478,7 @@
     deriveActiveCases,
     boardForMode,
     activeCaseFor,
+    selectedContracts,
     adaptiveProfileFor,
     profileMetric,
     metricKey,

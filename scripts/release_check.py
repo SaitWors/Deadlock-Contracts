@@ -90,6 +90,21 @@ def main() -> int:
         if f'"{expected}"' not in config or f"APP_VERSION: {expected}" not in compose or f'"version": "{expected}"' not in package:
             fail(errors, "release version is not aligned across backend, Compose, and frontend")
 
+        companion_version = str(release["companion_version"])
+        companion_manifest_version = str(release["companion_manifest_version"])
+        companion_manifest = json.loads(text(root / "companion/manifest.json"))
+        companion_index = text(root / "companion/index.html")
+        companion_desktop = text(root / "companion/src/desktop.js")
+        companion_notices = text(root / "companion/THIRD_PARTY_NOTICES.txt")
+        if companion_manifest.get("meta", {}).get("version") != companion_manifest_version:
+            fail(errors, "Companion manifest version is not aligned with release.json")
+        if f"<b>{companion_version}</b>" not in companion_index:
+            fail(errors, "Companion build mark is not aligned with release.json")
+        if f"version: '{companion_version}'" not in companion_desktop:
+            fail(errors, "Companion fallback version is not aligned with release.json")
+        if not companion_notices.startswith(f"Deadlock Contracts Companion {companion_version}\n"):
+            fail(errors, "Companion notices header is not aligned with release.json")
+
         sources = "\n".join([
             text(root / "frontend/src/index.css"),
             text(root / "frontend/src/vnext.css"),
