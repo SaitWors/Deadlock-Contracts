@@ -310,6 +310,8 @@ class MatchFinalityRegressionTests(unittest.TestCase):
                 session_started_at="2026-08-15T04:54:14+00:00",
                 session_ended_at="2026-08-15T05:04:38+00:00",
                 session_end_reason="phase_postgame",
+                match_clock_s=608,
+                match_clock_observed_at="2026-08-15T05:04:38+00:00",
                 local_team="AMBER",
                 match_outcome="AMBER",
                 event_type="match_ended",
@@ -1384,6 +1386,8 @@ class OutcomeInfoUpdateV7Tests(unittest.TestCase):
                 session_id="session-current",
                 session_started_at=(ended - timedelta(minutes=30)).isoformat(),
                 session_ended_at=ended.isoformat(), session_end_reason="match_end",
+                match_clock_s=1800,
+                match_clock_observed_at=ended.isoformat(),
                 local_team="AMBER", match_outcome="AMBER", event_type="match_ended",
             )
             later = ended + timedelta(seconds=10)
