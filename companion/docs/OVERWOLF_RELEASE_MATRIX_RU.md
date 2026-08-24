@@ -1,42 +1,29 @@
-# Overwolf release matrix — 0.5.2-alpha.4
+# Overwolf release matrix — 0.5.2-alpha.5
 
-Сверено с официальной документацией Overwolf 2026-08-19.
+Сверено с официальной документацией Overwolf 2026-08-22. Статус `static PASS` означает проверку исходника/архива, а не проход QA на реальном клиенте.
 
-| Требование | Реализация | Статус |
+| Требование | Реализация alpha.5 | Статус |
 |---|---|---:|
-| Видимое Desktop окно | Hub 1200×700 | PASS code/static |
-| Responsive minimum | min 900×620 | PASS code/static |
-| Background orchestrator | background start window | PASS code/static |
-| Тихий GameLaunch | `start_minimized=true` | PASS code/static |
-| Core flow | boards → lock → Active Case → Debrief/History/Profile | PASS automated logic |
-| Game overlay | game-only, click/input pass-through | PASS static |
-| Dynamic hotkey | manifest default + Overwolf `get/onChanged/onPressed` | PASS automated logic; RECHECK runtime |
-| FTUE | pairing/flow/hotkey/privacy | PASS code; RECHECK runtime |
-| Dedicated targeting | Deadlock `24482` | PASS |
-| Minimum Overwolf | `0.305.0.9` | PASS current changelog check |
-| Minimum GEP | `311.0.0` | PASS capability floor; current GEP newer |
-| Least privilege | Extensions, GameInfo, Hotkeys | PASS |
-| CSP / remote executable assets | local JS/CSS/fonts | PASS |
-| Launcher ICO | only 16/32/48/256; <150 KB | PASS automated |
-| Dock icons | PNG 256×256; size gate | PASS automated |
-| Packed OPK checksum | SHA-256 | PASS packaging |
-| Official current manifest schema | current official schema reviewed | RECHECK with fresh AJV before submit |
-| 1366×720 / 1366×768 | real Windows/OW | OPEN |
-| 1920×1080 @125% | real Windows/OW | OPEN |
-| 3840×2160 @150% | real Windows/OW | OPEN |
-| Fullscreen/windowed/Alt+Tab | real game | OPEN |
-| Hotkey rebind without relaunch | real OW settings | OPEN |
-| Mid-game install | packed OPK | OPEN |
-| Offline/reconnect | real client/network | OPEN |
-| Real Deadlock GEP | exact candidate | RECHECK |
-| Performance CPU/RAM/network | real Windows | OPEN |
-| Antivirus/VirusTotal | final OPK | OPEN |
-| Appstore listing/reviewer access | developer console | OPEN |
+| Видимое Desktop окно | native, desktop-only, 1200×700, min 900×620 | static PASS |
+| Background + GameLaunch | `background`, `start_minimized=true`, Deadlock `24482` | static PASS |
+| Контракты | server boards → lock `option_ids` → Active Case → server Debrief/XP | automated/static PASS |
+| Горячая клавиша | default + `get/onChanged/onPressed` Overwolf API | automated/static PASS; runtime OPEN |
+| Overlay | in-game only, input pass-through, resize/bounds, manual + 6.5-sec auto-hide | static PASS; placement/runtime OPEN |
+| Overlay motion | progress/switch/completion animation + reduced-motion fallback | static PASS; visual OPEN |
+| Реклама | один OwAd `400×60`, Desktop HQ only, transparent parent | static PASS; ad QA/serving OPEN |
+| Ads timing | не создаётся при `GameInProgress`, FTUE, pairing, dialogs, overlay | static PASS; runtime OPEN |
+| Ads permissions | Extensions, Streaming, Profile, GameInfo, Hotkeys | static PASS |
+| CSP | self-hosted UI; exact official `content.overwolf.com` allowlist для SDK | static PASS |
+| No client settlement | Companion не создаёт completion / reward / XP | automated/static PASS |
+| OPK | manifest в root, normal compression, SHA-256 | packaging gate |
+| Icons | PNG 256×256 / size gates; ICO 16/32/48/256 | static PASS |
+| Manifest schema | local fields checked | official schema validation OPEN |
+| DPI/resolution matrix | 1366×720, 1366×768, 1080p@125, 4K@150 | Windows OPEN |
+| Gameplay focus | fullscreen/windowed/Alt+Tab/mid-game install | Windows OPEN |
+| Real GEP | Standard, Ranked, Street Brawl with frozen OPK | Deadlock OPEN |
+| Security/performance | offline/reconnect, CPU/RAM/network, AV | Windows OPEN |
+| Store / DevRel | listing, policy review, ad enablement | Overwolf OPEN |
 
-## Почему visual matrix не отмечена PASS
+## Нельзя честно отметить PASS до ручного QA
 
-Попытка автоматического screenshot/browser QA в sandbox была заблокирована политикой окружения Chromium (`ERR_BLOCKED_BY_ADMINISTRATOR`). Поэтому здесь нет фиктивного заявления, что Windows/Overwolf resolution matrix уже пройдена.
-
-## Manifest schema note
-
-Официальная Overwolf documentation по-прежнему ссылается на Draft-07 schema из `overwolf/community-gists`. Схема была просмотрена через официальный web source; fresh automated download из build sandbox не выполнился из-за DNS restriction. Перед submit обязательно повторить официальный AJV validator на машине с сетью.
+Наличие whitelist и успешная OPK install-проверка не означают, что приложение уже approved. Перед submit обязательно выполнить manual items. Реальная выдача рекламы ожидается только после того, как Overwolf завершит свои ad tests и включит serving.

@@ -1,11 +1,12 @@
 const FEATURES = ['gep_internal', 'game_info', 'match_info']
-const VERSION = '0.5.2-alpha.4'
+const VERSION = '0.5.2-alpha.5'
 const EVIDENCE_SCHEMA_VERSION = 7
 const BRIDGE_STATE_VERSION = 1
 const GAME_ID = 24482
 const HEARTBEAT_MS = 15000
 const PRODUCT_REFRESH_MS = 60000
 const POST_MATCH_PRODUCT_REFRESH_MS = [2500, 8000, 20000, 45000, 90000]
+const OVERLAY_AUTO_HIDE_MS = 6500
 const HOTKEY_NAME = 'toggle_contract_overlay'
 const DEFAULT_HOTKEY = 'Ctrl+Shift+C'
 const INFO_POLL_MS = 5000
@@ -80,6 +81,7 @@ let recoveryTimers = []
 let productRefreshInProgress = false
 let postMatchProductTimers = []
 let postMatchProductKey = null
+let overlayAutoHideTimer = 0
 const staleFinalizedNotices = new Set()
 
 function loadJson(key, fallback) {
@@ -1363,6 +1365,7 @@ function checkGame() {
 
     if (!running && changed) {
       state.gameDetectedAt = null
+      dismissOverlay('game_stopped')
       finishSession('game_stopped')
       scheduleHistoryRecovery()
     }
@@ -1714,6 +1717,30 @@ function showDesktop() {
   obtainWindow('desktop', id => overwolf.windows.restore(id, () => {}))
 }
 
+function cancelOverlayAutoHide() {
+  if (!overlayAutoHideTimer) return
+  clearTimeout(overlayAutoHideTimer)
+  overlayAutoHideTimer = 0
+}
+
+function dismissOverlay(reason = 'dismiss') {
+  cancelOverlayAutoHide()
+  obtainWindow('overlay', id => {
+    overwolf.windows.minimize(id, result => {
+      if (result?.success === false) log('OVERLAY_DISMISS_FAILED', { reason, error: result?.error || 'minimize failed' })
+      else log('OVERLAY_DISMISSED', { reason })
+    })
+  }, error => log('OVERLAY_DISMISS_FAILED', { reason, error: error.message }))
+}
+
+function scheduleOverlayAutoHide() {
+  cancelOverlayAutoHide()
+  overlayAutoHideTimer = setTimeout(() => {
+    overlayAutoHideTimer = 0
+    dismissOverlay('auto_hide')
+  }, OVERLAY_AUTO_HIDE_MS)
+}
+
 function toggleOverlay() {
   return new Promise((resolve, reject) => {
     obtainWindow('overlay', id => {
@@ -1722,7 +1749,11 @@ function toggleOverlay() {
         const isVisible = ['normal', 'maximized'].includes(current)
         const complete = actionResult => {
           if (actionResult?.success === false) reject(new Error(actionResult?.error || 'Unable to toggle overlay'))
-          else resolve({ visible: !isVisible })
+          else {
+            if (!isVisible) scheduleOverlayAutoHide()
+            else cancelOverlayAutoHide()
+            resolve({ visible: !isVisible, auto_hide_ms: isVisible ? 0 : OVERLAY_AUTO_HIDE_MS })
+          }
         }
         if (isVisible) overwolf.windows.minimize(id, complete)
         else overwolf.windows.restore(id, complete)

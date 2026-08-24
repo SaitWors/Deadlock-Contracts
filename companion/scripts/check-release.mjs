@@ -4,7 +4,9 @@ import process from 'node:process'
 import { fileURLToPath } from 'node:url'
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
-const releaseMetadata = JSON.parse(fs.readFileSync(path.join(root, '..', 'release.json'), 'utf8'))
+const releaseFile = [path.join(root, 'release.json'), path.join(root, '..', 'release.json')].find(fs.existsSync)
+if (!releaseFile) throw new Error('release.json is required beside the Companion root or its parent')
+const releaseMetadata = JSON.parse(fs.readFileSync(releaseFile, 'utf8'))
 const manifest = JSON.parse(fs.readFileSync(path.join(root, 'manifest.json'), 'utf8'))
 const errors = []
 const warnings = []
@@ -36,7 +38,7 @@ if (!windows.overlay?.resizable) errors.push('overlay must be resizable from Des
 if (!windows.overlay?.restrict_to_game_bounds) errors.push('overlay must stay inside game bounds')
 
 const permissions = new Set(manifest.permissions || [])
-const allowedPermissions = new Set(['Extensions', 'GameInfo', 'Hotkeys'])
+const allowedPermissions = new Set(['Extensions', 'Streaming', 'Profile', 'GameInfo', 'Hotkeys'])
 for (const permission of permissions) if (!allowedPermissions.has(permission)) errors.push(`unexpected permission: ${permission}`)
 for (const permission of allowedPermissions) if (!permissions.has(permission)) errors.push(`missing permission: ${permission}`)
 
@@ -75,7 +77,7 @@ for (const htmlFile of ['background.html', 'index.html', 'overlay.html']) {
 }
 const tokens = fs.readFileSync(path.join(root, 'styles/tokens.css'), 'utf8')
 if (/@import\s+url/i.test(tokens) || /fonts\.(?:googleapis|gstatic)/i.test(tokens)) errors.push('remote font delivery is enabled')
-const source = ['background-engine.js', 'session-guard.js', 'desktop.js', 'overlay.js', 'overlay-focus.js', 'product.js', 'shared.js'].map(file => fs.readFileSync(path.join(root, 'src', file), 'utf8')).join('\n')
+const source = ['background-engine.js', 'session-guard.js', 'desktop.js', 'desktop-ads.js', 'overlay.js', 'overlay-focus.js', 'product.js', 'shared.js'].map(file => fs.readFileSync(path.join(root, 'src', file), 'utf8')).join('\n')
 if (!source.includes(expectedRuntimeVersion)) errors.push(`runtime version ${expectedRuntimeVersion} is missing`)
 if (!source.includes('/api/desktop/v1/bootstrap')) errors.push('Desktop API bootstrap route is missing')
 if (/completion\s*[:=]|grantXp/i.test(source)) errors.push('client settlement authority pattern found in runtime')
@@ -125,6 +127,7 @@ const indexHtml = fs.readFileSync(path.join(root, 'index.html'), 'utf8')
 const overlayHtml = fs.readFileSync(path.join(root, 'overlay.html'), 'utf8')
 const backgroundSource = fs.readFileSync(path.join(root, 'src/background-engine.js'), 'utf8')
 const desktopSource = fs.readFileSync(path.join(root, 'src/desktop.js'), 'utf8')
+const desktopAdsSource = fs.readFileSync(path.join(root, 'src/desktop-ads.js'), 'utf8')
 const productSource = fs.readFileSync(path.join(root, 'src/product.js'), 'utf8')
 const notices = fs.readFileSync(path.join(root, 'THIRD_PARTY_NOTICES.txt'), 'utf8')
 if (!indexHtml.includes(`<b>${expectedRuntimeVersion}</b>`)) errors.push('desktop build mark is out of sync with release.json')
@@ -134,9 +137,19 @@ if (!indexHtml.includes('id="view-debrief"') || !indexHtml.includes('id="adaptiv
 if (!indexHtml.includes('id="ftueHotkey"') || !overlayHtml.includes('id="overlayHotkey"')) errors.push('dynamic hotkey reminder surfaces are missing')
 if (!overlayHtml.includes('id="overlayHoverSensor"') || !overlayHtml.includes('src/overlay-focus.js')) errors.push('activity-focused dodge overlay surface is missing')
 if (!backgroundSource.includes('overwolf.settings.hotkeys.get') || !backgroundSource.includes('hotkeys.onChanged.addListener')) errors.push('hotkey binding must refresh from Overwolf settings without relaunch')
+if (!backgroundSource.includes('OVERLAY_AUTO_HIDE_MS = 6500') || !backgroundSource.includes('scheduleOverlayAutoHide()')) errors.push('hotkey overlay must be transient and auto-dismiss')
 if (!backgroundSource.includes('POST_MATCH_PRODUCT_REFRESH_MS')) errors.push('bounded post-match product refresh policy is missing')
 if (!productSource.includes("'player.object_damage': 'object_damage'")) errors.push('object damage provisional metric mapping is missing')
 if (!productSource.includes("['WIN', 'VICTORY']") || !productSource.includes("['LOSS', 'DEFEAT']")) errors.push('Deadlock local victory/defeat mapping is incomplete')
+if (!indexHtml.includes('src/desktop-ads.js')) errors.push('desktop-only Overwolf ad controller is missing')
+if (!indexHtml.includes('id="desktopAdRail"') || !/<div id="desktopAdContainer"[^>]*>\s*<\/div>/.test(indexHtml)) errors.push('managed desktop ad slot must have an empty container')
+if (!indexHtml.includes("script-src 'self' https://content.overwolf.com")) errors.push('desktop CSP must explicitly allow the official Overwolf Ads SDK only')
+if (!desktopAdsSource.includes("https://content.overwolf.com/libs/ads/latest/owads.min.js")) errors.push('desktop ad SDK URL must be the official Overwolf endpoint')
+if (!desktopAdsSource.includes("containerId: CONTAINER_ID") || !desktopAdsSource.includes("const CONTAINER_ID = 'dc_400x60_desktop_b'")) errors.push('desktop ad slot needs its stable <=20-character container ID')
+if (!desktopAdsSource.includes('size: AD_SIZE') || !desktopAdsSource.includes('width: 400, height: 60')) errors.push('desktop ad slot must use a supported 400x60 size')
+if (!desktopAdsSource.includes('shutdown()') || !desktopSource.includes('isSafeDesktopAdMoment')) errors.push('desktop ads must be shut down when their safe placement changes')
+if (/<iframe\b/i.test(desktopAdsSource)) errors.push('third-party ad iframes are forbidden; use OwAd only')
+if (!overlayHtml.includes('completion-burst') || !overlayHtml.includes('focus-track-wrap')) errors.push('alpha.5 overlay animation surfaces are missing')
 
 if (warnings.length) {
   console.log('WARNINGS')

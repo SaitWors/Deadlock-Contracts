@@ -9,7 +9,7 @@
   const PREVIEW = typeof overwolf === 'undefined' && new URLSearchParams(location.search).get('preview') === '1'
 
   const fallback = {
-    version: '0.5.2-alpha.4', paired: false, account: null, game_running: false, steam_id64: null,
+    version: '0.5.2-alpha.5', paired: false, account: null, game_running: false, steam_id64: null,
     identity_ok: null, phase: null, phase_display: '—', mode_display: '—', match_id: null,
     session: null, evidence: {}, match_clock_s: null, queue_count: 0, last_upload_status: '—',
     gep_version: null, gep_public_version: null, gep_updated: null, last_error: '', overlay_scale: 'compact', hotkey_binding: 'Ctrl+Shift+C',
@@ -107,6 +107,20 @@
     all('#view-contracts button, #view-settings button').forEach(button => { button.disabled = busy || button.dataset.baseDisabled === '1' })
   }
 
+  function isSafeDesktopAdMoment() {
+    if (!snapshot.game_running) return true
+    // Never request a desktop ad while Deadlock reports active gameplay. The
+    // slot may only exist in non-interrupting lobby/loading/post-match moments.
+    return ['Init', 'WaitingForPlayersToJoin', 'PreGameWait', 'PostGame', 'LoadingScreen'].includes(snapshot.phase)
+  }
+
+  function syncDesktopAdSlot() {
+    const hqIsOpen = $('view-hq')?.classList.contains('active')
+    const ftueIsClosed = $('ftue')?.hidden === true
+    const eligible = !!snapshot.paired && hqIsOpen && ftueIsClosed && isSafeDesktopAdMoment()
+    window.DCDesktopAds?.setEligible(eligible)
+  }
+
   function setView(name) {
     all('[data-view]').forEach(view => view.classList.toggle('active', view.dataset.view === name))
     all('.side-nav [data-view-target]').forEach(button => button.classList.toggle('active', button.dataset.viewTarget === name))
@@ -121,6 +135,7 @@
       renderDebrief()
       renderHq()
     }
+    syncDesktopAdSlot()
   }
 
   function statusLabel(status) {
@@ -585,6 +600,7 @@
       productSignature = signature
       renderProductViews()
     }
+    syncDesktopAdSlot()
   }
 
   async function loadPreview() {
@@ -693,6 +709,7 @@
       localStorage.setItem(FTUE_KEY, '1')
       $('ftue').hidden = true
       if (destination) setView(destination)
+      else syncDesktopAdSlot()
     }
     $('ftueContinue').addEventListener('click', () => done('hq'))
     $('ftuePair').addEventListener('click', () => done('settings'))

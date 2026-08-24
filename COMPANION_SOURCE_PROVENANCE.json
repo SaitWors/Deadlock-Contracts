@@ -1,12 +1,12 @@
 {
   "product": "Deadlock Contracts Companion",
-  "runtime_version": "0.5.2-alpha.3",
-  "manifest_version": "0.5.2.3",
+  "runtime_version": "0.5.2-alpha.5",
+  "manifest_version": "0.5.2.5",
   "evidence_schema": 7,
-  "imported_at": "2026-08-22",
-  "source_bundle": "dlkapi.zip",
-  "source_bundle_sha256": "d2818323a37e5681dc2acf176e817e950869ae1d21617f2629c8d9388d40b07a",
-  "source_archive": "Deadlock-Contracts-Companion-0.5.2-alpha.3-source.zip",
-  "source_archive_sha256": "ab8cf5c92b2dcc8ceec2cfbc81567845417739e1ff4ec094d671aa47b212f611",
-  "verified_tests": 35
+  "imported_at": "2026-08-24",
+  "source_bundle": "Deadlock-Contracts-Companion-0.5.2-alpha.5(1).rar",
+  "source_bundle_sha256": "4799d6db9b3f5ccd7d364408ed845c740b53937e8f594fafb6ced2b7a357a53c",
+  "source_archive": "Deadlock-Contracts-Companion-0.5.2-alpha.5(1).rar",
+  "source_archive_sha256": "4799d6db9b3f5ccd7d364408ed845c740b53937e8f594fafb6ced2b7a357a53c",
+  "verified_tests": 46
 }

@@ -6,11 +6,13 @@ import { fileURLToPath } from 'node:url'
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const read = relative => fs.readFileSync(path.join(root, relative), 'utf8')
-const releaseMetadata = JSON.parse(fs.readFileSync(path.join(root, '..', 'release.json'), 'utf8'))
+const releaseFile = [path.join(root, 'release.json'), path.join(root, '..', 'release.json')].find(fs.existsSync)
+if (!releaseFile) throw new Error('release.json is required beside the Companion root or its parent')
+const releaseMetadata = JSON.parse(fs.readFileSync(releaseFile, 'utf8'))
 const manifest = JSON.parse(read('manifest.json'))
 const runtimeText = [
   'background.html', 'index.html', 'overlay.html',
-  'src/background-engine.js', 'src/session-guard.js', 'src/desktop.js', 'src/overlay.js', 'src/overlay-focus.js', 'src/product.js', 'src/shared.js',
+  'src/background-engine.js', 'src/session-guard.js', 'src/desktop.js', 'src/desktop-ads.js', 'src/overlay.js', 'src/overlay-focus.js', 'src/product.js', 'src/shared.js',
   'styles/tokens.css', 'styles/app.css', 'styles/overlay.css',
 ].map(read).join('\n')
 
@@ -66,7 +68,7 @@ test('Deadlock targeting, minimized launch and hotkey are explicit', () => {
 })
 
 test('permissions stay least-privilege', () => {
-  assert.deepEqual([...manifest.permissions].sort(), ['Extensions', 'GameInfo', 'Hotkeys'].sort())
+  assert.deepEqual([...manifest.permissions].sort(), ['Extensions', 'Streaming', 'Profile', 'GameInfo', 'Hotkeys'].sort())
 })
 
 test('runtime CSP is local-first and contains no remote executable assets', () => {
@@ -168,6 +170,36 @@ test('overlay is single-focus, mode-strict and includes 3 second activity routin
   assert.match(model, /SWITCH_DELAY_MS = 3000/)
   assert.match(css, /overlay-dodge/)
   assert.match(css, /transition: width \.68s/)
+  assert.match(overlay, /completion-burst/)
+  assert.match(css, /border-radius: 18px/)
+})
+
+test('hotkey overlay is temporary and can be dismissed without blocking input', () => {
+  const background = read('src/background-engine.js')
+  assert.match(background, /const OVERLAY_AUTO_HIDE_MS = 6500/)
+  assert.match(background, /function scheduleOverlayAutoHide\(\)/)
+  assert.match(background, /dismissOverlay\('auto_hide'\)/)
+  assert.match(background, /auto_hide_ms/)
+})
+
+test('Overwolf-managed advertising is desktop-only, safe-moment gated and uses a supported slot', () => {
+  const index = read('index.html')
+  const desktop = read('src/desktop.js')
+  const ads = read('src/desktop-ads.js')
+  const css = read('styles/app.css')
+  assert.match(index, /id="desktopAdRail"/)
+  assert.match(index, /id="desktopAdContainer"[^>]*>\s*<\/div>/)
+  assert.match(index, /script-src 'self' https:\/\/content\.overwolf\.com/)
+  assert.match(desktop, /isSafeDesktopAdMoment/)
+  assert.match(desktop, /snapshot\.phase/)
+  assert.match(ads, /https:\/\/content\.overwolf\.com\/libs\/ads\/latest\/owads\.min\.js/)
+  assert.match(ads, /const CONTAINER_ID = 'dc_400x60_desktop_b'/)
+  assert.match(ads, /width: 400, height: 60/)
+  assert.match(ads, /new window\.OwAd/)
+  assert.match(ads, /shutdown/)
+  assert.doesNotMatch(ads, /<iframe\b/i)
+  assert.match(css, /\.desktop-ad-stage[^}]*background: transparent/s)
+  assert.match(css, /\.overwolf-ad-container[^}]*min-height: 60px/s)
 })
 
 test('evidence v7 distinguishes real match_outcome info updates from cached getInfo labels', () => {

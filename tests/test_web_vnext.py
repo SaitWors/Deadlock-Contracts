@@ -108,8 +108,8 @@ def test_alpha8_public_release_hygiene() -> None:
     ).read_text(encoding="utf-8")
 
     assert '"web_version": "0.10.1-alpha.8"' in release
-    assert '"companion_version": "0.5.2-alpha.4"' in release
-    assert '"companion_manifest_version": "0.5.2.4"' in release
+    assert '"companion_version": "0.5.2-alpha.5"' in release
+    assert '"companion_manifest_version": "0.5.2.5"' in release
 
     assert 'href="#"' not in LANDING
     assert "INTERACTIVE PREVIEW / NOT SAVED" in LANDING

@@ -205,7 +205,7 @@ jobs:
 
           FIRST_OPK_SHA="$(
             sha256sum \
-              dist/Deadlock-Contracts-Companion-0.5.2-alpha.4.opk \
+              dist/Deadlock-Contracts-Companion-0.5.2-alpha.5.opk \
               | awk '{print $1}'
           )"
 
@@ -213,7 +213,7 @@ jobs:
 
           SECOND_OPK_SHA="$(
             sha256sum \
-              dist/Deadlock-Contracts-Companion-0.5.2-alpha.4.opk \
+              dist/Deadlock-Contracts-Companion-0.5.2-alpha.5.opk \
               | awk '{print $1}'
           )"
 
@@ -221,28 +221,28 @@ jobs:
           echo "Reproducible OPK SHA-256: $SECOND_OPK_SHA"
 
           test -f \
-            dist/Deadlock-Contracts-Companion-0.5.2-alpha.4.opk
+            dist/Deadlock-Contracts-Companion-0.5.2-alpha.5.opk
 
           sha256sum \
-            dist/Deadlock-Contracts-Companion-0.5.2-alpha.4.opk \
+            dist/Deadlock-Contracts-Companion-0.5.2-alpha.5.opk \
             | tee \
-              dist/Deadlock-Contracts-Companion-0.5.2-alpha.4.opk.sha256
+              dist/Deadlock-Contracts-Companion-0.5.2-alpha.5.opk.sha256
 
           unzip -t \
-            dist/Deadlock-Contracts-Companion-0.5.2-alpha.4.opk
+            dist/Deadlock-Contracts-Companion-0.5.2-alpha.5.opk
 
           unzip -l \
-            dist/Deadlock-Contracts-Companion-0.5.2-alpha.4.opk \
+            dist/Deadlock-Contracts-Companion-0.5.2-alpha.5.opk \
             | grep -E \
                 'manifest.json|src/background-engine.js|index.html'
 
       - name: Upload Companion OPK
         uses: actions/upload-artifact@v4
         with:
-          name: Deadlock-Contracts-Companion-0.5.2-alpha.4
+          name: Deadlock-Contracts-Companion-0.5.2-alpha.5
           path: |
-            companion/dist/Deadlock-Contracts-Companion-0.5.2-alpha.4.opk
-            companion/dist/Deadlock-Contracts-Companion-0.5.2-alpha.4.opk.sha256
+            companion/dist/Deadlock-Contracts-Companion-0.5.2-alpha.5.opk
+            companion/dist/Deadlock-Contracts-Companion-0.5.2-alpha.5.opk.sha256
           if-no-files-found: error
           retention-days: 14
 

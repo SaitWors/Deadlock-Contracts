@@ -6,7 +6,9 @@ import { execFileSync } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
-const releaseMetadata = JSON.parse(fs.readFileSync(path.join(root, '..', 'release.json'), 'utf8'))
+const releaseFile = [path.join(root, 'release.json'), path.join(root, '..', 'release.json')].find(fs.existsSync)
+if (!releaseFile) throw new Error('release.json is required beside the Companion root or its parent')
+const releaseMetadata = JSON.parse(fs.readFileSync(releaseFile, 'utf8'))
 const release = String(releaseMetadata.companion_version || '')
 if (!release) throw new Error('release.json companion_version is required')
 const dist = path.join(root, 'dist')
@@ -16,7 +18,7 @@ const checksum = path.join(dist, 'SHA256SUMS.txt')
 
 const runtimeFiles = [
   'manifest.json', 'background.html', 'index.html', 'overlay.html', 'THIRD_PARTY_NOTICES.txt',
-  'src/background-engine.js', 'src/session-guard.js', 'src/desktop.js', 'src/overlay.js', 'src/overlay-focus.js', 'src/product.js', 'src/shared.js',
+  'src/background-engine.js', 'src/session-guard.js', 'src/desktop.js', 'src/desktop-ads.js', 'src/overlay.js', 'src/overlay-focus.js', 'src/product.js', 'src/shared.js',
   'styles/tokens.css', 'styles/app.css', 'styles/overlay.css',
   'assets/icon.png', 'assets/icon_gray.png', 'assets/launcher_icon.ico', 'assets/window_icon.png',
   'assets/mark.svg', 'assets/brand-hero.jpg', 'assets/brand-wordmark.jpg', 'assets/curator-contract.jpg',

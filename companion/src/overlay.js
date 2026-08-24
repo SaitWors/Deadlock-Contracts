@@ -8,6 +8,7 @@
   let previewPromise = null
   let lastRenderedKey = null
   let lastRenderedValue = null
+  let lastCompletionKey = null
   let dodgeLeaveTimer = 0
 
   const $ = id => document.getElementById(id)
@@ -97,6 +98,14 @@
     card.classList.remove('focus-progressing')
     void card.offsetWidth
     card.classList.add('focus-progressing')
+  }
+
+  function animateCompletion() {
+    const card = $('overlayFocus')
+    if (!card) return
+    card.classList.remove('focus-completion-burst')
+    void card.offsetWidth
+    card.classList.add('focus-completion-burst')
   }
 
   function renderSelected(activeCase, candidate) {
@@ -209,7 +218,8 @@
       $('overlayHint').textContent = status || 'SERVER STATE'
     }
 
-    $('overlayFocus').classList.toggle('focus-complete', live && progress.provisional_pass)
+    const completed = live && progress.provisional_pass
+    $('overlayFocus').classList.toggle('focus-complete', completed)
     if (lastRenderedKey !== key) {
       animateCardSwitch()
       lastRenderedKey = key
@@ -217,6 +227,13 @@
     } else if (progress.known && Number(progress.value) !== Number(lastRenderedValue)) {
       animateProgress()
       lastRenderedValue = progress.value
+    }
+    const completionKey = `${key}:${percent}`
+    if (completed && lastCompletionKey !== completionKey) {
+      animateCompletion()
+      lastCompletionKey = completionKey
+    } else if (!completed) {
+      lastCompletionKey = null
     }
     return true
   }
