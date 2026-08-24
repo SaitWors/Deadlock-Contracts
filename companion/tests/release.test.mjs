@@ -6,11 +6,13 @@ import { fileURLToPath } from 'node:url'
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const read = relative => fs.readFileSync(path.join(root, relative), 'utf8')
-const releaseMetadata = JSON.parse(fs.readFileSync(path.join(root, '..', 'release.json'), 'utf8'))
+const releaseFile = [path.join(root, 'release.json'), path.join(root, '..', 'release.json')].find(fs.existsSync)
+if (!releaseFile) throw new Error('release.json is required beside the Companion root or its parent')
+const releaseMetadata = JSON.parse(fs.readFileSync(releaseFile, 'utf8'))
 const manifest = JSON.parse(read('manifest.json'))
 const runtimeText = [
   'background.html', 'index.html', 'overlay.html',
-  'src/background-engine.js', 'src/session-guard.js', 'src/desktop.js', 'src/overlay.js', 'src/overlay-focus.js', 'src/product.js', 'src/shared.js',
+  'src/background-engine.js', 'src/session-guard.js', 'src/desktop.js', 'src/desktop-ads.js', 'src/overlay.js', 'src/overlay-focus.js', 'src/product.js', 'src/shared.js',
   'styles/tokens.css', 'styles/app.css', 'styles/overlay.css',
 ].map(read).join('\n')
 
@@ -28,6 +30,14 @@ test('all user-visible release versions match release.json', () => {
   assert.match(read('index.html'), new RegExp(`<b>${version.replaceAll('.', '\\.')}</b>`))
   assert.match(read('src/desktop.js'), new RegExp(`version: '${version.replaceAll('.', '\\.')}'`))
   assert.ok(read('THIRD_PARTY_NOTICES.txt').startsWith(`Deadlock Contracts Companion ${version}\n`))
+})
+
+test('release packaging publishes a deterministic CycloneDX file inventory', () => {
+  const packaging = read('scripts/package-release.mjs')
+  assert.match(packaging, /specVersion: '1\.6'/)
+  assert.match(packaging, /Deadlock-Contracts-Companion-\$\{release\}\.cdx\.json/)
+  assert.match(packaging, /alg: 'SHA-256'/)
+  assert.match(packaging, /components: fileComponents/)
 })
 
 test('public product has a responsive desktop hub', () => {
@@ -66,7 +76,7 @@ test('Deadlock targeting, minimized launch and hotkey are explicit', () => {
 })
 
 test('permissions stay least-privilege', () => {
-  assert.deepEqual([...manifest.permissions].sort(), ['Extensions', 'GameInfo', 'Hotkeys'].sort())
+  assert.deepEqual([...manifest.permissions].sort(), ['Extensions', 'Streaming', 'Profile', 'GameInfo', 'Hotkeys'].sort())
 })
 
 test('runtime CSP is local-first and contains no remote executable assets', () => {
@@ -168,6 +178,86 @@ test('overlay is single-focus, mode-strict and includes 3 second activity routin
   assert.match(model, /SWITCH_DELAY_MS = 3000/)
   assert.match(css, /overlay-dodge/)
   assert.match(css, /transition: width \.68s/)
+  assert.match(overlay, /completion-burst/)
+  assert.match(css, /border-radius: 18px/)
+})
+
+test('hotkey overlay is temporary and can be dismissed without blocking input', () => {
+  const background = read('src/background-engine.js')
+  assert.match(background, /const OVERLAY_AUTO_HIDE_MS = 6500/)
+  assert.match(background, /function scheduleOverlayAutoHide\(\)/)
+  assert.match(background, /dismissOverlay\('auto_hide'\)/)
+  assert.match(background, /auto_hide_ms/)
+})
+
+test('Overwolf-managed advertising is desktop-only, safe-moment gated and uses a supported slot', () => {
+  const index = read('index.html')
+  const desktop = read('src/desktop.js')
+  const ads = read('src/desktop-ads.js')
+  const css = read('styles/app.css')
+  assert.match(index, /id="desktopAdRail"/)
+  assert.match(index, /id="desktopAdContainer"[^>]*>\s*<\/div>/)
+  assert.match(index, /script-src 'self' https:\/\/content\.overwolf\.com/)
+  assert.match(desktop, /isSafeDesktopAdMoment/)
+  assert.match(desktop, /snapshot\.phase/)
+  assert.match(desktop, /game_state_confirmed/)
+  assert.match(desktop, /observationFresh/)
+  assert.match(desktop, /modalIsClosed/)
+  assert.match(desktop, /productReady/)
+  assert.match(desktop, /serverAllowsAds/)
+  assert.match(desktop, /desktop_ads_v1/)
+  assert.match(ads, /https:\/\/content\.overwolf\.com\/libs\/ads\/latest\/owads\.min\.js/)
+  assert.match(ads, /const CONTAINER_ID = 'dc_400x60_desktop_b'/)
+  assert.match(ads, /width: 400, height: 60/)
+  assert.match(ads, /new window\.OwAd/)
+  assert.match(ads, /shutdown/)
+  assert.doesNotMatch(ads, /<iframe\b/i)
+  assert.match(css, /\.desktop-ad-stage[^}]*background: transparent/s)
+  assert.match(css, /\.overwolf-ad-container[^}]*min-height: 60px/s)
+})
+
+test('runtime snapshots and diagnostics are privacy bounded', () => {
+  const background = read('src/background-engine.js')
+  const overlay = read('src/overlay.js')
+  assert.match(background, /function sanitizeDiagnostic\(/)
+  assert.match(background, /ROSTER_REDACTED/)
+  assert.match(background, /STEAM_ID_REDACTED/)
+  assert.match(background, /function overlaySnapshot\(\)/)
+  assert.doesNotMatch(background, /logs: logLines\.slice/)
+  assert.match(overlay, /getOverlaySnapshot/)
+})
+
+test('GEP feature registration is bounded, jittered and exposed fail-closed', () => {
+  const background = read('src/background-engine.js')
+  const desktop = read('src/desktop.js')
+  assert.match(background, /FEATURE_RETRY_LIMIT/)
+  assert.match(background, /FEATURE_RETRY_MAX_MS/)
+  assert.match(background, /FEATURE_RECOVERY_MS/)
+  assert.match(background, /Math\.random\(\)/)
+  assert.match(background, /gep_feature_health/)
+  assert.match(desktop, /gep_feature_health\?\.status === 'DEGRADED'/)
+})
+
+test('minimum-version rejection keeps pairing and queued data recoverable', () => {
+  const background = read('src/background-engine.js')
+  assert.match(background, /error\?\.status === 426/)
+  assert.match(background, /x-minimum-companion-version/)
+  assert.match(background, /Pairing and queued match data were kept/)
+})
+
+test('match transitions clear match-scoped evidence before opening a new session', () => {
+  const background = read('src/background-engine.js')
+  assert.match(background, /function resetMatchScopedState\(\)/)
+  assert.match(background, /if \(changedMatch \|\| leavingFinalizedMatch\) resetMatchScopedState\(\)/)
+  assert.match(background, /state\.matchOutcome = null/)
+  assert.match(background, /state\.matchClockS = null/)
+})
+
+test('disconnect preserves pairing when uploads or server revocation are unacknowledged', () => {
+  const background = read('src/background-engine.js')
+  assert.match(background, /await flushQueue\(\{ force: true \}\)/)
+  assert.match(background, /Disconnect paused:/)
+  assert.match(background, /Pairing and queued data were kept/)
 })
 
 test('evidence v7 distinguishes real match_outcome info updates from cached getInfo labels', () => {

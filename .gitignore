@@ -3,11 +3,14 @@
 secrets/
 backups/
 runtime/
+.venv/
 __pycache__/
 .pytest_cache/
+.pip-audit-cache/
 *.py[cod]
 *.db
 .DS_Store
 
 # Companion build output
 companion/dist/
+companion/release/

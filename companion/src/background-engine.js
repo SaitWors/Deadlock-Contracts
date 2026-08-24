@@ -1,16 +1,21 @@
 const FEATURES = ['gep_internal', 'game_info', 'match_info']
-const VERSION = '0.5.2-alpha.4'
+const VERSION = '0.5.2-alpha.6'
 const EVIDENCE_SCHEMA_VERSION = 7
 const BRIDGE_STATE_VERSION = 1
 const GAME_ID = 24482
 const HEARTBEAT_MS = 15000
 const PRODUCT_REFRESH_MS = 60000
 const POST_MATCH_PRODUCT_REFRESH_MS = [2500, 8000, 20000, 45000, 90000]
+const OVERLAY_AUTO_HIDE_MS = 6500
 const HOTKEY_NAME = 'toggle_contract_overlay'
 const DEFAULT_HOTKEY = 'Ctrl+Shift+C'
 const INFO_POLL_MS = 5000
 const GAME_POLL_MS = 5000
-const LOG_LIMIT = 1200
+const FEATURE_RETRY_LIMIT = 5
+const FEATURE_RETRY_BASE_MS = 3000
+const FEATURE_RETRY_MAX_MS = 30000
+const FEATURE_RECOVERY_MS = 60000
+const LOG_LIMIT = 300
 const QUEUE_LIMIT = 60
 const ALLOWED_SERVER_URLS = new Set(['https://deadlock-contracts.online'])
 const CONFIRMED_SESSION_STARTS = new Set(['match_start', 'phase_game_in_progress', 'match_clock'])
@@ -42,6 +47,7 @@ const state = {
   gepPublicVersion: null,
   gepUpdated: null,
   features: [],
+  gepFeatureHealth: { status: 'WAITING', attempts: 0, last_error: null, updated_at: null },
   liveStats: null,
   lastRosterAt: null,
   lastInfoAt: null,
@@ -61,6 +67,8 @@ const state = {
   lastUploadStatus: '—',
   lastError: '',
   gameDetectedAt: null,
+  gameStateObservedAt: null,
+  gameStateConfirmed: false,
   lastObserved: { gameRunning: null, phase: null, matchId: null },
   eventCounts: { kills: 0, deaths: 0, assists: 0 },
   session: loadJson(STORAGE.session, null),
@@ -80,6 +88,7 @@ let recoveryTimers = []
 let productRefreshInProgress = false
 let postMatchProductTimers = []
 let postMatchProductKey = null
+let overlayAutoHideTimer = 0
 const staleFinalizedNotices = new Set()
 
 function loadJson(key, fallback) {
@@ -122,7 +131,7 @@ function clearProduct(status = 'UNPAIRED') {
 function productErrorState(error) {
   const status = error?.status === 401
     ? 'UNPAIRED'
-    : error?.status === 404 || error?.code === 'API_VERSION_MISMATCH'
+    : error?.status === 404 || error?.status === 426 || error?.code === 'API_VERSION_MISMATCH'
       ? 'INCOMPATIBLE'
       : navigator.onLine === false
         ? 'OFFLINE'
@@ -137,6 +146,7 @@ function productErrorState(error) {
       status: error?.status || null,
       request_id: error?.requestId || null,
       retry_after: error?.retryAfter || null,
+      minimum_version: error?.minimumVersion || null,
       at: nowIso(),
     },
   }
@@ -216,9 +226,76 @@ async function loadStoredToken() {
   }
 }
 
+function redactIdentifier(value) {
+  const text = String(value ?? '').trim()
+  if (!text) return '—'
+  return text.length <= 4 ? '[REDACTED]' : `[REDACTED…${text.slice(-4)}]`
+}
+
+function sanitizeDiagnosticText(value) {
+  return String(value ?? '')
+    .replace(/\b\d{16,20}\b/g, '[STEAM_ID_REDACTED]')
+    .replace(/\bBearer\s+[A-Za-z0-9._~+\/-]+=*/gi, 'Bearer [REDACTED]')
+    .replace(/((?:token|authorization|pair(?:ing)?[_ -]?code)\s*[:=]\s*)[^\s,;]+/gi, '$1[REDACTED]')
+}
+
+function diagnosticSummary(kind, payload) {
+  if (kind === 'RUNNING_GAME') {
+    return {
+      observed: payload !== undefined,
+      is_running: !!payload?.isRunning,
+      class_id: payload?.classId ?? null,
+    }
+  }
+  if (kind === 'NEW_EVENT') {
+    const events = Array.isArray(payload?.events) ? payload.events : []
+    return { count: events.length, names: events.map(event => String(event?.name || 'unknown')).slice(0, 30) }
+  }
+  if (kind === 'SET_FEATURES') {
+    return {
+      success: !!payload?.success,
+      supported_features: Array.isArray(payload?.supportedFeatures) ? payload.supportedFeatures : [],
+      error: payload?.error ? sanitizeDiagnosticText(payload.error) : null,
+    }
+  }
+  if (kind === 'GET_INFO' || kind === 'INFO_UPDATE') {
+    const envelope = payload?.res || payload?.info || payload
+    const categories = envelope && typeof envelope === 'object'
+      ? Object.fromEntries(Object.entries(envelope).map(([key, value]) => [
+        key,
+        value && typeof value === 'object' && !Array.isArray(value) ? Object.keys(value).slice(0, 30) : typeof value,
+      ]))
+      : {}
+    return {
+      success: payload?.success ?? null,
+      feature: payload?.feature || payload?.category || null,
+      key: payload?.key || null,
+      categories,
+    }
+  }
+  return payload
+}
+
+function sanitizeDiagnostic(value, key = '', depth = 0) {
+  if (depth > 5) return '[TRUNCATED]'
+  const normalizedKey = String(key || '').toLowerCase()
+  if (/(^|_)(token|authorization|secret|password|pairing_code)$/.test(normalizedKey)) return '[REDACTED]'
+  if (/(steam_?id|steamid|account_?id|device_?id)/.test(normalizedKey)) return redactIdentifier(value)
+  if (/(player_?name|display_?name)/.test(normalizedKey)) return '[REDACTED]'
+  if (normalizedKey.startsWith('roster')) return '[ROSTER_REDACTED]'
+  if (typeof value === 'string') return sanitizeDiagnosticText(value)
+  if (Array.isArray(value)) return value.slice(0, 50).map(item => sanitizeDiagnostic(item, key, depth + 1))
+  if (value && typeof value === 'object') {
+    return Object.fromEntries(Object.entries(value).map(([childKey, child]) => [childKey, sanitizeDiagnostic(child, childKey, depth + 1)]))
+  }
+  return value
+}
+
 function log(kind, payload) {
   let text
-  try { text = typeof payload === 'string' ? payload : JSON.stringify(payload) } catch (_) { text = String(payload) }
+  const safe = sanitizeDiagnostic(diagnosticSummary(kind, payload))
+  try { text = typeof safe === 'string' ? safe : JSON.stringify(safe) } catch (_) { text = sanitizeDiagnosticText(safe) }
+  if (text.length > 4000) text = `${text.slice(0, 4000)}…[TRUNCATED]`
   logLines.push(`[${nowIso()}] [${kind}] ${text}`)
   if (logLines.length > LOG_LIMIT) logLines = logLines.slice(-LOG_LIMIT)
   if ($('log')) {
@@ -399,6 +476,20 @@ function newSession(reason = 'unknown', startedAt = null) {
   log('SESSION_START', session)
   publishBridgeState()
   return session
+}
+
+function resetMatchScopedState() {
+  state.liveStats = null
+  state.lastRosterAt = null
+  state.matchOutcome = null
+  state.matchOutcomeEventAt = null
+  state.matchOutcomeEventMatchId = null
+  state.teamScore = null
+  state.localTeam = null
+  state.matchClockS = null
+  state.matchClockObservedAt = null
+  state.eventCounts = { kills: 0, deaths: 0, assists: 0 }
+  staleFinalizedNotices.clear()
 }
 
 
@@ -629,22 +720,15 @@ function setMatchId(value, source = 'gep') {
     finishSession('match_id_changed')
   }
 
+  const changedMatch = !!(previousMatchId && next !== previousMatchId)
+  const leavingFinalizedMatch = !!(finalizedId && next !== finalizedId)
+  if (changedMatch || leavingFinalizedMatch) resetMatchScopedState()
+
   state.matchId = next
 
-  if (finalizedId && next !== finalizedId) {
+  if (leavingFinalizedMatch) {
     state.finalized = null
     localStorage.removeItem(STORAGE.finalized)
-    state.liveStats = null
-    state.matchOutcome = null
-    state.matchOutcomeEventAt = null
-    state.matchOutcomeEventMatchId = null
-    state.teamScore = null
-    state.localTeam = null
-    state.matchClockS = null
-    state.matchClockObservedAt = null
-    state.eventCounts = { kills: 0, deaths: 0, assists: 0 }
-    staleFinalizedNotices.clear()
-    newSession(`match_id:${source}`)
   }
 
   let session = state.session
@@ -812,6 +896,7 @@ async function serverFetch(path, options = {}) {
   if (!isAllowedServerUrl(base)) throw new Error('Only the official https://deadlock-contracts.online server is allowed')
   const headers = new Headers(options.headers || {})
   headers.set('Accept', 'application/json')
+  headers.set('Accept-Language', window.DCShared?.language?.() || 'en')
   if (options.body) headers.set('Content-Type', 'application/json')
   if (state.token && options.auth !== false) headers.set('Authorization', `Bearer ${state.token}`)
   const controller = new AbortController()
@@ -850,6 +935,7 @@ async function serverFetch(path, options = {}) {
     error.code = String(data.code || `HTTP_${response.status}`)
     error.requestId = data.request_id || response.headers.get('x-request-id') || null
     error.retryAfter = Number(response.headers.get('retry-after')) || null
+    error.minimumVersion = response.headers.get('x-minimum-companion-version') || null
     throw error
   }
   return data
@@ -888,6 +974,7 @@ async function refreshProduct() {
   try {
     const data = await serverFetch('/api/desktop/v1/bootstrap')
     state.product = window.DCProduct.normalizeBootstrap(data)
+    window.DCShared?.setServerLanguage?.(state.product.account?.locale || null)
     if (state.product.account) {
       state.account = {
         ...state.account,
@@ -952,7 +1039,7 @@ function setPairError(message = '') {
 }
 
 function queueSave() {
-  if (state.queue.length > QUEUE_LIMIT) state.queue = state.queue.slice(-QUEUE_LIMIT)
+  state.queue = window.DCQueuePolicy.trim(state.queue, QUEUE_LIMIT)
   saveJson(STORAGE.queue, state.queue)
   publishBridgeState()
 }
@@ -977,12 +1064,13 @@ function queuePayload(payload, eventType) {
     state.queue = state.queue.filter(item => item.event_type !== 'heartbeat')
   }
 
+  const uploadId = randomId('upload')
   state.queue.push({
-    id: randomId('upload'),
+    id: uploadId,
     event_type: eventType,
     created_at: nowIso(),
     attempts: 0,
-    payload,
+    payload: { ...payload, client_event_id: uploadId },
   })
   queueSave()
   if (eventType === 'match_ended' && state.finalized) {
@@ -997,12 +1085,15 @@ function queuePayload(payload, eventType) {
   return true
 }
 
-async function flushQueue() {
+async function flushQueue({ force = false } = {}) {
   if (flushInProgress || !state.token || !state.queue.length) return
   flushInProgress = true
   try {
     while (state.token && state.queue.length) {
-      const item = state.queue[0]
+      const now = Date.now()
+      const dueItems = state.queue.filter(item => force || window.DCQueuePolicy.isDue(item, now))
+      const item = dueItems.find(entry => entry.event_type === 'match_ended') || dueItems[0]
+      if (!item) break
       try {
         const data = await serverFetch('/api/companion/heartbeat', {
           method: 'POST',
@@ -1017,13 +1108,13 @@ async function flushQueue() {
           matchId: item.payload.match_id,
           mode: modeDisplay(item.payload.game_mode),
           liveStats: item.payload.live_stats,
-          directBoards: data.direct_match_boards,
           wokenBoards: data.woken_boards,
         })
       } catch (error) {
         const message = String(error?.message || error)
         item.attempts = (item.attempts || 0) + 1
         item.last_error = message
+        item.next_attempt_at = new Date(Date.now() + window.DCQueuePolicy.retryDelayMs(item.attempts)).toISOString()
         state.lastUploadStatus = `ERROR · ${message}`
         queueSave()
         log('SERVER_SYNC_ERROR', { id: item.id, attempts: item.attempts, message })
@@ -1116,12 +1207,17 @@ function detectTransitionEvent() {
 
 function dynamicUnavailable() {
   return !!(
-    state.gameRunning &&
-    !state.phase &&
-    !state.matchId &&
-    !state.liveStats &&
-    state.gameDetectedAt &&
-    Date.now() - state.gameDetectedAt > 30000
+    state.gameRunning
+    && (
+      state.gepFeatureHealth.status === 'DEGRADED'
+      || (
+        !state.phase
+        && !state.matchId
+        && !state.liveStats
+        && state.gameDetectedAt
+        && Date.now() - state.gameDetectedAt > 30000
+      )
+    )
   )
 }
 
@@ -1297,12 +1393,33 @@ function getInfo(eventType = null) {
 function setFeatures(attempt = 1) {
   overwolf.games.events.setRequiredFeatures(FEATURES, result => {
     log('SET_FEATURES', result)
-    if (result && result.success) {
+    if (result && result.success && (result.supportedFeatures || FEATURES).length) {
       state.features = result.supportedFeatures || FEATURES
+      state.gepFeatureHealth = {
+        status: 'READY',
+        attempts: attempt,
+        last_error: null,
+        updated_at: nowIso(),
+      }
       getInfo()
     } else {
       state.features = []
-      setTimeout(() => setFeatures(attempt + 1), Math.min(30000, 3000 + attempt * 2000))
+      const error = String(result?.error || 'required features unavailable')
+      state.gepFeatureHealth = {
+        status: 'DEGRADED',
+        attempts: attempt,
+        last_error: error.slice(0, 240),
+        updated_at: nowIso(),
+      }
+      const boundedAttempt = Math.min(attempt, FEATURE_RETRY_LIMIT)
+      const baseDelay = Math.min(
+        FEATURE_RETRY_MAX_MS,
+        FEATURE_RETRY_BASE_MS * (2 ** Math.max(0, boundedAttempt - 1)),
+      )
+      const delay = attempt >= FEATURE_RETRY_LIMIT
+        ? FEATURE_RECOVERY_MS + Math.floor(Math.random() * 5000)
+        : baseDelay + Math.floor(Math.random() * Math.max(250, baseDelay * 0.2))
+      setTimeout(() => setFeatures(attempt >= FEATURE_RETRY_LIMIT ? 1 : attempt + 1), delay)
     }
     updateUi()
   })
@@ -1326,6 +1443,8 @@ function scheduleHistoryRecovery() {
 
 function checkGame() {
   overwolf.games.getRunningGameInfo(info => {
+    state.gameStateObservedAt = nowIso()
+    state.gameStateConfirmed = info === null || typeof info?.isRunning === 'boolean'
     const running = !!(info && info.isRunning && Number(info.classId) === GAME_ID)
     const changed = running !== state.gameRunning
     state.gameRunning = running
@@ -1363,6 +1482,7 @@ function checkGame() {
 
     if (!running && changed) {
       state.gameDetectedAt = null
+      dismissOverlay('game_stopped')
       finishSession('game_stopped')
       scheduleHistoryRecovery()
     }
@@ -1457,6 +1577,9 @@ async function reconnect() {
     if (error?.status === 401 || /token|401|invalid|expired|revoked/i.test(message)) {
       state.token = ''
       clearStoredToken()
+    } else if (error?.status === 426) {
+      state.product = productErrorState(error)
+      setPairError(`Companion update required${error.minimumVersion ? ` (minimum ${error.minimumVersion})` : ''}. Pairing and queued match data were kept.`)
     } else {
       setPairError(`Website unavailable: ${message}. Match data is retained in the local queue.`)
     }
@@ -1532,7 +1655,18 @@ async function testServer() {
 
 async function disconnect() {
   if (state.token) {
-    try { await serverFetch('/api/companion/disconnect', { method: 'POST' }) } catch (error) { log('DISCONNECT_SERVER_ERROR', String(error)) }
+    await flushQueue({ force: true })
+    if (state.queue.length) {
+      const message = `Disconnect paused: ${state.queue.length} upload(s) are still awaiting server acknowledgement.`
+      log('DISCONNECT_PENDING_UPLOADS', { queueCount: state.queue.length })
+      throw new Error(message)
+    }
+    try {
+      await serverFetch('/api/companion/disconnect', { method: 'POST' })
+    } catch (error) {
+      log('DISCONNECT_SERVER_ERROR', String(error))
+      throw new Error('The server could not revoke this device. Pairing and queued data were kept; try again when online.')
+    }
   }
   state.token = ''
   state.account = null
@@ -1552,19 +1686,21 @@ function diagnosticsText() {
     'DEADLOCK CONTRACTS COMPANION — DIAGNOSTICS',
     `Companion: ${VERSION}`,
     `Evidence schema: ${EVIDENCE_SCHEMA_VERSION}`,
-    `Device: ${state.deviceId}`,
+    `Device: ${redactIdentifier(state.deviceId)}`,
     `Server: ${state.serverUrl}`,
     `Paired: ${!!state.token}`,
-    `Account: ${state.account?.display_name || '—'}`,
-    `Expected SteamID: ${state.account?.steam_id64 || '—'}`,
-    `GEP SteamID: ${state.steamId || '—'}`,
+    `Account: ${state.account ? '[REDACTED]' : '—'}`,
+    `Expected SteamID: ${state.account?.steam_id64 ? redactIdentifier(state.account.steam_id64) : '—'}`,
+    `GEP SteamID: ${state.steamId ? redactIdentifier(state.steamId) : '—'}`,
     `Deadlock running: ${state.gameRunning}`,
     `Phase: ${state.phase || '—'}`,
     `Mode: ${modeDisplay(state.gameModeRaw)}`,
     `Match ID: ${state.matchId || '—'}`,
-    `Session ID: ${state.session?.id || '—'}`,
+    `Session ID: ${state.session?.id ? redactIdentifier(state.session.id) : '—'}`,
     `GEP local/public: ${state.gepVersion || '—'} / ${state.gepPublicVersion || '—'}`,
     `GEP updated: ${state.gepUpdated ?? '—'}`,
+    `GEP feature health: ${state.gepFeatureHealth.status} / attempts ${state.gepFeatureHealth.attempts}`,
+    `GEP feature error: ${state.gepFeatureHealth.last_error || '—'}`,
     `Local team: ${state.localTeam || '—'}`,
     `Match outcome: ${state.matchOutcome || '—'}`,
     `Match clock: ${state.matchClockS ?? '—'} sec`,
@@ -1635,7 +1771,14 @@ async function init() {
   overwolf.games.events.onNewEvents.addListener(handleNewEvents)
   overwolf.games.events.onError.addListener(error => {
     log('GEP_ERROR', error)
-    state.lastUploadStatus = `GEP: ${error?.error || error?.message || 'error'}`
+    const message = String(error?.error || error?.message || 'error').slice(0, 240)
+    state.gepFeatureHealth = {
+      status: 'DEGRADED',
+      attempts: state.gepFeatureHealth.attempts,
+      last_error: message,
+      updated_at: nowIso(),
+    }
+    state.lastUploadStatus = `GEP: ${message}`
     updateUi()
   })
 
@@ -1663,6 +1806,8 @@ function publicSnapshot() {
     paired: !!state.token,
     account: state.account,
     game_running: state.gameRunning,
+    game_state_observed_at: state.gameStateObservedAt,
+    game_state_confirmed: state.gameStateConfirmed,
     steam_id64: state.steamId,
     identity_ok: identityOk,
     phase: state.phase,
@@ -1685,6 +1830,7 @@ function publicSnapshot() {
     gep_public_version: state.gepPublicVersion,
     gep_updated: state.gepUpdated,
     features: [...state.features],
+    gep_feature_health: { ...state.gepFeatureHealth },
     last_roster_at: state.lastRosterAt,
     last_info_at: state.lastInfoAt,
     last_event_at: state.lastEventAt,
@@ -1692,7 +1838,25 @@ function publicSnapshot() {
     overlay_scale: overlayScale(),
     hotkey_binding: state.hotkeyBinding || DEFAULT_HOTKEY,
     product: JSON.parse(JSON.stringify(state.product || window.DCProduct.emptyProductState())),
-    logs: logLines.slice(-300),
+  }
+}
+
+function overlaySnapshot() {
+  const snapshot = publicSnapshot()
+  return {
+    version: snapshot.version,
+    paired: snapshot.paired,
+    game_running: snapshot.game_running,
+    mode_display: snapshot.mode_display,
+    match_id: snapshot.match_id,
+    evidence: snapshot.evidence,
+    result_label: snapshot.result_label,
+    match_clock_s: snapshot.match_clock_s,
+    hotkey_binding: snapshot.hotkey_binding,
+    product: {
+      status: snapshot.product?.status || 'UNPAIRED',
+      active_cases: JSON.parse(JSON.stringify(snapshot.product?.active_cases || [])),
+    },
   }
 }
 
@@ -1714,6 +1878,30 @@ function showDesktop() {
   obtainWindow('desktop', id => overwolf.windows.restore(id, () => {}))
 }
 
+function cancelOverlayAutoHide() {
+  if (!overlayAutoHideTimer) return
+  clearTimeout(overlayAutoHideTimer)
+  overlayAutoHideTimer = 0
+}
+
+function dismissOverlay(reason = 'dismiss') {
+  cancelOverlayAutoHide()
+  obtainWindow('overlay', id => {
+    overwolf.windows.minimize(id, result => {
+      if (result?.success === false) log('OVERLAY_DISMISS_FAILED', { reason, error: result?.error || 'minimize failed' })
+      else log('OVERLAY_DISMISSED', { reason })
+    })
+  }, error => log('OVERLAY_DISMISS_FAILED', { reason, error: error.message }))
+}
+
+function scheduleOverlayAutoHide() {
+  cancelOverlayAutoHide()
+  overlayAutoHideTimer = setTimeout(() => {
+    overlayAutoHideTimer = 0
+    dismissOverlay('auto_hide')
+  }, OVERLAY_AUTO_HIDE_MS)
+}
+
 function toggleOverlay() {
   return new Promise((resolve, reject) => {
     obtainWindow('overlay', id => {
@@ -1722,7 +1910,11 @@ function toggleOverlay() {
         const isVisible = ['normal', 'maximized'].includes(current)
         const complete = actionResult => {
           if (actionResult?.success === false) reject(new Error(actionResult?.error || 'Unable to toggle overlay'))
-          else resolve({ visible: !isVisible })
+          else {
+            if (!isVisible) scheduleOverlayAutoHide()
+            else cancelOverlayAutoHide()
+            resolve({ visible: !isVisible, auto_hide_ms: isVisible ? 0 : OVERLAY_AUTO_HIDE_MS })
+          }
         }
         if (isVisible) overwolf.windows.minimize(id, complete)
         else overwolf.windows.restore(id, complete)
@@ -1807,6 +1999,7 @@ async function exitApp() {
 
 window.dcCompanion = {
   getSnapshot: publicSnapshot,
+  getOverlaySnapshot: overlaySnapshot,
   diagnosticsText,
   getLogs: () => logLines.slice(),
   pair: async (serverUrl, code) => {

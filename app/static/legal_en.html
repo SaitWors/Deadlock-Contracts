@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#080b0a">
+  <meta name="description" content="Deadlock Contracts privacy, terms, support, status, changelog and data-source information.">
+  <title>Deadlock Contracts — documents</title>
+  <link rel="icon" href="/static/assets/mark.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/static/styles.css">
+  <script src="/static/legal.js" defer></script>
+</head>
+<body>
+  <header class="site-header"><div class="shell header-inner"><a class="brand" href="/"><img src="/static/assets/logo-horizontal.svg" alt="Deadlock Contracts" width="334" height="84"></a><span><a class="ghost-button" href="/ru/privacy">RU</a> <a class="ghost-button" href="/">Back</a></span></div></header>
+  <main class="legal-page shell">
+    <article id="privacyDocument" class="legal-document hidden">
+      <p class="eyebrow">PRIVACY NOTICE · PRE-RELEASE</p>
+      <h1>Data processing</h1>
+      <p class="legal-updated">Revision dated August 24, 2026</p>
+      <h2>Data we use</h2>
+      <p>SteamID64 and the derived account ID, public Steam display name and avatar, selected contracts, final statistics for linked matches, verification states, XP, technical audit records and server-side sessions. We do not request your Steam password, payment data, Steam email or private messages.</p>
+      <h2>Purposes</h2>
+      <p>Authentication, daily-board creation, locating the first eligible match after a case is locked, evaluating structured conditions, preventing duplicate rewards, troubleshooting and protecting the service.</p>
+      <h2>Sources and processors</h2>
+      <p>Identity is verified through Steam OpenID. Public name and avatar may be retrieved through the Steam Web API. Final match statistics come from a community-operated Deadlock API. The service runs with the hosting provider selected by the project owner.</p>
+      <h2>Companion telemetry</h2>
+      <p>The Overwolf Companion transmits your own supported GEP signals, Match ID, mode, phase and bounded diagnostic statistics. Client telemetry is provisional and cannot independently complete a contract or grant XP. Diagnostic output redacts roster and Steam identifiers.</p>
+      <h2>Retention and deletion</h2>
+      <p>Data is retained until account deletion or the end of testing unless longer retention is required for security or dispute handling. Account deletion is available in Data &amp; Account. Backups may remain until scheduled rotation completes.</p>
+      <h2>Security and contact</h2>
+      <p>Controls include HTTPS, HttpOnly/Secure/SameSite cookies, CSRF protection, hashed sessions, access control, raw-data minimization, internal PostgreSQL and container isolation. No system can guarantee absolute security. Questions: <span class="legalContact">contact loading…</span>.</p>
+    </article>
+
+    <article id="termsDocument" class="legal-document hidden">
+      <p class="eyebrow">TEST TERMS · PRE-RELEASE</p>
+      <h1>Testing terms</h1>
+      <p class="legal-updated">Revision dated August 24, 2026</p>
+      <h2>Project status</h2>
+      <p>Deadlock Contracts is an unofficial community project and is not affiliated with Valve. Deadlock, Steam and related marks belong to their respective owners.</p>
+      <h2>Pre-release service</h2>
+      <p>Features, rules, XP and stored data may change. Delays, incomplete results and temporary outages are possible. XP has no monetary value and is not sold.</p>
+      <h2>Acceptable use</h2>
+      <p>Automated spam, bypassing limits, accessing another person's data, exploiting defects, disrupting the service and publishing live secrets or vulnerabilities before responsible disclosure are prohibited.</p>
+      <h2>Gameplay</h2>
+      <p>Contracts must not be used to grief, intentionally lose or violate Deadlock or Steam rules. Objectives are designed to align with winning, but each player remains responsible for their conduct.</p>
+      <h2>Evidence and decisions</h2>
+      <p>Results depend on a third-party community provider. “No data” means evidence is insufficient; it is not an automatic completion or failure. The server evaluator is the only authority for contract verdicts and XP.</p>
+      <h2>Contact</h2>
+      <p>Send security reports privately to <span class="legalContact">contact loading…</span>. Do not publish a working exploit before a fix.</p>
+    </article>
+
+    <article id="supportDocument" class="legal-document hidden">
+      <p class="eyebrow">SUPPORT · WEB v0.10</p>
+      <h1>Support</h1>
+      <p class="legal-updated">Updated August 24, 2026</p>
+      <h2>Before contacting us</h2>
+      <p>Refresh the page, check the Companion status in your profile and allow post-match verification to finish. Fetching or verification states do not mean the contract failed.</p>
+      <h2>What to include</h2>
+      <p>Include the time, mode, Match ID if available, website version and Companion version. Never send Steam passwords, session cookies, pairing tokens or secret-file contents.</p>
+      <h2>Contracts and verdicts</h2>
+      <p>The Companion displays provisional gameplay signals. The server creates the final result from final provider data. If evidence is incomplete, an internal review is opened automatically.</p>
+      <h2>Contact</h2>
+      <p>Technical support and responsible disclosure: <span class="legalContact">contact loading…</span>.</p>
+    </article>
+
+    <article id="statusDocument" class="legal-document hidden">
+      <p class="eyebrow">SERVICE STATUS</p>
+      <h1>Service status</h1>
+      <p class="legal-updated">Updated August 24, 2026</p>
+      <p>Current public release, component state and published incident history:</p>
+      <div id="publicStatus" class="public-status-grid" role="status" aria-live="polite">Loading status…</div>
+      <p>If the status endpoint is unavailable, use the <a href="/en/support">support page</a>.</p>
+    </article>
+
+    <article id="changelogDocument" class="legal-document hidden">
+      <p class="eyebrow">CHANGELOG · 0.10.1-alpha.8</p>
+      <h1>Changelog</h1>
+      <p class="legal-updated">August 24, 2026</p>
+      <h2>Trust and rewards</h2>
+      <p>Companion evidence is diagnostic only. Final provider matches drive evaluation; idempotent ledger entries drive displayed XP.</p>
+      <h2>Lifecycle and operations</h2>
+      <p>Board lock/job creation and rerolls are atomic. Verification and review timeouts are reconciled. Admins can inspect and replay dead-letter outbox events with an audit reason.</p>
+      <h2>Localization and releases</h2>
+      <p>Consumer errors have stable codes and RU/EN messages. Mission edits use draft/publish/rollback versions. Companion alpha 6 is built reproducibly from an explicit runtime allowlist.</p>
+    </article>
+
+    <article id="dataSourcesDocument" class="legal-document hidden">
+      <p class="eyebrow">DATA SOURCES</p>
+      <h1>Data sources</h1>
+      <h2>Steam</h2>
+      <p>Steam OpenID identifies the account. Public name and avatar may be enriched server-side through the Steam Web API.</p>
+      <h2>Deadlock match data</h2>
+      <p>Final statistics may come from a community-operated Deadlock API. Availability of this external source is not guaranteed.</p>
+      <h2>Companion / Overwolf GEP</h2>
+      <p>The Companion receives supported live game signals through the Overwolf Game Events Provider. Those signals are provisional and diagnostic.</p>
+      <h2>Authority</h2>
+      <p>Only the server evaluator, using final provider facts, determines the contract verdict. Only the server XP ledger determines granted XP.</p>
+      <h2>Project status</h2>
+      <p>Deadlock Contracts is a community project and is not an official Valve or Overwolf product.</p>
+    </article>
+  </main>
+  <footer class="site-footer"><div class="shell footer-inner"><span>Deadlock Contracts · Community project</span><span><a href="/en/privacy">Privacy</a> · <a href="/en/terms">Terms</a> · <a href="/en/support">Support</a> · <a href="/en/status">Status</a> · <a href="/en/changelog">Changelog</a> · <a href="/en/data-sources">Data sources</a></span></div></footer>
+</body>
+</html>

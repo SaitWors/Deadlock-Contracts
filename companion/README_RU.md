@@ -1,81 +1,40 @@
-# Deadlock Contracts Companion 0.5.2-alpha.4
+# Deadlock Contracts Companion 0.5.2-alpha.6
 
-Pre-submission кандидат публичного Overwolf-приложения. Desktop — основной gameplay hub; backend остаётся единственным authority для контрактов, verdict и XP, а сайт используется для Steam-входа, pairing, deep history/public dossier и admin.
+QA candidate для Deadlock Contracts от Mandarin Creator Group. Desktop — основной control room. Сайт/Backend остаётся единственным authority для контрактов, вердиктов и XP; Companion не имеет права сам закрывать задания или выдавать награды.
 
-## Что входит
+## Что в этой версии
 
-- полноценные HQ / Contracts / Active Case / Debrief / History / Profile / Settings;
-- реальные server-issued доски: STANDARD / RANKED / STREET_BRAWL;
-- выбор 1–3 server option IDs, подтверждение и серверная фиксация;
-- один общий дневной reroll и server reset time;
-- единый Active Case в Desktop и компактном input-pass-through Overlay с single-focus live progress;
-- provisional GEP-прогресс без права клиента закрыть контракт;
-- Adaptive Profiles по трём режимам и объяснение `WHY THIS CONTRACT?`;
-- post-match Debrief на authoritative evaluator/history/reward-ledger данных;
-- реальный granted XP из server ledger, а не расчёт по потенциальной награде карточки;
-- retryable miss показывает последнюю точную попытку, даже если backend уже освободил `bound_match_id` для следующей;
-- AUTO / EN / RU, FTUE, offline/stale/incompatible/error states;
-- Desktop 1200×700, resizable до минимума 900×620;
-- Overlay host 420×320 с компактной 142px карточкой, пресетами S/M/L, hover dodge вниз и сбросом позиции;
-- default hotkey `Ctrl+Shift+C`, но UI всегда читает фактический binding из Overwolf Settings и обновляет его без relaunch;
-- `GameLaunch start_minimized=true`;
-- self-hosted fonts, строгий CSP, OS-bound encrypted pairing token;
-- только permissions `Extensions`, `GameInfo`, `Hotkeys`.
+- реальные server-issued boards STANDARD / RANKED / STREET_BRAWL;
+- выбор и server lock 1–3 `option_ids`, server reset/reroll, Active Case, Debrief, History и Profile;
+- provisional live progress из GEP, но только server-authoritative verdict и `reward_granted_xp`;
+- activity-focused Overlay без cross-mode fallback;
+- фактический hotkey из Overwolf Settings: default `Ctrl+Shift+C`, update без relaunch и отображение `UNASSIGNED`;
+- временный, input-pass-through Overlay: повторный hotkey скрывает его, иначе он сам исчезает через 6.5 сек;
+- новый rounded motion design: progress sweep, смена focus, brief provisional completion burst, reduced-motion fallback;
+- один подготовленный Overwolf Managed Ads `400×60` слот в Desktop HQ, без рекламы в Overlay и без рекламы при `GameInProgress`;
+- self-hosted шрифты, строгий CSP, OS-bound encrypted pairing token.
 
-## Обязательная серверная версия
+## Версии и границы
 
-Сначала разверните **Web/Backend `0.10.1-alpha.8`**. Companion проверяет additive feature flags (`adaptive_profiles_v1`, `debrief_v1`) и не выдумывает Adaptive/Debrief данные при подключении к старому серверу.
+- Companion: `0.5.2-alpha.6` / manifest `0.5.2.6`;
+- требуется Backend/Web: `0.10.1-alpha.8`;
+- Deadlock game id: `24482`;
+- minimum Overwolf: `0.305.0.9`; minimum GEP: `311.0.0`.
 
-## Файлы релиза
+Рекламный код готов к проверке, но объявления начинают реально отдаваться только после включения Overwolf. Этот архив не является гарантией одобрения QA: финальная проверка делается Overwolf на реальном Windows/Overwolf/Deadlock окружении.
 
-После `node scripts/package-release.mjs`:
-
-- `dist/Deadlock-Contracts-Companion-0.5.2-alpha.4.opk` — packed OPK;
-- `dist/SHA256SUMS.txt` — его SHA-256.
-
-OPK — ZIP normal compression с `manifest.json` в корне. Preview fixture, tests, docs и server code в OPK не входят.
-
-## Локальные автоматические проверки
+## Локальные gates
 
 ```bash
-node --test tests/*.test.mjs
-node scripts/check-release.mjs
+npm test
+npm run check
 for f in src/*.js; do node --check "$f"; done
-node scripts/package-release.mjs
+npm run package
+node scripts/package-qa-bundle.mjs
 ```
 
-Browser preview `/?preview=1` годится только для layout/data-state проверки. Он использует `tests/fixtures/preview.json`, который исключается из OPK и никогда не является runtime authority.
+Получившийся `.opk` — normal-compression ZIP с `manifest.json` в корне. Рядом создаются SHA-256 и воспроизводимый CycloneDX 1.6 SBOM с хешем каждого файла runtime. В OPK не попадают тесты, docs, preview fixture или server secrets.
 
-## Граница доверия
+## Перед Overwolf submission
 
-Companion может:
-
-- запросить server boards/history/profile;
-- отправить выбор server option IDs;
-- передавать authenticated GEP/session evidence;
-- показывать локальный live progress как `PROVISIONAL`.
-
-Companion **не может** установить `COMPLETED/FAILED`, назначить reward/target, начислить XP, изменить role или объявить матч final. Verdict/settlement остаются на backend.
-
-## Adaptive Contracts
-
-Desktop не генерирует персональные цели. Он показывает immutable `BoardOption` и read-only `generator_meta.adaptive`, созданные сервером. При cold start/wildcard UI не маркирует контракт персонализированным без server evidence.
-
-Adaptive Profile приходит отдельно по STANDARD / RANKED / STREET_BRAWL. Неизвестный будущий mode fail-closed: такой board/case не превращается молча в STANDARD/RANKED.
-
-## Debrief
-
-Debrief группируется по точному `last_attempt_match_id`/`latest_evaluation.match_id` и показывает:
-
-- server evaluator status;
-- текущий/последний progress, когда он authoritative;
-- фактически начисленный `reward_granted_xp`;
-- VERIFYING/REVIEW как ожидание сервера;
-- retryable miss отдельно от окончательного закрытия задания;
-- локальную статистику того же матча только с маркировкой `PROVISIONAL`.
-
-## Overwolf QA
-
-Автоматические unit/release проверки не заменяют реальный Overwolf/Deadlock QA. Перед submit пройти `docs/OVERWOLF_QA_HANDOFF_RU.md` и `docs/OVERWOLF_RELEASE_MATRIX_RU.md` именно на packed OPK.
-
-Канонический визуал: near-black, cream typography, muted mint, тонкие рамки, минимальные радиусы, condensed/editorial headings, без generic SaaS/glassmorphism.
+Открыть `docs/OVERWOLF_QA_HANDOFF_RU.md`, `docs/OVERWOLF_RELEASE_MATRIX_RU.md` и `docs/ADVERTISING_AND_OVERLAY_POLICY_0.5.2-alpha.6_RU.md`. Особо проверить на реальном клиенте: exact packed OPK, hotkey, авто-скрытие, DPI/resolution matrix, fullscreen/windowed, Alt+Tab, live GEP и положение плашки относительно HUD.

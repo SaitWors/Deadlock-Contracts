@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import logoImage from "@/imports/logo-horizontal.svg"
 import markImage from "@/imports/mark.svg"
-import curatorImage from "@/imports/curator.webp"
+import curatorImage from "@/imports/curator-optimized.webp"
 import ProfileStudio from "./ProfileStudio"
 import {
   LanguageSwitch,
   MCGCredit,
+  apiLanguage,
   conditionText,
   contractDescription,
   contractTitle,
@@ -32,6 +33,8 @@ type User = {
   avatar_url: string | null
   xp: number
   status: string
+  locale: "ru" | "en"
+  timezone: string
   access_role: AccessRole
   badges: BadgeId[]
   created_at: string | null
@@ -57,7 +60,9 @@ type ContractCondition = {
 type Option = {
   id: string
   title: string
+  title_i18n?: Partial<Record<"ru" | "en", string>>
   description: string
+  description_i18n?: Partial<Record<"ru" | "en", string>>
   reward_xp: number
   selected: boolean
   status: string
@@ -66,14 +71,13 @@ type Option = {
   operator?: string
   progress_current: number | null
   explanation: string | null
-  bound_match_id: number | null
+  bound_match_id: string | null
   difficulty: string
   rarity: string
   drop_chance_pct: number
   category: string
   conditions?: ContractCondition[]
-  fingerprint?: string | null
-  generator_meta?: Record<string, unknown>
+  personalization?: Record<string, unknown>
 }
 type Board = {
   id: string
@@ -91,7 +95,7 @@ type Board = {
   provider_status?: {
     phase?: string
     message?: string
-    match_id?: number | null
+    match_id?: string | null
     attempts?: number
     next_check_at?: string
     delayed_by_provider?: boolean
@@ -120,14 +124,26 @@ type HistoryItem = {
   attempts_used: number
   max_attempts: number
   title: string
+  title_i18n?: Partial<Record<"ru" | "en", string>>
   status: string
   reward_xp: number
+  reward_granted_xp: number
+  reward_granted_at: string | null
   difficulty: string
   rarity: string
   explanation: string | null
-  match_id: number | null
+  match_id: string | null
+  last_attempt_match_id: string | null
   locked_at: string | null
   settled_at: string | null
+  evaluations: Array<{
+    id: string
+    revision: number
+    status: string
+    match_id: string | null
+    explanation: string | null
+    created_at: string
+  }>
 
   board_status?: string
   case_expires_at?: string | null
@@ -153,6 +169,7 @@ type Progression = {
   >
   hardest_completed: {
     title: string
+    title_i18n?: Partial<Record<"ru" | "en", string>>
     difficulty: string
     reward_xp: number
   } | null
@@ -173,7 +190,7 @@ type ReviewMine = {
 }
 type AdminReview = ReviewMine & {
   mode: Mode
-  match_id: number | null
+  match_id: string | null
   player: {
     display_name: string
     account_id: number | null
@@ -225,7 +242,7 @@ type AdminOverview = {
   failed_jobs: number
   pending_jobs: number
   companion_online: number
-  latest_match_id: number | null
+  latest_match_id: string | null
   server_time: string
   users_new_24h: number
   users_new_7d: number
@@ -249,7 +266,7 @@ type AdminOverview = {
       board_id: string
       option_id: string
       title: string
-      match_id: number
+      match_id: string
       mode: string
       missing_capabilities: string[]
       locked_at: string | null
@@ -306,7 +323,7 @@ type AdminBoard = {
   generator_version?: string
   attempts_used: number
   max_attempts: number
-  baseline_match_id: number | null
+  baseline_match_id: string | null
   locked_at: string | null
   expires_at: string | null
   created_at?: string | null
@@ -325,7 +342,7 @@ type AdminBoard = {
     status: string
     progress_current: number | null
     explanation: string | null
-    bound_match_id: number | null
+    bound_match_id: string | null
   }>
 }
 type AdminUserDetail = {
@@ -341,7 +358,7 @@ type AdminUserDetail = {
     }
   >
   evidence: Array<{
-    match_id: number
+    match_id: string
     mode: string | null
     hero_id: number | null
     kills: number | null
@@ -355,13 +372,13 @@ type AdminUserDetail = {
   }>
   events: Array<{
     event_type: string
-    match_id: number | null
+    match_id: string | null
     mode: string | null
     phase: string | null
     created_at: string | null
   }>
   matches: Array<{
-    match_id: number
+    match_id: string
     mode: string
     provider: string
     is_final: boolean
@@ -427,9 +444,22 @@ type AdminAudit = {
   data: Record<string, unknown>
   created_at: string | null
 }
+type AdminOutboxEvent = {
+  id: string
+  event_type: string
+  aggregate_id: string
+  state: "PENDING" | "RETRYING" | "DEAD_LETTER" | "PUBLISHED"
+  attempts: number
+  run_after: string | null
+  published_at: string | null
+  dead_lettered_at: string | null
+  last_error: string | null
+  payload: Record<string, unknown>
+  created_at: string | null
+}
 type AdminMatch = {
   id: string
-  match_id: number
+  match_id: string
   provider: string
   started_at: string | null
   ended_at: string | null
@@ -491,6 +521,8 @@ type AdminMission = {
   version: number
   title: string
   description: string
+  title_en: string | null
+  description_en: string | null
   metric: string
   operator: string
   target: number
@@ -558,6 +590,7 @@ type AdminSection =
   | "missions"
   | "generator"
   | "jobs"
+  | "outbox"
   | "audit"
   | "system"
 type CompanionDeviceStatus = {
@@ -566,14 +599,22 @@ type CompanionDeviceStatus = {
   game_running: boolean
   phase: string | null
   game_match_mode: Mode | "UNKNOWN" | null
-  current_match_id: number | null
+  current_match_id: string | null
   last_seen_at: string | null
   identity_ok: boolean | null
   version: string | null
   gep_version: string | null
   label?: string
 }
-type CompanionStatus = { device: CompanionDeviceStatus }
+type CompanionAccountDevice = CompanionDeviceStatus & {
+  id: string
+  created_at: string | null
+  revoked_at: string | null
+}
+type CompanionStatus = {
+  device: CompanionDeviceStatus
+  devices: CompanionAccountDevice[]
+}
 type CompanionPairing = {
   code: string
   expires_at: string
@@ -593,6 +634,7 @@ class ApiError extends Error {
 async function api<T>(url: string, csrf: string, init: RequestInit = {}): Promise<T> {
   const headers = new Headers(init.headers)
   headers.set("Accept", "application/json")
+  headers.set("Accept-Language", apiLanguage())
   if (init.body) headers.set("Content-Type", "application/json")
   if (!["GET", "HEAD"].includes((init.method || "GET").toUpperCase()))
     headers.set("X-CSRF-Token", csrf)
@@ -607,6 +649,26 @@ async function api<T>(url: string, csrf: string, init: RequestInit = {}): Promis
 }
 
 const MODES: Mode[] = ["STANDARD", "RANKED", "STREET_BRAWL"]
+
+function localizedContractTitle(
+  item: { title: string; title_i18n?: Partial<Record<"ru" | "en", string>> },
+  language: "ru" | "en",
+) {
+  return item.title_i18n?.[language] || contractTitle(item.title, language)
+}
+
+function localizedContractDescription(option: Option, mode: Mode, language: "ru" | "en") {
+  const fallback = option.description_i18n?.[language] || option.description
+  return contractDescription(
+    mode,
+    option.conditions?.length
+      ? option.conditions
+      : [{ metric: option.metric, operator: option.operator, target: option.target }],
+    fallback,
+    language,
+  )
+}
+
 const MODE_META: Record<
   Mode,
   {
@@ -1101,6 +1163,7 @@ export default function Dashboard({ initialSession }: { initialSession: SessionP
   const [filter, setFilter] = useState<QuestFilter>("ALL")
   const [boardsPayload, setBoardsPayload] = useState<BoardsPayload | null>(null)
   const [history, setHistory] = useState<HistoryItem[]>([])
+  const [historyTotal, setHistoryTotal] = useState(0)
   const [progression, setProgression] = useState<Progression | null>(null)
   const [reviews, setReviews] = useState<ReviewMine[]>([])
   const [selected, setSelected] = useState<Record<Mode, Set<string>>>({
@@ -1116,10 +1179,22 @@ export default function Dashboard({ initialSession }: { initialSession: SessionP
   const [authScrolled, setAuthScrolled] = useState(false)
   const [authMobileOpen, setAuthMobileOpen] = useState(false)
   const [companion, setCompanion] = useState<CompanionDeviceStatus | null>(null)
+  const [companionDevices, setCompanionDevices] = useState<CompanionAccountDevice[]>([])
   const [pairing, setPairing] = useState<CompanionPairing | null>(null)
   const xpRef = useRef<HTMLSpanElement>(null)
   const ripple = useRipple()
   const cardTilt = useTilt(10)
+
+  useEffect(() => {
+    const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC"
+    if (user.locale === language && user.timezone === timezone) return
+    void api<{ user: User }>("/api/preferences", csrf, {
+      method: "PATCH",
+      body: JSON.stringify({ locale: language, timezone }),
+    })
+      .then((payload) => setUser(payload.user))
+      .catch(() => undefined)
+  }, [csrf, language, user.locale, user.timezone])
 
   const loadBoards = useCallback(async () => {
     const data = await api<BoardsPayload>("/api/boards/today", csrf)
@@ -1128,16 +1203,39 @@ export default function Dashboard({ initialSession }: { initialSession: SessionP
       const next = { ...previous }
       for (const board of data.boards) {
         const locked = board.options.filter((option) => option.selected).map((option) => option.id)
-        if (locked.length || board.status !== "OFFERED")
+        if (locked.length || board.status !== "OFFERED") {
           next[board.game_match_mode] = new Set(locked)
+        } else {
+          const currentOptionIds = new Set(board.options.map((option) => option.id))
+          next[board.game_match_mode] = new Set(
+            [...previous[board.game_match_mode]].filter((id) => currentOptionIds.has(id)),
+          )
+        }
       }
       return next
     })
   }, [csrf])
-  const loadHistory = useCallback(
-    async () => setHistory((await api<{ items: HistoryItem[] }>("/api/history", csrf)).items),
-    [csrf],
-  )
+  const loadHistory = useCallback(async () => {
+    const data = await api<{ items: HistoryItem[]; total: number }>(
+      "/api/history?limit=100&offset=0",
+      csrf,
+    )
+    setHistory(data.items)
+    setHistoryTotal(data.total)
+  }, [csrf])
+  const loadMoreHistory = useCallback(async () => {
+    const data = await api<{ items: HistoryItem[]; total: number }>(
+      `/api/history?limit=100&offset=${history.length}`,
+      csrf,
+    )
+    setHistory((current) => [
+      ...current,
+      ...data.items.filter(
+        (next) => !current.some((existing) => existing.assignment_id === next.assignment_id),
+      ),
+    ])
+    setHistoryTotal(data.total)
+  }, [csrf, history.length])
   const loadProgression = useCallback(
     async () => setProgression(await api<Progression>("/api/progression", csrf)),
     [csrf],
@@ -1146,10 +1244,11 @@ export default function Dashboard({ initialSession }: { initialSession: SessionP
     async () => setReviews((await api<{ items: ReviewMine[] }>("/api/reviews/mine", csrf)).items),
     [csrf],
   )
-  const loadCompanion = useCallback(
-    async () => setCompanion((await api<CompanionStatus>("/api/companion/status", csrf)).device),
-    [csrf],
-  )
+  const loadCompanion = useCallback(async () => {
+    const status = await api<CompanionStatus>("/api/companion/status", csrf)
+    setCompanion(status.device)
+    setCompanionDevices(status.devices)
+  }, [csrf])
   const reloadAll = useCallback(async () => {
     try {
       await Promise.all([
@@ -1177,6 +1276,26 @@ export default function Dashboard({ initialSession }: { initialSession: SessionP
     }, 15000)
     return () => clearInterval(timer)
   }, [loadCompanion])
+  useEffect(() => {
+    const refresh = () => {
+      if (document.visibilityState === "visible") void reloadAll()
+    }
+    const timer = window.setInterval(refresh, 20_000)
+    window.addEventListener("online", refresh)
+    document.addEventListener("visibilitychange", refresh)
+    return () => {
+      window.clearInterval(timer)
+      window.removeEventListener("online", refresh)
+      document.removeEventListener("visibilitychange", refresh)
+    }
+  }, [reloadAll])
+  useEffect(() => {
+    const resetAt = Date.parse(boardsPayload?.refresh.reset_at || "")
+    if (!Number.isFinite(resetAt)) return
+    const delay = Math.max(250, Math.min(resetAt - Date.now() + 1_000, 2_147_000_000))
+    const timer = window.setTimeout(() => void reloadAll(), delay)
+    return () => window.clearTimeout(timer)
+  }, [boardsPayload?.refresh.reset_at, reloadAll])
   useEffect(() => {
     const onScroll = () => setAuthScrolled(window.scrollY > 12)
     onScroll()
@@ -1248,6 +1367,7 @@ export default function Dashboard({ initialSession }: { initialSession: SessionP
       )
       await reloadAll()
     } catch (reason) {
+      if (reason instanceof ApiError && reason.status === 409) await reloadAll()
       setError((reason as Error).message)
     } finally {
       setBusy(false)
@@ -1299,6 +1419,23 @@ export default function Dashboard({ initialSession }: { initialSession: SessionP
       setError((reason as Error).message)
     }
   }
+  const revokeCompanionDevice = async (device: CompanionAccountDevice) => {
+    if (
+      !confirm(
+        language === "ru"
+          ? `Отключить устройство «${device.label || "Companion"}»?`
+          : `Disconnect “${device.label || "Companion"}”?`,
+      )
+    )
+      return
+    try {
+      await api(`/api/companion/devices/${device.id}/revoke`, csrf, { method: "POST" })
+      await loadCompanion()
+      setNotice(language === "ru" ? "Устройство отключено." : "Device disconnected.")
+    } catch (reason) {
+      setError((reason as Error).message)
+    }
+  }
 
   const historyStats = useMemo(
     () => ({
@@ -1306,7 +1443,7 @@ export default function Dashboard({ initialSession }: { initialSession: SessionP
       failed: history.filter((item) => item.status === "FAILED").length,
       earned: history
         .filter((item) => item.status === "COMPLETED")
-        .reduce((sum, item) => sum + item.reward_xp, 0),
+        .reduce((sum, item) => sum + Number(item.reward_granted_xp || 0), 0),
     }),
     [history],
   )
@@ -1319,7 +1456,10 @@ export default function Dashboard({ initialSession }: { initialSession: SessionP
       boardId,
       items,
       mode: items[0].game_match_mode,
-      matchId: items.find((item) => item.match_id)?.match_id || null,
+      matchId:
+        items.find((item) => item.match_id)?.match_id ||
+        items.find((item) => item.last_attempt_match_id)?.last_attempt_match_id ||
+        null,
       attemptsUsed: items[0].attempts_used || 0,
       maxAttempts: items[0].max_attempts || 3,
       date: items[0].settled_at || items[0].locked_at,
@@ -1875,23 +2015,8 @@ export default function Dashboard({ initialSession }: { initialSession: SessionP
                               </span>
                             )}
                           </div>
-                          <h3>{contractTitle(option.title, language)}</h3>
-                          <p>
-                            {contractDescription(
-                              mode,
-                              option.conditions?.length
-                                ? option.conditions
-                                : [
-                                    {
-                                      metric: option.metric,
-                                      operator: option.operator,
-                                      target: option.target,
-                                    },
-                                  ],
-                              option.description,
-                              language,
-                            )}
-                          </p>
+                          <h3>{localizedContractTitle(option, language)}</h3>
+                          <p>{localizedContractDescription(option, mode, language)}</p>
                           <div className="dc-motion-card-bottom">
                             <div className="dc-motion-card-meta">
                               <span>
@@ -1931,7 +2056,8 @@ export default function Dashboard({ initialSession }: { initialSession: SessionP
                         <div className="dc-motion-selected-pills">
                           {selectedOptions.map((option) => (
                             <span key={option.id}>
-                              {contractTitle(option.title, language)} <b>+{option.reward_xp} XP</b>
+                              {localizedContractTitle(option, language)}{" "}
+                              <b>+{option.reward_xp} XP</b>
                             </span>
                           ))}
                         </div>
@@ -2057,20 +2183,11 @@ export default function Dashboard({ initialSession }: { initialSession: SessionP
                           {lockedOptions.map((option) => (
                             <div className="dc-active-contract" key={option.id}>
                               <div>
-                                <h3>{contractTitle(option.title, language)}</h3>
+                                <h3>{localizedContractTitle(option, language)}</h3>
                                 <p>
-                                  {contractDescription(
+                                  {localizedContractDescription(
+                                    option,
                                     activeBoard.game_match_mode,
-                                    option.conditions?.length
-                                      ? option.conditions
-                                      : [
-                                          {
-                                            metric: option.metric,
-                                            operator: option.operator,
-                                            target: option.target,
-                                          },
-                                        ],
-                                    option.description,
                                     language,
                                   )}
                                 </p>
@@ -2202,7 +2319,7 @@ export default function Dashboard({ initialSession }: { initialSession: SessionP
                   const done = group.items.filter((x) => x.status === "COMPLETED").length
                   const reward = group.items
                     .filter((x) => x.status === "COMPLETED")
-                    .reduce((sum, x) => sum + x.reward_xp, 0)
+                    .reduce((sum, x) => sum + Number(x.reward_granted_xp || 0), 0)
                   const hasReview = group.items.some((x) => x.status === "REVIEW_REQUIRED")
                   return (
                     <article className="dc-case-file" key={group.boardId}>
@@ -2237,35 +2354,67 @@ export default function Dashboard({ initialSession }: { initialSession: SessionP
                         </header>
                         <div className="dc-case-file-results">
                           {group.items.map((item) => (
-                            <div key={item.assignment_id}>
-                              <span
-                                className={
-                                  item.status === "COMPLETED"
-                                    ? "ok"
+                            <div className="dc-case-result-block" key={item.assignment_id}>
+                              <div className="dc-case-result-row">
+                                <span
+                                  className={
+                                    item.status === "COMPLETED"
+                                      ? "ok"
+                                      : item.status === "FAILED"
+                                        ? "bad"
+                                        : ""
+                                  }
+                                >
+                                  {item.status === "COMPLETED"
+                                    ? "✓"
                                     : item.status === "FAILED"
-                                      ? "bad"
-                                      : ""
-                                }
-                              >
-                                {item.status === "COMPLETED"
-                                  ? "✓"
-                                  : item.status === "FAILED"
-                                    ? "×"
-                                    : "•"}
-                              </span>
-                              <p>
-                                <b>{contractTitle(item.title, language)}</b>
-                                <small>
-                                  {localizeServerText(item.explanation, language) ||
-                                    statusLabel(item.status, language)}{" "}
-                                  · {DIFFICULTY_LABEL[item.difficulty] || item.difficulty}
-                                </small>
-                              </p>
-                              <em>
-                                {item.status === "COMPLETED"
-                                  ? `+${item.reward_xp} XP`
-                                  : statusLabel(item.status, language)}
-                              </em>
+                                      ? "×"
+                                      : "•"}
+                                </span>
+                                <p>
+                                  <b>{localizedContractTitle(item, language)}</b>
+                                  <small>
+                                    {localizeServerText(item.explanation, language) ||
+                                      statusLabel(item.status, language)}{" "}
+                                    · {DIFFICULTY_LABEL[item.difficulty] || item.difficulty}
+                                  </small>
+                                </p>
+                                <em>
+                                  {item.status === "COMPLETED"
+                                    ? item.reward_granted_xp > 0
+                                      ? `+${item.reward_granted_xp} XP`
+                                      : language === "ru"
+                                        ? "XP В ОЧЕРЕДИ"
+                                        : "XP PENDING"
+                                    : statusLabel(item.status, language)}
+                                </em>
+                              </div>
+                              {(item.evaluations?.length || 0) > 1 && (
+                                <details className="dc-attempt-log">
+                                  <summary>
+                                    {language === "ru" ? "ЖУРНАЛ ПОПЫТОК" : "ATTEMPT LOG"} ·{" "}
+                                    {item.evaluations.length}
+                                  </summary>
+                                  <ol>
+                                    {item.evaluations.map((evaluation) => (
+                                      <li key={evaluation.id}>
+                                        <b>
+                                          #{evaluation.revision} ·{" "}
+                                          {statusLabel(evaluation.status, language)}
+                                          {evaluation.match_id
+                                            ? ` · MATCH #${evaluation.match_id}`
+                                            : ""}
+                                        </b>
+                                        <span>
+                                          {localizeServerText(evaluation.explanation, language) ||
+                                            "—"}
+                                        </span>
+                                        <time>{fmt(evaluation.created_at, language)}</time>
+                                      </li>
+                                    ))}
+                                  </ol>
+                                </details>
+                              )}
                             </div>
                           ))}
                         </div>
@@ -2290,6 +2439,12 @@ export default function Dashboard({ initialSession }: { initialSession: SessionP
                   )
                 })}
               </div>
+              {history.length < historyTotal && (
+                <button className="dc-ghost dc-history-more" onClick={() => void loadMoreHistory()}>
+                  {language === "ru" ? "ЗАГРУЗИТЬ ЕЩЁ" : "LOAD MORE"} · {history.length}/
+                  {historyTotal}
+                </button>
+              )}
             </>
           )}
 
@@ -2396,7 +2551,7 @@ export default function Dashboard({ initialSession }: { initialSession: SessionP
                     <span>HARDEST CASE</span>
                     <b>
                       {progression?.hardest_completed
-                        ? contractTitle(progression.hardest_completed.title, language)
+                        ? localizedContractTitle(progression.hardest_completed, language)
                         : t(language, "Пока нет")}
                     </b>
                     <small>
@@ -2466,6 +2621,33 @@ export default function Dashboard({ initialSession }: { initialSession: SessionP
                         <span>{t(language, "ID МАТЧА")}</span>
                         <b>{companion.current_match_id || "—"}</b>
                       </div>
+                    </div>
+                  ) : null}
+
+                  {companionDevices.length ? (
+                    <div className="dc-companion-devices">
+                      <span>{language === "ru" ? "ПРИВЯЗАННЫЕ УСТРОЙСТВА" : "PAIRED DEVICES"}</span>
+                      {companionDevices.map((device) => (
+                        <div key={device.id}>
+                          <p>
+                            <b>{device.label || "Deadlock Contracts Companion"}</b>
+                            <small>
+                              {device.version || "—"} ·{" "}
+                              {device.last_seen_at ? fmt(device.last_seen_at, language) : "—"}
+                            </small>
+                          </p>
+                          {device.revoked_at ? (
+                            <em>{language === "ru" ? "ОТКЛЮЧЕНО" : "REVOKED"}</em>
+                          ) : (
+                            <button
+                              className="dc-ghost"
+                              onClick={() => void revokeCompanionDevice(device)}
+                            >
+                              {language === "ru" ? "Отключить" : "Disconnect"}
+                            </button>
+                          )}
+                        </div>
+                      ))}
                     </div>
                   ) : null}
 
@@ -2633,6 +2815,10 @@ function AdminConsole({
   const [jobStatus, setJobStatus] = useState("ALL")
   const [jobType, setJobType] = useState("ALL")
   const [jobQuery, setJobQuery] = useState("")
+  const [outbox, setOutbox] = useState<AdminOutboxEvent[]>([])
+  const [outboxTotal, setOutboxTotal] = useState(0)
+  const [outboxState, setOutboxState] = useState("ALL")
+  const [outboxQuery, setOutboxQuery] = useState("")
   const [audit, setAudit] = useState<AdminAudit[]>([])
   const [auditTotal, setAuditTotal] = useState(0)
   const [auditQuery, setAuditQuery] = useState("")
@@ -2708,6 +2894,19 @@ function AdminConsole({
             limit: "200",
           })
           setJobs((await api<{ items: AdminJob[] }>(`/api/admin/jobs?${params}`, csrf)).items)
+        }
+        if (target === "outbox") {
+          const params = new URLSearchParams({
+            state: outboxState,
+            query: outboxQuery,
+            limit: "200",
+          })
+          const data = await api<{ items: AdminOutboxEvent[]; total: number }>(
+            `/api/admin/outbox?${params}`,
+            csrf,
+          )
+          setOutbox(data.items)
+          setOutboxTotal(data.total)
         }
         if (target === "audit") {
           const params = new URLSearchParams({
@@ -2789,6 +2988,8 @@ function AdminConsole({
       jobStatus,
       jobType,
       jobQuery,
+      outboxState,
+      outboxQuery,
       auditQuery,
       matchQuery,
       matchMode,
@@ -2989,7 +3190,27 @@ function AdminConsole({
     }
   }
 
-  const openMatch = async (matchId: number) => {
+  const replayOutbox = async (event: AdminOutboxEvent) => {
+    const reason = prompt(
+      `Причина replay ${event.event_type} / ${event.id.slice(0, 8)}:`,
+      "Причина устранена; повторная доставка подтверждена администратором",
+    )?.trim()
+    if (!reason) return
+    if (!confirm("Вернуть dead-letter событие в очередь? Доставка останется идемпотентной.")) return
+    try {
+      await api(`/api/admin/outbox/${event.id}/replay`, csrf, {
+        method: "POST",
+        body: JSON.stringify({ reason }),
+      })
+      setNotice("Outbox event возвращён в очередь; причина записана в аудит.")
+      await loadSection("outbox")
+      await loadSection("system")
+    } catch (reasonValue) {
+      setError((reasonValue as Error).message)
+    }
+  }
+
+  const openMatch = async (matchId: string) => {
     try {
       setMatchDetail(await api<AdminMatchDetail>(`/api/admin/matches/${matchId}`, csrf))
     } catch (reason) {
@@ -3014,7 +3235,7 @@ function AdminConsole({
     try {
       const result = await api<{
         already_queued: boolean
-        match_id: number
+        match_id: string
       }>(`/api/admin/boards/${boardId}/retry-verification`, csrf, { method: "POST" })
       setNotice(
         result.already_queued
@@ -3052,6 +3273,8 @@ function AdminConsole({
     const fields = [
       "title",
       "description",
+      "title_en",
+      "description_en",
       "target",
       "reward_xp",
       "base_xp",
@@ -3077,14 +3300,18 @@ function AdminConsole({
       return
     setBusy(true)
     try {
-      const data = await api<{ mission: AdminMission }>(
+      const data = await api<{ mission: AdminMission; created_as_draft?: boolean }>(
         `/api/admin/missions/${selectedMission.id}`,
         csrf,
         { method: "PATCH", body: JSON.stringify(body) },
       )
       setSelectedMission(data.mission)
       setMissionDraft({ ...data.mission })
-      setNotice("Шаблон обновлён. Существующие уже выданные карточки не переписаны.")
+      setNotice(
+        data.created_as_draft
+          ? "Создана новая DRAFT-версия. Опубликуйте её после RU/EN preview; текущая PUBLISHED-версия не изменена."
+          : "Версия обновлена. Существующие уже выданные карточки не переписаны.",
+      )
       await loadSection("missions")
     } catch (reason) {
       setError((reason as Error).message)
@@ -3172,6 +3399,7 @@ function AdminConsole({
     ["missions", "Контракты"],
     ["generator", "Generator Lab"],
     ["jobs", "Jobs"],
+    ["outbox", "Outbox"],
     ["audit", "Аудит"],
     ["system", "Система"],
   ]
@@ -4183,7 +4411,7 @@ function AdminConsole({
                   </div>
                   <div className="dc-admin-form-grid">
                     <label>
-                      Название
+                      Название (RU)
                       <input
                         disabled={!auth.can_manage_roles}
                         value={missionDraft.title}
@@ -4191,6 +4419,19 @@ function AdminConsole({
                           setMissionDraft({
                             ...missionDraft,
                             title: event.target.value,
+                          })
+                        }
+                      />
+                    </label>
+                    <label>
+                      Title (EN)
+                      <input
+                        disabled={!auth.can_manage_roles}
+                        value={missionDraft.title_en || ""}
+                        onChange={(event) =>
+                          setMissionDraft({
+                            ...missionDraft,
+                            title_en: event.target.value,
                           })
                         }
                       />
@@ -4208,6 +4449,7 @@ function AdminConsole({
                         }
                       >
                         <option>PUBLISHED</option>
+                        <option>DRAFT</option>
                         <option>DISABLED</option>
                       </select>
                     </label>
@@ -4339,7 +4581,7 @@ function AdminConsole({
                     </label>
                   </div>
                   <label className="dc-admin-full-field">
-                    Описание
+                    Описание (RU)
                     <textarea
                       disabled={!auth.can_manage_roles}
                       rows={4}
@@ -4348,6 +4590,20 @@ function AdminConsole({
                         setMissionDraft({
                           ...missionDraft,
                           description: event.target.value,
+                        })
+                      }
+                    />
+                  </label>
+                  <label className="dc-admin-full-field">
+                    Description (EN)
+                    <textarea
+                      disabled={!auth.can_manage_roles}
+                      rows={4}
+                      value={missionDraft.description_en || ""}
+                      onChange={(event) =>
+                        setMissionDraft({
+                          ...missionDraft,
+                          description_en: event.target.value,
                         })
                       }
                     />
@@ -4363,11 +4619,13 @@ function AdminConsole({
                     <b>{missionDraft.required_capabilities.join(", ") || "—"}</b>
                   </div>
                   <small>
-                    Contracts 2.0 использует Status, Drop weight, Category, Metric и Capabilities
-                    как атомы генерации. Target / Reward XP / Base XP остаются
-                    reference/legacy-полями: цели и награда новых динамических контрактов
-                    рассчитываются генератором. Уже выданные BoardOption хранят собственные
-                    snapshot-поля.
+                    Изменение PUBLISHED создаёт новую DRAFT-версию: проверьте RU/EN preview и только
+                    потом переключите её в PUBLISHED. Предыдущая версия автоматически отключается,
+                    но остаётся доступной для rollback. Contracts 2.0 использует Status, Drop
+                    weight, Category, Metric и Capabilities как атомы генерации. Target / Reward XP
+                    / Base XP остаются reference/legacy-полями: цели и награда новых динамических
+                    контрактов рассчитываются генератором. Уже выданные BoardOption хранят
+                    собственные snapshot-поля.
                   </small>
                 </>
               ) : (
@@ -4543,6 +4801,61 @@ function AdminConsole({
                 {job.status === "FAILED" && (
                   <button className="dc-ghost" onClick={() => void retryJob(job)}>
                     Повторить безопасно
+                  </button>
+                )}
+              </article>
+            ))}
+          </div>
+        </>
+      )}
+
+      {section === "outbox" && (
+        <>
+          <div className="dc-admin-filterbar">
+            <input
+              placeholder="event id, aggregate, type, error"
+              value={outboxQuery}
+              onChange={(event) => setOutboxQuery(event.target.value)}
+            />
+            <select value={outboxState} onChange={(event) => setOutboxState(event.target.value)}>
+              <option value="ALL">Все состояния</option>
+              <option>PENDING</option>
+              <option>RETRYING</option>
+              <option>DEAD_LETTER</option>
+              <option>PUBLISHED</option>
+            </select>
+            <button className="dc-ghost" onClick={() => void loadSection("outbox")}>
+              Применить
+            </button>
+            <small>{outboxTotal} событий</small>
+          </div>
+          <div className="dc-admin-list">
+            {outbox.map((event) => (
+              <article
+                key={event.id}
+                className={`dc-admin-job ${event.state === "DEAD_LETTER" ? "failed" : ""}`}
+              >
+                <header>
+                  <div>
+                    <b>{event.event_type}</b>
+                    <small>
+                      {event.id.slice(0, 8)} · aggregate {event.aggregate_id} ·{" "}
+                      {fmt(event.created_at)}
+                    </small>
+                  </div>
+                  <span>
+                    {event.state} · attempts {event.attempts}
+                  </span>
+                </header>
+                {event.last_error && <pre>{event.last_error}</pre>}
+                <small>next: {fmt(event.run_after)}</small>
+                <details>
+                  <summary>Immutable payload</summary>
+                  <pre>{JSON.stringify(event.payload, null, 2)}</pre>
+                </details>
+                {event.state === "DEAD_LETTER" && (
+                  <button className="dc-ghost" onClick={() => void replayOutbox(event)}>
+                    Replay с audit reason
                   </button>
                 )}
               </article>

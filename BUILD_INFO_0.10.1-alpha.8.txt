@@ -1,5 +1,5 @@
 Deadlock Contracts Web/Backend v0.10.1-alpha.8
-Build date: 2026-08-22
+Build date: 2026-08-24
 Base: 0.10.1-alpha.7
 
 Release focus:
@@ -8,14 +8,18 @@ Release focus:
 - versioned PostgreSQL migrations;
 - pre-start migration runner;
 - outbox retry/backoff/dead-letter handling;
-- mandatory CI;
+- shared Redis rate limiting and trusted-proxy enforcement;
+- admin outbox visibility/replay and immutable review settlement;
+- RU/EN mission, legal, API error and preference localization;
+- board/job/selection concurrency and lifecycle reconciliation;
+- mandatory CI, dependency audits, frontend asset budgets and reproducible OPK/SBOM packaging;
 - release.json release identity;
 - honest non-persistent landing preview;
 - discoverable Privacy/Terms/Support/Status/Changelog/Data Sources.
 
 Canonical Companion:
-runtime 0.5.2-alpha.4
-manifest 0.5.2.4
+runtime 0.5.2-alpha.6
+manifest 0.5.2.6
 
 Submission follow-up:
 run the exact frozen OPK through real Windows/Overwolf/Deadlock QA,

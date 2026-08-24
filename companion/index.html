@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="color-scheme" content="dark">
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; base-uri 'none'; object-src 'none'; frame-src 'none'; connect-src 'self' https://deadlock-contracts.online; img-src 'self' data:; style-src 'self'; font-src 'self'; script-src 'self'">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; base-uri 'none'; object-src 'none'; frame-src https://*.overwolf.com; connect-src 'self' https://deadlock-contracts.online https://*.overwolf.com; img-src 'self' data: https://*.overwolf.com; style-src 'self'; font-src 'self'; script-src 'self' https://content.overwolf.com">
   <title>Deadlock Contracts</title>
   <link rel="stylesheet" href="styles/tokens.css">
   <link rel="stylesheet" href="styles/app.css">
@@ -43,7 +43,7 @@
         </nav>
         <div class="sidebar-footer">
           <button id="mcgBtn" class="mcg-credit" type="button"><span data-i18n="createdBy">CREATED BY</span><strong>M.C.G.</strong><small data-i18n="mcg">MANDARIN CREATOR GROUP</small></button>
-          <div class="build-mark"><span>QA CANDIDATE</span><b>0.5.2-alpha.4</b></div>
+          <div class="build-mark"><span>QA CANDIDATE</span><b>0.5.2-alpha.6</b></div>
         </div>
       </aside>
 
@@ -69,6 +69,12 @@
           <div id="gepAlert" class="notice warning" hidden><b>GEP DEGRADED</b><span id="gepAlertText"></span></div>
           <div id="hqOperations" class="operations-grid" aria-live="polite"></div>
           <div id="hqCaseStrip" class="case-strip"></div>
+          <aside id="desktopAdRail" class="desktop-ad-rail" aria-label="Sponsored content" hidden>
+            <div class="desktop-ad-copy"><span>SPONSORED CONTENT</span><b>DESKTOP-ONLY AD SPACE</b><small id="desktopAdStatus">AVAILABLE AFTER OVERWOLF QA ENABLES ADS</small></div>
+            <div class="desktop-ad-stage">
+              <div id="desktopAdContainer" class="overwolf-ad-container"></div>
+            </div>
+          </aside>
         </section>
 
         <section id="view-contracts" class="view" data-view="contracts">
@@ -142,7 +148,7 @@
               <div class="settings-actions"><button id="disconnectBtn" class="text-btn danger-text" type="button" data-i18n="disconnect">DISCONNECT</button><button id="syncBtn" class="text-btn" type="button" data-i18n="syncNow">SYNC NOW</button></div>
             </article>
             <article class="settings-card"><span class="eyebrow" data-i18n="language">LANGUAGE</span><h3>AUTO / EN / RU</h3><p data-i18n="languageBody">Use the system language or keep a manual choice.</p><div class="language-switch settings-language"><button type="button" data-language="auto">AUTO</button><button type="button" data-language="en">EN</button><button type="button" data-language="ru">RU</button></div></article>
-            <article class="settings-card"><span class="eyebrow" data-i18n="overlay">OVERLAY</span><h3 id="hotkeyBinding">CTRL + SHIFT + C</h3><p data-i18n="overlayBody">A minimal click-through case widget. You can resize or reset it here.</p><div class="overlay-presets"><button type="button" data-overlay-scale="compact">S</button><button type="button" data-overlay-scale="regular">M</button><button type="button" data-overlay-scale="large">L</button></div><div class="settings-actions"><button id="overlayBtn" class="secondary-btn" type="button" data-i18n="showOverlay">SHOW / HIDE</button><button id="overlayResetBtn" class="text-btn" type="button" data-i18n="resetPosition">RESET POSITION</button><button id="hotkeyBtn" class="text-btn" type="button" data-i18n="hotkeySettings">HOTKEY</button></div></article>
+            <article class="settings-card"><span class="eyebrow" data-i18n="overlay">OVERLAY</span><h3 id="hotkeyBinding">CTRL + SHIFT + C</h3><p data-i18n="overlayBody">A minimal, input-pass-through case widget that auto-hides after a few seconds. You can resize or reset it here.</p><div class="overlay-presets"><button type="button" data-overlay-scale="compact">S</button><button type="button" data-overlay-scale="regular">M</button><button type="button" data-overlay-scale="large">L</button></div><div class="settings-actions"><button id="overlayBtn" class="secondary-btn" type="button" data-i18n="showOverlay">SHOW / HIDE</button><button id="overlayResetBtn" class="text-btn" type="button" data-i18n="resetPosition">RESET POSITION</button><button id="hotkeyBtn" class="text-btn" type="button" data-i18n="hotkeySettings">HOTKEY</button></div></article>
             <article class="settings-card"><span class="eyebrow" data-i18n="diagnostics">DIAGNOSTICS</span><h3 id="diagState">BACKGROUND READY</h3><p id="diagCopy">Diagnostics never include bearer tokens.</p><div class="settings-actions"><button id="reportBtn" class="secondary-btn" type="button" data-i18n="copyReport">COPY REPORT</button></div></article>
             <article class="settings-card"><span class="eyebrow">APP UPDATE</span><h3 id="updateState">NOT CHECKED</h3><p data-i18n="updateBody">Release updates are delivered by Overwolf.</p><div class="settings-actions"><button id="updateBtn" class="secondary-btn" type="button" data-i18n="checkUpdate">CHECK UPDATE</button><button id="exitBtn" class="danger-btn" type="button" data-i18n="exitApp">EXIT APP</button></div></article>
           </div>
@@ -165,6 +171,7 @@
 
   <script src="src/shared.js"></script>
   <script src="src/product.js"></script>
+  <script src="src/desktop-ads.js"></script>
   <script src="src/desktop.js"></script>
 </body>
 </html>

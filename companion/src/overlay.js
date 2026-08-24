@@ -8,10 +8,13 @@
   let previewPromise = null
   let lastRenderedKey = null
   let lastRenderedValue = null
+  let lastCompletionKey = null
   let dodgeLeaveTimer = 0
 
   const $ = id => document.getElementById(id)
   const number = value => window.DCShared.formatNumber(value, 1)
+  const language = () => window.DCShared.language()
+  const ui = (english, russian) => language() === 'ru' ? russian : english
 
   function controller() {
     if (!backgroundWindow && typeof overwolf !== 'undefined') {
@@ -33,10 +36,10 @@
 
   function serverStatus(option) {
     const value = String(option?.status || '').toUpperCase()
-    if (value === 'COMPLETED') return 'COMPLETED'
-    if (value === 'FAILED') return 'FAILED'
-    if (value === 'REVIEW_REQUIRED') return 'REVIEW REQUIRED'
-    if (value === 'VERIFYING' || value === 'PENDING') return 'VERIFYING'
+    if (value === 'COMPLETED') return ui('COMPLETED', 'ВЫПОЛНЕНО')
+    if (value === 'FAILED') return ui('FAILED', 'ПРОВАЛЕНО')
+    if (value === 'REVIEW_REQUIRED') return ui('REVIEW REQUIRED', 'НУЖНА ПРОВЕРКА')
+    if (value === 'VERIFYING' || value === 'PENDING') return ui('VERIFYING', 'ПРОВЕРКА')
     return null
   }
 
@@ -57,7 +60,7 @@
   }
 
   function displayValue(metric, value) {
-    if (metric === 'match.win') return Number(value) === 1 ? 'WIN' : '—'
+    if (metric === 'match.win') return Number(value) === 1 ? ui('WIN', 'ПОБЕДА') : '—'
     if (metric === 'match.duration_s') {
       const seconds = Math.max(0, Math.trunc(Number(value) || 0))
       const minutes = Math.floor(seconds / 60)
@@ -99,6 +102,14 @@
     card.classList.add('focus-progressing')
   }
 
+  function animateCompletion() {
+    const card = $('overlayFocus')
+    if (!card) return
+    card.classList.remove('focus-completion-burst')
+    void card.offsetWidth
+    card.classList.add('focus-completion-burst')
+  }
+
   function renderSelected(activeCase, candidate) {
     const container = $('overlaySelected')
     if (!container) return
@@ -113,7 +124,7 @@
     }
 
     const signature = options
-      .map(option => `${option.id}:${option.title}`)
+      .map(option => `${option.id}:${option.title}:${language()}`)
       .join('|')
 
     if (
@@ -132,8 +143,8 @@
           String(option.id || '')
         item.title =
           String(
-            option.title
-            || 'Selected contract',
+            Product.contractTitle(option, language())
+            || ui('Selected contract', 'Выбранный контракт'),
           )
 
         const number =
@@ -147,8 +158,8 @@
 
         title.textContent =
           String(
-            option.title
-            || 'UNTITLED CONTRACT',
+            Product.contractTitle(option, language())
+            || ui('UNTITLED CONTRACT', 'КОНТРАКТ БЕЗ НАЗВАНИЯ'),
           )
 
         item.append(number, title)
@@ -189,14 +200,14 @@
     const metric = String(condition.metric || option.metric || '')
     const percent = Math.max(0, Math.min(100, Math.round(Number(progress.percent) || 0)))
     const current = progress.known ? displayValue(metric, progress.value) : '—'
-    const target = metric === 'match.win' ? 'WIN' : displayValue(metric, progress.target)
+    const target = metric === 'match.win' ? ui('WIN', 'ПОБЕДА') : displayValue(metric, progress.target)
     const key = candidate.key || `${option.id}:${metric}`
 
     setVisible($('overlayFocus'), true)
     setVisible($('overlayEmpty'), false)
-    $('overlayMetric').textContent = Product.metricLabel(metric, 'en')
+    $('overlayMetric').textContent = Product.metricLabel(metric, language())
     $('overlayXp').textContent = `${number(option.reward_xp)} XP`
-    $('overlayTitle').textContent = option.title
+    $('overlayTitle').textContent = Product.contractTitle(option, language())
     $('overlayCurrent').textContent = current
     $('overlayTarget').textContent = `/ ${target}`
     $('overlayPercent').textContent = `${percent}%`
@@ -204,12 +215,17 @@
 
     const status = serverStatus(option)
     if (live) {
-      $('overlayHint').textContent = pending ? 'FOCUS LOCK · 3 SEC' : progress.provisional_pass ? 'TARGET MET · PROVISIONAL' : 'LIVE · PROVISIONAL'
+      $('overlayHint').textContent = pending
+        ? ui('FOCUS LOCK · 3 SEC', 'ФОКУС · 3 СЕК')
+        : progress.provisional_pass
+          ? ui('TARGET MET · PROVISIONAL', 'ЦЕЛЬ ДОСТИГНУТА · ПРЕДВАРИТЕЛЬНО')
+          : ui('LIVE · PROVISIONAL', 'LIVE · ПРЕДВАРИТЕЛЬНО')
     } else {
-      $('overlayHint').textContent = status || 'SERVER STATE'
+      $('overlayHint').textContent = status || ui('SERVER STATE', 'СОСТОЯНИЕ СЕРВЕРА')
     }
 
-    $('overlayFocus').classList.toggle('focus-complete', live && progress.provisional_pass)
+    const completed = live && progress.provisional_pass
+    $('overlayFocus').classList.toggle('focus-complete', completed)
     if (lastRenderedKey !== key) {
       animateCardSwitch()
       lastRenderedKey = key
@@ -217,6 +233,13 @@
     } else if (progress.known && Number(progress.value) !== Number(lastRenderedValue)) {
       animateProgress()
       lastRenderedValue = progress.value
+    }
+    const completionKey = `${key}:${percent}`
+    if (completed && lastCompletionKey !== completionKey) {
+      animateCompletion()
+      lastCompletionKey = completionKey
+    } else if (!completed) {
+      lastCompletionKey = null
     }
     return true
   }
@@ -232,16 +255,16 @@
     setVisible($('overlaySelected'), false)
     if ($('overlayHotkey')) $('overlayHotkey').textContent = hotkey.toUpperCase()
     $('overlayState').className = live ? 'live' : verifying ? 'warn' : ''
-    $('overlayState').textContent = live ? '● LIVE' : verifying ? '◐ VERIFYING' : '○ STANDBY'
+    $('overlayState').textContent = live ? '● LIVE' : verifying ? ui('◐ VERIFYING', '◐ ПРОВЕРКА') : ui('○ STANDBY', '○ ОЖИДАНИЕ')
 
     if (!snapshot?.paired) {
       router.reset('unpaired')
       setVisible($('overlayFocus'), false)
       setVisible($('overlayEmpty'), true)
-      $('overlayEmpty').textContent = 'PAIR ACCOUNT IN DESKTOP'
-      $('overlayMode').textContent = 'ACCOUNT REQUIRED'
-      $('overlayAttempt').textContent = 'NO ACTIVE CASE'
-      $('overlayFoot').textContent = 'OPEN DESKTOP TO CONNECT'
+      $('overlayEmpty').textContent = ui('PAIR ACCOUNT IN DESKTOP', 'ПРИВЯЖИТЕ АККАУНТ В DESKTOP')
+      $('overlayMode').textContent = ui('ACCOUNT REQUIRED', 'НУЖЕН АККАУНТ')
+      $('overlayAttempt').textContent = ui('NO ACTIVE CASE', 'НЕТ АКТИВНОГО ДЕЛА')
+      $('overlayFoot').textContent = ui('OPEN DESKTOP TO CONNECT', 'ОТКРОЙТЕ DESKTOP ДЛЯ ПРИВЯЗКИ')
       return
     }
 
@@ -249,10 +272,10 @@
       router.reset(`match:${snapshot?.match_id || 'unknown'}:mode-pending`)
       setVisible($('overlayFocus'), false)
       setVisible($('overlayEmpty'), true)
-      $('overlayEmpty').textContent = 'DETECTING CURRENT MODE'
-      $('overlayMode').textContent = snapshot?.match_id ? `MATCH #${snapshot.match_id}` : 'MATCH DETECTED'
-      $('overlayAttempt').textContent = 'WAITING FOR MODE'
-      $('overlayFoot').textContent = 'NO CROSS-MODE FALLBACK'
+      $('overlayEmpty').textContent = ui('DETECTING CURRENT MODE', 'ОПРЕДЕЛЯЕМ РЕЖИМ')
+      $('overlayMode').textContent = snapshot?.match_id ? `${ui('MATCH', 'МАТЧ')} #${snapshot.match_id}` : ui('MATCH DETECTED', 'МАТЧ ОБНАРУЖЕН')
+      $('overlayAttempt').textContent = ui('WAITING FOR MODE', 'ОЖИДАНИЕ РЕЖИМА')
+      $('overlayFoot').textContent = ui('NO CROSS-MODE FALLBACK', 'БЕЗ ПОДМЕНЫ РЕЖИМА')
       return
     }
 
@@ -260,10 +283,10 @@
       router.reset('no-game')
       setVisible($('overlayFocus'), false)
       setVisible($('overlayEmpty'), true)
-      $('overlayEmpty').textContent = 'WAITING FOR MATCH'
-      $('overlayMode').textContent = 'NO LIVE MATCH'
+      $('overlayEmpty').textContent = ui('WAITING FOR MATCH', 'ОЖИДАНИЕ МАТЧА')
+      $('overlayMode').textContent = ui('NO LIVE MATCH', 'НЕТ АКТИВНОГО МАТЧА')
       $('overlayAttempt').textContent = '—'
-      $('overlayFoot').textContent = 'HOTKEY TO HIDE'
+      $('overlayFoot').textContent = ui('HOTKEY TO HIDE', 'HOTKEY СКРЫВАЕТ ОВЕРЛЕЙ')
       return
     }
 
@@ -271,15 +294,15 @@
       router.reset(`match:${snapshot?.match_id || 'unknown'}:${detectedMode}:no-case`)
       setVisible($('overlayFocus'), false)
       setVisible($('overlayEmpty'), true)
-      $('overlayEmpty').textContent = `NO ${Product.modeLabel(detectedMode)} CASE`
+      $('overlayEmpty').textContent = `${ui('NO', 'НЕТ ДЕЛА ДЛЯ')} ${Product.modeLabel(detectedMode)}${language() === 'ru' ? '' : ' CASE'}`
       $('overlayMode').textContent = `${Product.modeLabel(detectedMode)}${snapshot.match_id ? ` · #${snapshot.match_id}` : ''}`
-      $('overlayAttempt').textContent = 'OPEN DESKTOP'
-      $('overlayFoot').textContent = 'ONLY CURRENT MODE IS SHOWN'
+      $('overlayAttempt').textContent = ui('OPEN DESKTOP', 'ОТКРОЙТЕ DESKTOP')
+      $('overlayFoot').textContent = ui('ONLY CURRENT MODE IS SHOWN', 'ПОКАЗАН ТОЛЬКО ТЕКУЩИЙ РЕЖИМ')
       return
     }
 
     $('overlayMode').textContent = `${Product.modeLabel(detectedMode)}${snapshot.match_id ? ` · #${snapshot.match_id}` : ''}`
-    $('overlayAttempt').textContent = `ATTEMPT ${Math.min(active.max_attempts, active.attempts_used + 1)}/${active.max_attempts}`
+    $('overlayAttempt').textContent = `${ui('ATTEMPT', 'ПОПЫТКА')} ${Math.min(active.max_attempts, active.attempts_used + 1)}/${active.max_attempts}`
 
     const context = `${snapshot.match_id || 'no-match'}:${detectedMode}:${active.board_id}`
     const focus = router.update({
@@ -296,13 +319,15 @@
     if (!renderCandidate(focus.candidate, live, focus.pending)) {
       setVisible($('overlayFocus'), false)
       setVisible($('overlayEmpty'), true)
-      $('overlayEmpty').textContent = 'NO LIVE-SUPPORTED OBJECTIVE'
+      $('overlayEmpty').textContent = ui('NO LIVE-SUPPORTED OBJECTIVE', 'НЕТ ЦЕЛИ С LIVE-ПРОГРЕССОМ')
     }
     $('overlayFoot').textContent = verifying
-      ? 'AWAITING SERVER VERDICT'
+      ? ui('AWAITING SERVER VERDICT', 'ОЖИДАЕМ ВЕРДИКТ СЕРВЕРА')
       : live
-        ? focus.pending ? 'ACTIVITY DETECTED · SWITCHING AFTER 3 SEC' : `${Product.selectedContracts(active).length} SELECTED · ONE ACTIVITY FOCUS · SERVER FINAL`
-        : 'SERVER STATE'
+        ? focus.pending
+          ? ui('ACTIVITY DETECTED · SWITCHING AFTER 3 SEC', 'АКТИВНОСТЬ · ПЕРЕКЛЮЧЕНИЕ ЧЕРЕЗ 3 СЕК')
+          : `${Product.selectedContracts(active).length} ${ui('SELECTED · ONE ACTIVITY FOCUS · SERVER FINAL', 'ВЫБРАНО · ФОКУС НА ОДНОЙ ЦЕЛИ · ФИНАЛ ЗА СЕРВЕРОМ')}`
+        : ui('SERVER STATE', 'СОСТОЯНИЕ СЕРВЕРА')
   }
 
   async function previewSnapshot() {
@@ -313,7 +338,8 @@
   async function refresh() {
     try {
       const api = controller()
-      if (api?.getSnapshot) render(await api.getSnapshot())
+      if (api?.getOverlaySnapshot) render(await api.getOverlaySnapshot())
+      else if (api?.getSnapshot) render(await api.getSnapshot())
       else if (PREVIEW) render(await previewSnapshot())
       else render({ paired: false, game_running: false, product: Product.emptyProductState() })
     } catch (_) {}

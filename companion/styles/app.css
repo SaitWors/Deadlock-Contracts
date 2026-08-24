@@ -108,6 +108,17 @@ button:disabled { cursor: not-allowed; opacity: .44; }
 .case-strip-card h3 { margin: 0; font: 800 16px/1 var(--font-display); }
 .case-strip-card small { color: var(--text-muted); }
 
+/* The managed Overwolf ad is desktop-only and is always adjacent to HQ content. */
+.desktop-ad-rail { min-height: 88px; margin-top: 11px; padding: 12px 14px; display: grid; grid-template-columns: minmax(180px,1fr) 400px; gap: 16px; align-items: center; overflow: hidden; border: 1px solid rgba(143,121,90,.48); border-radius: 14px; background: linear-gradient(102deg, rgba(38,43,29,.66), rgba(14,21,18,.95) 52%, rgba(31,54,40,.47)); box-shadow: inset 0 1px rgba(241,228,200,.05); }
+.desktop-ad-copy { min-width: 0; display: grid; gap: 4px; }
+.desktop-ad-copy span { color: var(--brass); font: 800 8px/1 var(--font-display); letter-spacing: .16em; }
+.desktop-ad-copy b { color: var(--text-primary); font: 800 17px/1 var(--font-display); letter-spacing: .06em; }
+.desktop-ad-copy small { color: var(--text-muted); font-size: 8px; line-height: 1.35; letter-spacing: .045em; }
+.desktop-ad-rail[data-ad-state="ready"] .desktop-ad-copy small { color: var(--mint-bright); }
+.desktop-ad-rail[data-ad-state="unavailable"] .desktop-ad-copy small { color: var(--warning); }
+.desktop-ad-stage { width: 400px; min-width: 400px; min-height: 60px; display: grid; place-items: center; background: transparent; }
+.overwolf-ad-container { width: 400px; min-width: 400px; height: 60px; min-height: 60px; background: transparent; }
+
 .page-head { margin-bottom: 18px; padding-bottom: 17px; display: flex; justify-content: space-between; gap: 24px; align-items: flex-start; border-bottom: 1px solid var(--border-soft); }
 .page-head h1 { font-size: 44px; }
 .page-head p { max-width: 720px; margin: 8px 0 0; color: var(--text-secondary); font-size: 12px; line-height: 1.55; }

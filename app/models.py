@@ -4,7 +4,7 @@ import uuid
 from datetime import date, datetime, timezone
 from typing import Any
 
-from sqlalchemy import BigInteger, Boolean, Date, DateTime, Float, ForeignKey, Integer, JSON, String, Text, UniqueConstraint
+from sqlalchemy import BigInteger, Boolean, Date, DateTime, Float, ForeignKey, Index, Integer, JSON, String, Text, UniqueConstraint, text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from .db import Base
@@ -58,11 +58,15 @@ class PublicProfile(Base):
 
 class CompanionPairing(Base):
     __tablename__ = "companion_pairings"
+    __table_args__ = (
+        UniqueConstraint("user_id", name="uq_companion_pairing_user"),
+    )
 
     code_hash: Mapped[str] = mapped_column(String(64), primary_key=True)
     user_id: Mapped[str] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)
     claimed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    claimed_device_id: Mapped[str | None] = mapped_column(String(120), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
 
@@ -91,10 +95,18 @@ class CompanionDevice(Base):
 
 class CompanionEvent(Base):
     __tablename__ = "companion_events"
+    __table_args__ = (
+        UniqueConstraint(
+            "device_id",
+            "client_event_id",
+            name="uq_companion_event_device_client",
+        ),
+    )
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uuid4)
     device_id: Mapped[str] = mapped_column(ForeignKey("companion_devices.id", ondelete="CASCADE"), index=True)
     user_id: Mapped[str] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    client_event_id: Mapped[str | None] = mapped_column(String(80), nullable=True)
     event_type: Mapped[str] = mapped_column(String(64), index=True)
     external_match_id: Mapped[int | None] = mapped_column(BigInteger, nullable=True, index=True)
     game_match_mode: Mapped[str | None] = mapped_column(String(32), nullable=True)
@@ -156,6 +168,8 @@ class MissionDefinition(Base):
     version: Mapped[int] = mapped_column(Integer, default=1)
     title: Mapped[str] = mapped_column(String(160))
     description: Mapped[str] = mapped_column(Text)
+    title_en: Mapped[str | None] = mapped_column(String(160), nullable=True)
+    description_en: Mapped[str | None] = mapped_column(Text, nullable=True)
     metric: Mapped[str] = mapped_column(String(120))
     operator: Mapped[str] = mapped_column(String(16))
     target: Mapped[float] = mapped_column(Float)
@@ -177,7 +191,21 @@ class MissionDefinition(Base):
 
 class ContractBoard(Base):
     __tablename__ = "contract_boards"
-    __table_args__ = (UniqueConstraint("user_id", "board_date", "game_match_mode", name="uq_board_user_date_mode"),)
+    __table_args__ = (
+        UniqueConstraint("user_id", "board_date", "game_match_mode", name="uq_board_user_date_mode"),
+        Index(
+            "uq_contract_active_user_mode",
+            "user_id",
+            "game_match_mode",
+            unique=True,
+            postgresql_where=text(
+                "status IN ('LOCKED', 'VERIFYING', 'REVIEW_REQUIRED')"
+            ),
+            sqlite_where=text(
+                "status IN ('LOCKED', 'VERIFYING', 'REVIEW_REQUIRED')"
+            ),
+        ),
+    )
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uuid4)
     user_id: Mapped[str] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
@@ -351,6 +379,16 @@ class Job(Base):
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uuid4)
     type: Mapped[str] = mapped_column(String(64), index=True)
+    user_id: Mapped[str | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True
+    )
+    board_id: Mapped[str | None] = mapped_column(
+        ForeignKey("contract_boards.id", ondelete="SET NULL"), nullable=True, index=True
+    )
+    match_id: Mapped[str | None] = mapped_column(
+        ForeignKey("matches.id", ondelete="SET NULL"), nullable=True, index=True
+    )
+    game_match_mode: Mapped[str | None] = mapped_column(String(32), nullable=True, index=True)
     payload: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
     status: Mapped[str] = mapped_column(String(32), default="PENDING", index=True)
     attempts: Mapped[int] = mapped_column(Integer, default=0)

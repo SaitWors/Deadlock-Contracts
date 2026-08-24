@@ -9,6 +9,30 @@
   const ACTIVE_BOARD_STATES = new Set(['LOCKED', 'VERIFYING', 'REVIEW_REQUIRED'])
   const FINAL_BOARD_STATES = new Set(['SETTLED', 'PARTIALLY_SETTLED', 'EXPIRED'])
   const ATTEMPT_PENDING_STATES = new Set(['VERIFYING', 'REVIEW_REQUIRED'])
+  const ENGLISH_TITLES = {
+    'Красная папка': 'Red File', 'Контрольный выстрел': 'Final Shot', 'Семь печатей': 'Seven Seals',
+    'Аргумент без возражений': 'Irrefutable Argument', 'Последний довод': 'Final Argument', 'Жёсткий протокол': 'Hard Protocol',
+    'Оперативная отметка': 'Field Mark', 'Дело особой важности': 'Priority Case', 'Дело повышенной важности': 'High-Priority Case',
+    'Сеть контактов': 'Contact Network', 'Коллективное решение': 'Collective Decision', 'Связной': 'Liaison',
+    'Протокол поддержки': 'Support Protocol', 'Согласованные показания': 'Corroborated Testimony', 'Общий интерес': 'Common Interest',
+    'Надёжный партнёр': 'Reliable Partner', 'Полевой нотариус': 'Field Notary', 'Чистое досье': 'Clean Dossier',
+    'Холодная голова': 'Cool Head', 'Без права на ошибку': 'No Room for Error', 'Не оставлять следов': 'Leave No Trace',
+    'Безупречное алиби': 'Perfect Alibi', 'Тихий свидетель': 'Silent Witness', 'Под контролем': 'Under Control',
+    'Без лишнего шума': 'Quiet Operation', 'Без лишних следов': 'Clean Exit', 'Капитал дела': 'Case Capital',
+    'Рейтинговый капитал': 'Ranked Capital', 'Фонд операции': 'Operations Fund', 'Материальный интерес': 'Material Interest',
+    'Скрытый резерв': 'Hidden Reserve', 'Баланс доказательств': 'Balance of Evidence', 'Полный расчёт': 'Full Accounting',
+    'Цена вопроса': 'Price of the Case', 'Безупречная координация': 'Flawless Coordination', 'Вердикт рейтинга': 'Ranked Verdict',
+    'Восьмёрка на районе': 'Eight on the Block', 'Громкое заявление': 'Loud Statement', 'Десять подписей': 'Ten Signatures',
+    'Долгое разбирательство': 'Long Proceedings', 'Закрыть дело победой': 'Close the Case with a Win', 'Легенда квартала': 'Neighborhood Legend',
+    'Полевой медик': 'Field Medic', 'Пять быстрых отметок': 'Five Quick Marks', 'Соучастник': 'Accomplice',
+    'Убедительные доказательства': 'Convincing Evidence', 'Улица запомнит': 'The Street Remembers', 'Уличная сеть': 'Street Network',
+    'Уличный приговор': 'Street Verdict', 'Хозяин улицы': 'Own the Street', 'Чистая улица': 'Clean Street',
+    'Шесть отметок': 'Six Marks',
+  }
+  const ENGLISH_SUFFIXES = {
+    ' / двойное условие': ' / Dual Condition', ' / связанное дело': ' / Linked Case',
+    ' / особый протокол': ' / Special Protocol', ' / составное дело': ' / Composite Case',
+  }
 
   function emptyProductState(status = 'UNPAIRED') {
     return {
@@ -59,6 +83,51 @@
     }[normalizeMode(value)] || 'UNKNOWN MODE'
   }
 
+  function contractTitle(titleOrOption, lang = 'en') {
+    const localized = titleOrOption && typeof titleOrOption === 'object'
+      ? titleOrOption.title_i18n?.[lang]
+      : null
+    const value = String(localized || titleOrOption?.title || titleOrOption || '')
+    if (lang === 'ru') return value
+    for (const [suffix, translated] of Object.entries(ENGLISH_SUFFIXES)) {
+      if (value.endsWith(suffix)) {
+        const base = value.slice(0, -suffix.length)
+        return `${ENGLISH_TITLES[base] || base}${translated}`
+      }
+    }
+    return ENGLISH_TITLES[value] || value
+  }
+
+  function conditionText(condition, lang = 'en') {
+    const metric = String(condition?.metric || '')
+    const operator = condition?.operator === 'lte' ? '≤' : condition?.operator === 'eq' ? '=' : '≥'
+    const target = Number(condition?.target)
+    const locale = lang === 'ru' ? 'ru-RU' : 'en-US'
+    const formatted = Number.isFinite(target) ? target.toLocaleString(locale, { maximumFractionDigits: 2 }) : '—'
+    if (lang === 'ru') return `${metricLabel(metric, 'ru')} ${operator} ${formatted}`
+    if (metric === 'match.win') return 'win the match'
+    if (metric === 'match.duration_s') return `play for at least ${Math.round(target / 60).toLocaleString(locale)} min`
+    const labels = {
+      'player.kills': 'kills', 'player.deaths': 'deaths', 'player.assists': 'assists', 'player.kda': 'KDA',
+      'player.net_worth.final': 'souls', 'player.hero_damage': 'hero damage', 'player.object_damage': 'objective damage',
+      'player.healing': 'healing', 'player.scoreboard_healing': 'scoreboard healing',
+    }
+    return `${operator} ${formatted} ${labels[metric] || metric}`
+  }
+
+  function contractDescription(option, mode, lang = 'en') {
+    const localized = option?.description_i18n?.[lang]
+    if (localized) return String(localized)
+    if (lang === 'ru' || !option?.conditions?.length) return String(option?.description || '')
+    const pieces = option.conditions.map(condition => conditionText(condition, lang))
+    const body = pieces.length === 1
+      ? pieces[0]
+      : pieces.length === 2
+        ? `${pieces[0]} and ${pieces[1]}`
+        : `${pieces.slice(0, -1).join(', ')}, and ${pieces.at(-1)}`
+    return `In your next ${modeLabel(mode)} match: ${body}.`
+  }
+
   function normalizeOption(option) {
     if (!option || typeof option !== 'object') return null
     const conditions = cleanArray(option.conditions).map(condition => ({
@@ -78,7 +147,13 @@
     return {
       id: String(option.id || ''),
       title: String(option.title || 'UNTITLED CONTRACT'),
+      title_i18n: option.title_i18n && typeof option.title_i18n === 'object'
+        ? { ru: String(option.title_i18n.ru || option.title || ''), en: String(option.title_i18n.en || option.title || '') }
+        : null,
       description: String(option.description || ''),
+      description_i18n: option.description_i18n && typeof option.description_i18n === 'object'
+        ? { ru: String(option.description_i18n.ru || option.description || ''), en: String(option.description_i18n.en || option.description || '') }
+        : null,
       metric: String(option.metric || ''),
       operator: String(option.operator || 'gte'),
       target: Number(option.target || 0),
@@ -87,7 +162,13 @@
       rarity: String(option.rarity || 'COMMON').toUpperCase(),
       category: String(option.category || 'COMBAT').toUpperCase(),
       conditions,
-      generator_meta: option.generator_meta && typeof option.generator_meta === 'object' ? option.generator_meta : {},
+      generator_meta: {
+        adaptive: option.personalization && typeof option.personalization === 'object'
+          ? option.personalization
+          : option.generator_meta?.adaptive && typeof option.generator_meta.adaptive === 'object'
+            ? option.generator_meta.adaptive
+            : {},
+      },
       selected: option.selected === true,
       status: String(option.status || 'OFFERED').toUpperCase(),
       progress_current: finiteOrNull(option.progress_current),
@@ -209,6 +290,10 @@
       game_match_mode: normalizeMode(item.game_match_mode),
       board_status: String(item.board_status || '').toUpperCase(),
       status: String(item.status || '').toUpperCase(),
+      title: String(item.title || ''),
+      title_i18n: item.title_i18n && typeof item.title_i18n === 'object'
+        ? { ru: String(item.title_i18n.ru || item.title || ''), en: String(item.title_i18n.en || item.title || '') }
+        : null,
       reward_xp: Number(item.reward_xp || 0),
       reward_granted_xp: Number(item.reward_granted_xp || 0),
       reward_granted_at: item.reward_granted_at ? String(item.reward_granted_at) : null,
@@ -471,6 +556,8 @@
     emptyProductState,
     normalizeMode,
     modeLabel,
+    contractTitle,
+    contractDescription,
     normalizeBootstrap,
     normalizeBoard,
     normalizeAdaptiveProfile,

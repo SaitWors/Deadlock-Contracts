@@ -11,6 +11,39 @@ RARITY_MULTIPLIER = {"COMMON": 1.0, "UNCOMMON": 1.15, "RARE": 1.35, "EPIC": 1.7}
 RARITY_WEIGHT = {"COMMON": 100.0, "UNCOMMON": 32.0, "RARE": 8.0, "EPIC": 1.0}
 MODE_MULTIPLIER = {"STANDARD": 1.0, "RANKED": 1.20, "STREET_BRAWL": 0.78}
 
+METRIC_EN = {
+    "player.kills": ("Elimination file", "kills"),
+    "player.deaths": ("Clean getaway", "deaths"),
+    "player.assists": ("Network of contacts", "assists"),
+    "player.kda": ("Clean dossier", "KDA"),
+    "player.net_worth.final": ("Case capital", "souls"),
+    "player.hero_damage": ("Compelling evidence", "hero damage"),
+    "player.healing": ("Field support", "healing"),
+    "player.scoreboard_healing": ("Field medic", "scoreboard healing"),
+    "match.duration_s": ("Long investigation", "seconds of match time"),
+}
+MODE_EN = {
+    "STANDARD": "standard match",
+    "RANKED": "ranked match",
+    "STREET_BRAWL": "Street Brawl match",
+}
+
+
+def english_copy(metric: str, operator: str, target: float, mode: str) -> tuple[str, str]:
+    match_name = MODE_EN[mode]
+    if metric == "match.win":
+        return "Close the case with a win", f"Win your next {match_name}."
+    title, label = METRIC_EN.get(metric, ("Contract objective", metric))
+    display_target = int(target) if float(target).is_integer() else target
+    if metric == "match.duration_s":
+        display_target = int(round(float(target) / 60))
+        label = "minutes"
+    if operator == "lte":
+        description = f"Finish your next {match_name} with no more than {display_target} {label}."
+    else:
+        description = f"Reach at least {display_target} {label} in your next {match_name}."
+    return title, description
+
 
 def reward(mode: str, difficulty: str, rarity: str) -> int:
     value = DIFFICULTY_BASE_XP[difficulty] * RARITY_MULTIPLIER[rarity] * MODE_MULTIPLIER[mode]
@@ -32,10 +65,13 @@ def mission(
     *,
     safety: str = "WIN_ALIGNED",
 ) -> dict:
+    title_en, description_en = english_copy(metric, operator, target, mode)
     return {
         "key": f"{key}_{mode.lower()}",
         "title": title,
         "description": description,
+        "title_en": title_en,
+        "description_en": description_en,
         "metric": metric,
         "operator": operator,
         "target": target,
@@ -121,5 +157,11 @@ def seed_missions(db: Session) -> None:
         # Contracts 2.0 treats existing v2 rows as admin-maintained generator atoms.
         # Never overwrite edits made in Admin Console on every web/worker restart.
         # Code defaults are only used to create missing atoms on fresh installs.
+        if not mission_row.title_en:
+            mission_row.title_en = item["title_en"]
+            changed = True
+        if not mission_row.description_en:
+            mission_row.description_en = item["description_en"]
+            changed = True
     if changed:
         db.commit()

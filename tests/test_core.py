@@ -266,6 +266,7 @@ class ConfigurationTests(unittest.TestCase):
             allow_demo_auth=False,
             allow_dev_endpoints=False,
             provider="deadlock_api",
+            rate_limit_redis_url="redis://redis:6379/0",
         )
         production.validate()
         with self.assertRaises(RuntimeError):
@@ -276,6 +277,12 @@ class ConfigurationTests(unittest.TestCase):
             replace(production, allow_demo_auth=True).validate()
         with self.assertRaises(RuntimeError):
             replace(production, trusted_hosts=("*",)).validate()
+        with self.assertRaises(RuntimeError):
+            replace(production, trusted_proxy_networks=("0.0.0.0/0",)).validate()
+        with self.assertRaises(RuntimeError):
+            replace(production, trusted_proxy_networks=("not-a-network",)).validate()
+        with self.assertRaises(RuntimeError):
+            replace(production, companion_minimum_version="latest").validate()
 
 
 class EndToEndTests(unittest.TestCase):
@@ -689,16 +696,19 @@ class EndToEndTests(unittest.TestCase):
                 headers=bearer,
             )
             self.assertEqual(heartbeat.status_code, 200)
-            status = client.get("/api/companion/status").json()["device"]
+            status_payload = client.get("/api/companion/status").json()
+            status = status_payload["device"]
+            self.assertEqual(len(status_payload["devices"]), 1)
+            device_record_id = status_payload["devices"][0]["id"]
             self.assertTrue(status["paired"])
             self.assertTrue(status["online"])
             self.assertTrue(status["game_running"])
             self.assertEqual(status["game_match_mode"], "STREET_BRAWL")
-            self.assertEqual(status["current_match_id"], 98404528)
+            self.assertEqual(status["current_match_id"], "98404528")
             self.assertTrue(status["identity_ok"])
             # Live GameInProgress snapshots are evidence only. They must never
             # start final match resolution before an explicit finality signal.
-            self.assertEqual(heartbeat.json()["direct_match_boards"], [])
+            self.assertNotIn("direct_match_boards", heartbeat.json())
             with SessionLocal() as db:
                 from app.models import CompanionEvent, CompanionMatchEvidence, Job
                 evidence = db.query(CompanionMatchEvidence).filter_by(external_match_id=98404528).one()
@@ -776,14 +786,41 @@ class EndToEndTests(unittest.TestCase):
 
             hello = client.get("/api/companion/hello", headers=bearer)
             self.assertEqual(hello.status_code, 200)
+            bootstrap = client.get("/api/desktop/v1/bootstrap", headers=bearer)
+            self.assertEqual(bootstrap.status_code, 200)
+            self.assertNotIn("desktop_ads_v1", bootstrap.json()["desktop_features"])
+
+            revoked_device = client.post(
+                f"/api/companion/devices/{device_record_id}/revoke",
+                headers=headers,
+            )
+            self.assertEqual(revoked_device.status_code, 200)
+            self.assertEqual(client.get("/api/companion/hello", headers=bearer).status_code, 401)
+
+            replacement_code = client.post("/api/companion/pairing/start", headers=headers).json()["code"]
+            replacement = client.post(
+                "/api/companion/pairing/claim",
+                json={
+                    "code": replacement_code,
+                    "device_id": "unittest-device-0001",
+                    "label": "Unit Test Companion",
+                    "version": "0.5.2-alpha.6",
+                },
+            )
+            self.assertEqual(replacement.status_code, 200)
+            replacement_bearer = {"Authorization": f"Bearer {replacement.json()['token']}"}
             revoked = client.post("/api/companion/revoke", headers=headers)
             self.assertEqual(revoked.status_code, 200)
-            self.assertEqual(client.get("/api/companion/hello", headers=bearer).status_code, 401)
+            self.assertEqual(client.get("/api/companion/hello", headers=replacement_bearer).status_code, 401)
 
     def test_request_guards_and_cookie_attributes(self) -> None:
         with TestClient(app) as client:
             oversized = client.post("/api/auth/demo", content=b"x" * 70000)
             self.assertEqual(oversized.status_code, 413)
+            oversized_error = oversized.json()
+            self.assertEqual(oversized_error["code"], "PAYLOAD_TOO_LARGE")
+            self.assertEqual(oversized_error["message_key"], "errors.payload_too_large")
+            self.assertTrue(oversized_error["request_id"])
 
             login = client.post("/api/auth/demo")
             self.assertEqual(login.status_code, 200)
@@ -793,6 +830,29 @@ class EndToEndTests(unittest.TestCase):
 
             me = client.get("/api/me").json()
             headers = {"X-CSRF-Token": me["csrf_token"]}
+            with patch(
+                "app.main.settings",
+                replace(settings, companion_ingest_enabled=False),
+            ):
+                ingest_disabled = client.post("/api/companion/pairing/start", headers=headers)
+            self.assertEqual(ingest_disabled.status_code, 503)
+            self.assertEqual(ingest_disabled.json()["code"], "COMPANION_INGEST_DISABLED")
+            with patch(
+                "app.main.settings",
+                replace(settings, companion_minimum_version="0.5.2-alpha.7"),
+            ):
+                update_required = client.post(
+                    "/api/companion/pairing/claim",
+                    json={
+                        "code": "ABCD-EFGH",
+                        "device_id": "outdated-device",
+                        "label": "Outdated Companion",
+                        "version": "0.5.2-alpha.6",
+                    },
+                )
+            self.assertEqual(update_required.status_code, 426)
+            self.assertEqual(update_required.json()["code"], "COMPANION_UPDATE_REQUIRED")
+            self.assertEqual(update_required.headers["x-minimum-companion-version"], "0.5.2-alpha.7")
             foreign_origin = client.post(
                 "/api/matches/sync",
                 headers={**headers, "Origin": "https://attacker.example"},
@@ -806,7 +866,41 @@ class EndToEndTests(unittest.TestCase):
                 headers=headers,
             )
             self.assertEqual(bad_payload.status_code, 422)
+            bad_error = bad_payload.json()
+            self.assertEqual(bad_error["code"], "VALIDATION_FAILED")
+            self.assertEqual(bad_error["message_key"], "errors.validation_failed")
+            self.assertTrue(bad_error["request_id"])
+            missing_api = client.get("/api/definitely-missing", headers={"Accept-Language": "en"})
+            self.assertEqual(missing_api.status_code, 404)
+            self.assertEqual(missing_api.json()["code"], "NOT_FOUND")
+            self.assertEqual(missing_api.json()["message"], "API endpoint not found")
+            self.assertTrue(missing_api.json()["request_id"])
+            csp = client.get("/").headers["content-security-policy"]
+            self.assertIn("https://*.steamusercontent.com", csp)
+            self.assertIn("https://*.steamstatic.com", csp)
             self.assertEqual(client.get("/openapi.json").status_code, 200)  # enabled only in tests/development
+
+    def test_localized_legal_and_machine_readable_discovery_routes(self) -> None:
+        with TestClient(app) as client:
+            english = client.get("/en/privacy")
+            russian = client.get("/ru/privacy")
+            negotiated = client.get("/privacy", headers={"Accept-Language": "en-US,en;q=0.9"})
+            robots = client.get("/robots.txt")
+            sitemap = client.get("/sitemap.xml")
+            public_status = client.get("/api/status").json()
+
+            self.assertEqual(english.status_code, 200)
+            self.assertIn('<html lang="en">', english.text)
+            self.assertIn("Data processing", english.text)
+            self.assertIn("Политика конфиденциальности", russian.text)
+            self.assertIn("Data processing", negotiated.text)
+            self.assertTrue(robots.headers["content-type"].startswith("text/plain"))
+            self.assertIn("Sitemap:", robots.text)
+            self.assertTrue(sitemap.headers["content-type"].startswith("application/xml"))
+            self.assertIn("<urlset", sitemap.text)
+            self.assertEqual(public_status["components"]["companion_ingest"], "operational")
+            self.assertEqual(public_status["components"]["reward_delivery"], "operational")
+            self.assertEqual(public_status["components"]["companion_ads"], "disabled")
 
 
 if __name__ == "__main__":

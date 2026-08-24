@@ -207,6 +207,26 @@ test('Desktop additive feature flags are preserved for safe client capability ga
   assert.deepEqual(state.server_features, ['adaptive_profiles_v1', 'debrief_v1'])
 })
 
+test('server-owned RU and EN mission content survives normalization and rendering', () => {
+  const payload = bootstrap()
+  payload.boards[0].options[0].title_i18n = { ru: 'Серверное задание', en: 'Server mission' }
+  payload.boards[0].options[0].description_i18n = {
+    ru: 'Серверное описание',
+    en: 'Server description',
+  }
+  const state = Product.normalizeBootstrap(payload)
+  const option = state.boards[0].options[0]
+
+  assert.deepEqual(option.title_i18n, {
+    ru: 'Серверное задание',
+    en: 'Server mission',
+  })
+  assert.equal(Product.contractTitle(option, 'ru'), 'Серверное задание')
+  assert.equal(Product.contractTitle(option, 'en'), 'Server mission')
+  assert.equal(Product.contractDescription(option, 'STANDARD', 'ru'), 'Серверное описание')
+  assert.equal(Product.contractDescription(option, 'STANDARD', 'en'), 'Server description')
+})
+
 
 test('selectedContracts exposes all 1-3 active selected contracts and caps malformed overflow', () => {
   const make = id => ({

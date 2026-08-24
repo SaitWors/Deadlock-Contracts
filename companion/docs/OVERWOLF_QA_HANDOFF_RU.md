@@ -1,58 +1,40 @@
-# Overwolf QA handoff — Companion 0.5.2-alpha.4
+# Overwolf QA handoff — Companion 0.5.2-alpha.6
 
 ## Candidate
 
-- Product: Deadlock Contracts Companion
-- Runtime: `0.5.2-alpha.4`
-- Manifest: `0.5.2.4`
-- Backend: `0.10.1-alpha.8`
-- Desktop API: `desktop.v1 / schema 1`
-- Game: Deadlock / `24482`
-- Default overlay hotkey: `Ctrl+Shift+C` (actual binding is read dynamically)
-- Minimum Overwolf: `0.305.0.9`
-- Minimum GEP: `311.0.0`
+- Runtime: `0.5.2-alpha.6`; manifest: `0.5.2.6`; Backend: `0.10.1-alpha.8`.
+- Game: Deadlock `24482`; minimum Overwolf `0.305.0.9`; minimum GEP `311.0.0`.
+- Hotkey default: `Ctrl+Shift+C`; actual binding reads dynamically from Overwolf Settings.
+- Overlay: input-pass-through, resizable, bounded to game, user-invoked, auto-minimizes after 6.5 sec.
+- Ads: one `OwAd` desktop-HQ `400×60` container, additionally gated by the
+  server feature `desktop_ads_v1`. Production default is OFF until dedicated
+  Overwolf ad QA. Not present in overlay or active gameplay.
 
 ## Reviewer walkthrough
 
-1. Packed OPK install. Manual/dock launch должен открыть видимое Desktop window.
-2. FTUE: flow + privacy + actual current hotkey должны отображаться корректно.
-3. Pairing: получить code на сайте → Connect. Никаких встроенных production credentials.
-4. HQ: server online, profile и три boards.
-5. Contracts: проверить Adaptive Intel для каждого режима. Cold-start должен честно показываться cold-start, без выдуманного baseline.
-6. Открыть `WHY THIS CONTRACT?` на персонализированной карточке: sample/confidence/baseline/target должны совпадать с server payload.
-7. Выбрать 1–3 server options → Lock Case. После restart должен остаться тот же server Active Case.
-8. Запустить Deadlock в matching mode. Live progress обязан быть помечен `PROVISIONAL`.
-9. Overlay: нажать текущий binding. Проверить input-pass-through и тот же Active Case.
-10. В Overwolf Settings изменить hotkey. Без relaunch UI Companion должен показать новый binding, и новый hotkey должен работать. Unassign также должен отображаться как unassigned, а не старое значение.
-11. Завершить матч. Client не должен объявлять verdict локально. Дождаться server refresh → Debrief.
-12. Debrief: точный Match ID, evaluator status, фактически granted XP, retryable miss/VERIFYING semantics.
-13. Проверить History и Profile progression после server settlement.
-14. Отдельно сыграть/проверить STANDARD, RANKED, STREET_BRAWL. Future/unknown mode нельзя молча отобразить как Standard/Ranked.
+1. Verify packed OPK checksum, install the OPK, launch from dock and confirm the Desktop window is visible.
+2. Check FTUE: product explanation, pairing, privacy and actual hotkey label. No ad should appear in FTUE.
+3. Pair through the official site: no production credentials live in the OPK.
+4. HQ: server status, profile and all three mode boards appear from the server. During the dedicated ad pass, enable `COMPANION_ADS_ENABLED=true`; the desktop ad rail may initialize only after pair + HQ + a non-active game phase. A no-fill/disabled state is not a product error.
+5. Contracts: select 1–3 server options and lock them. Restart Companion and confirm the same server Active Case persists.
+6. Start each Deadlock mode independently. Ensure unknown mode fails closed and live values are always marked `PROVISIONAL`.
+7. Press the current hotkey during a safe visual moment. Check the rounded overlay, input pass-through, hover dodge, progress motion and selected-contract focus. Press again to hide; then reopen and verify automatic minimize near 6.5 sec.
+8. Rebind the hotkey in Overwolf Settings. Without relaunch, verify Desktop, FTUE and Overlay all show the new binding. Test `UNASSIGNED` too.
+9. Complete/fail a contract. The overlay burst must only say/mean provisional. Wait for server refresh: Debrief must show authoritative evaluator status, exact match ID and actually granted XP.
+10. Return to HQ / leave HQ / enter `GameInProgress`: ensure the Desktop ad slot does not exist outside its allowed state and never appears in overlay.
 
-## Required Overwolf matrix
+## Required Windows matrix
 
-Пройти на реальном Windows/Overwolf:
+- 1366×720 @100%, 1366×768 @100%, 1920×1080 @125%, 3840×2160 @150%;
+- fullscreen/windowed, Alt+Tab out/in, mid-game OPK install, desktop launch/exit/relaunch;
+- offline/reconnect, changed hotkey, all three modes, long/short contract names, 1/2/3 selected contracts;
+- CPU/RAM/network observation; final frozen OPK antivirus/VirusTotal.
 
-- 1366×720 @ 100%;
-- 1366×768 @ 100%;
-- 1920×1080 @ 125%;
-- 2560×1440 @ 100% (project extension check);
-- 3840×2160 @ 150%;
-- fullscreen + windowed;
-- Alt+Tab out/in;
-- mid-game installation;
-- desktop launch/exit/relaunch;
-- offline/reconnect;
-- changed hotkey functionality + UI without app relaunch;
-- CPU/RAM/network observation;
-- final packed OPK antivirus/VirusTotal.
+## Submission stop conditions
 
-## Failure expectations
+- Overlay covers a critical Deadlock HUD element or remains visible longer than expected.
+- Any ad appears during `GameInProgress`, in overlay, FTUE, pairing, dialog, error/empty page or without adjacent HQ content.
+- Client reports local completion/XP instead of server result.
+- A real mode maps to a wrong board, GEP value is fabricated, or hotkey fails after rebind.
 
-- unpaired: no fake boards;
-- `401`: local token cleared, re-pair required;
-- incompatible API/schema: explicit server update state, no silent fallback;
-- unknown mode: fail closed;
-- missing server debrief/adaptive feature: hide/disable feature rather than fabricate data;
-- provider delay: VERIFYING/DELAYED, not fake FAILED/COMPLETED;
-- missing metric: unknown/unverifiable, not zero.
+If one occurs, stop and fix before submitting; do not explain it away in QA notes.

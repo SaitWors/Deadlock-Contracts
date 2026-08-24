@@ -5,17 +5,18 @@ Web/backend release: `0.10.1-alpha.8`.
 ## Companion
 
 Каноническая версия:
-`0.5.2-alpha.4`.
+`0.5.2-alpha.6`.
 
 Overwolf manifest:
-`0.5.2.4`.
+`0.5.2.6`.
 
-Recovery build `0.5.0-alpha.3` не является текущей
-public-версией.
+Исправления alpha 6 сделаны поверх подтверждённой рабочей
+alpha 5; её исходный SHA-256 сохранён в
+`COMPANION_SOURCE_PROVENANCE.json`.
 
 До подключения официального `COMPANION_DOWNLOAD_URL`
 тестерам выдаётся только проверенный build
-`0.5.2-alpha.4`.
+`0.5.2-alpha.6` с checksum из test report.
 
 После установки:
 
@@ -36,3 +37,6 @@ public-версией.
 - `/status`
 - `/changelog`
 - `/data-sources`
+
+Полный порядок тестирования, production deployment и rollback:
+`TESTING_AND_PRODUCTION_RUNBOOK_RU.md`.

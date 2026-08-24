@@ -1,12 +1,15 @@
 from __future__ import annotations
 
 import ipaddress
+import hashlib
+import logging
 import re
 import secrets
 import threading
 import time
 from collections import defaultdict, deque
 from collections.abc import Awaitable, Callable
+from http.cookies import SimpleCookie
 from typing import Any
 
 from starlette.datastructures import Headers
@@ -15,6 +18,7 @@ from starlette.types import ASGIApp, Message, Receive, Scope, Send
 from .config import settings
 
 UNSAFE_METHODS = {"POST", "PUT", "PATCH", "DELETE"}
+log = logging.getLogger(__name__)
 
 
 class SlidingWindowLimiter:
@@ -44,12 +48,83 @@ class SlidingWindowLimiter:
             return True, 0
 
 
-_limiter = SlidingWindowLimiter()
+class SharedSlidingWindowLimiter:
+    SCRIPT = """
+local key = KEYS[1]
+local now = tonumber(ARGV[1])
+local cutoff = tonumber(ARGV[2])
+local limit = tonumber(ARGV[3])
+local ttl = tonumber(ARGV[4])
+local member = ARGV[5]
+redis.call('ZREMRANGEBYSCORE', key, '-inf', cutoff)
+local count = redis.call('ZCARD', key)
+if count >= limit then
+  local oldest = redis.call('ZRANGE', key, 0, 0, 'WITHSCORES')
+  local retry = ttl
+  if oldest[2] then retry = math.max(1, math.ceil(ttl - (now - tonumber(oldest[2])))) end
+  return {0, retry}
+end
+redis.call('ZADD', key, now, member)
+redis.call('EXPIRE', key, ttl + 1)
+return {1, 0}
+"""
+
+    def __init__(self, url: str, fallback: SlidingWindowLimiter) -> None:
+        from redis.asyncio import Redis
+
+        self._redis = Redis.from_url(url, decode_responses=True, socket_connect_timeout=1, socket_timeout=1)
+        self._fallback = fallback
+
+    async def allow(self, key: str, limit: int, window_seconds: int) -> tuple[bool, int]:
+        now = time.time()
+        try:
+            result = await self._redis.eval(
+                self.SCRIPT,
+                1,
+                f"dc:rate:{key}",
+                now,
+                now - window_seconds,
+                limit,
+                window_seconds,
+                f"{now:.6f}:{secrets.token_hex(8)}",
+            )
+            return bool(int(result[0])), int(result[1])
+        except Exception:
+            log.exception("Shared rate limiter unavailable; using process-local fallback")
+            return self._fallback.allow(key, limit, window_seconds)
+
+    async def ping(self) -> bool:
+        try:
+            return bool(await self._redis.ping())
+        except Exception:
+            log.exception("Shared rate limiter readiness check failed")
+            return False
+
+
+_local_limiter = SlidingWindowLimiter()
+_limiter = SharedSlidingWindowLimiter(settings.rate_limit_redis_url, _local_limiter) if settings.rate_limit_redis_url else None
+
+
+async def rate_limiter_ready() -> bool:
+    if _limiter is None:
+        return not settings.is_production
+    return await _limiter.ping()
+
+
+def _peer_is_trusted_proxy(scope: Scope) -> bool:
+    client = scope.get("client")
+    if not client:
+        return False
+    try:
+        address = ipaddress.ip_address(str(client[0]))
+        return any(address in ipaddress.ip_network(value, strict=False) for value in settings.trusted_proxy_networks)
+    except ValueError:
+        return False
 
 
 def _client_ip(scope: Scope, headers: Headers) -> str:
     raw = ""
-    if settings.trust_proxy_headers:
+    if settings.trust_proxy_headers and _peer_is_trusted_proxy(scope):
         raw = headers.get("x-forwarded-for", "").split(",", 1)[0].strip()
     if not raw:
         client = scope.get("client")
@@ -71,7 +146,40 @@ def _rate_rule(path: str) -> tuple[str, int, int] | None:
         return "admin-totp", 8, 600
     if path == "/api/matches/sync":
         return "sync", settings.sync_rate_limit_per_hour, 3600
+    if path in {"/api/companion/pairing/start", "/api/companion/pairing/claim"}:
+        return "companion-pairing", 20, 600
+    if path == "/api/companion/heartbeat":
+        return "companion-heartbeat", 180, 60
+    if path.startswith("/api/desktop/v1/"):
+        return "companion-desktop", 240, 60
     return "global", settings.global_rate_limit_per_minute, 60
+
+
+def _rate_identities(bucket: str, ip: str, headers: Headers) -> list[str]:
+    """Apply both network and authenticated-principal buckets when possible."""
+    identities = [f"{bucket}:ip:{ip}"]
+    authorization = headers.get("authorization", "")
+    if authorization.lower().startswith("bearer "):
+        token = authorization.split(" ", 1)[1].strip()
+        if token:
+            digest = hashlib.sha256(token.encode("utf-8")).hexdigest()[:24]
+            identities.append(f"{bucket}:device:{digest}")
+            return identities
+
+    cookie_header = headers.get("cookie", "")
+    if cookie_header:
+        try:
+            cookies = SimpleCookie()
+            cookies.load(cookie_header)
+            for name in ("__Host-dc_session", "dc_session"):
+                if name in cookies and cookies[name].value:
+                    digest = hashlib.sha256(cookies[name].value.encode("utf-8")).hexdigest()[:24]
+                    identities.append(f"{bucket}:session:{digest}")
+                    break
+        except Exception:
+            # Invalid Cookie syntax falls back to the IP bucket.
+            pass
+    return identities
 
 
 def _origin_allowed(headers: Headers) -> bool:
@@ -125,10 +233,14 @@ class RequestSecurityMiddleware:
         if rule:
             bucket, limit, window = rule
             ip = _client_ip(scope, headers)
-            allowed, retry_after = _limiter.allow(f"{bucket}:{ip}", limit, window)
-            if not allowed:
-                await self._reject(send, 429, "Слишком много запросов. Повторите позже.", request_id, retry_after)
-                return
+            for identity in _rate_identities(bucket, ip, headers):
+                if _limiter is not None:
+                    allowed, retry_after = await _limiter.allow(identity, limit, window)
+                else:
+                    allowed, retry_after = _local_limiter.allow(identity, limit, window)
+                if not allowed:
+                    await self._reject(send, 429, "Слишком много запросов. Повторите позже.", request_id, retry_after)
+                    return
 
         received = 0
 
@@ -156,8 +268,16 @@ class RequestSecurityMiddleware:
     ) -> None:
         import json
 
+        codes = {
+            400: "BAD_REQUEST",
+            403: "ORIGIN_REJECTED",
+            413: "PAYLOAD_TOO_LARGE",
+            429: "RATE_LIMITED",
+        }
+        code = codes.get(status_code, f"HTTP_{status_code}")
+        error = {"code": code, "message_key": f"errors.{code.lower()}", "message": detail}
         body = json.dumps(
-            {"detail": detail, "request_id": request_id},
+            {"detail": detail, **error, "error": error, "request_id": request_id},
             ensure_ascii=False,
             separators=(",", ":"),
         ).encode("utf-8")
@@ -208,6 +328,8 @@ class SecurityHeadersMiddleware:
                     "https://avatars.akamai.steamstatic.com "
                     "https://avatars.cloudflare.steamstatic.com "
                     "https://avatars.fastly.steamstatic.com "
+                    "https://*.steamstatic.com "
+                    "https://*.steamusercontent.com "
                     "https://steamcdn-a.akamaihd.net; "
                     "manifest-src 'self'"
                 )

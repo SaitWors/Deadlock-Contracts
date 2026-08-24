@@ -4,12 +4,15 @@ import hashlib
 from datetime import date, datetime, time, timedelta, timezone
 
 from sqlalchemy import delete, func, select
+from sqlalchemy.dialects.postgresql import insert as postgresql_insert
+from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, selectinload
 
 from ..config import settings
 from ..models import (
     AuditLog,
+    AutoReviewCase,
     BoardOption,
     ContractBoard,
     DailyRefreshState,
@@ -81,6 +84,7 @@ def expire_board(
     board: ContractBoard,
     *,
     now: datetime | None = None,
+    commit: bool = True,
 ) -> bool:
     current = now or utcnow()
 
@@ -89,9 +93,7 @@ def expire_board(
     if expires.tzinfo is None:
         expires = expires.replace(tzinfo=timezone.utc)
 
-    # Если матч уже найден и идёт проверка —
-    # не убиваем дело посреди серверной обработки.
-    if board.status != "LOCKED" or expires > current:
+    if board.status not in {"LOCKED", "VERIFYING", "REVIEW_REQUIRED"} or expires > current:
         return False
 
     board.status = "EXPIRED"
@@ -100,15 +102,35 @@ def expire_board(
         if (
             option.selected
             and option.status
-            not in {"COMPLETED", "FAILED", "EXPIRED"}
+            not in {"COMPLETED", "FAILED", "EXPIRED", "VOID"}
         ):
-            option.status = "EXPIRED"
+            provider_or_review_timeout = option.status in {"VERIFYING", "REVIEW_REQUIRED"}
+            option.status = "VOID" if provider_or_review_timeout else "EXPIRED"
             option.settled_at = current
             option.explanation = (
                 option.explanation
-                or "Срок дела истёк. "
-                   "Неиспользованные попытки сгорели."
+                or (
+                    "Срок проверки итоговых данных истёк. Контракт аннулирован без поражения и без награды."
+                    if provider_or_review_timeout
+                    else "Срок дела истёк. Неиспользованные попытки сгорели."
+                )
             )
+
+    pending_reviews = list(
+        db.scalars(
+            select(AutoReviewCase).where(
+                AutoReviewCase.board_id == board.id,
+                AutoReviewCase.status.in_(("PENDING", "NEEDS_INFO", "WAITING_PROVIDER")),
+            )
+        ).all()
+    )
+    for review in pending_reviews:
+        review.status = "RESOLVED"
+        review.reviewer_note = (
+            "Закрыто автоматически по истечении срока дела; "
+            "непроверяемые контракты аннулированы без поражения."
+        )
+        review.reviewed_at = current
 
     db.add(
         AuditLog(
@@ -119,15 +141,19 @@ def expire_board(
             data={
                 "attempts_used": board.attempts_used,
                 "max_attempts": board.max_attempts,
+                "auto_reviews_resolved": len(pending_reviews),
             },
         )
     )
 
-    db.commit()
+    if commit:
+        db.commit()
+    else:
+        db.flush()
     return True
 
 
-def expire_stale_boards(db: Session) -> int:
+def expire_stale_boards(db: Session, *, commit: bool = True) -> int:
     current = utcnow()
 
     boards = list(
@@ -137,7 +163,7 @@ def expire_stale_boards(db: Session) -> int:
                 selectinload(ContractBoard.options)
             )
             .where(
-                ContractBoard.status == "LOCKED",
+                ContractBoard.status.in_(("LOCKED", "VERIFYING", "REVIEW_REQUIRED")),
                 ContractBoard.expires_at <= current,
             )
         ).all()
@@ -146,9 +172,11 @@ def expire_stale_boards(db: Session) -> int:
     count = 0
 
     for board in boards:
-        if expire_board(db, board, now=current):
+        if expire_board(db, board, now=current, commit=False):
             count += 1
 
+    if count and commit:
+        db.commit()
     return count
 
 
@@ -156,7 +184,7 @@ def _expire_old_offers(
     db: Session,
     user_id: str,
     mode: str,
-) -> None:
+) -> bool:
     stale = list(
         db.scalars(
             select(ContractBoard)
@@ -173,7 +201,7 @@ def _expire_old_offers(
     )
 
     if not stale:
-        return
+        return False
 
     for board in stale:
         board.status = "EXPIRED"
@@ -182,7 +210,8 @@ def _expire_old_offers(
             if option.status == "OFFERED":
                 option.status = "SKIPPED"
 
-    db.commit()
+    db.flush()
+    return True
 
 
 def _load_board(
@@ -225,8 +254,8 @@ def _load_board(
 
     if active:
         if (
-            active.status == "LOCKED"
-            and expire_board(db, active)
+            active.status in {"LOCKED", "VERIFYING", "REVIEW_REQUIRED"}
+            and expire_board(db, active, commit=False)
         ):
             active = None
         else:
@@ -250,25 +279,60 @@ def _load_board(
 
     return db.scalar(stmt)
 
-def _refresh_state(db: Session, user_id: str, *, for_update: bool = False) -> DailyRefreshState:
+def _refresh_state(
+    db: Session,
+    user_id: str,
+    *,
+    for_update: bool = False,
+    create: bool = True,
+) -> DailyRefreshState:
     stmt = select(DailyRefreshState).where(DailyRefreshState.user_id == user_id, DailyRefreshState.board_date == today_utc())
     if for_update:
         stmt = stmt.with_for_update()
     state = db.scalar(stmt)
     if state:
         return state
-    state = DailyRefreshState(user_id=user_id, board_date=today_utc())
-    db.add(state)
-    try:
-        db.commit()
-    except IntegrityError:
-        db.rollback()
-        state = db.scalar(stmt)
-        if state:
-            return state
-        raise
-    db.refresh(state)
-    return state
+    state = DailyRefreshState(
+        user_id=user_id,
+        board_date=today_utc(),
+        free_rerolls_used=0,
+    )
+    if not create:
+        # Read-only callers only need the default counters. Avoid creating a
+        # row (and taking a unique-key lock) from a GET request.
+        return state
+    values = {
+        "user_id": user_id,
+        "board_date": today_utc(),
+        "free_rerolls_used": 0,
+    }
+    dialect = db.get_bind().dialect.name
+    if dialect == "postgresql":
+        db.execute(
+            postgresql_insert(DailyRefreshState)
+            .values(**values)
+            .on_conflict_do_nothing(
+                index_elements=["user_id", "board_date"]
+            )
+        )
+    elif dialect == "sqlite":
+        db.execute(
+            sqlite_insert(DailyRefreshState)
+            .values(**values)
+            .on_conflict_do_nothing(
+                index_elements=["user_id", "board_date"]
+            )
+        )
+    else:
+        db.add(state)
+        db.flush()
+    # Never commit inside a larger board operation. The upsert and subsequent
+    # row lock keep the first reroll counter in the same transaction as board
+    # generation changes, including two simultaneous first-use requests.
+    result = db.scalar(stmt)
+    if result is None:
+        raise RuntimeError("Не удалось создать состояние ежедневной пересборки")
+    return result
 
 
 def _eligible_missions(db: Session, mode: str) -> list[MissionDefinition]:
@@ -423,6 +487,8 @@ def ensure_daily_board(
     db: Session,
     user: User,
     mode: str = "STANDARD",
+    *,
+    commit: bool = True,
 ) -> ContractBoard:
 
     mode = normalize_mode(mode)
@@ -440,6 +506,8 @@ def ensure_daily_board(
     )
 
     if board:
+        if commit:
+            db.commit()
         return board
 
     day = today_utc()
@@ -487,9 +555,12 @@ def ensure_daily_board(
         )
     )
 
+    if not commit:
+        db.flush()
+        return board
+
     try:
         db.commit()
-
     except IntegrityError:
         db.rollback()
 
@@ -507,7 +578,23 @@ def ensure_daily_board(
     return result
 
 def ensure_daily_boards(db: Session, user: User) -> list[ContractBoard]:
-    return [ensure_daily_board(db, user, mode) for mode in GAME_MODES]
+    # A dashboard request observes all three modes from one transaction. If a
+    # concurrent request wins one daily unique key, retry the complete unit.
+    for attempt in range(2):
+        try:
+            for mode in GAME_MODES:
+                ensure_daily_board(db, user, mode, commit=False)
+            db.commit()
+            return [
+                board
+                for mode in GAME_MODES
+                if (board := _load_board(db, user.id, mode)) is not None
+            ]
+        except IntegrityError:
+            db.rollback()
+            if attempt:
+                raise
+    raise RuntimeError("Не удалось создать ежедневные доски")
 
 
 def reroll_board(db: Session, user: User, mode: str) -> ContractBoard:
@@ -672,15 +759,18 @@ def lock_board(
         )
     )
 
-    db.commit()
-
     enqueue_job(
         db,
         "discover_match",
         {"board_id": board.id},
         f"discover:{board.id}:attempt:1",
         max_attempts=settings.max_discovery_attempts,
+        commit=False,
     )
+
+    # Board transition, selected assignments, audit row and first discovery
+    # job become visible together or not at all.
+    db.commit()
 
     result = _load_board(
         db,
@@ -704,6 +794,7 @@ def refresh_summary(
     state = _refresh_state(
         db,
         user_id,
+        create=False,
     )
 
     remaining = max(
@@ -792,8 +883,24 @@ def serialize_board(
                 "id": option.id,
                 "title":
                     option.rendered_title,
+                "title_i18n": {
+                    "ru": option.rendered_title,
+                    "en": (
+                        option.mission.title_en
+                        if option.mission and option.mission.title_en
+                        else option.rendered_title
+                    ),
+                },
                 "description":
                     option.rendered_description,
+                "description_i18n": {
+                    "ru": option.rendered_description,
+                    "en": (
+                        option.mission.description_en
+                        if option.mission and option.mission.description_en
+                        else option.rendered_description
+                    ),
+                },
                 "metric":
                     option.metric,
                 "operator":
@@ -812,10 +919,11 @@ def serialize_board(
                     option.category,
                 "conditions":
                     option.conditions or [],
-                "fingerprint":
-                    option.fingerprint,
-                "generator_meta":
-                    option.generator_meta or {},
+                # Consumer clients need the explanation for their own adaptive
+                # target, not generator seeds, fingerprints or anti-repeat
+                # internals. Full metadata remains available in Admin APIs.
+                "personalization":
+                    (option.generator_meta or {}).get("adaptive", {}),
                 "selected":
                     option.selected,
                 "status":
@@ -827,7 +935,7 @@ def serialize_board(
                 "explanation":
                     option.explanation,
                 "bound_match_id":
-                    option.match.external_match_id
+                    str(option.match.external_match_id)
                     if option.match
                     else None,
             }
@@ -838,4 +946,3 @@ def serialize_board(
             )
         ],
     }
-

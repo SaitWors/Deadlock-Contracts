@@ -28,6 +28,7 @@ from .models import (
     RewardLedgerEntry,
     User,
 )
+from .services.boards import expire_stale_boards
 from .services.evaluator import capability_available, evaluate_board
 from .services.jobs import claim_next_job, complete_job, enqueue_job, retry_job
 from .services.providers import DeadlockApiProvider, ProviderError, ProviderRateLimited
@@ -111,6 +112,137 @@ def _resolve_settled_waiting_provider_reviews(db: Session) -> int:
         item.reviewed_at = now
     return len(items)
 
+
+def reconcile_active_contracts(db: Session) -> dict[str, int]:
+    """Repair lifecycle/job gaps without requiring an admin action.
+
+    Domain state is the source of truth: a LOCKED assignment needs discovery,
+    a VERIFYING assignment needs one evaluator job for its exact match, and a
+    board whose assignments are all terminal must be terminal too. Failed or
+    prematurely DONE jobs are safely reopened because handlers are idempotent.
+    """
+    expired = expire_stale_boards(db, commit=False)
+    now = utcnow()
+    boards = list(
+        db.scalars(
+            select(ContractBoard).where(
+                ContractBoard.status.in_(("LOCKED", "VERIFYING", "REVIEW_REQUIRED"))
+            )
+        ).all()
+    )
+    jobs = list(
+        db.scalars(
+            select(Job)
+            .where(
+                Job.type.in_(("discover_match", "evaluate_match")),
+            )
+            .order_by(Job.created_at.desc())
+        ).all()
+    )
+
+    repaired_states = 0
+    reopened_jobs = 0
+    created_jobs = 0
+    final_statuses = {"COMPLETED", "FAILED", "VOID", "EXPIRED"}
+
+    def reopen(job: Job, max_attempts: int) -> None:
+        nonlocal reopened_jobs
+        job.status = "PENDING"
+        job.attempts = 0
+        job.max_attempts = max(int(job.max_attempts or 0), int(max_attempts))
+        job.run_after = now
+        job.locked_at = None
+        job.locked_by = None
+        job.last_error = "Automatically reopened by lifecycle reconciler"
+        reopened_jobs += 1
+
+    for board in boards:
+        selected = list(
+            db.scalars(
+                select(BoardOption).where(
+                    BoardOption.board_id == board.id,
+                    BoardOption.selected.is_(True),
+                )
+            ).all()
+        )
+        if not selected:
+            continue
+
+        verifying = [item for item in selected if item.status == "VERIFYING"]
+        locked = [item for item in selected if item.status == "LOCKED"]
+        reviews = [item for item in selected if item.status == "REVIEW_REQUIRED"]
+
+        desired = (
+            "VERIFYING"
+            if verifying
+            else "LOCKED"
+            if locked
+            else "REVIEW_REQUIRED"
+            if reviews
+            else "SETTLED"
+            if all(item.status in final_statuses for item in selected)
+            else board.status
+        )
+        if board.status != desired:
+            board.status = desired
+            repaired_states += 1
+
+        for match_id in sorted({item.bound_match_id for item in verifying if item.bound_match_id}):
+            candidates = [
+                job
+                for job in jobs
+                if job.type == "evaluate_match"
+                and job.board_id == board.id
+                and job.match_id == str(match_id)
+            ]
+            if any(job.status in {"PENDING", "RUNNING"} for job in candidates):
+                continue
+            if candidates:
+                reopen(candidates[0], max(3, settings.post_match_verification_max_attempts))
+            else:
+                enqueue_job(
+                    db,
+                    "evaluate_match",
+                    {"board_id": board.id, "match_id": match_id, "lifecycle_repair": True},
+                    f"evaluate-reconcile-v1:{board.id}:{match_id}",
+                    max_attempts=max(3, settings.post_match_verification_max_attempts),
+                    commit=False,
+                )
+                created_jobs += 1
+
+        if locked and not verifying and not _active_companion_candidate(db, board.id):
+            candidates = [
+                job
+                for job in jobs
+                if job.type == "discover_match"
+                and job.board_id == board.id
+            ]
+            if not any(job.status in {"PENDING", "RUNNING"} for job in candidates):
+                if candidates:
+                    reopen(candidates[0], settings.max_discovery_attempts)
+                else:
+                    attempt = min(
+                        int(board.attempts_used or 0) + 1,
+                        int(board.max_attempts or settings.case_max_attempts),
+                    )
+                    enqueue_job(
+                        db,
+                        "discover_match",
+                        {"board_id": board.id, "lifecycle_repair": True},
+                        f"discover-reconcile-v1:{board.id}:attempt:{attempt}",
+                        max_attempts=settings.max_discovery_attempts,
+                        commit=False,
+                    )
+                    created_jobs += 1
+
+    db.commit()
+    return {
+        "expired": expired,
+        "repaired_states": repaired_states,
+        "reopened_jobs": reopened_jobs,
+        "created_jobs": created_jobs,
+    }
+
 def init() -> None:
     settings.validate()
     if engine.dialect.name == "sqlite":
@@ -154,7 +286,7 @@ def init() -> None:
             ).all()
         )
         for job in brawl_jobs:
-            board_id = str((job.payload or {}).get("board_id") or "")
+            board_id = str(job.board_id or "")
             board = db.get(ContractBoard, board_id) if board_id else None
             if not board or board.game_match_mode != "STREET_BRAWL" or board.status not in {"LOCKED", "VERIFYING"}:
                 continue
@@ -229,7 +361,7 @@ def init() -> None:
                 ).all()
             )
             if any(
-                str((item.payload or {}).get("board_id") or "") == board_id
+                item.board_id == board_id
                 for item in active
             ):
                 continue
@@ -253,7 +385,7 @@ def init() -> None:
         )
         seen_boards: set[str] = set()
         for job in active_discovery:
-            board_id = str((job.payload or {}).get("board_id") or "")
+            board_id = str(job.board_id or "")
             if not board_id:
                 continue
             if board_id in seen_boards:
@@ -367,6 +499,9 @@ def init() -> None:
                 resolved_waiting_reviews,
             )
         db.commit()
+        lifecycle = reconcile_active_contracts(db)
+        if any(lifecycle.values()):
+            log.info("Startup lifecycle reconciliation: %s", lifecycle)
 
 
 def store_normalized_match(db: Session, data: dict) -> Match:
@@ -496,12 +631,14 @@ def _companion_result_from_events(
     user: User,
     external_match_id: int,
 ) -> dict | None:
-    """Return the best local-team/result observation for one exact match.
+    """Return the best diagnostic local-team/result observation.
 
     Evidence schema v7 distinguishes a real ``match_outcome`` *info update*
     from a winner value merely returned by getInfo/cache.  This matters because
     Deadlock GEP can retain the previous match winner after ``match_id`` has
-    already advanced.  A scoring-grade local result therefore requires:
+    already advanced. The checks below improve correlation quality and reject
+    stale/cross-match observations, but they do not make a user-controlled
+    client authoritative:
 
     * authenticated identity for the exact Match ID;
     * a trusted match_end/session-end marker for that same match;
@@ -509,8 +646,8 @@ def _companion_result_from_events(
       the terminal event; and
     * a known local team from the local roster.
 
-    Older clients still get the previous stabilized diagnostic result, but it
-    remains non-authoritative and cannot create ``summary.result``.
+    Neither this path nor the legacy stabilized path may create
+    ``summary.result``.
     """
     finalization = _companion_finalization_from_events(db, user, external_match_id)
     if not finalization:
@@ -577,8 +714,9 @@ def _companion_result_from_events(
                 "captured_at": event.created_at.isoformat() if event.created_at else None,
                 "outcome_observed_at": outcome_at.isoformat(),
                 "outcome_match_id": outcome_match_id,
-                "trusted_for_scoring": True,
-                "trust_reason": "exact_match_terminal_plus_outcome_info_update_v7",
+                "trusted_for_scoring": False,
+                "trust_reason": "client_info_update_diagnostic_only",
+                "trust_class": "T0_UNTRUSTED",
             }
 
     # Backward-compatible diagnostic path for frozen/older clients.  A value
@@ -648,7 +786,7 @@ def _companion_finalization_from_events(
     user: User,
     external_match_id: int,
 ) -> dict | None:
-    """Return strong final-session evidence for one exact Companion match.
+    """Return a provisional terminal-session observation for one match.
 
     Finality is selected by *meaning*, not by an arbitrary recent-event window.
     Production match 99529660 proved that a frozen Companion can keep sending
@@ -656,9 +794,10 @@ def _companion_finalization_from_events(
     ``LIMIT N`` over the newest events can therefore lose the terminal marker.
 
     Accepted evidence combines an authenticated terminal lifecycle signal for
-    the exact Match ID with gameplay proof: a positive observed match clock.
-    Wall-clock session duration is not gameplay proof. Phase alone is not proof
-    because Deadlock can briefly emit/replay ``PostGame`` before play.
+    the exact Match ID with gameplay continuity: a positive observed match
+    clock. It is suitable for waking/correlating provider work, not scoring.
+    Wall-clock session duration is not gameplay continuity. Phase alone is not
+    enough because Deadlock can briefly emit/replay ``PostGame`` before play.
 
     ``match_outcome`` is deliberately excluded from finality because Deadlock
     GEP can retain the previous match outcome after the current Match ID has
@@ -741,8 +880,10 @@ def _companion_finalization_from_events(
         local_team = str(session.get("local_team") or "").upper()
         outcome = str(session.get("match_outcome") or "").upper()
         return {
-            "trusted": True,
-            "source": "overwolf_gep_final",
+            "trusted": False,
+            "trusted_for_scoring": False,
+            "trust_class": "T0_UNTRUSTED",
+            "source": "overwolf_gep_provisional",
             "signal": (
                 "match_end" if event_type == "match_ended"
                 else "postgame" if phase == "postgame"
@@ -808,6 +949,14 @@ def merge_companion_evidence(
     data: dict,
     external_match_id: int,
 ) -> dict:
+    """Attach Companion observations as diagnostics, never as match facts.
+
+    The Companion runs in a user-controlled JavaScript environment.  Device
+    authentication proves which account sent a payload; it does not attest
+    that the payload came from an unmodified client or from Deadlock.  Only an
+    independent provider may contribute scoring capabilities, final stats,
+    mode, duration or result.  GEP remains useful for correlation and live UI.
+    """
     evidence = db.scalar(
         select(CompanionMatchEvidence).where(
             CompanionMatchEvidence.user_id == user.id,
@@ -825,79 +974,32 @@ def merge_companion_evidence(
         return data
 
     data = dict(data)
-    participant = dict(data.get("participant") or {})
-    participant.setdefault("account_id", user.account_id)
-
-    contributed = []
-    mapping = {
-        "hero_id": ("hero_id", None),
-        "kills": ("kills", "summary.kills"),
-        "deaths": ("deaths", "summary.deaths"),
-        "assists": ("assists", "summary.assists"),
-        "hero_damage": ("hero_damage", "summary.hero_damage"),
-        "object_damage": ("object_damage", "summary.object_damage"),
-        # Keep live GEP healing non-authoritative here. Standard/Ranked receive
-        # summary.healing only below after trusted exact-match finalization.
-        # Street Brawl keeps a separate scoreboard-healing capability because
-        # its aggregate can differ from provider teammate-healing semantics.
-        "healing": ("healing", None),
-        "souls": ("net_worth", "summary.net_worth"),
-    }
-
-    capabilities = set(data.get("capabilities") or [])
-    for evidence_field, (participant_field, capability) in mapping.items():
-        value = getattr(evidence, evidence_field, None)
-        if participant.get(participant_field) is None and value is not None:
-            participant[participant_field] = value
-            contributed.append(evidence_field)
-        if value is not None and capability:
-            capabilities.add(capability)
-
-    companion_result = _companion_result_from_events(
-        db, user, external_match_id
-    )
-    if companion_result:
-        raw_summary = data.get("raw_summary")
-        raw_summary = dict(raw_summary) if isinstance(raw_summary, dict) else {}
-        existing_won = participant.get("won")
-        trusted = bool(companion_result.get("trusted_for_scoring"))
-        if trusted and existing_won is None:
-            participant["won"] = bool(companion_result["won"])
-            capabilities.add("summary.result")
-            contributed.append("match_outcome_info_update_final")
-            raw_summary["companion_result_trusted"] = dict(companion_result)
-        else:
-            diagnostic_result = dict(companion_result)
-            diagnostic_result.setdefault("trusted_for_scoring", False)
-            diagnostic_result.setdefault("trust_reason", "diagnostic_only")
-            raw_summary["companion_outcome_diagnostic"] = diagnostic_result
-        if existing_won is not None and bool(existing_won) != bool(companion_result["won"]):
-            raw_summary["result_diagnostic_conflict"] = {
-                "provider_won": bool(existing_won),
-                "companion_won": bool(companion_result["won"]),
-                "companion_trusted": trusted,
-                "resolution": "provider_result_wins",
-            }
-        data["raw_summary"] = raw_summary
-
+    participant = data.get("participant")
+    participant = dict(participant) if isinstance(participant, dict) else {}
     evidence_mode = str(evidence.game_match_mode or "").upper()
     provider_mode = str(data.get("game_match_mode") or "UNKNOWN").upper()
     raw_summary = data.get("raw_summary")
     raw_summary = dict(raw_summary) if isinstance(raw_summary, dict) else {}
 
+    observed_stats = {
+        field: getattr(evidence, field, None)
+        for field in (
+            "hero_id",
+            "kills",
+            "deaths",
+            "assists",
+            "hero_damage",
+            "object_damage",
+            "healing",
+            "souls",
+        )
+        if getattr(evidence, field, None) is not None
+    }
+
     finalization = _companion_finalization_from_events(
         db, user, external_match_id
     )
     if finalization:
-        if data.get("started_at") is None and finalization.get("started_at") is not None:
-            data["started_at"] = finalization["started_at"]
-        if data.get("ended_at") is None and finalization.get("ended_at") is not None:
-            data["ended_at"] = finalization["ended_at"]
-        duration_s = _trusted_final_match_clock_duration(finalization)
-        if data.get("duration_s") is None and duration_s is not None:
-            data["duration_s"] = duration_s
-            capabilities.add("summary.duration")
-            contributed.append("match_clock_final")
         raw_summary["companion_finalization"] = {
             **{k: v for k, v in finalization.items() if k not in {"started_at", "ended_at"}},
             "started_at": finalization["started_at"].isoformat()
@@ -906,65 +1008,53 @@ def merge_companion_evidence(
             "ended_at": finalization["ended_at"].isoformat()
             if finalization.get("ended_at")
             else None,
+            "trusted_for_scoring": False,
+            "trust_class": "T0_UNTRUSTED",
         }
 
-        if evidence.healing is not None:
-            if evidence_mode in {"STANDARD", "RANKED"}:
-                capabilities.add("summary.healing")
-                contributed.append("healing_final")
-            elif evidence_mode == "STREET_BRAWL":
-                capabilities.add("gep.scoreboard_healing")
-                contributed.append("scoreboard_healing_final")
-
+    companion_result = _companion_result_from_events(
+        db, user, external_match_id
+    )
     if companion_result:
-        raw_summary["companion_result"] = {
-            "local_team": companion_result["local_team"],
-            "match_outcome": companion_result["match_outcome"],
-            "won": companion_result["won"],
-            "event_type": companion_result["event_type"],
-            "captured_at": companion_result["captured_at"],
-            "trusted_for_scoring": bool(companion_result.get("trusted_for_scoring")),
-            "trust_reason": companion_result.get("trust_reason"),
-            "outcome_observed_at": companion_result.get("outcome_observed_at"),
-            "outcome_match_id": companion_result.get("outcome_match_id"),
-        }
+        diagnostic_result = dict(companion_result)
+        diagnostic_result["trusted_for_scoring"] = False
+        diagnostic_result["trust_class"] = "T0_UNTRUSTED"
+        diagnostic_result["trust_reason"] = "client_observation_diagnostic_only"
+        raw_summary["companion_outcome_diagnostic"] = diagnostic_result
 
-    if evidence_mode in {"STANDARD", "RANKED", "STREET_BRAWL"}:
+        existing_won = participant.get("won")
         if (
-            provider_mode in {"STANDARD", "RANKED", "STREET_BRAWL"}
-            and provider_mode != evidence_mode
+            existing_won is not None
+            and companion_result.get("won") is not None
+            and bool(existing_won) != bool(companion_result["won"])
         ):
-            raw_summary["mode_conflict"] = {
-                "provider_mode": provider_mode,
-                "companion_mode": evidence_mode,
-                "resolution": "companion_exact_match_wins",
+            raw_summary["result_diagnostic_conflict"] = {
+                "provider_won": bool(existing_won),
+                "companion_won": bool(companion_result["won"]),
+                "companion_trusted": False,
+                "resolution": "provider_result_wins",
             }
 
-        data["game_match_mode"] = evidence_mode
-        data["mode_confidence"] = "HIGH"
-        data["mode_classifier_version"] = "gep-exact-v1"
-        raw = str(data.get("provider_mode_raw") or "")
-        gep_raw = f"gep={evidence_mode}"
-        if gep_raw not in raw:
-            data["provider_mode_raw"] = (
-                raw + ("; " if raw else "") + gep_raw
-            )[:128]
-        contributed.append("game_match_mode")
-
-    data["participant"] = participant
-    data["capabilities"] = sorted(capabilities)
-
-    provider = str(data.get("provider") or "deadlock_api")
-    if "gep" not in provider.lower():
-        provider = f"{provider}+gep"
-    data["provider"] = provider[:64]
+    if (
+        evidence_mode in {"STANDARD", "RANKED", "STREET_BRAWL"}
+        and provider_mode in {"STANDARD", "RANKED", "STREET_BRAWL"}
+        and provider_mode != evidence_mode
+    ):
+        raw_summary["mode_conflict"] = {
+            "provider_mode": provider_mode,
+            "companion_mode": evidence_mode,
+            "resolution": "provider_mode_wins",
+        }
 
     raw_summary["companion_evidence"] = {
-        "fields": sorted(set(contributed)),
+        "observed_stats": observed_stats,
+        "observed_mode": evidence_mode or None,
         "captured_at": evidence.captured_at.isoformat()
         if evidence.captured_at
         else None,
         "external_match_id": int(external_match_id),
+        "trust_class": "T0_UNTRUSTED",
+        "scoring_contribution": False,
     }
     data["raw_summary"] = raw_summary
     return data
@@ -1016,109 +1106,14 @@ def _normalized_from_companion_evidence(
     job: Job,
     external_match_id: int,
 ) -> dict | None:
-    """Build a final GEP fallback only from explicit finalization evidence.
+    """Never manufacture a final match from client-controlled evidence.
 
-    Live roster snapshots are useful for telemetry but are never sufficient to
-    mark a match final.  This prevents an in-progress game from being bound and
-    evaluated simply because upstream metadata is temporarily 404/missing.
+    Kept as an explicit fail-closed seam because both exact-match resolution
+    and review refresh historically called this helper.  Companion evidence is
+    still attached diagnostically by :func:`merge_companion_evidence` after an
+    independent provider has confirmed the match.
     """
-    evidence = _companion_evidence_for(db, user, external_match_id)
-    finalization = _companion_finalization_from_events(
-        db, user, external_match_id
-    )
-    if not evidence or not finalization:
-        return None
-
-    mode = str(evidence.game_match_mode or "").upper()
-    if mode not in {"STANDARD", "RANKED", "STREET_BRAWL"}:
-        return None
-
-    stats = (
-        evidence.kills,
-        evidence.deaths,
-        evidence.assists,
-        evidence.hero_damage,
-        evidence.object_damage,
-        evidence.healing,
-        evidence.souls,
-    )
-    if all(value is None for value in stats):
-        return None
-
-    capabilities = set()
-    for field, capability in {
-        "kills": "summary.kills",
-        "deaths": "summary.deaths",
-        "assists": "summary.assists",
-        "hero_damage": "summary.hero_damage",
-        "object_damage": "summary.object_damage",
-        # `hero_healing` is retained for diagnostics only.  In Street Brawl
-        # the live GEP aggregate can differ from the final scoreboard/provider
-        # total, so it must not settle healing contracts by itself.
-        "healing": None,
-        "souls": "summary.net_worth",
-    }.items():
-        if getattr(evidence, field, None) is not None and capability:
-            capabilities.add(capability)
-
-    if mode == "STREET_BRAWL" and evidence.healing is not None:
-        capabilities.add("gep.scoreboard_healing")
-
-    duration_s = _trusted_final_match_clock_duration(finalization)
-    if duration_s is not None:
-        capabilities.add("summary.duration")
-
-    started_at = finalization.get("started_at") or _job_detected_at(job)
-    ended_at = finalization.get("ended_at")
-    if started_at is None and ended_at is not None and duration_s is not None:
-        started_at = ended_at - timedelta(seconds=duration_s)
-
-    return {
-        "external_match_id": int(external_match_id),
-        "provider": "gep_fallback",
-        "provider_payload_hash": None,
-        "started_at": started_at,
-        "ended_at": ended_at,
-        "duration_s": duration_s,
-        "game_match_mode": mode,
-        "provider_mode_raw": f"gep={mode}; external_metadata=missing; final=gep",
-        "mode_classifier_version": "gep-exact-v2",
-        "mode_confidence": "HIGH",
-        "scoring_status": "SCORED",
-        "game_version": None,
-        "is_final": True,
-        "capabilities": sorted(capabilities),
-        "raw_summary": {
-            "external_metadata_missing": True,
-            "companion_finalization": {
-                **{k: v for k, v in finalization.items() if k not in {"started_at", "ended_at"}},
-                "started_at": started_at.isoformat() if started_at else None,
-                "ended_at": ended_at.isoformat() if ended_at else None,
-            },
-            "companion_evidence": {
-                "captured_at": evidence.captured_at.isoformat()
-                if evidence.captured_at
-                else None,
-                "provisional_healing": evidence.healing,
-                "scoreboard_healing": evidence.healing,
-                "scoreboard_healing_final": evidence.healing is not None,
-            },
-        },
-        "participant": {
-            "account_id": int(user.account_id),
-            "steam_id64": evidence.steam_id64,
-            "hero_id": evidence.hero_id,
-            "team": None,
-            "won": None,
-            "kills": evidence.kills,
-            "deaths": evidence.deaths,
-            "assists": evidence.assists,
-            "net_worth": evidence.souls,
-            "hero_damage": evidence.hero_damage,
-            "object_damage": evidence.object_damage,
-            "healing": evidence.healing,
-        },
-    }
+    return None
 
 
 def _finish_discovery_jobs_for_board(db: Session, board_id: str) -> None:
@@ -1126,14 +1121,13 @@ def _finish_discovery_jobs_for_board(db: Session, board_id: str) -> None:
         db.scalars(
             select(Job).where(
                 Job.type == "discover_match",
+                Job.board_id == board_id,
                 Job.status.in_(("PENDING", "RUNNING")),
             )
         ).all()
     )
     changed = False
     for item in jobs:
-        if str((item.payload or {}).get("board_id") or "") != board_id:
-            continue
         item.status = "DONE"
         item.locked_at = None
         item.locked_by = None
@@ -1230,10 +1224,11 @@ def _resolve_exact_companion_payload(
     return normalized
 
 def _board_has_bound_match(db: Session, board_id: str) -> bool:
-    """Есть ли матч у текущей незавершённой попытки.
+    """Whether the current automatic attempt already has an in-flight match.
 
-    Выполненные контракты сохраняют Match ID своего успешного матча,
-    но не мешают оставшимся контрактам перейти к попытке 2/3 или 3/3.
+    Historical COMPLETED/FAILED assignments and a parallel REVIEW_REQUIRED
+    assignment keep their Match IDs, but must not block another still-LOCKED
+    assignment from using attempt 2/3 or 3/3.
     """
     options = list(
         db.scalars(
@@ -1249,20 +1244,43 @@ def _board_has_bound_match(db: Session, board_id: str) -> bool:
         and any(
             option.bound_match_id
             for option in options
-            if option.status not in {"COMPLETED", "FAILED"}
+            if option.status == "VERIFYING"
         )
     )
 
 
 def _active_companion_candidate(db: Session, board_id: str) -> Job | None:
+    board = db.get(ContractBoard, board_id)
+    if not board:
+        return None
     jobs = list(
         db.scalars(
             select(Job)
-            .where(Job.type == "resolve_companion_match", Job.status.in_(("PENDING", "RUNNING")))
+            .where(
+                Job.type.in_(("resolve_companion_match", "resolve_companion_match_auto")),
+                Job.status.in_(("PENDING", "RUNNING")),
+                or_(
+                    Job.board_id == board_id,
+                    and_(
+                        Job.type == "resolve_companion_match_auto",
+                        Job.user_id == board.user_id,
+                        Job.game_match_mode == board.game_match_mode,
+                    ),
+                ),
+            )
             .order_by(Job.created_at.asc())
         ).all()
     )
-    return next((job for job in jobs if str((job.payload or {}).get("board_id") or "") == board_id), None)
+    for job in jobs:
+        if job.board_id == board_id:
+            return job
+        if (
+            job.type == "resolve_companion_match_auto"
+            and job.user_id == board.user_id
+            and job.game_match_mode == board.game_match_mode
+        ):
+            return job
+    return None
 
 
 
@@ -1509,14 +1527,15 @@ def _queue_repair_evaluation(
         return
     board.status = "VERIFYING"
     _defer_pending_review_case(db, board.id)
-    db.commit()
     enqueue_job(
         db,
         "evaluate_match",
         {"board_id": board.id, "match_id": match.id, "finality_repair": "final-v5-outcome-v7"},
         f"evaluate-final-v5-outcome-v7:{board.id}:{match.id}",
         max_attempts=max(3, settings.post_match_verification_max_attempts),
+        commit=False,
     )
+    db.commit()
 
 
 def bind_match(db: Session, board: ContractBoard, match: Match) -> None:
@@ -1600,11 +1619,10 @@ def bind_match(db: Session, board: ContractBoard, match: Match) -> None:
     if already_evaluated_for_board:
         return
 
-    active_options = [
-        option
-        for option in options
-        if option.status not in {"COMPLETED", "FAILED"}
-    ]
+    # REVIEW_REQUIRED assignments remain bound to their historical match and
+    # can be decided independently. Only still-LOCKED assignments enter the
+    # next gameplay attempt.
+    active_options = [option for option in options if option.status == "LOCKED"]
 
     existing_matches = {
         option.bound_match_id
@@ -1635,9 +1653,6 @@ def bind_match(db: Session, board: ContractBoard, match: Match) -> None:
         option.status = "VERIFYING"
 
     board.status = "VERIFYING"
-
-    db.commit()
-
     enqueue_job(
         db,
         "evaluate_match",
@@ -1647,11 +1662,14 @@ def bind_match(db: Session, board: ContractBoard, match: Match) -> None:
         },
         f"evaluate:{board.id}:{match.id}",
         max_attempts=max(3, settings.post_match_verification_max_attempts),
+        commit=False,
     )
+    # Attempt binding and the evaluator job are one durable transition.
+    db.commit()
 
 
 def handle_discover(db: Session, job: Job) -> None:
-    board = db.get(ContractBoard, job.payload["board_id"])
+    board = db.get(ContractBoard, job.board_id or job.payload["board_id"])
     if not board:
         raise ValueError("Доска контрактов не найдена")
     if board.status == "SETTLED":
@@ -1687,7 +1705,7 @@ def handle_discover(db: Session, job: Job) -> None:
                 select(BoardOption).where(
                     BoardOption.board_id == board.id,
                     BoardOption.selected.is_(True),
-                    BoardOption.status.notin_(("COMPLETED", "FAILED")),
+                    BoardOption.status == "LOCKED",
                 )
             ).all()
         )
@@ -1728,15 +1746,7 @@ def _apply_companion_time_fallback(
     normalized: dict,
     job: Job,
 ) -> None:
-    """Fill missing match start time from exact Companion detection.
-
-    Used only after exact Match ID metadata has already been fetched.
-    It prevents stale player match-history from blocking a match that
-    the Companion and metadata already identify.
-    """
-
-    if normalized.get("started_at") is not None:
-        return
+    """Record client detection time without promoting it to a provider fact."""
 
     raw = (job.payload or {}).get("detected_at")
 
@@ -1762,11 +1772,18 @@ def _apply_companion_time_fallback(
     except (TypeError, ValueError):
         return
 
-    normalized["started_at"] = detected_at
+    raw_summary = normalized.get("raw_summary")
+    raw_summary = dict(raw_summary) if isinstance(raw_summary, dict) else {}
+    raw_summary["companion_detected_at"] = {
+        "observed_at": detected_at.isoformat(),
+        "trust_class": "T0_UNTRUSTED",
+        "scoring_contribution": False,
+    }
+    normalized["raw_summary"] = raw_summary
 
 
 def handle_resolve_companion_match(db: Session, job: Job) -> None:
-    board = db.get(ContractBoard, job.payload["board_id"])
+    board = db.get(ContractBoard, job.board_id or job.payload["board_id"])
     if not board:
         raise ValueError("Доска контрактов не найдена")
 
@@ -1845,7 +1862,7 @@ def handle_resolve_companion_match(db: Session, job: Job) -> None:
 
 
 def handle_resolve_companion_match_auto(db: Session, job: Job) -> None:
-    user = db.get(User, str(job.payload.get("user_id") or ""))
+    user = db.get(User, str(job.user_id or job.payload.get("user_id") or ""))
     if not user or user.account_id is None:
         raise ValueError("Пользователь Companion не найден")
 
@@ -1958,7 +1975,7 @@ def handle_resolve_companion_match_auto(db: Session, job: Job) -> None:
 def handle_refresh_review_match(db: Session, job: Job) -> None:
     """Повторно загрузить final metadata уже привязанного матча и переоценить REVIEW_REQUIRED."""
 
-    board_id = str((job.payload or {}).get("board_id") or "")
+    board_id = str(job.board_id or (job.payload or {}).get("board_id") or "")
     if not board_id:
         raise ValueError("refresh_review_match: отсутствует board_id")
 
@@ -2038,16 +2055,16 @@ def handle_refresh_review_match(db: Session, job: Job) -> None:
 
 
 def handle_bind(db: Session, job: Job) -> None:
-    board = db.get(ContractBoard, job.payload["board_id"])
-    match = db.get(Match, job.payload["match_id"])
+    board = db.get(ContractBoard, job.board_id or job.payload["board_id"])
+    match = db.get(Match, job.match_id or job.payload["match_id"])
     if not board or not match:
         raise ValueError("Доска или матч не найдены")
     bind_match(db, board, match)
 
 
 def handle_evaluate(db: Session, job: Job) -> None:
-    board = db.get(ContractBoard, str(job.payload.get("board_id") or ""))
-    match = db.get(Match, str(job.payload.get("match_id") or ""))
+    board = db.get(ContractBoard, str(job.board_id or job.payload.get("board_id") or ""))
+    match = db.get(Match, str(job.match_id or job.payload.get("match_id") or ""))
     if not board or not match:
         raise ValueError("Доска или матч для оценки не найдены")
 
@@ -2134,16 +2151,85 @@ def _outbox_retry_delay(attempt: int) -> int:
         OUTBOX_RETRY_BASE_SECONDS * (2 ** exponent),
     )
 
+
+def _is_duplicate_reward_integrity_error(exc: IntegrityError) -> bool:
+    """Recognize only the reward-source idempotency constraint.
+
+    PostgreSQL exposes the violated constraint through ``diag``. SQLite is
+    used by the unit suite and exposes a stable column-list message instead.
+    Any unrelated IntegrityError must remain retryable/dead-letterable.
+    """
+    original = getattr(exc, "orig", None)
+    diagnostic = getattr(original, "diag", None)
+    constraint_name = str(
+        getattr(diagnostic, "constraint_name", "") or ""
+    ).strip()
+    if constraint_name == "uq_reward_source":
+        return True
+
+    message = str(original or exc).lower()
+    return (
+        "uq_reward_source" in message
+        or (
+            "unique constraint failed" in message
+            and "reward_ledger.source_type" in message
+            and "reward_ledger.source_id" in message
+        )
+    )
+
+
+def _record_outbox_failure(
+    db: Session,
+    event_id: str,
+    error: Exception,
+) -> None:
+    event = db.scalar(
+        select(OutboxEvent)
+        .where(OutboxEvent.id == event_id)
+        .with_for_update()
+    )
+    if not event:
+        return
+
+    event.attempts = int(event.attempts or 0) + 1
+    event.last_error = str(error)[:4000]
+
+    if event.attempts >= OUTBOX_MAX_ATTEMPTS:
+        event.dead_lettered_at = utcnow()
+        log.error(
+            "Outbox event %s moved to dead letter after %s attempts",
+            event.id,
+            event.attempts,
+        )
+    else:
+        delay = _outbox_retry_delay(event.attempts)
+        event.run_after = utcnow() + timedelta(seconds=delay)
+        log.warning(
+            "Outbox event %s failed; retry %s/%s in %ss",
+            event.id,
+            event.attempts,
+            OUTBOX_MAX_ATTEMPTS,
+            delay,
+        )
+
+    db.commit()
+
 def dispatch_outbox(db: Session) -> bool:
     now = utcnow()
 
+    filters = [
+        OutboxEvent.published_at.is_(None),
+        OutboxEvent.dead_lettered_at.is_(None),
+        OutboxEvent.run_after <= now,
+    ]
+    # Emergency freeze: reward events remain durable and visible in Admin,
+    # while unrelated review notifications can continue to flow.
+    if not settings.reward_settlement_enabled:
+        filters.append(OutboxEvent.event_type != "assignment.settled")
+
     event = db.scalar(
         select(OutboxEvent)
-        .where(
-            OutboxEvent.published_at.is_(None),
-            OutboxEvent.dead_lettered_at.is_(None),
-            OutboxEvent.run_after <= now,
-        )
+        .where(*filters)
         .order_by(
             OutboxEvent.run_after.asc(),
             OutboxEvent.created_at.asc(),
@@ -2204,46 +2290,23 @@ def dispatch_outbox(db: Session) -> bool:
         event.published_at = utcnow()
         event.last_error = None
         db.commit()
-    except IntegrityError:
+    except IntegrityError as exc:
+        event_id = event.id
         db.rollback()
-        event = db.get(OutboxEvent, event.id)
-        if event:
-            event.published_at = utcnow()
-            event.last_error = "Duplicate reward prevented by unique source constraint"
-            db.commit()
+        if _is_duplicate_reward_integrity_error(exc):
+            event = db.get(OutboxEvent, event_id)
+            if event:
+                event.published_at = utcnow()
+                event.last_error = (
+                    "Duplicate reward prevented by unique source constraint"
+                )
+                db.commit()
+        else:
+            _record_outbox_failure(db, event_id, exc)
     except Exception as exc:
         event_id = event.id
         db.rollback()
-
-        event = db.scalar(
-            select(OutboxEvent)
-            .where(OutboxEvent.id == event_id)
-            .with_for_update()
-        )
-
-        if event:
-            event.attempts = int(event.attempts or 0) + 1
-            event.last_error = str(exc)[:4000]
-
-            if event.attempts >= OUTBOX_MAX_ATTEMPTS:
-                event.dead_lettered_at = utcnow()
-                log.error(
-                    "Outbox event %s moved to dead letter after %s attempts",
-                    event.id,
-                    event.attempts,
-                )
-            else:
-                delay = _outbox_retry_delay(event.attempts)
-                event.run_after = utcnow() + timedelta(seconds=delay)
-                log.warning(
-                    "Outbox event %s failed; retry %s/%s in %ss",
-                    event.id,
-                    event.attempts,
-                    OUTBOX_MAX_ATTEMPTS,
-                    delay,
-                )
-
-            db.commit()
+        _record_outbox_failure(db, event_id, exc)
 
         log.exception("Outbox dispatch failed")
     return True
@@ -2299,8 +2362,18 @@ def _recover_unexpected_job_error(
 def run() -> None:
     init()
     log.info("Worker %s started; provider=%s", WORKER_ID, settings.provider)
+    next_maintenance_at = time.monotonic() + 60
     while True:
         did_work = False
+        if time.monotonic() >= next_maintenance_at:
+            try:
+                with SessionLocal() as db:
+                    lifecycle = reconcile_active_contracts(db)
+                    if any(lifecycle.values()):
+                        log.info("Lifecycle reconciliation: %s", lifecycle)
+            except Exception:
+                log.exception("Lifecycle reconciliation failed")
+            next_maintenance_at = time.monotonic() + 60
         with SessionLocal() as db:
             if dispatch_outbox(db):
                 did_work = True

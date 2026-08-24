@@ -1,12 +1,13 @@
 from __future__ import annotations
 
 from sqlalchemy import func, select
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, selectinload
 
-from ..models import BoardOption, ContractBoard, User
+from ..models import BoardOption, ContractBoard, RewardLedgerEntry, User
 from .boards import GAME_MODES
 
 DIFFICULTY_ORDER = {"LIGHT": 1, "FOCUSED": 2, "HARD": 3, "EXTREME": 4}
+TRUSTED_REWARD_SOURCES = ("assignment", "AUTO_REVIEW", "MANUAL_EVIDENCE")
 
 
 def level_cost(level: int) -> int:
@@ -41,6 +42,7 @@ def user_progression(db: Session, user: User) -> dict:
         db.scalars(
             select(BoardOption)
             .join(ContractBoard, ContractBoard.id == BoardOption.board_id)
+            .options(selectinload(BoardOption.mission))
             .where(ContractBoard.user_id == user.id, BoardOption.selected.is_(True))
         ).all()
     )
@@ -48,6 +50,26 @@ def user_progression(db: Session, user: User) -> dict:
         board.id: board
         for board in db.scalars(select(ContractBoard).where(ContractBoard.user_id == user.id)).all()
     }
+    option_ids = [item.id for item in options]
+    rewards = (
+        list(
+            db.scalars(
+                select(RewardLedgerEntry).where(
+                    RewardLedgerEntry.user_id == user.id,
+                    RewardLedgerEntry.source_id.in_(option_ids),
+                    RewardLedgerEntry.source_type.in_(TRUSTED_REWARD_SOURCES),
+                    RewardLedgerEntry.asset == "XP",
+                )
+            ).all()
+        )
+        if option_ids
+        else []
+    )
+    xp_by_option: dict[str, int] = {}
+    for reward in rewards:
+        xp_by_option[reward.source_id] = (
+            xp_by_option.get(reward.source_id, 0) + int(reward.delta or 0)
+        )
     completed = [item for item in options if item.status == "COMPLETED"]
     failed = [item for item in options if item.status == "FAILED"]
     review = [item for item in options if item.status == "REVIEW_REQUIRED"]
@@ -58,12 +80,20 @@ def user_progression(db: Session, user: User) -> dict:
             "completed": sum(1 for item in mode_items if item.status == "COMPLETED"),
             "failed": sum(1 for item in mode_items if item.status == "FAILED"),
             "attempted": len(mode_items),
-            "xp": sum(item.reward_xp for item in mode_items if item.status == "COMPLETED"),
+            "xp": sum(xp_by_option.get(item.id, 0) for item in mode_items),
         }
     hardest = None
     if completed:
         hardest_item = max(completed, key=lambda item: (DIFFICULTY_ORDER.get(item.difficulty, 0), item.reward_xp))
-        hardest = {"title": hardest_item.rendered_title, "difficulty": hardest_item.difficulty, "reward_xp": hardest_item.reward_xp}
+        hardest = {
+            "title": hardest_item.rendered_title,
+            "title_i18n": {
+                "ru": hardest_item.rendered_title,
+                "en": hardest_item.mission.title_en or hardest_item.rendered_title,
+            },
+            "difficulty": hardest_item.difficulty,
+            "reward_xp": hardest_item.reward_xp,
+        }
     base = progression_from_xp(user.xp)
     base.update(
         {

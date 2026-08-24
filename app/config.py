@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import base64
+import ipaddress
 import os
 import re
 from dataclasses import dataclass
@@ -59,6 +60,8 @@ class Settings:
     overwolf_qa_access_until: str = os.getenv("OVERWOLF_QA_ACCESS_UNTIL", "").strip()
     trusted_hosts: tuple[str, ...] = _csv("TRUSTED_HOSTS", "localhost,127.0.0.1,testserver")
     trust_proxy_headers: bool = _bool("TRUST_PROXY_HEADERS", False)
+    trusted_proxy_networks: tuple[str, ...] = _csv("TRUSTED_PROXY_NETWORKS", "127.0.0.1/32,::1/128")
+    rate_limit_redis_url: str = os.getenv("RATE_LIMIT_REDIS_URL", "").strip()
     docs_enabled: bool = _bool("DOCS_ENABLED", True)
 
     allow_demo_auth: bool = _bool("ALLOW_DEMO_AUTH", False)
@@ -115,6 +118,10 @@ class Settings:
     # internal review. This does not consume additional contract attempts.
     post_match_verification_max_attempts: int = int(os.getenv("POST_MATCH_VERIFICATION_MAX_ATTEMPTS", "12"))
     companion_event_retention_days: int = int(os.getenv("COMPANION_EVENT_RETENTION_DAYS", "14"))
+    companion_ingest_enabled: bool = _bool("COMPANION_INGEST_ENABLED", True)
+    companion_ads_enabled: bool = _bool("COMPANION_ADS_ENABLED", False)
+    companion_minimum_version: str = os.getenv("COMPANION_MINIMUM_VERSION", "").strip()
+    reward_settlement_enabled: bool = _bool("REWARD_SETTLEMENT_ENABLED", True)
     case_ttl_hours: int = int(os.getenv("CASE_TTL_HOURS", "24"))
     board_reset_hour_utc: int = int(os.getenv("BOARD_RESET_HOUR_UTC", "3"))
     case_max_attempts: int = int(os.getenv("CASE_MAX_ATTEMPTS", "3"))
@@ -156,6 +163,13 @@ class Settings:
                 raise RuntimeError("OVERWOLF_QA_ACCESS_UNTIL must include a timezone")
         if self.is_production and self.closed_alpha and not self.alpha_allowed_steam_ids:
             raise RuntimeError("CLOSED_ALPHA requires ALPHA_ALLOWED_STEAM_IDS to fail closed")
+        for value in self.trusted_proxy_networks:
+            try:
+                network = ipaddress.ip_network(value, strict=False)
+            except ValueError as exc:
+                raise RuntimeError("TRUSTED_PROXY_NETWORKS contains an invalid CIDR") from exc
+            if self.is_production and network.prefixlen == 0:
+                raise RuntimeError("TRUSTED_PROXY_NETWORKS must not trust the entire internet")
         if self.service_role not in {"web", "worker"}:
             raise RuntimeError("SERVICE_ROLE must be web or worker")
         for steam_id in self.admin_steam_ids:
@@ -214,6 +228,11 @@ class Settings:
             raise RuntimeError("POST_MATCH_VERIFICATION_MAX_ATTEMPTS must be between 2 and 30")
         if not 1 <= self.companion_event_retention_days <= 90:
             raise RuntimeError("COMPANION_EVENT_RETENTION_DAYS must be between 1 and 90")
+        if self.companion_minimum_version and not re.fullmatch(
+            r"\d+\.\d+\.\d+(?:-(?:alpha|beta|rc)\.\d+)?",
+            self.companion_minimum_version,
+        ):
+            raise RuntimeError("COMPANION_MINIMUM_VERSION must be a supported semantic version")
         if not 1 <= self.case_ttl_hours <= 168:
             raise RuntimeError("CASE_TTL_HOURS must be between 1 and 168")
         if not 0 <= self.board_reset_hour_utc <= 23:
@@ -247,6 +266,10 @@ class Settings:
                 raise RuntimeError("TRUSTED_HOSTS must contain explicit hostnames in production")
             if parsed.hostname not in self.trusted_hosts:
                 raise RuntimeError("APP_BASE_URL hostname must be present in TRUSTED_HOSTS")
+            if self.trust_proxy_headers and not self.trusted_proxy_networks:
+                raise RuntimeError("TRUST_PROXY_HEADERS requires TRUSTED_PROXY_NETWORKS")
+            if self.service_role == "web" and not self.rate_limit_redis_url.startswith(("redis://", "rediss://")):
+                raise RuntimeError("Production web service requires RATE_LIMIT_REDIS_URL")
 
 
 settings = Settings()

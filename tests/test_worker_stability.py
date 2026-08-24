@@ -446,7 +446,7 @@ class MatchFinalityRegressionTests(unittest.TestCase):
                 selected=True, status="VERIFYING", bound_match_id=match.id,
             )
             participant = MatchParticipant(match_id=match.id, account_id=user.account_id, healing=10363, assists=11)
-            job = Job(type="evaluate_match", payload={"board_id": board.id, "match_id": match.id}, attempts=1, max_attempts=12, idempotency_key="eval-wait")
+            job = Job(type="evaluate_match", user_id=user.id, board_id=board.id, match_id=match.id, payload={"board_id": board.id, "match_id": match.id}, attempts=1, max_attempts=12, idempotency_key="eval-wait")
             review = AutoReviewCase(
                 board_id=board.id, user_id=user.id, match_id=match.id,
                 status="PENDING", reasons=[{"reason":"summary.healing missing"}], context={},
@@ -467,7 +467,7 @@ class MatchFinalityRegressionTests(unittest.TestCase):
             self.assertIn("итоговое лечение союзников", option.explanation)
             self.assertIn("Попытка сохранена", option.explanation)
 
-    def test_strong_final_brawl_snapshot_exposes_scoreboard_healing_only(self) -> None:
+    def test_strong_client_snapshot_cannot_create_normalized_match(self) -> None:
         from app.worker import _normalized_from_companion_evidence
 
         evidence = SimpleNamespace(
@@ -491,13 +491,9 @@ class MatchFinalityRegressionTests(unittest.TestCase):
         ):
             normalized = _normalized_from_companion_evidence(MagicMock(), user, job, 100180758)
 
-        assert normalized is not None
-        self.assertIn("gep.scoreboard_healing", normalized["capabilities"])
-        self.assertNotIn("summary.healing", normalized["capabilities"])
-        self.assertEqual(normalized["participant"]["healing"], 8567)
-        self.assertTrue(normalized["raw_summary"]["companion_evidence"]["scoreboard_healing_final"])
+        self.assertIsNone(normalized)
 
-    def test_provider_404_can_settle_legacy_brawl_healing_from_final_scoreboard(self) -> None:
+    def test_provider_404_cannot_settle_legacy_client_only_match(self) -> None:
         from sqlalchemy import create_engine
         from sqlalchemy.orm import Session
         from app.db import Base
@@ -539,7 +535,7 @@ class MatchFinalityRegressionTests(unittest.TestCase):
                 selected=True, status="VERIFYING", bound_match_id=match.id,
             )
             participant = MatchParticipant(match_id=match.id, account_id=user.account_id, healing=8567, kills=6)
-            job = Job(type="evaluate_match", payload={"board_id": board.id, "match_id": match.id}, attempts=12, max_attempts=12, idempotency_key="eval-scoreboard-repair")
+            job = Job(type="evaluate_match", user_id=user.id, board_id=board.id, match_id=match.id, payload={"board_id": board.id, "match_id": match.id}, attempts=12, max_attempts=12, idempotency_key="eval-scoreboard-repair")
             db.add_all([option, participant, job]); db.commit()
 
             fake_settings = SimpleNamespace(
@@ -550,44 +546,41 @@ class MatchFinalityRegressionTests(unittest.TestCase):
             with patch("app.worker.settings", fake_settings), patch("app.services.evaluator.settings", fake_settings):
                 handle_evaluate(db, job)
                 db.refresh(board); db.refresh(option)
-                self.assertEqual(board.status, "SETTLED")
-                self.assertEqual(option.status, "COMPLETED")
-                outbox_count = db.query(__import__("app.models", fromlist=["OutboxEvent"]).OutboxEvent).count()
-                self.assertEqual(outbox_count, 1)
+                self.assertEqual(board.status, "REVIEW_REQUIRED")
+                self.assertEqual(option.status, "REVIEW_REQUIRED")
+                outbox_model = __import__("app.models", fromlist=["OutboxEvent"]).OutboxEvent
+                reward_outbox_count = db.query(outbox_model).filter(
+                    outbox_model.event_type == "assignment.settled"
+                ).count()
+                self.assertEqual(reward_outbox_count, 0)
 
-                # Re-running the idempotent evaluation job cannot grant or queue twice.
+                # Re-running the legacy evaluation can never create a reward.
                 handle_evaluate(db, job)
-                outbox_count_after = db.query(__import__("app.models", fromlist=["OutboxEvent"]).OutboxEvent).count()
-                self.assertEqual(outbox_count_after, 1)
+                reward_outbox_count_after = db.query(outbox_model).filter(
+                    outbox_model.event_type == "assignment.settled"
+                ).count()
+                self.assertEqual(reward_outbox_count_after, 0)
 
-    def test_provider_outage_still_allows_strong_gep_fallback_binding(self) -> None:
+    def test_provider_outage_does_not_allow_client_only_binding(self) -> None:
         from app.services.providers import ProviderError
-        from app.worker import _resolve_exact_companion_payload
+        from app.worker import CompanionMatchNotReady, _resolve_exact_companion_payload
 
         db = MagicMock()
         user = SimpleNamespace(id="user-1", account_id=1020621313)
         job = SimpleNamespace(payload={}, attempts=1)
         evidence = SimpleNamespace(id="evidence")
-        fallback = {
-            "external_match_id": 99529660,
-            "provider": "gep_fallback",
-            "is_final": True,
-            "game_match_mode": "STREET_BRAWL",
-            "participant": {"account_id": 1020621313, "assists": 11},
-            "capabilities": ["summary.assists"],
-        }
         with patch("app.worker._companion_evidence_for", return_value=evidence), patch(
-            "app.worker._normalized_from_companion_evidence", return_value=fallback
+            "app.worker._normalized_from_companion_evidence", return_value=None
         ), patch("app.worker.merge_companion_evidence", side_effect=lambda _db, _user, data, _mid: data), patch(
             "app.worker.DeadlockApiProvider"
         ) as provider_cls:
             provider = provider_cls.return_value.__enter__.return_value
             provider.fetch_match_by_id.side_effect = ProviderError("upstream 503")
-            result = _resolve_exact_companion_payload(db, user, job, 99529660)
+            with self.assertRaises(CompanionMatchNotReady):
+                _resolve_exact_companion_payload(db, user, job, 99529660)
 
-        self.assertEqual(result["provider"], "gep_fallback")
         self.assertIn("upstream 503", job.payload["_provider_last_error"])
-        # cache request + one Steam-backed attempt, then local fallback
+        # cache request + one Steam-backed attempt, then fail closed
         self.assertEqual(provider.fetch_match_by_id.call_count, 2)
 
     def test_finalization_scan_survives_more_than_256_post_terminal_events(self) -> None:
@@ -742,7 +735,7 @@ class MatchFinalityRegressionTests(unittest.TestCase):
                 [],
             )
 
-    def test_trusted_final_gep_match_can_score_non_duration_contract_without_duration(self) -> None:
+    def test_final_gep_match_cannot_score_without_independent_provider(self) -> None:
         from app.services.evaluator import _result
         option = SimpleNamespace(
             conditions=[{
@@ -763,8 +756,8 @@ class MatchFinalityRegressionTests(unittest.TestCase):
             hero_damage=14427, object_damage=1898, healing=10363,
         )
         result = _result(option, match, participant)
-        self.assertEqual(result.status, "COMPLETED")
-        self.assertEqual(result.current, 11.0)
+        self.assertEqual(result.status, "UNVERIFIABLE")
+        self.assertIsNone(result.current)
 
 
 
@@ -1028,7 +1021,7 @@ class ReviewConsistencyRegressionTests(unittest.TestCase):
             self.assertIn("итоговых данных", review.reviewer_note or "")
 
 class FinalFactsPartialSettlementTests(unittest.TestCase):
-    def test_trusted_final_match_clock_becomes_duration_capability(self) -> None:
+    def test_client_match_clock_cannot_become_duration_capability(self) -> None:
         from app.worker import _normalized_from_companion_evidence
 
         evidence = SimpleNamespace(
@@ -1053,10 +1046,7 @@ class FinalFactsPartialSettlementTests(unittest.TestCase):
         ):
             normalized = _normalized_from_companion_evidence(MagicMock(), user, job, 100246793)
 
-        assert normalized is not None
-        self.assertEqual(normalized["duration_s"], 1700)
-        self.assertIn("summary.duration", normalized["capabilities"])
-        self.assertTrue(normalized["is_final"])
+        self.assertIsNone(normalized)
 
     def test_stale_match_clock_is_not_promoted_to_final_duration(self) -> None:
         from app.worker import _trusted_final_match_clock_duration
@@ -1070,7 +1060,7 @@ class FinalFactsPartialSettlementTests(unittest.TestCase):
         }
         self.assertIsNone(_trusted_final_match_clock_duration(finalization))
 
-    def test_one_missing_fact_no_longer_freezes_other_contracts(self) -> None:
+    def test_legacy_client_only_match_never_partially_settles(self) -> None:
         from sqlalchemy import create_engine
         from sqlalchemy.orm import Session
         from app.db import Base
@@ -1108,7 +1098,7 @@ class FinalFactsPartialSettlementTests(unittest.TestCase):
                 BoardOption(board_id=board.id, mission_definition_id=missions[2].id, rendered_title="Duration", rendered_description="Duration", metric="match.duration_s", operator="gte", target=1560, reward_xp=70, conditions=[{"metric":"match.duration_s","operator":"gte","target":1560,"capabilities":["summary.duration"]}], required_capabilities=["summary.duration"], required_game_match_mode="STANDARD", selected=True, status="VERIFYING", bound_match_id=match.id),
             ]
             participant = MatchParticipant(match_id=match.id, account_id=user.account_id, kills=15, deaths=3, assists=13, hero_damage=28668, object_damage=9187, net_worth=31983, healing=1119)
-            job = Job(type="evaluate_match", payload={"board_id": board.id, "match_id": match.id}, attempts=1, max_attempts=12, idempotency_key="eval-partial")
+            job = Job(type="evaluate_match", user_id=user.id, board_id=board.id, match_id=match.id, payload={"board_id": board.id, "match_id": match.id}, attempts=1, max_attempts=12, idempotency_key="eval-partial")
             db.add_all(options + [participant, job]); db.commit()
 
             fake_settings = SimpleNamespace(
@@ -1126,15 +1116,16 @@ class FinalFactsPartialSettlementTests(unittest.TestCase):
             for item in options:
                 db.refresh(item)
             db.refresh(board)
-            self.assertEqual(options[0].status, "COMPLETED")
-            self.assertEqual(options[0].progress_current, 15.0)
-            self.assertEqual(options[1].status, "LOCKED")
-            self.assertIsNone(options[1].bound_match_id)
-            self.assertEqual(options[1].progress_current, 28668.0)
+            self.assertEqual(options[0].status, "REVIEW_REQUIRED")
+            self.assertEqual(options[1].status, "REVIEW_REQUIRED")
             self.assertEqual(options[2].status, "VERIFYING")
-            self.assertEqual(options[2].bound_match_id, match.id)
             self.assertEqual(board.status, "VERIFYING")
-            self.assertEqual(db.query(OutboxEvent).count(), 1)
+            self.assertEqual(
+                db.query(OutboxEvent).filter(
+                    OutboxEvent.event_type == "assignment.settled"
+                ).count(),
+                0,
+            )
 
 class OutcomeInfoUpdateV7Tests(unittest.TestCase):
     def _base(self, engine):
@@ -1156,7 +1147,7 @@ class OutcomeInfoUpdateV7Tests(unittest.TestCase):
         db.add(device); db.commit(); db.refresh(device)
         return db, user, device
 
-    def test_exact_post_match_outcome_info_update_becomes_contract_grade_result(self) -> None:
+    def test_exact_post_match_outcome_remains_diagnostic_only(self) -> None:
         from sqlalchemy import create_engine
         from app.db import Base
         from app.models import CompanionEvent
@@ -1220,7 +1211,7 @@ class OutcomeInfoUpdateV7Tests(unittest.TestCase):
             result = _companion_result_from_events(db, user, 100300001)
             self.assertIsNotNone(result)
             assert result is not None
-            self.assertTrue(result["trusted_for_scoring"])
+            self.assertFalse(result["trusted_for_scoring"])
             self.assertTrue(result["won"])
 
             data = {
@@ -1230,9 +1221,11 @@ class OutcomeInfoUpdateV7Tests(unittest.TestCase):
                 "capabilities": ["summary.kills"],
             }
             merged = merge_companion_evidence(db, user, data, 100300001)
-            self.assertTrue(merged["participant"]["won"])
-            self.assertIn("summary.result", merged["capabilities"])
-            self.assertTrue(merged["raw_summary"]["companion_result"]["trusted_for_scoring"])
+            self.assertIsNone(merged["participant"]["won"])
+            self.assertNotIn("summary.result", merged["capabilities"])
+            self.assertFalse(
+                merged["raw_summary"]["companion_outcome_diagnostic"]["trusted_for_scoring"]
+            )
 
     def test_late_exact_outcome_requeues_completed_final_resolver_once(self) -> None:
         from sqlalchemy import create_engine, select

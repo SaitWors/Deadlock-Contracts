@@ -8,31 +8,25 @@ BACKGROUND = (
 ).read_text(encoding="utf-8")
 
 
-def test_live_healing_does_not_gain_summary_capability_during_generic_merge():
-    assert '"healing": ("healing", None)' in WORKER
+def test_companion_merge_is_explicitly_diagnostic_only():
+    assert '"trust_class": "T0_UNTRUSTED"' in WORKER
+    assert '"scoring_contribution": False' in WORKER
 
 
-def test_standard_and_ranked_healing_gain_capability_only_in_finalization_block():
-    final_marker = 'if evidence_mode in {"STANDARD", "RANKED"}:'
-    capability = 'capabilities.add("summary.healing")'
-
-    assert final_marker in WORKER
-    assert capability in WORKER
-
-    final_pos = WORKER.index(final_marker)
-    capability_pos = WORKER.index(capability)
-
-    assert capability_pos > final_pos
-
-    # The trusted finalization block immediately before this policy must still
-    # be present; the generic live mapping above intentionally has no capability.
-    nearby = WORKER[max(0, final_pos - 2200):capability_pos + 400]
-    assert "if finalization:" in nearby
+def test_companion_never_adds_scoring_capabilities():
+    merge_start = WORKER.index("def merge_companion_evidence(")
+    merge_end = WORKER.index("def _companion_evidence_for(", merge_start)
+    merge_source = WORKER[merge_start:merge_end]
+    assert "capabilities.add(" not in merge_source
+    assert 'data["capabilities"] =' not in merge_source
 
 
-def test_street_brawl_keeps_separate_scoreboard_healing_capability():
-    assert 'evidence_mode == "STREET_BRAWL"' in WORKER
-    assert 'capabilities.add("gep.scoreboard_healing")' in WORKER
+def test_client_only_normalization_fails_closed():
+    start = WORKER.index("def _normalized_from_companion_evidence(")
+    end = WORKER.index("def _finish_discovery_jobs_for_board(", start)
+    source = WORKER[start:end]
+    assert "return None" in source
+    assert '"scoring_status": "SCORED"' not in source
 
 
 def test_nested_info_update_is_distinct_from_cached_get_info():

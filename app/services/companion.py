@@ -1,14 +1,17 @@
 from __future__ import annotations
 
 import hashlib
+import hmac
 import json
 import re
 import secrets
+import base64
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
 from fastapi import Header, HTTPException
 from sqlalchemy import delete, select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from ..config import settings
@@ -26,6 +29,10 @@ from ..models import (
 
 CROCKFORD = "23456789ABCDEFGHJKMNPQRSTUVWXYZ"
 VALID_MODES = {"STANDARD", "RANKED", "STREET_BRAWL"}
+COMPANION_VERSION_PATTERN = re.compile(
+    r"^(\d+)\.(\d+)\.(\d+)(?:-(alpha|beta|rc)\.(\d+))?$",
+    re.IGNORECASE,
+)
 LIVE_STAT_LIMITS: dict[str, tuple[int, int]] = {
     "hero_id": (0, 10_000),
     "kills": (0, 500),
@@ -40,6 +47,25 @@ LIVE_STAT_LIMITS: dict[str, tuple[int, int]] = {
 
 def utcnow() -> datetime:
     return datetime.now(timezone.utc)
+
+
+def _companion_version_key(value: str | None) -> tuple[int, int, int, int, int] | None:
+    match = COMPANION_VERSION_PATTERN.fullmatch(str(value or "").strip())
+    if not match:
+        return None
+    major, minor, patch = (int(match.group(index)) for index in (1, 2, 3))
+    stage = (match.group(4) or "stable").lower()
+    stage_rank = {"alpha": 0, "beta": 1, "rc": 2, "stable": 3}[stage]
+    stage_number = int(match.group(5) or 0)
+    return major, minor, patch, stage_rank, stage_number
+
+
+def companion_version_supported(value: str | None, minimum: str | None = None) -> bool:
+    floor = _companion_version_key(minimum or settings.companion_minimum_version)
+    if floor is None:
+        return not (minimum or settings.companion_minimum_version)
+    candidate = _companion_version_key(value)
+    return candidate is not None and candidate >= floor
 
 
 def aware(value: datetime | None) -> datetime | None:
@@ -63,6 +89,22 @@ def new_pairing_code() -> str:
 
 def new_device_token() -> str:
     return secrets.token_urlsafe(32)
+
+
+def pairing_device_token(code: str, device_id: str) -> str:
+    """Derive a replay-safe token for one short-lived code and device.
+
+    If the first successful claim response is lost, the same device can repeat
+    the claim during the pairing TTL and receive the exact same token. The
+    server secret prevents deriving tokens from the eight-character code.
+    """
+    message = f"companion-claim-v1:{code}:{device_id}".encode("utf-8")
+    digest = hmac.new(
+        settings.session_secret.encode("utf-8"),
+        message,
+        hashlib.sha256,
+    ).digest()
+    return base64.urlsafe_b64encode(digest).decode("ascii").rstrip("=")
 
 
 def parse_game_mode(raw: Any) -> tuple[str, dict[str, Any] | None]:
@@ -131,8 +173,8 @@ def sanitize_live_stats(stats: Any) -> dict[str, int | None] | None:
 
 def create_pairing(db: Session, user: User) -> tuple[str, CompanionPairing]:
     now = utcnow()
-    db.execute(delete(CompanionPairing).where(CompanionPairing.user_id == user.id))
     for _ in range(10):
+        db.execute(delete(CompanionPairing).where(CompanionPairing.user_id == user.id))
         code = new_pairing_code()
         item = CompanionPairing(
             code_hash=hash_secret(normalize_pairing_code(code)),
@@ -144,7 +186,7 @@ def create_pairing(db: Session, user: User) -> tuple[str, CompanionPairing]:
             db.commit()
             db.refresh(item)
             return code, item
-        except Exception:
+        except IntegrityError:
             db.rollback()
     raise RuntimeError("Не удалось создать код привязки Companion")
 
@@ -155,7 +197,7 @@ def claim_pairing(db: Session, code: str, device_id: str, label: str, version: s
         raise HTTPException(422, "Некорректный код привязки")
     now = utcnow()
     pairing = db.scalar(select(CompanionPairing).where(CompanionPairing.code_hash == hash_secret(normalized)).with_for_update())
-    if not pairing or pairing.claimed_at is not None or (aware(pairing.expires_at) or now) <= now:
+    if not pairing or (aware(pairing.expires_at) or now) <= now:
         raise HTTPException(410, "Код привязки истёк или уже использован")
     user = db.get(User, pairing.user_id)
     if not user:
@@ -163,13 +205,24 @@ def claim_pairing(db: Session, code: str, device_id: str, label: str, version: s
     if user.status != "ACTIVE":
         raise HTTPException(403, "Аккаунт заблокирован")
 
+    token = pairing_device_token(normalized, device_id)
     existing = db.scalar(
         select(CompanionDevice).where(
             CompanionDevice.user_id == user.id,
             CompanionDevice.device_id == device_id,
         ).with_for_update()
     )
-    token = new_device_token()
+
+    if pairing.claimed_at is not None:
+        if (
+            pairing.claimed_device_id != device_id
+            or not existing
+            or existing.revoked_at is not None
+            or not hmac.compare_digest(existing.token_hash, hash_secret(token))
+        ):
+            raise HTTPException(410, "Код привязки истёк или уже использован")
+        return token, existing, user
+
     if existing:
         device = existing
         device.token_hash = hash_secret(token)
@@ -188,6 +241,7 @@ def claim_pairing(db: Session, code: str, device_id: str, label: str, version: s
         )
         db.add(device)
     pairing.claimed_at = now
+    pairing.claimed_device_id = device_id
     db.commit()
     db.refresh(device)
     return token, device, user
@@ -246,7 +300,7 @@ def serialize_device(device: CompanionDevice | None) -> dict[str, Any]:
         "game_running": bool(device.game_running and online),
         "phase": device.phase,
         "game_match_mode": device.game_match_mode,
-        "current_match_id": device.current_match_id,
+        "current_match_id": str(device.current_match_id) if device.current_match_id else None,
         "last_seen_at": device.last_seen_at.isoformat() if device.last_seen_at else None,
         "identity_ok": device.identity_ok,
         "version": device.version,
@@ -270,8 +324,24 @@ def wake_discovery(db: Session, user_id: str, mode: str | None) -> list[str]:
     now = utcnow()
     woken: list[str] = []
     for board in boards:
-        job = db.scalar(select(Job).where(Job.idempotency_key == f"discover:{board.id}"))
-        if job and job.status == "PENDING":
+        # Discovery keys include an attempt suffix. The old exact lookup never
+        # matched real jobs such as `discover:{board.id}:attempt:1`.
+        job = db.scalar(
+            select(Job)
+            .where(
+                Job.type == "discover_match",
+                Job.status.in_(("PENDING", "FAILED")),
+                Job.board_id == board.id,
+            )
+            .order_by(Job.run_after.asc(), Job.created_at.asc())
+            .limit(1)
+        )
+        if job:
+            if job.status == "FAILED":
+                job.status = "PENDING"
+                job.attempts = 0
+                job.locked_at = None
+                job.locked_by = None
             job.run_after = now
             job.last_error = None
             woken.append(board.id)
@@ -323,7 +393,7 @@ def _register_direct_match_job(
     mode: str,
     match_id: int,
     identity_ok: bool | None,
-) -> list[str]:
+) -> None:
     """Queue one user-scoped resolver for a finalized exact Match ID.
 
     Final-v3 deliberately avoids board-scoped jobs. The worker first stores
@@ -332,24 +402,30 @@ def _register_direct_match_job(
     carry the previous match outcome after the current Match ID has changed.
     """
     if match_id <= 0:
-        return []
+        return
     if user.steam_id64 is not None and identity_ok is not True:
-        return []
+        return
 
     now = utcnow()
     key = f"companion-resolve-auto-final-v3:{user.id}:{match_id}"
     existing = db.scalar(select(Job).where(Job.idempotency_key == key))
     if existing:
+        existing.user_id = existing.user_id or user.id
+        existing.game_match_mode = existing.game_match_mode or (
+            mode if mode in VALID_MODES else None
+        )
         if existing.status == "FAILED":
             existing.status = "PENDING"
             existing.attempts = 0
             existing.run_after = now
             existing.last_error = None
-        return []
+        return
 
     db.add(
         Job(
             type="resolve_companion_match_auto",
+            user_id=user.id,
+            game_match_mode=mode if mode in VALID_MODES else None,
             payload={
                 "user_id": user.id,
                 "external_match_id": int(match_id),
@@ -365,7 +441,27 @@ def _register_direct_match_job(
             idempotency_key=key,
         )
     )
-    return []
+
+
+def _validated_client_timestamp(
+    value: str | None,
+    *,
+    now: datetime,
+) -> str | None:
+    """Keep client timestamps diagnostic-only and bound them to server time."""
+    if not value:
+        return None
+    try:
+        parsed = datetime.fromisoformat(str(value).replace("Z", "+00:00"))
+    except (TypeError, ValueError):
+        return None
+    if parsed.tzinfo is None:
+        return None
+    parsed = parsed.astimezone(timezone.utc)
+    retention = timedelta(days=max(1, settings.companion_event_retention_days))
+    if parsed > now + timedelta(minutes=5) or parsed < now - retention:
+        return None
+    return parsed.isoformat()
 
 
 def _register_late_outcome_repair_job(
@@ -480,6 +576,8 @@ def _register_late_outcome_repair_job(
     db.add(
         Job(
             type="resolve_companion_match_auto",
+            user_id=user.id,
+            game_match_mode=mode if mode in VALID_MODES else None,
             payload={
                 "user_id": user.id,
                 "external_match_id": int(
@@ -556,11 +654,60 @@ def record_snapshot(
     match_outcome_event_at: str | None = None,
     match_outcome_event_match_id: int | None = None,
     event_type: str = "heartbeat",
-) -> tuple[CompanionDevice, list[str], list[str]]:
+    client_event_id: str | None = None,
+) -> tuple[CompanionDevice, list[str]]:
     now = utcnow()
-    db_device = db.get(CompanionDevice, device.id)
+    # Serialize all of a user's devices before the cross-device evidence
+    # upsert. Locking only the device leaves a race on (user, match_id).
+    db_user = db.scalar(
+        select(User).where(User.id == user.id).with_for_update()
+    )
+    if not db_user:
+        raise HTTPException(401, "Пользователь Companion не найден")
+    user = db_user
+    db_device = db.scalar(
+        select(CompanionDevice)
+        .where(CompanionDevice.id == device.id)
+        .with_for_update()
+    )
     if not db_device or db_device.revoked_at is not None:
         raise HTTPException(401, "Companion отключён")
+
+    if client_event_id:
+        existing_event = db.scalar(
+            select(CompanionEvent.id).where(
+                CompanionEvent.device_id == db_device.id,
+                CompanionEvent.client_event_id == client_event_id,
+            )
+        )
+        if existing_event:
+            # Idempotent acknowledgement after a lost HTTP response. The first
+            # request already committed all state transitions and jobs.
+            return db_device, []
+
+    raw_client_times = {
+        "session_started_at": session_started_at,
+        "session_ended_at": session_ended_at,
+        "match_clock_observed_at": match_clock_observed_at,
+        "match_outcome_event_at": match_outcome_event_at,
+    }
+    validated_client_times = {
+        key: _validated_client_timestamp(value, now=now)
+        for key, value in raw_client_times.items()
+    }
+    session_started_at = validated_client_times["session_started_at"]
+    session_ended_at = validated_client_times["session_ended_at"]
+    match_clock_observed_at = validated_client_times["match_clock_observed_at"]
+    match_outcome_event_at = validated_client_times["match_outcome_event_at"]
+    if session_started_at and session_ended_at:
+        if datetime.fromisoformat(session_ended_at) < datetime.fromisoformat(session_started_at):
+            session_ended_at = None
+            validated_client_times["session_ended_at"] = None
+    rejected_client_times = [
+        key
+        for key, value in raw_client_times.items()
+        if value and validated_client_times[key] is None
+    ]
     mode, raw_payload = parse_game_mode(game_mode_raw)
     identity_ok = None
     if steam_id64 is not None and user.steam_id64 is not None:
@@ -578,7 +725,6 @@ def record_snapshot(
     clean_stats = sanitize_live_stats(live_stats)
     safe_payload = {
         "game_running": bool(game_running),
-        "steam_id64": str(steam_id64) if steam_id64 else None,
         "game_mode_raw": db_device.game_mode_raw,
         "identity_ok": identity_ok,
         "live_stats": clean_stats,
@@ -594,12 +740,14 @@ def record_snapshot(
             "match_outcome": match_outcome,
             "match_outcome_event_at": match_outcome_event_at,
             "match_outcome_event_match_id": int(match_outcome_event_match_id) if match_outcome_event_match_id else None,
+            "rejected_client_times": rejected_client_times,
         },
     }
     db.add(
         CompanionEvent(
             device_id=db_device.id,
             user_id=user.id,
+            client_event_id=client_event_id,
             event_type=event_type[:64],
             external_match_id=db_device.current_match_id,
             game_match_mode=mode,
@@ -667,7 +815,7 @@ def record_snapshot(
             match_outcome_event_match_id=match_outcome_event_match_id,
         )
 
-        direct = (
+        if final_snapshot:
             _register_direct_match_job(
                 db,
                 device=db_device,
@@ -676,11 +824,6 @@ def record_snapshot(
                 match_id=db_device.current_match_id,
                 identity_ok=identity_ok,
             )
-            if final_snapshot
-            else []
-        )
-    else:
-        direct = []
 
     woken = (
         wake_discovery(
@@ -699,4 +842,4 @@ def record_snapshot(
     )
     db.commit()
     db.refresh(db_device)
-    return db_device, woken, direct
+    return db_device, woken

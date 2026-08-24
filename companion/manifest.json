@@ -5,7 +5,7 @@
     "name": "Deadlock Contracts Companion",
     "author": "Deadlock Contracts",
     "author_display": "Mandarin Creator Group (M.C.G.)",
-    "version": "0.5.2.4",
+    "version": "0.5.2.6",
     "minimum-overwolf-version": "0.305.0.9",
     "minimum-gep-version": "311.0.0",
     "description": "Choose daily Deadlock contracts, follow provisional live progress, and receive authoritative post-match verdicts, XP and history.",
@@ -18,6 +18,8 @@
   },
   "permissions": [
     "Extensions",
+    "Streaming",
+    "Profile",
     "GameInfo",
     "Hotkeys"
   ],

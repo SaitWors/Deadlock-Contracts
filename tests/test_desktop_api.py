@@ -205,6 +205,9 @@ def test_desktop_bootstrap_lock_and_reroll_use_bearer_authority() -> None:
             "selection_max": 3,
             "server_authoritative": True,
             "client_can_settle": False,
+            "companion_ingest_enabled": True,
+            "reward_settlement_enabled": True,
+            "minimum_companion_version": None,
         }
         assert set(payload["adaptive_profiles"]) == {"STANDARD", "RANKED", "STREET_BRAWL"}
         assert all(profile["sample_size"] == 0 for profile in payload["adaptive_profiles"].values())
@@ -417,17 +420,17 @@ def test_desktop_history_keeps_retry_attempt_and_uses_reward_ledger() -> None:
         retry_item = by_id[selected_ids[0]]
         assert retry_item["status"] == "LOCKED"
         assert retry_item["match_id"] is None
-        assert retry_item["last_attempt_match_id"] == external_match_id
+        assert retry_item["last_attempt_match_id"] == str(external_match_id)
         assert retry_item["latest_evaluation"]["status"] == "FAILED"
-        assert retry_item["latest_evaluation"]["match_id"] == external_match_id
+        assert retry_item["latest_evaluation"]["match_id"] == str(external_match_id)
         assert retry_item["latest_evaluation"]["match_started_at"] == "2026-08-18T20:00:00" or retry_item["latest_evaluation"]["match_started_at"] == "2026-08-18T20:00:00+00:00"
         assert retry_item["latest_evaluation"]["match_ended_at"] == "2026-08-18T20:35:00" or retry_item["latest_evaluation"]["match_ended_at"] == "2026-08-18T20:35:00+00:00"
         assert retry_item["reward_granted_xp"] == 0
 
         completed_item = by_id[selected_ids[1]]
         assert completed_item["status"] == "COMPLETED"
-        assert completed_item["match_id"] == external_match_id
-        assert completed_item["last_attempt_match_id"] == external_match_id
+        assert completed_item["match_id"] == str(external_match_id)
+        assert completed_item["last_attempt_match_id"] == str(external_match_id)
         assert completed_item["match_started_at"] == "2026-08-18T20:00:00" or completed_item["match_started_at"] == "2026-08-18T20:00:00+00:00"
         assert completed_item["match_ended_at"] == "2026-08-18T20:35:00" or completed_item["match_ended_at"] == "2026-08-18T20:35:00+00:00"
         assert completed_item["latest_evaluation"]["status"] == "COMPLETED"
