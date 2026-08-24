@@ -188,7 +188,8 @@ jobs:
       - name: Read Companion release version
         id: companion-release
         run: |
-          echo "version=$(node -p \"require('../release.json').companion_version\")" >> "$GITHUB_OUTPUT"
+          version="$(node -p 'require("../release.json").companion_version')"
+          printf 'version=%s\n' "$version" >> "$GITHUB_OUTPUT"
 
       - name: Verify release metadata
         run: |
