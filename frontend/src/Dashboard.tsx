@@ -1464,10 +1464,7 @@ export default function Dashboard({ initialSession }: { initialSession: SessionP
   )
   const caseGroups = useMemo(() => {
     return historyCases
-      .filter(
-        (historyCase) =>
-          historyMode === "ALL" || historyCase.game_match_mode === historyMode,
-      )
+      .filter((historyCase) => historyMode === "ALL" || historyCase.game_match_mode === historyMode)
       .map((historyCase) => ({
         boardId: historyCase.board_id,
         items: historyCase.items,
