@@ -22,23 +22,66 @@ def enqueue_job(
     *,
     run_after: datetime | None = None,
     max_attempts: int = 20,
+    commit: bool = True,
 ) -> Job:
     existing = db.scalar(select(Job).where(Job.idempotency_key == idempotency_key))
     if existing:
+        existing.user_id = existing.user_id or (
+            str(payload.get("user_id")) if payload.get("user_id") else None
+        )
+        existing.board_id = existing.board_id or (
+            str(payload.get("board_id")) if payload.get("board_id") else None
+        )
+        if (
+            existing.match_id is None
+            and job_type in {"bind_match", "evaluate_match", "refresh_review_match"}
+            and payload.get("match_id")
+        ):
+            existing.match_id = str(payload["match_id"])
+        existing.game_match_mode = existing.game_match_mode or (
+            str(payload.get("mode_hint") or payload.get("mode") or "").upper() or None
+        )
         if existing.status == "FAILED":
             existing.status = "PENDING"
+            existing.attempts = 0
             existing.run_after = run_after or utcnow()
+            existing.locked_at = None
+            existing.locked_by = None
             existing.last_error = None
+            if commit:
+                db.commit()
+            else:
+                db.flush()
+        elif commit:
             db.commit()
+        else:
+            db.flush()
         return existing
     job = Job(
         type=job_type,
+        user_id=str(payload.get("user_id")) if payload.get("user_id") else None,
+        board_id=str(payload.get("board_id")) if payload.get("board_id") else None,
+        match_id=(
+            str(payload.get("match_id"))
+            if job_type in {"bind_match", "evaluate_match", "refresh_review_match"}
+            and payload.get("match_id")
+            else None
+        ),
+        game_match_mode=(
+            str(payload.get("mode_hint") or payload.get("mode") or "").upper() or None
+        ),
         payload=payload,
         idempotency_key=idempotency_key,
         run_after=run_after or utcnow(),
         max_attempts=max_attempts,
     )
     db.add(job)
+    if not commit:
+        # The caller owns the transaction. This is required for domain
+        # transitions such as OFFERED -> LOCKED, where committing the board
+        # without its first discovery job would leave a stuck case.
+        db.flush()
+        return job
     try:
         db.commit()
     except IntegrityError:
@@ -71,6 +114,8 @@ def claim_next_job(db: Session, worker_id: str) -> Job | None:
 
 def complete_job(db: Session, job: Job) -> None:
     job.status = "DONE"
+    job.locked_at = None
+    job.locked_by = None
     job.last_error = None
     db.commit()
 
@@ -82,4 +127,6 @@ def retry_job(db: Session, job: Job, error: Exception | str, delay_seconds: int)
     else:
         job.status = "PENDING"
         job.run_after = utcnow() + timedelta(seconds=delay_seconds)
+    job.locked_at = None
+    job.locked_by = None
     db.commit()

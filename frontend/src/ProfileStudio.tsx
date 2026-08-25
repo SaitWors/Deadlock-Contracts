@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react"
-import { contractTitle, localizeServerText, t, useLanguage } from "./i18n"
+import { apiLanguage, contractTitle, localizeServerText, t, useLanguage } from "./i18n"
 
 type Mode = "STANDARD" | "RANKED" | "STREET_BRAWL"
 type BadgeId =
@@ -33,12 +33,13 @@ type Progression = {
 type ShowcaseItem = {
   id: string
   title: string
+  title_i18n?: Partial<Record<"ru" | "en", string>>
   mode: Mode
   difficulty: string
   rarity: string
   reward_xp: number
   explanation: string | null
-  match_id: number | null
+  match_id: string | null
 }
 type PublicProfile = {
   slug: string
@@ -87,6 +88,7 @@ const THEME_LABEL: Record<
 async function request<T>(url: string, csrf: string, init: RequestInit = {}): Promise<T> {
   const headers = new Headers(init.headers)
   headers.set("Accept", "application/json")
+  headers.set("Accept-Language", apiLanguage())
   if (init.body) headers.set("Content-Type", "application/json")
   if (!["GET", "HEAD"].includes((init.method || "GET").toUpperCase()))
     headers.set("X-CSRF-Token", csrf)
@@ -379,7 +381,7 @@ export default function ProfileStudio({ csrf, user, progression, onNotice, onErr
               {(draft.showcase || []).slice(0, 3).map((item) => (
                 <div key={item.id}>
                   <p>
-                    <b>{contractTitle(item.title, language)}</b>
+                    <b>{item.title_i18n?.[language] || contractTitle(item.title, language)}</b>
                     <small>
                       {MODE_NAME[item.mode]} · {item.rarity}
                     </small>

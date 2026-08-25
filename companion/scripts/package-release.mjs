@@ -6,17 +6,20 @@ import { execFileSync } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
-const releaseMetadata = JSON.parse(fs.readFileSync(path.join(root, '..', 'release.json'), 'utf8'))
+const releaseFile = [path.join(root, 'release.json'), path.join(root, '..', 'release.json')].find(fs.existsSync)
+if (!releaseFile) throw new Error('release.json is required beside the Companion root or its parent')
+const releaseMetadata = JSON.parse(fs.readFileSync(releaseFile, 'utf8'))
 const release = String(releaseMetadata.companion_version || '')
 if (!release) throw new Error('release.json companion_version is required')
 const dist = path.join(root, 'dist')
 const staging = path.join(dist, '.opk-staging')
 const opk = path.join(dist, `Deadlock-Contracts-Companion-${release}.opk`)
+const sbom = path.join(dist, `Deadlock-Contracts-Companion-${release}.cdx.json`)
 const checksum = path.join(dist, 'SHA256SUMS.txt')
 
 const runtimeFiles = [
   'manifest.json', 'background.html', 'index.html', 'overlay.html', 'THIRD_PARTY_NOTICES.txt',
-  'src/background-engine.js', 'src/session-guard.js', 'src/desktop.js', 'src/overlay.js', 'src/overlay-focus.js', 'src/product.js', 'src/shared.js',
+  'src/background-engine.js', 'src/session-guard.js', 'src/queue-policy.js', 'src/desktop.js', 'src/desktop-ads.js', 'src/overlay.js', 'src/overlay-focus.js', 'src/product.js', 'src/shared.js',
   'styles/tokens.css', 'styles/app.css', 'styles/overlay.css',
   'assets/icon.png', 'assets/icon_gray.png', 'assets/launcher_icon.ico', 'assets/window_icon.png',
   'assets/mark.svg', 'assets/brand-hero.jpg', 'assets/brand-wordmark.jpg', 'assets/curator-contract.jpg',
@@ -75,6 +78,38 @@ normalizeArchiveTree(staging)
 const archiveFiles = archiveFileList(staging)
 if (!archiveFiles.length) throw new Error('refusing to build an empty OPK')
 
+const rootBomRef = `pkg:generic/deadlock-contracts-companion@${release}`
+const fileComponents = archiveFiles.map(relative => ({
+  type: 'file',
+  'bom-ref': `file:${relative}`,
+  name: relative,
+  hashes: [{
+    alg: 'SHA-256',
+    content: crypto.createHash('sha256').update(fs.readFileSync(path.join(staging, relative))).digest('hex'),
+  }],
+}))
+const cyclonedx = {
+  bomFormat: 'CycloneDX',
+  specVersion: '1.6',
+  version: 1,
+  metadata: {
+    component: {
+      type: 'application',
+      'bom-ref': rootBomRef,
+      group: 'Mandarin Creator Group',
+      name: 'Deadlock Contracts Companion',
+      version: release,
+      properties: [
+        { name: 'deadlock-contracts:manifest-version', value: String(releaseMetadata.companion_manifest_version || '') },
+        { name: 'deadlock-contracts:runtime-dependencies', value: 'none; bundled runtime files are enumerated below' },
+      ],
+    },
+  },
+  components: fileComponents,
+  dependencies: [{ ref: rootBomRef, dependsOn: fileComponents.map(component => component['bom-ref']) }],
+}
+fs.writeFileSync(sbom, `${JSON.stringify(cyclonedx, null, 2)}\n`, 'utf8')
+
 execFileSync('zip', ['-X', '-6', '-q', opk, ...archiveFiles], {
   cwd: staging,
   env: { ...process.env, TZ: 'UTC' },
@@ -82,9 +117,15 @@ execFileSync('zip', ['-X', '-6', '-q', opk, ...archiveFiles], {
 })
 const archive = fs.readFileSync(opk)
 const digest = crypto.createHash('sha256').update(archive).digest('hex')
-fs.writeFileSync(checksum, `${digest}  ${path.basename(opk)}\n`, 'utf8')
+const sbomDigest = crypto.createHash('sha256').update(fs.readFileSync(sbom)).digest('hex')
+fs.writeFileSync(
+  checksum,
+  `${digest}  ${path.basename(opk)}\n${sbomDigest}  ${path.basename(sbom)}\n`,
+  'utf8',
+)
 fs.rmSync(staging, { recursive: true, force: true })
 
 console.log(`OPK=${opk}`)
 console.log(`SHA256=${digest}`)
+console.log(`SBOM=${sbom}`)
 console.log(`SIZE=${archive.length}`)

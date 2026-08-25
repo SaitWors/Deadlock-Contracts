@@ -21,6 +21,7 @@ PY
 [[ "$CONFIG_VERSION" == "$EXPECTED_VERSION" ]] || fail "source version mismatch: compose=$EXPECTED_VERSION config=$CONFIG_VERSION"
 log "Expected version: $EXPECTED_VERSION"
 
+python3 scripts/release_check.py .
 ./scripts/preflight.sh
 log "Building migrate + web + worker"
 "${COMPOSE[@]}" build migrate web worker
@@ -29,17 +30,52 @@ IMAGE_VERSION="$(docker run --rm --entrypoint python deadlock-contracts-web -c '
 [[ "$IMAGE_VERSION" == "$EXPECTED_VERSION" ]] || fail "built image version mismatch: expected=$EXPECTED_VERSION image=$IMAGE_VERSION"
 log "Built image version verified: $IMAGE_VERSION"
 
+log "Starting PostgreSQL + shared rate-limit Redis"
+"${COMPOSE[@]}" up -d db redis
+
+wait_healthy() {
+  local service="$1"
+  local container_id state
+  container_id="$("${COMPOSE[@]}" ps -q "$service")"
+  [[ -n "$container_id" ]] || fail "$service container id not found"
+  for _ in $(seq 1 30); do
+    state="$(docker inspect --format '{{if .State.Health}}{{.State.Health.Status}}{{else}}{{.State.Status}}{{end}}' "$container_id" 2>/dev/null || true)"
+    if [[ "$state" == "healthy" ]]; then
+      log "$service is healthy"
+      return 0
+    fi
+    if [[ "$state" == "unhealthy" || "$state" == "exited" || "$state" == "dead" ]]; then
+      "${COMPOSE[@]}" logs --tail=120 "$service" || true
+      fail "$service became $state"
+    fi
+    sleep 2
+  done
+  "${COMPOSE[@]}" logs --tail=120 "$service" || true
+  fail "$service health timeout"
+}
+
+wait_healthy db
+wait_healthy redis
+
+log "Creating verified pre-migration database backup"
+./scripts/backup.sh
+
 log "Applying database migrations"
 "${COMPOSE[@]}" run --rm migrate
 log "Database migrations completed"
+
+log "Running idempotent offered-board content maintenance"
+"${COMPOSE[@]}" run --rm web python -m app.maintenance upgrade-offered-boards
 
 log "Recreating web + worker"
 "${COMPOSE[@]}" up -d --no-deps --force-recreate web worker
 
 web_id="$("${COMPOSE[@]}" ps -q web)"
 worker_id="$("${COMPOSE[@]}" ps -q worker)"
+redis_id="$("${COMPOSE[@]}" ps -q redis)"
 [[ -n "$web_id" ]] || fail "web container id not found"
 [[ -n "$worker_id" ]] || fail "worker container id not found"
+[[ -n "$redis_id" ]] || fail "redis container id not found"
 
 log "Waiting for web health"
 for _ in $(seq 1 30); do
@@ -65,6 +101,10 @@ if [[ "$worker_state" != "running" || "$worker_restarting" != "false" || "$final
   fail "worker unstable: state=$worker_state restarting=$worker_restarting restarts=$initial_restarts->$final_restarts"
 fi
 log "Worker stable: restarts=$final_restarts"
+
+redis_state="$(docker inspect --format '{{if .State.Health}}{{.State.Health.Status}}{{else}}{{.State.Status}}{{end}}' "$redis_id" 2>/dev/null || true)"
+[[ "$redis_state" == "healthy" ]] || { "${COMPOSE[@]}" logs --tail=120 redis || true; fail "redis is not healthy ($redis_state)"; }
+log "Shared rate limiter is healthy"
 
 DOMAIN="$(sed -n 's/^DOMAIN=//p' .env.production | tail -n1 | tr -d '\r')"
 check_public(){ curl -fsS --connect-timeout 5 --max-time 12 "https://${DOMAIN}/api/health" >/tmp/dc-health.json && curl -fsS --connect-timeout 5 --max-time 12 "https://${DOMAIN}/api/ready" >/tmp/dc-ready.json; }

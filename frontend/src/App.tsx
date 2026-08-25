@@ -2,7 +2,7 @@ import { useEffect, useState } from "react"
 import Landing from "./Landing"
 import Dashboard from "./Dashboard"
 import PublicDossier from "./PublicDossier"
-import { LanguageProvider, useLanguage } from "./i18n"
+import { apiLanguage, LanguageProvider, useLanguage } from "./i18n"
 
 type SessionPayload = {
   authenticated: boolean
@@ -12,6 +12,8 @@ type SessionPayload = {
     avatar_url: string | null
     xp: number
     status: string
+    locale: "ru" | "en"
+    timezone: string
     access_role: "OWNER" | "ADMIN" | "TESTER" | "PLAYER"
     badges: Array<
       | "CREATOR"
@@ -38,7 +40,7 @@ type SessionPayload = {
 }
 
 function SessionApp() {
-  const { language } = useLanguage()
+  const { language, setServerDefault } = useLanguage()
   const [session, setSession] = useState<SessionPayload | null>(null)
   const [failed, setFailed] = useState(false)
   const [attempt, setAttempt] = useState(0)
@@ -57,14 +59,21 @@ function SessionApp() {
     fetch("/api/me", {
       credentials: "same-origin",
       signal: controller.signal,
-      headers: { Accept: "application/json" },
+      headers: { Accept: "application/json", "Accept-Language": apiLanguage() },
     })
       .then(async (response) => {
         if (!response.ok) throw new Error(`HTTP ${response.status}`)
         return response.json() as Promise<SessionPayload>
       })
       .then((payload) => {
-        if (active) setSession(payload)
+        if (active) {
+          setServerDefault(
+            payload.user?.locale === "ru" || payload.user?.locale === "en"
+              ? payload.user.locale
+              : null,
+          )
+          setSession(payload)
+        }
       })
       .catch((error) => {
         if (active && (timedOut || error?.name !== "AbortError")) setFailed(true)
@@ -75,7 +84,7 @@ function SessionApp() {
       window.clearTimeout(timeout)
       controller.abort()
     }
-  }, [attempt])
+  }, [attempt, setServerDefault])
 
   if (failed) {
     return (

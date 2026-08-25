@@ -200,6 +200,7 @@ class ContractsV2EvaluatorTests(unittest.TestCase):
     def match(self, *, capabilities=None):
         return SimpleNamespace(
             is_final=True,
+            provider="deadlock_api",
             duration_s=1800,
             game_match_mode="RANKED",
             scoring_status="SCORED",
@@ -240,7 +241,7 @@ class ContractsV2EvaluatorTests(unittest.TestCase):
         self.assertEqual(result.status, "UNVERIFIABLE")
         self.assertIn("summary.deaths", result.explanation)
 
-    def test_street_brawl_scoreboard_healing_is_an_explicit_metric(self):
+    def test_client_only_scoreboard_healing_is_unverifiable(self):
         option = SimpleNamespace(
             conditions=[{
                 "metric": "player.scoreboard_healing", "operator": "gte", "target": 6000,
@@ -259,11 +260,10 @@ class ContractsV2EvaluatorTests(unittest.TestCase):
         participant = self.participant()
         participant.healing = 8567
         result = _result(option, match, participant)
-        self.assertEqual(result.status, "COMPLETED")
-        self.assertEqual(result.current, 8567.0)
-        self.assertIn("итоговой таблице", result.explanation)
+        self.assertEqual(result.status, "UNVERIFIABLE")
+        self.assertIn("надёжный сигнал", result.explanation)
 
-    def test_legacy_brawl_healing_alias_is_scoped_to_gep_fallback(self):
+    def test_legacy_gep_fallback_cannot_score_healing(self):
         option = SimpleNamespace(
             conditions=[{
                 "metric": "player.healing", "operator": "gte", "target": 6000,
@@ -282,8 +282,8 @@ class ContractsV2EvaluatorTests(unittest.TestCase):
             capabilities=["gep.scoreboard_healing"],
         )
         resolved = _result(option, gep_match, participant)
-        self.assertEqual(resolved.status, "COMPLETED")
-        self.assertEqual(resolved.facts[0]["semantic_compatibility"], "street_brawl_legacy_healing")
+        self.assertEqual(resolved.status, "UNVERIFIABLE")
+        self.assertEqual(resolved.facts, [])
 
         standard_match = SimpleNamespace(
             is_final=True, duration_s=1800, provider="gep_fallback", raw_summary=finality,
@@ -293,7 +293,7 @@ class ContractsV2EvaluatorTests(unittest.TestCase):
         standard_option = SimpleNamespace(**{**option.__dict__, "required_game_match_mode": "STANDARD"})
         unresolved = _result(standard_option, standard_match, participant)
         self.assertEqual(unresolved.status, "UNVERIFIABLE")
-        self.assertIn("summary.healing", unresolved.explanation)
+        self.assertIn("надёжный сигнал", unresolved.explanation)
 
 
 if __name__ == "__main__":

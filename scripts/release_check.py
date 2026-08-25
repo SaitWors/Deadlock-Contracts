@@ -7,7 +7,21 @@ import sys
 from pathlib import Path
 
 
-IGNORED_DIRS = {".git", ".pytest_cache", "__pycache__", "node_modules", "dist", "runtime"}
+# Development/runtime artefacts are deliberately excluded: this gate validates
+# the repository release payload, not an engineer's local environment.
+IGNORED_DIRS = {
+    ".git",
+    ".mypy_cache",
+    ".pip-audit-cache",
+    ".pytest_cache",
+    ".ruff_cache",
+    ".venv",
+    "__pycache__",
+    "node_modules",
+    "dist",
+    "release",
+    "runtime",
+}
 FORBIDDEN_DIRS = {"secrets", "backups", "dumps"}
 FORBIDDEN_NAMES = {".env", ".env.production", "id_rsa", "id_ed25519"}
 FORBIDDEN_SUFFIXES = {".bak", ".before", ".db", ".dump", ".key", ".old", ".opk", ".pem", ".sql", ".zip"}
@@ -33,14 +47,17 @@ def main() -> int:
     errors: list[str] = []
     required = [
         ".env.production.example",
-        "INSTALL_0.10.1_ALPHA8_RU.md",
+        "INSTALL_0.10.1_ALPHA9_RU.md",
+        "TESTING_AND_PRODUCTION_RUNBOOK_RU.md",
         "release.json",
+        "requirements-dev.txt",
         "alembic.ini",
         "app/migrate.py",
-        "alembic/versions/0004_add_outbox_retry_scheduling.py",
+        "alembic/versions/0007_mission_localization.py",
         "compose.prod.yaml",
         "Dockerfile",
         "app/main.py",
+        "app/maintenance.py",
         "frontend/package.json",
         "frontend/src/Landing.tsx",
         "frontend/src/Dashboard.tsx",
@@ -80,24 +97,38 @@ def main() -> int:
     if not errors:
         config = text(root / "app/config.py")
         compose = text(root / "compose.prod.yaml")
+        dockerfile = text(root / "Dockerfile")
         package = text(root / "frontend/package.json")
-        release = json.loads(
-            text(root / "release.json")
-        )
-        expected = str(
-            release["web_version"]
-        )
+        workflow = text(root / ".github/workflows/ci.yml")
+        release = json.loads(text(root / "release.json"))
+        expected = str(release["web_version"])
         if f'"{expected}"' not in config or f"APP_VERSION: {expected}" not in compose or f'"version": "{expected}"' not in package:
             fail(errors, "release version is not aligned across backend, Compose, and frontend")
+        if "--forwarded-allow-ips=*" in dockerfile or "FORWARDED_ALLOW_IPS: \"*\"" in compose:
+            fail(errors, "reverse-proxy trust must not allow every source")
+        if dockerfile.count("@sha256:") < 2:
+            fail(errors, "Dockerfile base images must be pinned by digest")
+        if compose.count("@sha256:") < 3:
+            fail(errors, "production service images must be pinned by digest")
+        for action in re.findall(r"^\s*uses:\s*([^\s#]+)", workflow, re.MULTILINE):
+            if not re.fullmatch(r"[^@]+@[0-9a-f]{40}", action):
+                fail(errors, f"GitHub Action is not pinned by commit SHA: {action}")
 
         companion_version = str(release["companion_version"])
         companion_manifest_version = str(release["companion_manifest_version"])
+        companion_provenance = json.loads(
+            text(root / "COMPANION_SOURCE_PROVENANCE.json")
+        )
         companion_manifest = json.loads(text(root / "companion/manifest.json"))
         companion_index = text(root / "companion/index.html")
         companion_desktop = text(root / "companion/src/desktop.js")
         companion_notices = text(root / "companion/THIRD_PARTY_NOTICES.txt")
         if companion_manifest.get("meta", {}).get("version") != companion_manifest_version:
             fail(errors, "Companion manifest version is not aligned with release.json")
+        if companion_provenance.get("runtime_version") != companion_version:
+            fail(errors, "Companion source provenance runtime is not aligned with release.json")
+        if companion_provenance.get("manifest_version") != companion_manifest_version:
+            fail(errors, "Companion source provenance manifest is not aligned with release.json")
         if f"<b>{companion_version}</b>" not in companion_index:
             fail(errors, "Companion build mark is not aligned with release.json")
         if f"version: '{companion_version}'" not in companion_desktop:

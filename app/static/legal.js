@@ -27,8 +27,9 @@ const documents = {
   },
 };
 
+const normalizedPath = window.location.pathname.replace(/^\/(?:ru|en)(?=\/)/, "");
 const current =
-  documents[window.location.pathname] ||
+  documents[normalizedPath] ||
   documents["/privacy"];
 
 const active =
@@ -38,13 +39,22 @@ if (active) {
   active.classList.remove("hidden");
 }
 
-document.title =
-  `Deadlock Contracts — ${current.title}`;
+const english = document.documentElement.lang === "en";
+const englishTitles = {
+  "/privacy": "privacy",
+  "/terms": "terms",
+  "/support": "support",
+  "/status": "status",
+  "/changelog": "changelog",
+  "/data-sources": "data sources",
+};
+document.title = `Deadlock Contracts — ${english ? englishTitles[normalizedPath] : current.title}`;
 
 fetch("/api/status", {
   credentials: "same-origin",
   headers: {
     Accept: "application/json",
+    "Accept-Language": english ? "en" : "ru",
   },
 })
   .then((response) => {
@@ -64,8 +74,7 @@ fetch("/api/status", {
           link.href =
             `mailto:${data.contact_email}`;
         } else {
-          link.textContent =
-            "владельца тестовой группы";
+          link.textContent = english ? "the test group owner" : "владельца тестовой группы";
           link.removeAttribute("href");
         }
       });
@@ -76,8 +85,44 @@ fetch("/api/status", {
       );
 
     if (status) {
-      status.textContent =
-        JSON.stringify(data, null, 2);
+      const names = english
+        ? {
+            web_api: "Web API",
+            database: "Database",
+            match_provider: "Match provider",
+            companion_ingest: "Companion ingest",
+            reward_delivery: "Reward delivery",
+            companion_ads: "Desktop ads",
+          }
+        : {
+            web_api: "Web API",
+            database: "База данных",
+            match_provider: "Провайдер матчей",
+            companion_ingest: "Приём Companion",
+            reward_delivery: "Выдача наград",
+            companion_ads: "Desktop-реклама",
+          };
+      status.replaceChildren();
+      Object.entries(data.components || {}).forEach(([key, value]) => {
+        const item = document.createElement("div");
+        item.className = "public-status-item";
+        const label = document.createElement("span");
+        const state = document.createElement("strong");
+        label.textContent = names[key] || key;
+        state.textContent = String(value || "unknown").replaceAll("_", " ");
+        item.append(label, state);
+        status.append(item);
+      });
+      const meta = document.createElement("p");
+      meta.className = "public-status-meta";
+      const updated = data.updated_at
+        ? new Date(data.updated_at).toLocaleString(english ? "en-US" : "ru-RU")
+        : "—";
+      const incidents = Array.isArray(data.incident_history) ? data.incident_history.length : 0;
+      meta.textContent = english
+        ? `Version ${data.version || "—"} · Updated ${updated} · ${incidents ? `${incidents} recorded incident(s)` : "No recorded incidents"}`
+        : `Версия ${data.version || "—"} · Обновлено ${updated} · ${incidents ? `Зафиксировано инцидентов: ${incidents}` : "Зафиксированных инцидентов нет"}`;
+      status.append(meta);
     }
   })
   .catch(() => {
@@ -96,6 +141,6 @@ fetch("/api/status", {
 
     if (status) {
       status.textContent =
-        "Публичный status endpoint сейчас недоступен.";
+        english ? "The public status endpoint is currently unavailable." : "Публичный status endpoint сейчас недоступен.";
     }
   });

@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session
 from ..config import settings
 from ..models import AutoReviewCase, BoardOption, ContractBoard, Evaluation, Match, MatchParticipant, OutboxEvent, utcnow
 from .jobs import enqueue_job
+from .match_trust import provider_has_client_source, provider_has_independent_source
 
 FINAL_STATUSES = {"COMPLETED", "FAILED", "EXPIRED", "VOID"}
 
@@ -144,26 +145,19 @@ def _ratio(operator: str, current: float, target: float) -> float:
 def _has_trusted_finality(match: Match) -> bool:
     if not getattr(match, "is_final", False):
         return False
-    raw_value = getattr(match, "raw_summary", None)
-    raw = raw_value if isinstance(raw_value, dict) else {}
-    gep_final = raw.get("companion_finalization")
-    if isinstance(gep_final, dict) and gep_final.get("trusted") is True:
-        # rc3/rc4 marked outcome-only snapshots trusted. Reject that legacy
-        # weak signal: Deadlock GEP can retain the previous match outcome after
-        # a new current Match ID is already active. Only lifecycle finality is
-        # strong enough for GEP fallback scoring.
-        signal = str(gep_final.get("signal") or "").strip().lower()
-        if signal in {"match_end", "postgame", "end", "session_end"}:
-            return True
-    # A bounded persisted duration together with is_final is also strong
-    # integrity evidence for legacy/provider matches.
-    if getattr(match, "duration_s", None) is not None:
-        return True
-    # Deadlock API/history is a final post-match source.  The special
-    # gep_fallback source, however, is accepted only with the explicit GEP
-    # finalization marker above.
     provider = str(getattr(match, "provider", "") or "").lower()
-    return bool(provider and "gep_fallback" not in provider)
+    # Legacy rows may contain a client-only GEP fallback that earlier releases
+    # marked SCORED/final.  A local Companion is not an attested data source;
+    # never allow those rows to settle or re-settle a reward.
+    if (
+        provider_has_client_source(provider)
+        or not provider_has_independent_source(provider)
+    ):
+        return False
+    # The ``is_final`` flag is accepted only after the source itself is
+    # independent. Companion lifecycle signals remain useful for discovery and
+    # retry diagnostics but never provide scoring finality.
+    return True
 
 
 def _result(option: BoardOption, match: Match, participant: MatchParticipant | None) -> EvaluationResult:
@@ -445,13 +439,7 @@ def evaluate_board(
         for option in options
     )
 
-    if waiting_on_this_match:
-        # Partial settlement: one assignment may still wait for a provider-only
-        # fact while unrelated assignments from the same match are already
-        # completed or released for the next gameplay attempt.
-        board.status = "VERIFYING"
-
-    elif review_reasons:
+    if review_reasons:
         _ensure_review_case(
             db,
             board,
@@ -459,9 +447,34 @@ def evaluate_board(
             review_reasons,
         )
 
-        board.status = "REVIEW_REQUIRED"
+    has_locked_assignments = any(option.status == "LOCKED" for option in options)
+    has_review_assignments = any(option.status == "REVIEW_REQUIRED" for option in options)
 
-    elif any(option.status == "REVIEW_REQUIRED" for option in options):
+    if waiting_on_this_match:
+        # Partial settlement: one assignment may still wait for a provider-only
+        # fact while unrelated assignments from the same match are already
+        # completed or released for the next gameplay attempt.
+        board.status = "VERIFYING"
+
+    elif has_locked_assignments and attempt_no < max_attempts:
+        # Human review of one provider-missing fact must not freeze unrelated
+        # retryable contracts. The review remains bound to its exact historical
+        # match while LOCKED assignments continue on the next eligible match.
+        board.status = "LOCKED"
+        board.baseline_match_id = max(
+            int(board.baseline_match_id or 0),
+            int(match.external_match_id),
+        )
+        enqueue_job(
+            db,
+            "discover_match",
+            {"board_id": board.id},
+            f"discover:{board.id}:attempt:{attempt_no + 1}",
+            max_attempts=settings.max_discovery_attempts,
+            commit=False,
+        )
+
+    elif has_review_assignments:
         board.status = "REVIEW_REQUIRED"
 
     elif options and all(
@@ -469,27 +482,6 @@ def evaluate_board(
         for option in options
     ):
         board.status = "SETTLED"
-
-    elif attempt_no < max_attempts:
-        # Есть невыполненные контракты и ещё остались матчи.
-        board.status = "LOCKED"
-
-        board.baseline_match_id = max(
-            int(board.baseline_match_id or 0),
-            int(match.external_match_id),
-        )
-
-        db.commit()
-
-        enqueue_job(
-            db,
-            "discover_match",
-            {"board_id": board.id},
-            f"discover:{board.id}:attempt:{attempt_no + 1}",
-            max_attempts=settings.max_discovery_attempts,
-        )
-
-        return processed
 
     else:
         board.status = "SETTLED"

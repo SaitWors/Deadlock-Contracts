@@ -1,5 +1,5 @@
 (() => {
-  const { t, formatNumber, formatDateTime, preference, language, setPreference } = window.DCShared
+  const { t, localizeServerText, formatNumber, formatDateTime, preference, language, setPreference } = window.DCShared
   const Product = window.DCProduct
   const OFFICIAL_SITE = 'https://deadlock-contracts.online'
   const MCG_URL = 'https://t.me/MandarinCreatorGroup'
@@ -9,10 +9,11 @@
   const PREVIEW = typeof overwolf === 'undefined' && new URLSearchParams(location.search).get('preview') === '1'
 
   const fallback = {
-    version: '0.5.2-alpha.4', paired: false, account: null, game_running: false, steam_id64: null,
+    version: '0.5.2-alpha.7', paired: false, account: null, game_running: false, steam_id64: null,
+    game_state_observed_at: null, game_state_confirmed: false,
     identity_ok: null, phase: null, phase_display: '—', mode_display: '—', match_id: null,
     session: null, evidence: {}, match_clock_s: null, queue_count: 0, last_upload_status: '—',
-    gep_version: null, gep_public_version: null, gep_updated: null, last_error: '', overlay_scale: 'compact', hotkey_binding: 'Ctrl+Shift+C',
+    gep_version: null, gep_public_version: null, gep_updated: null, gep_feature_health: { status: 'WAITING', attempts: 0, last_error: null }, last_error: '', overlay_scale: 'compact', hotkey_binding: 'Ctrl+Shift+C',
     product: Product.emptyProductState(),
   }
 
@@ -31,6 +32,9 @@
 
   const $ = id => document.getElementById(id)
   const all = selector => [...document.querySelectorAll(selector)]
+  const ui = (english, russian) => language() === 'ru' ? russian : english
+  const optionTitle = option => Product.contractTitle(option, language())
+  const optionDescription = (option, mode) => Product.contractDescription(option, mode, language())
 
   function structuredCloneSafe(value) {
     try { return JSON.parse(JSON.stringify(value)) } catch (_) { return value }
@@ -105,6 +109,38 @@
     busy = !!value
     $('workspace').classList.toggle('busy', busy)
     all('#view-contracts button, #view-settings button').forEach(button => { button.disabled = busy || button.dataset.baseDisabled === '1' })
+    syncDesktopAdSlot()
+  }
+
+  function isSafeDesktopAdMoment() {
+    const observedAt = Date.parse(snapshot.game_state_observed_at || '')
+    const observationFresh = Number.isFinite(observedAt) && Date.now() - observedAt <= 15000
+    if (!snapshot.game_state_confirmed || !observationFresh) return false
+    // First public QA is deliberately stricter than the platform maximum: the
+    // desktop ad slot is off for the entire Deadlock process lifetime, including
+    // lobby, loading and post-game. Unknown/stale process state also fails closed.
+    if (snapshot.game_running) return false
+    return true
+  }
+
+  function syncDesktopAdSlot() {
+    const hqIsOpen = $('view-hq')?.classList.contains('active')
+    const ftueIsClosed = $('ftue')?.hidden === true
+    const modalIsClosed = $('confirmModal')?.hidden === true && !modalResolve
+    const productReady = snapshot.product?.status === 'ONLINE'
+      && ((snapshot.product?.boards?.length || 0) > 0 || (snapshot.product?.active_cases?.length || 0) > 0)
+    const serverAllowsAds = snapshot.product?.server_features?.includes('desktop_ads_v1') === true
+    const eligible = serverAllowsAds
+      && !!snapshot.paired
+      && hqIsOpen
+      && ftueIsClosed
+      && modalIsClosed
+      && !busy
+      && navigator.onLine !== false
+      && document.visibilityState === 'visible'
+      && productReady
+      && isSafeDesktopAdMoment()
+    window.DCDesktopAds?.setEligible(eligible)
   }
 
   function setView(name) {
@@ -121,6 +157,7 @@
       renderDebrief()
       renderHq()
     }
+    syncDesktopAdSlot()
   }
 
   function statusLabel(status) {
@@ -211,20 +248,20 @@
     gameChip.className = `status-chip ${game ? 'good' : ''}`
     gameChip.innerHTML = `<i></i><b>DEADLOCK</b><em>${escapeHtml(game ? t('running') : t('notRunning'))}</em>`
 
-    const productError = product.last_error?.message
+    const productError = localizeServerText(product.last_error?.message)
     const networkOffline = navigator.onLine === false || product.status === 'OFFLINE'
     const incompatible = product.status === 'INCOMPATIBLE'
     const degraded = product.status === 'DEGRADED'
     $('offlineBar').hidden = !(networkOffline || incompatible || degraded)
     if (networkOffline) {
-      setText('offlineTitle', 'OFFLINE MODE')
+      setText('offlineTitle', ui('OFFLINE MODE', 'ОФЛАЙН-РЕЖИМ'))
       setText('offlineCopy', language() === 'ru' ? 'GEP продолжает работу локально. Серверные действия возобновятся после подключения.' : 'Live GEP continues locally. Server actions will resume after reconnection.')
     } else if (incompatible) {
       setText('offlineTitle', t('incompatible'))
-      setText('offlineCopy', productError || 'Desktop API v1 must be deployed before this build can be submitted.')
+      setText('offlineCopy', productError || ui('Desktop API v1 must be deployed before this build can be submitted.', 'Перед отправкой этой сборки необходимо развернуть Desktop API v1.'))
     } else if (degraded) {
       setText('offlineTitle', t('degraded'))
-      setText('offlineCopy', productError || 'Server data could not be refreshed. Cached data is marked as stale.')
+      setText('offlineCopy', productError || ui('Server data could not be refreshed. Cached data is marked as stale.', 'Не удалось обновить серверные данные. Кэш помечен как устаревший.'))
     }
   }
 
@@ -232,25 +269,29 @@
     const product = snapshot.product || Product.emptyProductState()
     const evidence = snapshot.evidence || {}
     const game = !!snapshot.game_running
-    const gepReady = !!snapshot.gep_version || (Array.isArray(snapshot.features) && snapshot.features.length > 0)
+    const gepReady = snapshot.gep_feature_health?.status === 'READY'
+      || !!snapshot.gep_version
+      || (Array.isArray(snapshot.features) && snapshot.features.length > 0)
     const identity = snapshot.identity_ok
 
     renderSystemStatus()
     setText('hqGame', game ? t('running') : t('notRunning'))
-    setText('hqPhase', `Phase: ${snapshot.phase_display || snapshot.phase || '—'}`)
+    setText('hqPhase', `${ui('Phase', 'Фаза')}: ${snapshot.phase_display || snapshot.phase || '—'}`)
     setText('hqGep', gepReady ? t('online') : t('waiting'))
-    setText('hqGepVersion', `Version: ${snapshot.gep_version || '—'}`)
+    setText('hqGepVersion', `${ui('Version', 'Версия')}: ${snapshot.gep_version || '—'}`)
     setText('hqIdentity', identity === true ? t('verified') : identity === false ? t('mismatch') : t('waiting'))
     setText('hqSteam', `Steam: ${snapshot.steam_id64 || snapshot.account?.steam_id64 || '—'}`)
     setText('hqServer', snapshot.paired ? statusLabel(product.status) : t('unpaired'))
     setText('hqServerTime', `${product.stale ? `${t('staleCache')} · ` : ''}${t('updated')}: ${formatRelativeSync(product.loaded_at)}`)
 
-    const gepProblem = snapshot.gep_updated === false || (!!snapshot.last_error && !snapshot.paired)
+    const gepProblem = snapshot.gep_updated === false
+      || snapshot.gep_feature_health?.status === 'DEGRADED'
+      || (!!snapshot.last_error && !snapshot.paired)
     $('gepAlert').hidden = !gepProblem
-    if (gepProblem) setText('gepAlertText', snapshot.last_error || 'Live data may be incomplete. Final server verification remains authoritative.')
+    if (gepProblem) setText('gepAlertText', localizeServerText(snapshot.gep_feature_health?.last_error || snapshot.last_error) || ui('Live data may be incomplete. Final server verification remains authoritative.', 'Live-данные могут быть неполными. Финальная серверная проверка остаётся источником истины.'))
 
-    setText('activeMatchTitle', game ? (snapshot.match_id ? `MATCH #${snapshot.match_id}` : 'DEADLOCK DETECTED') : 'WAITING FOR DEADLOCK')
-    setText('activeSession', snapshot.session?.id ? 'ACTIVE SESSION' : 'NO SESSION')
+    setText('activeMatchTitle', game ? (snapshot.match_id ? `${ui('MATCH', 'МАТЧ')} #${snapshot.match_id}` : ui('DEADLOCK DETECTED', 'DEADLOCK ОБНАРУЖЕН')) : ui('WAITING FOR DEADLOCK', 'ОЖИДАНИЕ DEADLOCK'))
+    setText('activeSession', snapshot.session?.id ? ui('ACTIVE SESSION', 'АКТИВНАЯ СЕССИЯ') : ui('NO SESSION', 'НЕТ СЕССИИ'))
     setText('statKills', formatNumber(evidence.kills))
     setText('statDeaths', formatNumber(evidence.deaths))
     setText('statAssists', formatNumber(evidence.assists))
@@ -276,7 +317,7 @@
       const board = Product.boardForMode(product, mode)
       const activeCase = cases.find(item => item.game_match_mode === mode)
       const available = board?.status === 'OFFERED' ? board.options?.length || 0 : 0
-      const state = activeCase ? statusLabel(activeCase.status) : board ? (board.status === 'OFFERED' ? `${available} AVAILABLE` : statusLabel(board.status)) : t('waiting')
+      const state = activeCase ? statusLabel(activeCase.status) : board ? (board.status === 'OFFERED' ? `${available} ${ui('AVAILABLE', 'ДОСТУПНО')}` : statusLabel(board.status)) : t('waiting')
       return `<article class="operation-card ${activeCase ? 'active-case' : ''}"><div><span>${Product.modeLabel(mode)} / 0${index + 1}</span><h3>${Product.modeLabel(mode)}</h3></div><b>${escapeHtml(state)}</b><button type="button" data-operation-mode="${mode}" data-operation-target="${activeCase ? 'active' : 'contracts'}">${escapeHtml(activeCase ? t('openActive') : t('openBoard'))} →</button></article>`
     }).join('')
 
@@ -286,7 +327,7 @@
       return
     }
     const options = active.options || []
-    const title = options[0]?.title || t('activeCase')
+    const title = options[0] ? optionTitle(options[0]) : t('activeCase')
     const extra = Math.max(0, options.length - 1)
     $('hqCaseStrip').innerHTML = `<button class="case-strip-card" type="button" data-view-target="active"><span>${escapeHtml(Product.modeLabel(active.game_match_mode))}</span><h3>${escapeHtml(title)}${extra ? ` +${extra}` : ''}</h3><small>${escapeHtml(statusLabel(active.status))}</small><b>${escapeHtml(`${t('attempt')} ${active.attempts_used + 1}/${active.max_attempts}`)}</b></button>`
   }
@@ -352,11 +393,11 @@
     const canEdit = board?.status === 'OFFERED'
     const refresh = product.refresh || {}
 
-    setText('boardModeTitle', `${Product.modeLabel(activeMode)} BOARD`)
+    setText('boardModeTitle', `${Product.modeLabel(activeMode)} ${ui('BOARD', 'ДОСКА')}`)
     setText('boardAuthority', product.stale ? t('staleCache') : t('serverAuthority'))
     $('boardAuthority').className = `outline-badge ${product.stale ? 'warn' : product.status === 'ONLINE' ? 'good' : ''}`
     setText('boardReset', `${t('reset')} ${formatDateTime(refresh.reset_at || board?.daily_reset_at)}`)
-    setText('boardMeta', board ? `${statusLabel(board.status)} · GENERATION ${board.generation} · ${board.attempts_remaining}/${board.max_attempts} ${t('attempts')}` : statusLabel(product.status))
+    setText('boardMeta', board ? `${statusLabel(board.status)} · ${ui('GENERATION', 'ПОКОЛЕНИЕ')} ${board.generation} · ${board.attempts_remaining}/${board.max_attempts} ${t('attempts')}` : statusLabel(product.status))
     setText('selectionCount', `${selected?.size || 0} / 3 ${t('selected')}`)
     setText('rerollBtn', t('reroll'))
     setText('lockBtn', t('lockCase'))
@@ -377,7 +418,7 @@
       return
     }
     if (!board) {
-      const message = product.last_error?.message || (language() === 'ru' ? 'Сервер не вернул доску для этого режима.' : 'The server did not return a board for this mode.')
+      const message = localizeServerText(product.last_error?.message) || (language() === 'ru' ? 'Сервер не вернул доску для этого режима.' : 'The server did not return a board for this mode.')
       $('contractBoard').innerHTML = emptyState(t('noBoard'), message, { id: 'retry', label: t('retry') })
       return
     }
@@ -389,7 +430,7 @@
       const control = canEdit
         ? `<button type="button" data-option-id="${escapeHtml(option.id)}" aria-pressed="${chosen}">${escapeHtml(chosen ? t('selected') : t('select'))}</button>`
         : `<span class="contract-status">${escapeHtml(statusLabel(option.status || board.status))}</span>`
-      return `<article class="${classes}"><header><span>${escapeHtml(contractHeader(option))}</span><span>${escapeHtml(option.rarity)}</span></header><h3>${escapeHtml(option.title)}</h3><p>${escapeHtml(option.description)}</p><div class="condition-chips">${conditions}</div>${adaptiveWhyHtml(option)}<footer><strong>${formatNumber(option.reward_xp)} XP</strong>${control}</footer></article>`
+      return `<article class="${classes}"><header><span>${escapeHtml(contractHeader(option))}</span><span>${escapeHtml(option.rarity)}</span></header><h3>${escapeHtml(optionTitle(option))}</h3><p>${escapeHtml(optionDescription(option, board.game_match_mode))}</p><div class="condition-chips">${conditions}</div>${adaptiveWhyHtml(option)}<footer><strong>${formatNumber(option.reward_xp)} XP</strong>${control}</footer></article>`
     }).join('')
   }
 
@@ -419,7 +460,7 @@
         return `<div class="objective-row ${useLive ? '' : 'post-match'}"><div class="objective-copy"><span>${escapeHtml(Product.metricLabel(condition.metric, language()))}<small> · ${escapeHtml(stateText)}</small></span><strong><em>${escapeHtml(formatConditionValue(condition, value))}</em> ${condition.metric === 'match.win' ? '' : `/ ${escapeHtml(operatorSymbol(condition.operator))} ${escapeHtml(formatConditionValue(condition, condition.target))}`}</strong></div><progress class="progress-track" max="100" value="${Math.max(0, Math.min(100, width))}"></progress></div>`
       }).join('')
       const caseState = option.status && option.status !== 'OFFERED' ? option.status : active.status
-      return `<article class="case-file"><div class="case-top"><span>${escapeHtml(`${Product.modeLabel(active.game_match_mode)} / FILE ${String(index + 1).padStart(2, '0')}`)}</span><b>${escapeHtml(`${option.rarity} / ${formatNumber(option.reward_xp)} XP`)}</b></div><h2>${escapeHtml(option.title)}</h2><p>${escapeHtml(option.description)}</p>${adaptiveWhyHtml(option)}<div class="objective-list">${objectives}</div><div class="case-foot"><span>${escapeHtml(liveModeMatches ? t('provisional') : statusLabel(caseState))}</span><b>${escapeHtml(`${t('attempt')} ${Math.min(active.max_attempts, active.attempts_used + 1)} / ${active.max_attempts}`)}</b></div></article>`
+      return `<article class="case-file"><div class="case-top"><span>${escapeHtml(`${Product.modeLabel(active.game_match_mode)} / ${ui('FILE', 'ДЕЛО')} ${String(index + 1).padStart(2, '0')}`)}</span><b>${escapeHtml(`${option.rarity} / ${formatNumber(option.reward_xp)} XP`)}</b></div><h2>${escapeHtml(optionTitle(option))}</h2><p>${escapeHtml(optionDescription(option, active.game_match_mode))}</p>${adaptiveWhyHtml(option)}<div class="objective-list">${objectives}</div><div class="case-foot"><span>${escapeHtml(liveModeMatches ? t('provisional') : statusLabel(caseState))}</span><b>${escapeHtml(`${t('attempt')} ${Math.min(active.max_attempts, active.attempts_used + 1)} / ${active.max_attempts}`)}</b></div></article>`
     }).join('')
   }
 
@@ -455,8 +496,8 @@
         ? `+${formatNumber(item.reward_granted_xp)} XP`
         : status === 'COMPLETED' ? t('xpPending') : `${formatNumber(item.reward_xp || 0)} XP`
       const label = retryableMiss ? t('attemptMissed') : statusLabel(status)
-      const detail = retryableMiss ? `${explanation || ''} ${t('stillActive')}`.trim() : (explanation || '')
-      return `<article class="debrief-contract ${status.toLowerCase()}"><span>${escapeHtml(label)}</span><div><h3>${escapeHtml(item.title)}</h3><p>${escapeHtml(detail)}</p></div><b>${escapeHtml(xp)}</b></article>`
+      const detail = retryableMiss ? `${localizeServerText(explanation) || ''} ${t('stillActive')}`.trim() : (localizeServerText(explanation) || '')
+      return `<article class="debrief-contract ${status.toLowerCase()}"><span>${escapeHtml(label)}</span><div><h3>${escapeHtml(Product.contractTitle(item, language()))}</h3><p>${escapeHtml(detail)}</p></div><b>${escapeHtml(xp)}</b></article>`
     }).join('')
 
     const profile = Product.adaptiveProfileFor(product, group.game_match_mode)
@@ -497,7 +538,7 @@
       const granted = Number(item.reward_granted_xp || 0)
       const xp = granted > 0 ? `+${formatNumber(granted)} XP` : `${formatNumber(item.reward_xp)} XP`
       const historyMatchId = Product.attemptMatchId(item)
-      return `<article class="history-row ${group.toLowerCase()}"><span>${escapeHtml(statusLabel(item.status))}</span><div><h3>${escapeHtml(item.title)}</h3><p>${escapeHtml(`${Product.modeLabel(item.game_match_mode)} · ${item.explanation || progress || `ATTEMPT ${item.attempts_used || 0}/${item.max_attempts || 3}`}`)}</p></div><small>${escapeHtml(formatDateTime(date))}${historyMatchId ? `<br>MATCH #${escapeHtml(historyMatchId)}` : ''}</small><b>${escapeHtml(xp)}</b></article>`
+      return `<article class="history-row ${group.toLowerCase()}"><span>${escapeHtml(statusLabel(item.status))}</span><div><h3>${escapeHtml(Product.contractTitle(item, language()))}</h3><p>${escapeHtml(`${Product.modeLabel(item.game_match_mode)} · ${localizeServerText(item.explanation) || progress || `${t('attempt')} ${item.attempts_used || 0}/${item.max_attempts || 3}`}`)}</p></div><small>${escapeHtml(formatDateTime(date))}${historyMatchId ? `<br>${ui('MATCH', 'МАТЧ')} #${escapeHtml(historyMatchId)}` : ''}</small><b>${escapeHtml(xp)}</b></article>`
     }).join('')
   }
 
@@ -509,21 +550,21 @@
     const failed = Number(progression.contracts_failed || 0)
     const totalVerdicts = completed + failed
     const success = totalVerdicts ? Math.round((completed / totalVerdicts) * 100) : null
-    setText('profileName', account?.display_name || 'UNPAIRED OPERATIVE')
+    setText('profileName', account?.display_name || ui('UNPAIRED OPERATIVE', 'НЕПРИВЯЗАННЫЙ ОПЕРАТИВНИК'))
     setText('profileSteam', account?.steam_id64 ? `Steam ID ${account.steam_id64}` : 'Steam ID —')
     setText('profileXp', formatNumber(progression.total_xp ?? account?.xp))
     setText('profileCompleted', formatNumber(progression.contracts_completed))
     setText('profileSuccess', success == null ? '—' : `${success}%`)
-    setText('profileLevelBadge', `LEVEL ${progression.level || '—'}`)
-    setText('profileXpNext', progression.xp_to_next == null ? 'Server ledger' : `${formatNumber(progression.xp_to_next)} XP TO NEXT LEVEL`)
-    setText('profileReview', `${formatNumber(progression.review_pending || 0)} UNDER REVIEW`)
-    setText('profileFailed', `${formatNumber(failed)} FAILED`)
+    setText('profileLevelBadge', `${ui('LEVEL', 'УРОВЕНЬ')} ${progression.level || '—'}`)
+    setText('profileXpNext', progression.xp_to_next == null ? ui('Server ledger', 'Серверный реестр') : `${formatNumber(progression.xp_to_next)} XP ${ui('TO NEXT LEVEL', 'ДО НОВОГО УРОВНЯ')}`)
+    setText('profileReview', `${formatNumber(progression.review_pending || 0)} ${ui('UNDER REVIEW', 'НА ПРОВЕРКЕ')}`)
+    setText('profileFailed', `${formatNumber(failed)} ${ui('FAILED', 'ПРОВАЛЕНО')}`)
     $('profileBadges').innerHTML = (account?.badges || [account?.access_role || (snapshot.paired ? 'PLAYER' : '')]).filter(Boolean).map(badge => `<b>${escapeHtml(badge)}</b>`).join('')
     const pct = Number(progression.progress_pct || 0)
-    $('profileProgress').innerHTML = `<article class="level-card"><div><span>LEVEL ${escapeHtml(progression.level || '—')} PROGRESS</span><b>${formatNumber(progression.level_xp)} / ${formatNumber(progression.next_level_xp)} XP</b></div><progress class="progress-track" max="100" value="${Math.max(0, Math.min(100, pct))}"></progress></article>`
+    $('profileProgress').innerHTML = `<article class="level-card"><div><span>${ui('LEVEL', 'УРОВЕНЬ')} ${escapeHtml(progression.level || '—')} ${ui('PROGRESS', 'ПРОГРЕСС')}</span><b>${formatNumber(progression.level_xp)} / ${formatNumber(progression.next_level_xp)} XP</b></div><progress class="progress-track" max="100" value="${Math.max(0, Math.min(100, pct))}"></progress></article>`
     $('modeStats').innerHTML = Product.MODES.map(mode => {
       const stats = progression.mode_stats?.[mode] || {}
-      return `<article class="mode-stat-card"><span>OPERATION</span><h3>${Product.modeLabel(mode)}</h3><div><small>DONE<b>${formatNumber(stats.completed || 0)}</b></small><small>FAILED<b>${formatNumber(stats.failed || 0)}</b></small><small>XP<b>${formatNumber(stats.xp || 0)}</b></small></div></article>`
+      return `<article class="mode-stat-card"><span>${ui('OPERATION', 'ОПЕРАЦИЯ')}</span><h3>${Product.modeLabel(mode)}</h3><div><small>${ui('DONE', 'ВЫПОЛНЕНО')}<b>${formatNumber(stats.completed || 0)}</b></small><small>${ui('FAILED', 'ПРОВАЛЕНО')}<b>${formatNumber(stats.failed || 0)}</b></small><small>XP<b>${formatNumber(stats.xp || 0)}</b></small></div></article>`
     }).join('')
     const adaptiveFeatureReady = product.server_features?.includes('adaptive_profiles_v1')
     if (snapshot.paired && product.status === 'ONLINE' && !adaptiveFeatureReady) {
@@ -550,9 +591,11 @@
     $('syncBtn').disabled = busy || !snapshot.paired
     $('disconnectBtn').dataset.baseDisabled = snapshot.paired ? '0' : '1'
     $('syncBtn').dataset.baseDisabled = snapshot.paired ? '0' : '1'
-    const gepReady = !!snapshot.gep_version || (snapshot.features?.length || 0) > 0
+    const gepReady = snapshot.gep_feature_health?.status === 'READY'
+      || !!snapshot.gep_version
+      || (snapshot.features?.length || 0) > 0
     setText('diagState', product.status === 'INCOMPATIBLE' ? t('incompatible') : gepReady ? 'GEP READY' : 'BACKGROUND READY')
-    setText('diagCopy', product.last_error?.message || `${t('localEvidence')}: ${snapshot.queue_count || 0} queued · ${t('serverLedger')}: ${product.status || 'UNPAIRED'}`)
+    setText('diagCopy', localizeServerText(product.last_error?.message) || `${t('localEvidence')}: ${snapshot.queue_count || 0} ${ui('queued', 'в очереди')} · ${t('serverLedger')}: ${product.status || 'UNPAIRED'}`)
     all('[data-overlay-scale]').forEach(button => button.classList.toggle('active', button.dataset.overlayScale === (snapshot.overlay_scale || 'compact')))
     setText('hotkeyBinding', snapshot.hotkey_binding || 'Ctrl+Shift+C')
     setText('ftueHotkey', snapshot.hotkey_binding || 'Ctrl+Shift+C')
@@ -585,6 +628,7 @@
       productSignature = signature
       renderProductViews()
     }
+    syncDesktopAdSlot()
   }
 
   async function loadPreview() {
@@ -623,6 +667,7 @@
     setText('modalCancel', t('cancel'))
     setText('modalConfirm', confirmLabel)
     $('confirmModal').hidden = false
+    syncDesktopAdSlot()
     $('modalConfirm').focus()
     return new Promise(resolve => { modalResolve = resolve })
   }
@@ -631,6 +676,7 @@
     $('confirmModal').hidden = true
     const resolve = modalResolve
     modalResolve = null
+    syncDesktopAdSlot()
     resolve?.(result)
   }
 
@@ -693,6 +739,7 @@
       localStorage.setItem(FTUE_KEY, '1')
       $('ftue').hidden = true
       if (destination) setView(destination)
+      else syncDesktopAdSlot()
     }
     $('ftueContinue').addEventListener('click', () => done('hq'))
     $('ftuePair').addEventListener('click', () => done('settings'))
@@ -728,7 +775,7 @@
       if (!options.length) return
       const confirmed = await openModal({
         title: t('lockTitle'), body: t('lockWarning'), confirmLabel: t('confirmLock'),
-        summary: [{ label: Product.modeLabel(activeMode), value: `${options.length} CONTRACTS` }, { label: t('reward'), value: `${formatNumber(options.reduce((sum, option) => sum + option.reward_xp, 0))} XP` }, ...options.map((option, index) => ({ label: `FILE 0${index + 1}`, value: option.title }))],
+        summary: [{ label: Product.modeLabel(activeMode), value: `${options.length} ${ui('CONTRACTS', 'КОНТРАКТА')}` }, { label: t('reward'), value: `${formatNumber(options.reduce((sum, option) => sum + option.reward_xp, 0))} XP` }, ...options.map((option, index) => ({ label: `${ui('FILE', 'ДЕЛО')} 0${index + 1}`, value: optionTitle(option) }))],
       })
       if (confirmed) await runAction(() => call('lockContracts', activeMode, ids), t('syncComplete'))
     })

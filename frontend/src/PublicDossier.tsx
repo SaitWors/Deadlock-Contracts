@@ -1,18 +1,26 @@
 import { useEffect, useState } from "react"
 import logoImage from "@/imports/logo-horizontal.svg"
 import markImage from "@/imports/mark.svg"
-import { contractTitle, LanguageSwitch, localizeServerText, MCGCredit, useLanguage } from "./i18n"
+import {
+  apiLanguage,
+  contractTitle,
+  LanguageSwitch,
+  localizeServerText,
+  MCGCredit,
+  useLanguage,
+} from "./i18n"
 
 type Mode = "STANDARD" | "RANKED" | "STREET_BRAWL"
 type Showcase = {
   id: string
   title: string
+  title_i18n?: Partial<Record<"ru" | "en", string>>
   mode: Mode
   rarity: string
   difficulty: string
   reward_xp: number
   explanation: string | null
-  match_id: number | null
+  match_id: string | null
 }
 type Profile = {
   slug: string
@@ -43,6 +51,7 @@ type Profile = {
     >
     hardest_completed: {
       title: string
+      title_i18n?: Partial<Record<"ru" | "en", string>>
       difficulty: string
       reward_xp: number
     } | null
@@ -69,7 +78,7 @@ export default function PublicDossier({ slug }: { slug: string }) {
   useEffect(() => {
     const controller = new AbortController()
     fetch(`/api/public/profiles/${encodeURIComponent(slug)}`, {
-      headers: { Accept: "application/json" },
+      headers: { Accept: "application/json", "Accept-Language": apiLanguage() },
       signal: controller.signal,
     })
       .then(async (response) => {
@@ -199,7 +208,7 @@ export default function PublicDossier({ slug }: { slug: string }) {
                     <span>
                       {MODE_NAME[item.mode]} / {item.rarity}
                     </span>
-                    <h3>{contractTitle(item.title, language)}</h3>
+                    <h3>{item.title_i18n?.[language] || contractTitle(item.title, language)}</h3>
                     <p>
                       {item.explanation
                         ? localizeServerText(item.explanation, language)

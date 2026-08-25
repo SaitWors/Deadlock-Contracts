@@ -6,7 +6,7 @@ import path from "node:path"
 export default defineConfig({
   base: "/static/",
   plugins: [react(), tailwindcss()],
-  resolve: { alias: { "@": path.resolve(__dirname, "./src") } },
+  resolve: { alias: { "@": path.resolve(import.meta.dirname, "./src") } },
   build: {
     sourcemap: false,
     minify: true,

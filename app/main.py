@@ -1,13 +1,9 @@
 from __future__ import annotations
 
-import base64
-import hashlib
 import json
 import logging
 import re
 import secrets
-import urllib.error
-import urllib.request
 from urllib.parse import urlparse
 from collections import Counter
 from contextlib import asynccontextmanager
@@ -15,14 +11,16 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Literal
 from uuid import UUID
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from fastapi import Depends, FastAPI, HTTPException, Request, Response
-from fastapi.exception_handlers import http_exception_handler
-from fastapi.responses import FileResponse, JSONResponse, RedirectResponse
+from fastapi.exceptions import RequestValidationError
+from fastapi.responses import FileResponse, JSONResponse, PlainTextResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, ConfigDict, Field
-from sqlalchemy import delete, exists, func, or_, select, text
+from sqlalchemy import and_, delete, exists, func, or_, select, text
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, selectinload
 from starlette.middleware.trustedhost import TrustedHostMiddleware
 
@@ -51,7 +49,7 @@ from .models import (
     User,
     OutboxEvent,
 )
-from .security import RequestSecurityMiddleware, SecurityHeadersMiddleware
+from .security import RequestSecurityMiddleware, SecurityHeadersMiddleware, rate_limiter_ready
 from .services.auth import (
     COOKIE_NAME,
     OPENID_COOKIE_NAME,
@@ -72,15 +70,16 @@ from .services.auth import (
     verify_reviewer_access_code,
     verify_steam_callback,
 )
-from .services.companion import claim_pairing, create_pairing, get_device_by_token, record_snapshot, serialize_device
+from .services.companion import claim_pairing, companion_version_supported, create_pairing, get_device_by_token, record_snapshot, serialize_device
 from .services.contract_factory import GENERATOR_VERSION, generate_contracts_v2, preview_payload
-from .services.boards import GAME_MODES, ensure_daily_board, ensure_daily_boards, lock_board, normalize_mode, refresh_summary, reroll_board, serialize_board, today_utc, upgrade_offered_boards_to_contracts_v2
+from .services.boards import GAME_MODES, ensure_daily_board, ensure_daily_boards, lock_board, normalize_mode, refresh_summary, reroll_board, serialize_board, today_utc
 from .services.jobs import enqueue_job
 from .services.seed import seed_missions
 from .services.totp import verify_totp
 from .services.progression import user_progression
 from .services.adaptive_profile import build_adaptive_profile
 from .services.leaderboard import TRUSTED_REWARD_SOURCES, public_leaderboard as build_public_leaderboard
+from .services.localization import error_metadata, request_language
 
 log = logging.getLogger(__name__)
 STATIC = Path(__file__).parent / "static"
@@ -127,6 +126,10 @@ class AdminJobRetryRequest(StrictModel):
     reason: str = Field(min_length=3, max_length=300)
 
 
+class AdminOutboxReplayRequest(StrictModel):
+    reason: str = Field(min_length=3, max_length=300)
+
+
 class AdminIdentityUpdateRequest(StrictModel):
     access_role: Literal["PLAYER", "TESTER", "ADMIN"]
     badges: list[Literal["DEVELOPER", "STREAMER", "EARLY_TESTER", "CONTRIBUTOR"]] = Field(default_factory=list, max_length=4)
@@ -145,6 +148,8 @@ class AdminXpAdjustRequest(StrictModel):
 class AdminMissionUpdateRequest(StrictModel):
     title: str | None = Field(default=None, min_length=3, max_length=160)
     description: str | None = Field(default=None, min_length=5, max_length=1200)
+    title_en: str | None = Field(default=None, min_length=3, max_length=160)
+    description_en: str | None = Field(default=None, min_length=5, max_length=1200)
     target: float | None = Field(default=None, ge=0, le=100000000)
     reward_xp: int | None = Field(default=None, ge=0, le=10000)
     base_xp: int | None = Field(default=None, ge=0, le=10000)
@@ -153,7 +158,7 @@ class AdminMissionUpdateRequest(StrictModel):
     drop_weight: float | None = Field(default=None, gt=0, le=100)
     drop_chance_pct: float | None = Field(default=None, ge=0, le=100)
     category: Literal["COMBAT", "SUPPORT", "ECONOMY", "SURVIVAL"] | None = None
-    status: Literal["PUBLISHED", "DISABLED"] | None = None
+    status: Literal["DRAFT", "PUBLISHED", "DISABLED"] | None = None
 
 
 class PublicProfileUpdateRequest(StrictModel):
@@ -166,6 +171,11 @@ class PublicProfileUpdateRequest(StrictModel):
     show_showcase: bool = True
     show_links: bool = True
     links: dict[str, str] = Field(default_factory=dict)
+
+
+class PreferenceUpdateRequest(StrictModel):
+    locale: Literal["ru", "en"]
+    timezone: str = Field(min_length=1, max_length=64, pattern=r"^[A-Za-z0-9_+./-]+$")
 
 
 class AdminGeneratorPreviewRequest(StrictModel):
@@ -193,6 +203,12 @@ class CompanionLiveStats(StrictModel):
 
 
 class CompanionHeartbeatRequest(StrictModel):
+    client_event_id: str | None = Field(
+        default=None,
+        min_length=8,
+        max_length=80,
+        pattern=r"^[A-Za-z0-9._:-]+$",
+    )
     game_running: bool = False
     steam_id64: int | None = None
     phase: str | None = Field(default=None, max_length=64)
@@ -266,9 +282,6 @@ async def lifespan(_: FastAPI):
     now = datetime.now(timezone.utc)
     with SessionLocal() as db:
         seed_missions(db)
-        upgraded_boards = upgrade_offered_boards_to_contracts_v2(db)
-        if upgraded_boards:
-            log.info("Contracts 2.0 upgraded %s offered legacy boards", upgraded_boards)
         db.execute(delete(SessionToken).where(SessionToken.expires_at <= now))
         db.execute(delete(OpenIDState).where(OpenIDState.expires_at <= now))
         db.execute(delete(CompanionPairing).where(CompanionPairing.expires_at <= now))
@@ -304,7 +317,7 @@ app.add_middleware(
     allow_origins=["*"],
     allow_credentials=False,
     allow_methods=["GET", "POST", "OPTIONS"],
-    allow_headers=["Authorization", "Content-Type", "Accept"],
+    allow_headers=["Authorization", "Content-Type", "Accept", "Accept-Language"],
     max_age=600,
 )
 app.add_middleware(TrustedHostMiddleware, allowed_hosts=list(settings.trusted_hosts))
@@ -317,16 +330,48 @@ async def unhandled_exception(request: Request, exc: Exception):
     request_id = getattr(request.state, "request_id", "unknown")
     log.exception("Unhandled request error id=%s path=%s", request_id, request.url.path)
     if request.url.path.startswith("/api/"):
+        language = request_language(request.headers.get("accept-language"))
+        error = error_metadata("Внутренняя ошибка сервиса", 500, language)
         return JSONResponse(
-            {"detail": "Внутренняя ошибка сервиса", "request_id": request_id},
+            {"detail": error["message"], **error, "error": error, "request_id": request_id},
             status_code=500,
+            headers={"Vary": "Accept-Language"},
         )
     return JSONResponse({"detail": "Internal Server Error"}, status_code=500)
 
 
 @app.exception_handler(HTTPException)
 async def safe_http_exception(request: Request, exc: HTTPException):
-    return await http_exception_handler(request, exc)
+    language = request_language(request.headers.get("accept-language"))
+    error = error_metadata(exc.detail, exc.status_code, language)
+    response = JSONResponse(
+        {"detail": error["message"], **error, "error": error, "request_id": getattr(request.state, "request_id", None)},
+        status_code=exc.status_code,
+        headers=exc.headers,
+    )
+    response.headers["Vary"] = "Accept-Language"
+    return response
+
+
+@app.exception_handler(RequestValidationError)
+async def safe_validation_exception(request: Request, exc: RequestValidationError):
+    language = request_language(request.headers.get("accept-language"))
+    error = error_metadata("Некорректные параметры запроса", 422, language)
+    response = JSONResponse(
+        {
+            "detail": error["message"],
+            **error,
+            "error": error,
+            "request_id": getattr(request.state, "request_id", None),
+            "fields": [
+                {"path": ".".join(str(part) for part in item["loc"]), "type": item["type"]}
+                for item in exc.errors()
+            ],
+        },
+        status_code=422,
+    )
+    response.headers["Vary"] = "Accept-Language"
+    return response
 
 
 @app.get("/api/health")
@@ -335,25 +380,35 @@ def health() -> dict:
 
 
 @app.get("/api/ready")
-def ready(db: Session = Depends(get_db)) -> dict:
+async def ready(db: Session = Depends(get_db)) -> dict:
     db.execute(text("SELECT 1"))
-    return {"status": "ready"}
+    if not await rate_limiter_ready():
+        raise HTTPException(503, "Общий rate limiter недоступен")
+    return {"status": "ready", "components": {"database": "ready", "rate_limiter": "ready"}}
 
 
 @app.get("/api/status")
 def status() -> dict:
     return {
         "version": settings.app_version,
-        "environment": settings.app_env,
         "mode": "THREE_MODE",
         "post_match_only": True,
         "steam_login_available": True,
-        "steam_profile_enrichment": bool(settings.steam_web_api_key),
         "closed_alpha": settings.closed_alpha,
         "overwolf_qa_reviewer_gateway": reviewer_access_available(),
         "provider_configured": settings.provider == "deadlock_api",
-        "deadlock_api_key_configured": bool(settings.deadlock_api_key),
+        "minimum_companion_version": settings.companion_minimum_version or None,
         "contact_email": settings.contact_email or None,
+        "components": {
+            "web_api": "operational",
+            "database": "operational",
+            "match_provider": "configured" if settings.provider == "deadlock_api" else "unconfigured",
+            "companion_ingest": "operational" if settings.companion_ingest_enabled else "disabled",
+            "reward_delivery": "operational" if settings.reward_settlement_enabled else "paused",
+            "companion_ads": "enabled" if settings.companion_ads_enabled else "disabled",
+        },
+        "incident_history": [],
+        "updated_at": datetime.now(timezone.utc).isoformat(),
     }
 
 
@@ -519,6 +574,7 @@ def _clean_profile_links(values: dict[str, str] | None) -> dict[str, str]:
 def _profile_showcase(db: Session, user: User, limit: int = 3) -> list[dict]:
     rows = db.execute(
         select(BoardOption, ContractBoard, Match)
+        .options(selectinload(BoardOption.mission))
         .join(ContractBoard, ContractBoard.id == BoardOption.board_id)
         .outerjoin(Match, Match.id == BoardOption.bound_match_id)
         .where(
@@ -533,13 +589,21 @@ def _profile_showcase(db: Session, user: User, limit: int = 3) -> list[dict]:
         {
             "id": option.id,
             "title": option.rendered_title,
+            "title_i18n": {
+                "ru": option.rendered_title,
+                "en": option.mission.title_en or option.rendered_title,
+            },
             "description": option.rendered_description,
+            "description_i18n": {
+                "ru": option.rendered_description,
+                "en": option.mission.description_en or option.rendered_description,
+            },
             "mode": board.game_match_mode,
             "difficulty": option.difficulty,
             "rarity": option.rarity,
             "reward_xp": option.reward_xp,
             "explanation": option.explanation,
-            "match_id": match.external_match_id if match else None,
+            "match_id": str(match.external_match_id) if match else None,
             "settled_at": option.settled_at.isoformat() if option.settled_at else None,
         }
         for option, board, match in rows
@@ -597,11 +661,40 @@ def serialize_user(user: User) -> dict:
         "avatar_url": user.avatar_url,
         "xp": user.xp,
         "status": user.status,
+        "locale": user.locale,
+        "timezone": user.timezone,
         "access_role": role,
         "badges": _display_badges(user),
         "created_at": user.created_at.isoformat() if user.created_at else None,
         "is_admin": role in {"OWNER", "ADMIN"},
         "can_manage_roles": role == "OWNER",
+    }
+
+
+@app.patch("/api/preferences", dependencies=[Depends(require_csrf)])
+def update_preferences(
+    payload: PreferenceUpdateRequest,
+    user: User = Depends(require_user),
+    db: Session = Depends(get_db),
+) -> dict:
+    try:
+        ZoneInfo(payload.timezone)
+    except ZoneInfoNotFoundError as exc:
+        raise HTTPException(422, "Неизвестный часовой пояс") from exc
+    user.locale = payload.locale
+    user.timezone = payload.timezone
+    db.add(AuditLog(
+        user_id=user.id,
+        action="preferences.updated",
+        entity_type="user",
+        entity_id=user.id,
+        data={"locale": payload.locale, "timezone": payload.timezone},
+    ))
+    db.commit()
+    db.refresh(user)
+    return {
+        "user": serialize_user(user),
+        "board_reset_policy": {"timezone": "UTC", "global": True},
     }
 
 
@@ -672,20 +765,23 @@ def _provider_status(db: Session, board_id: str) -> dict | None:
                 f"Дело закрыто. Использовано матчей: "
                 f"{board.attempts_used}/{board.max_attempts}."
             ),
-            "match_id": external_id,
+            "match_id": str(external_id) if external_id is not None else None,
         }
 
-    if active_bound_ids:
-        match = db.get(
-            Match,
-            next(iter(active_bound_ids)),
+    if active_bound_ids and board.status in {"VERIFYING", "REVIEW_REQUIRED"}:
+        relevant_status = "VERIFYING" if board.status == "VERIFYING" else "REVIEW_REQUIRED"
+        relevant_ids = {
+            option.bound_match_id
+            for option in selected
+            if option.bound_match_id and option.status == relevant_status
+        }
+        matches = [db.get(Match, match_id) for match_id in relevant_ids]
+        matches = sorted(
+            (item for item in matches if item),
+            key=lambda item: item.external_match_id,
         )
-
-        external_id = (
-            match.external_match_id
-            if match
-            else None
-        )
+        external_id = matches[-1].external_match_id if matches else None
+        external_ids = [item.external_match_id for item in matches]
 
         if board.status == "REVIEW_REQUIRED":
             return {
@@ -696,7 +792,8 @@ def _provider_status(db: Session, board_id: str) -> dict | None:
                     if external_id
                     else "Матч найден. Часть данных уточняется автоматически."
                 ),
-                "match_id": external_id,
+                "match_id": str(external_id) if external_id is not None else None,
+                "active_match_ids": [str(value) for value in external_ids],
             }
 
         return {
@@ -710,17 +807,27 @@ def _provider_status(db: Session, board_id: str) -> dict | None:
                 f"Проверяем попытку "
                 f"{board.attempts_used}/{board.max_attempts}."
             ),
-            "match_id": external_id,
+            "match_id": str(external_id) if external_id is not None else None,
+            "active_match_ids": [str(value) for value in external_ids],
         }
 
     direct_jobs = list(
         db.scalars(
             select(Job)
             .where(
-                Job.type == "resolve_companion_match"
+                Job.type.in_(("resolve_companion_match", "resolve_companion_match_auto")),
+                Job.status.in_(("PENDING", "RUNNING")),
+                or_(
+                    Job.board_id == board_id,
+                    and_(
+                        Job.type == "resolve_companion_match_auto",
+                        Job.user_id == board.user_id,
+                        Job.game_match_mode == board.game_match_mode,
+                    ),
+                ),
             )
             .order_by(Job.created_at.desc())
-            .limit(100)
+            .limit(20)
         ).all()
     )
 
@@ -728,14 +835,17 @@ def _provider_status(db: Session, board_id: str) -> dict | None:
         (
             item
             for item in direct_jobs
-            if str(
-                (item.payload or {}).get("board_id") or ""
-            ) == board_id
+            if item.board_id == board_id
+            or (
+                item.type == "resolve_companion_match_auto"
+                and item.user_id == board.user_id
+                and item.game_match_mode == board.game_match_mode
+            )
         ),
         None,
     )
 
-    if direct and direct.status in {"PENDING", "RUNNING"}:
+    if direct:
         external_id = (
             direct.payload or {}
         ).get("external_match_id")
@@ -746,7 +856,7 @@ def _provider_status(db: Session, board_id: str) -> dict | None:
                 f"Компаньон обнаружил матч #{external_id}. "
                 f"Получаем итоговую статистику."
             ),
-            "match_id": external_id,
+            "match_id": str(external_id) if external_id is not None else None,
             "attempts": direct.attempts,
             "next_check_at": (
                 direct.run_after.isoformat()
@@ -758,22 +868,13 @@ def _provider_status(db: Session, board_id: str) -> dict | None:
     jobs = list(
         db.scalars(
             select(Job)
-            .where(Job.type == "discover_match")
+            .where(Job.type == "discover_match", Job.board_id == board_id)
             .order_by(Job.created_at.desc())
-            .limit(100)
+            .limit(1)
         ).all()
     )
 
-    job = next(
-        (
-            item
-            for item in jobs
-            if str(
-                (item.payload or {}).get("board_id") or ""
-            ) == board_id
-        ),
-        None,
-    )
+    job = jobs[0] if jobs else None
 
     if not job:
         return None
@@ -850,58 +951,6 @@ def _require_owner(admin: User = Depends(_require_admin)) -> User:
     return admin
 
 
-def _safe_file_name(name: str) -> str:
-    cleaned = re.sub(r"[^A-Za-z0-9._-]+", "_", name).strip("._")
-    return (cleaned or "evidence")[:120]
-
-
-def _notify_review_channel(submission: EvidenceSubmission, user: User, board: ContractBoard) -> str | None:
-    admin_url = f"{settings.app_base_url}/#admin-evidence-{submission.id}"
-    text = (
-        f"New manual verification #{submission.id[:8]}\n"
-        f"Player: {user.display_name} ({user.account_id})\n"
-        f"Board: {board.board_date.isoformat()}\n"
-        f"Channel: {submission.channel}\n"
-        f"Review: {admin_url}"
-    )
-    try:
-        if submission.channel == "TELEGRAM":
-            if not settings.telegram_bot_token or not settings.telegram_review_chat_id:
-                return "Проверка через Telegram не настроена"
-            url = f"https://api.telegram.org/bot{settings.telegram_bot_token}/sendMessage"
-            body = json.dumps({"chat_id": settings.telegram_review_chat_id, "text": text, "disable_web_page_preview": True}).encode()
-        else:
-            if not settings.discord_review_webhook_url:
-                return "Проверка через Discord не настроена"
-            url = settings.discord_review_webhook_url
-            body = json.dumps({"content": text, "allowed_mentions": {"parse": []}}).encode()
-        req = urllib.request.Request(url, data=body, method="POST", headers={"Content-Type": "application/json", "User-Agent": f"DeadlockContracts/{settings.app_version}"})
-        with urllib.request.urlopen(req, timeout=8) as response:
-            if response.status not in {200, 204}:
-                return f"Notification returned HTTP {response.status}"
-    except (OSError, urllib.error.URLError, urllib.error.HTTPError) as exc:
-        return f"Notification failed: {type(exc).__name__}"
-    return None
-
-
-def _serialize_submission(db: Session, item: EvidenceSubmission, viewer: User) -> dict[str, Any]:
-    files = list(db.scalars(select(EvidenceFile).where(EvidenceFile.submission_id == item.id).order_by(EvidenceFile.created_at)).all())
-    board = db.scalar(select(ContractBoard).options(selectinload(ContractBoard.options)).where(ContractBoard.id == item.board_id))
-    owner = db.get(User, item.user_id)
-    return {
-        "id": item.id, "board_id": item.board_id, "channel": item.channel, "status": item.status,
-        "notes": item.notes, "hero_name": item.hero_name,
-        "match_started_at": item.match_started_at.isoformat() if item.match_started_at else None,
-        "match_ended_at": item.match_ended_at.isoformat() if item.match_ended_at else None,
-        "reviewer_note": item.reviewer_note, "decision_payload": item.decision_payload,
-        "created_at": item.created_at.isoformat(), "reviewed_at": item.reviewed_at.isoformat() if item.reviewed_at else None,
-        "player": {"display_name": owner.display_name if owner else "Unknown", "account_id": owner.account_id if owner else None},
-        "contracts": [{"id": o.id, "title": o.rendered_title, "description": o.rendered_description, "target": o.target, "metric": o.metric, "reward_xp": o.reward_xp, "status": o.status} for o in (board.options if board else []) if o.selected],
-        "files": [{"id": f.id, "name": f.original_name, "mime_type": f.mime_type, "size_bytes": f.size_bytes, "url": f"/api/evidence/files/{f.id}"} for f in files],
-        "can_review": _is_admin(viewer),
-    }
-
-
 def _companion_from_request(
     request: Request,
     db: Session,
@@ -935,28 +984,104 @@ def _desktop_context(
     request: Request,
     db: Session,
 ) -> tuple[CompanionDevice, User]:
-    return _companion_from_request(request, db)
+    device, owner = _companion_from_request(request, db)
+    _require_companion_version(device.version)
+    return device, owner
 
-def _history_items(db: Session, user: User, limit: int = 200) -> list[dict[str, Any]]:
+
+def _require_companion_version(version: str | None) -> None:
+    if not companion_version_supported(version, settings.companion_minimum_version):
+        raise HTTPException(
+            426,
+            "Требуется обновление Companion",
+            headers={"X-Minimum-Companion-Version": settings.companion_minimum_version},
+        )
+
+def _history_case_ids(
+    db: Session,
+    user: User,
+    limit: int = 100,
+    offset: int = 0,
+) -> list[str]:
     safe_limit = max(1, min(200, int(limit)))
-    options = list(
+    safe_offset = max(0, int(offset))
+    return list(
         db.scalars(
-            select(BoardOption)
-            .join(ContractBoard, ContractBoard.id == BoardOption.board_id)
-            .options(selectinload(BoardOption.match), selectinload(BoardOption.board))
-            .where(ContractBoard.user_id == user.id, BoardOption.selected.is_(True))
-            .order_by(BoardOption.created_at.desc())
+            select(ContractBoard.id)
+            .join(BoardOption, BoardOption.board_id == ContractBoard.id)
+            .where(
+                ContractBoard.user_id == user.id,
+                BoardOption.selected.is_(True),
+            )
+            .group_by(ContractBoard.id)
+            .order_by(
+                func.coalesce(ContractBoard.locked_at, ContractBoard.created_at).desc(),
+                ContractBoard.id.desc(),
+            )
+            .offset(safe_offset)
             .limit(safe_limit)
         ).all()
     )
 
-    evaluation_ids = {option.final_evaluation_id for option in options if option.final_evaluation_id}
+
+def _history_items(
+    db: Session,
+    user: User,
+    limit: int = 200,
+    offset: int = 0,
+    *,
+    board_ids: list[str] | None = None,
+) -> list[dict[str, Any]]:
+    selected_board_ids = (
+        list(board_ids)
+        if board_ids is not None
+        else _history_case_ids(db, user, limit, offset)
+    )
+    if not selected_board_ids:
+        return []
+    board_order = {
+        board_id: index for index, board_id in enumerate(selected_board_ids)
+    }
+    options = list(
+        db.scalars(
+            select(BoardOption)
+            .join(ContractBoard, ContractBoard.id == BoardOption.board_id)
+            .options(
+                selectinload(BoardOption.match),
+                selectinload(BoardOption.board),
+                selectinload(BoardOption.mission),
+            )
+            .where(
+                ContractBoard.user_id == user.id,
+                BoardOption.selected.is_(True),
+                BoardOption.board_id.in_(selected_board_ids),
+            )
+        ).all()
+    )
+    options.sort(
+        key=lambda option: (
+            board_order.get(option.board_id, len(board_order)),
+            option.created_at,
+            option.id,
+        )
+    )
+
+    assignment_ids = [option.id for option in options]
     evaluations = (
-        list(db.scalars(select(Evaluation).where(Evaluation.id.in_(evaluation_ids))).all())
-        if evaluation_ids
+        list(
+            db.scalars(
+                select(Evaluation)
+                .where(Evaluation.assignment_id.in_(assignment_ids))
+                .order_by(Evaluation.assignment_id, Evaluation.revision.desc())
+            ).all()
+        )
+        if assignment_ids
         else []
     )
     evaluations_by_id = {item.id: item for item in evaluations}
+    evaluations_by_assignment: dict[str, list[Evaluation]] = {}
+    for evaluation in evaluations:
+        evaluations_by_assignment.setdefault(evaluation.assignment_id, []).append(evaluation)
 
     evaluation_match_ids = {item.match_id for item in evaluations if item.match_id}
     evaluation_matches = (
@@ -966,7 +1091,6 @@ def _history_items(db: Session, user: User, limit: int = 200) -> list[dict[str, 
     )
     matches_by_id = {item.id: item for item in evaluation_matches}
 
-    assignment_ids = [option.id for option in options]
     ledger_entries = (
         list(
             db.scalars(
@@ -985,8 +1109,39 @@ def _history_items(db: Session, user: User, limit: int = 200) -> list[dict[str, 
         ledger_by_assignment.setdefault(entry.source_id, []).append(entry)
 
     items: list[dict[str, Any]] = []
+
+    def evaluation_payload(item: Evaluation) -> dict[str, Any]:
+        item_match = matches_by_id.get(item.match_id)
+        return {
+            "id": item.id,
+            "status": item.status,
+            "revision": item.revision,
+            "match_id": str(item_match.external_match_id) if item_match else None,
+            "match_started_at": (
+                item_match.started_at.isoformat()
+                if item_match and item_match.started_at
+                else None
+            ),
+            "match_ended_at": (
+                item_match.ended_at.isoformat()
+                if item_match and item_match.ended_at
+                else None
+            ),
+            "evidence_level": item.evidence_level,
+            "evaluator_version": item.evaluator_version,
+            "progress_current": item.progress_current,
+            "progress_target": item.progress_target,
+            "score": item.score,
+            "explanation": item.explanation,
+            "created_at": item.created_at.isoformat(),
+        }
+
     for option in options:
-        evaluation = evaluations_by_id.get(option.final_evaluation_id or "")
+        attempt_evaluations = evaluations_by_assignment.get(option.id, [])
+        evaluation = (
+            evaluations_by_id.get(option.final_evaluation_id or "")
+            or (attempt_evaluations[0] if attempt_evaluations else None)
+        )
         evaluation_match = matches_by_id.get(evaluation.match_id) if evaluation else None
         rewards = ledger_by_assignment.get(option.id, [])
         xp_rewards = [entry for entry in rewards if (entry.asset or "XP") == "XP"]
@@ -1005,6 +1160,10 @@ def _history_items(db: Session, user: User, limit: int = 200) -> list[dict[str, 
                 "attempts_used": option.board.attempts_used,
                 "max_attempts": option.board.max_attempts,
                 "title": option.rendered_title,
+                "title_i18n": {
+                    "ru": option.rendered_title,
+                    "en": option.mission.title_en or option.rendered_title,
+                },
                 "status": option.status,
                 "reward_xp": option.reward_xp,
                 "reward_granted_xp": reward_granted_xp,
@@ -1014,29 +1173,16 @@ def _history_items(db: Session, user: User, limit: int = 200) -> list[dict[str, 
                 "progress_current": option.progress_current,
                 "progress_target": option.progress_target,
                 "explanation": option.explanation,
-                "match_id": current_match_id,
+                "match_id": str(current_match_id) if current_match_id is not None else None,
                 "match_started_at": option.match.started_at.isoformat() if option.match and option.match.started_at else None,
                 "match_ended_at": option.match.ended_at.isoformat() if option.match and option.match.ended_at else None,
-                "last_attempt_match_id": last_attempt_match_id,
+                "last_attempt_match_id": str(last_attempt_match_id) if last_attempt_match_id is not None else None,
                 "latest_evaluation": (
-                    {
-                        "id": evaluation.id,
-                        "status": evaluation.status,
-                        "revision": evaluation.revision,
-                        "match_id": evaluation_match.external_match_id if evaluation_match else None,
-                        "match_started_at": evaluation_match.started_at.isoformat() if evaluation_match and evaluation_match.started_at else None,
-                        "match_ended_at": evaluation_match.ended_at.isoformat() if evaluation_match and evaluation_match.ended_at else None,
-                        "evidence_level": evaluation.evidence_level,
-                        "evaluator_version": evaluation.evaluator_version,
-                        "progress_current": evaluation.progress_current,
-                        "progress_target": evaluation.progress_target,
-                        "score": evaluation.score,
-                        "explanation": evaluation.explanation,
-                        "created_at": evaluation.created_at.isoformat(),
-                    }
+                    evaluation_payload(evaluation)
                     if evaluation
                     else None
                 ),
+                "evaluations": [evaluation_payload(item) for item in attempt_evaluations],
                 "locked_at": option.locked_at.isoformat() if option.locked_at else None,
                 "settled_at": option.settled_at.isoformat() if option.settled_at else None,
             }
@@ -1044,9 +1190,49 @@ def _history_items(db: Session, user: User, limit: int = 200) -> list[dict[str, 
     return items
 
 
+def _history_cases(
+    db: Session,
+    user: User,
+    limit: int = 100,
+    offset: int = 0,
+) -> list[dict[str, Any]]:
+    board_ids = _history_case_ids(db, user, limit, offset)
+    items = _history_items(db, user, board_ids=board_ids)
+    items_by_board: dict[str, list[dict[str, Any]]] = {
+        board_id: [] for board_id in board_ids
+    }
+    for item in items:
+        items_by_board.setdefault(item["board_id"], []).append(item)
+
+    cases: list[dict[str, Any]] = []
+    for board_id in board_ids:
+        case_items = items_by_board.get(board_id) or []
+        if not case_items:
+            continue
+        first = case_items[0]
+        settled_values = [
+            item["settled_at"] for item in case_items if item.get("settled_at")
+        ]
+        cases.append(
+            {
+                "board_id": board_id,
+                "game_match_mode": first["game_match_mode"],
+                "status": first["board_status"],
+                "locked_at": first["locked_at"],
+                "settled_at": max(settled_values) if settled_values else None,
+                "case_expires_at": first["case_expires_at"],
+                "attempts_used": first["attempts_used"],
+                "max_attempts": first["max_attempts"],
+                "items": case_items,
+            }
+        )
+    return cases
+
+
 def _desktop_bootstrap_payload(db: Session, owner: User, device: CompanionDevice, history_limit: int = 60) -> dict[str, Any]:
     board_models = ensure_daily_boards(db, owner)
     boards = [serialize_board(model) for model in board_models]
+    history_cases = _history_cases(db, owner, history_limit)
     active_cases = [
         {
             "board_id": board["id"],
@@ -1066,10 +1252,13 @@ def _desktop_bootstrap_payload(db: Session, owner: User, device: CompanionDevice
         **serialize_user(owner),
         "steam_id64": str(owner.steam_id64) if owner.steam_id64 else None,
     }
+    desktop_features = ["adaptive_profiles_v1", "debrief_v1"]
+    if settings.companion_ads_enabled:
+        desktop_features.append("desktop_ads_v1")
     return {
         "api_version": DESKTOP_API_VERSION,
         "schema_version": DESKTOP_SCHEMA_VERSION,
-        "desktop_features": ["adaptive_profiles_v1", "debrief_v1"],
+        "desktop_features": desktop_features,
         "server_time": datetime.now(timezone.utc).isoformat(),
         "account": account,
         "device": serialize_device(device),
@@ -1078,18 +1267,26 @@ def _desktop_bootstrap_payload(db: Session, owner: User, device: CompanionDevice
         "active_cases": active_cases,
         "adaptive_profiles": {mode: build_adaptive_profile(db, owner, mode) for mode in GAME_MODES},
         "progression": user_progression(db, owner),
-        "history": {"items": _history_items(db, owner, history_limit)},
+        "history": {
+            "cases": history_cases,
+            "items": [item for case in history_cases for item in case["items"]],
+        },
         "policy": {
             "selection_min": 1,
             "selection_max": 3,
             "server_authoritative": True,
             "client_can_settle": False,
+            "companion_ingest_enabled": settings.companion_ingest_enabled,
+            "reward_settlement_enabled": settings.reward_settlement_enabled,
+            "minimum_companion_version": settings.companion_minimum_version or None,
         },
     }
 
 
 @app.post("/api/companion/pairing/start", dependencies=[Depends(require_csrf)])
 def companion_pairing_start(user: User = Depends(require_user), db: Session = Depends(get_db)) -> dict:
+    if not settings.companion_ingest_enabled:
+        raise HTTPException(503, "Приём данных Companion временно отключён")
     code, item = create_pairing(db, user)
     db.add(AuditLog(user_id=user.id, action="companion.pairing_started", entity_type="user", entity_id=user.id, data={"expires_at": item.expires_at.isoformat()}))
     db.commit()
@@ -1098,6 +1295,9 @@ def companion_pairing_start(user: User = Depends(require_user), db: Session = De
 
 @app.post("/api/companion/pairing/claim")
 def companion_pairing_claim(payload: CompanionClaimRequest, db: Session = Depends(get_db)) -> dict:
+    if not settings.companion_ingest_enabled:
+        raise HTTPException(503, "Приём данных Companion временно отключён")
+    _require_companion_version(payload.version)
     token, device, user = claim_pairing(db, payload.code, payload.device_id, payload.label, payload.version)
     db.add(AuditLog(user_id=user.id, action="companion.paired", entity_type="companion_device", entity_id=device.id, data={"device_id": device.device_id, "version": device.version}))
     db.commit()
@@ -1106,17 +1306,67 @@ def companion_pairing_claim(payload: CompanionClaimRequest, db: Session = Depend
         "device": serialize_device(device),
         "account": {"display_name": user.display_name, "steam_id64": str(user.steam_id64) if user.steam_id64 else None},
         "heartbeat_seconds": 15,
+        "minimum_version": settings.companion_minimum_version or None,
     }
 
 
 @app.get("/api/companion/status")
 def companion_status(user: User = Depends(require_user), db: Session = Depends(get_db)) -> dict:
+    devices = list(
+        db.scalars(
+            select(CompanionDevice)
+            .where(CompanionDevice.user_id == user.id)
+            .order_by(
+                CompanionDevice.revoked_at.asc().nullsfirst(),
+                CompanionDevice.last_seen_at.desc().nullslast(),
+                CompanionDevice.created_at.desc(),
+            )
+            .limit(20)
+        ).all()
+    )
+    device = next((item for item in devices if item.revoked_at is None), None)
+    return {
+        "device": serialize_device(device),
+        "devices": [
+            serialize_device(item)
+            | {
+                "id": item.id,
+                "created_at": item.created_at.isoformat() if item.created_at else None,
+                "revoked_at": item.revoked_at.isoformat() if item.revoked_at else None,
+            }
+            for item in devices
+        ],
+    }
+
+
+@app.post("/api/companion/devices/{device_record_id}/revoke", dependencies=[Depends(require_csrf)])
+def companion_revoke_device(
+    device_record_id: UUID,
+    user: User = Depends(require_user),
+    db: Session = Depends(get_db),
+) -> dict:
     device = db.scalar(
         select(CompanionDevice)
         .where(CompanionDevice.user_id == user.id, CompanionDevice.revoked_at.is_(None))
-        .order_by(CompanionDevice.last_seen_at.desc().nullslast(), CompanionDevice.created_at.desc())
+        .where(CompanionDevice.id == str(device_record_id))
+        .with_for_update()
     )
-    return {"device": serialize_device(device)}
+    if not device:
+        raise HTTPException(404, "Companion не найден")
+    device.revoked_at = datetime.now(timezone.utc)
+    device.game_running = False
+    device.current_match_id = None
+    db.add(
+        AuditLog(
+            user_id=user.id,
+            action="companion.device_revoked",
+            entity_type="companion_device",
+            entity_id=device.id,
+            data={"label": device.label, "version": device.version},
+        )
+    )
+    db.commit()
+    return {"ok": True, "device_id": device.id}
 
 
 @app.post("/api/companion/revoke", dependencies=[Depends(require_csrf)])
@@ -1146,11 +1396,13 @@ def companion_disconnect(request: Request, db: Session = Depends(get_db)) -> dic
 @app.get("/api/companion/hello")
 def companion_hello(request: Request, db: Session = Depends(get_db)) -> dict:
     device, owner = _companion_from_request(request, db)
+    _require_companion_version(device.version)
     return {
         "ok": True,
         "account": {"display_name": owner.display_name, "steam_id64": str(owner.steam_id64) if owner.steam_id64 else None},
         "device": serialize_device(device),
         "server_time": datetime.now(timezone.utc).isoformat(),
+        "minimum_version": settings.companion_minimum_version or None,
     }
 
 
@@ -1203,8 +1455,11 @@ def desktop_board_reroll(
 
 @app.post("/api/companion/heartbeat")
 def companion_heartbeat(payload: CompanionHeartbeatRequest, request: Request, db: Session = Depends(get_db)) -> dict:
+    if not settings.companion_ingest_enabled:
+        raise HTTPException(503, "Приём данных Companion временно отключён")
     device, owner = _companion_from_request(request, db)
-    updated, woken, direct = record_snapshot(
+    _require_companion_version(payload.version or device.version)
+    updated, woken = record_snapshot(
         db,
         device,
         owner,
@@ -1228,12 +1483,12 @@ def companion_heartbeat(payload: CompanionHeartbeatRequest, request: Request, db
         match_outcome_event_at=payload.match_outcome_event_at,
         match_outcome_event_match_id=payload.match_outcome_event_match_id,
         event_type=payload.event_type,
+        client_event_id=payload.client_event_id,
     )
     return {
         "ok": True,
         "device": serialize_device(updated),
         "woken_boards": woken,
-        "direct_match_boards": direct,
         "server_time": datetime.now(timezone.utc).isoformat(),
     }
 
@@ -1249,97 +1504,26 @@ def verification_options(user: User = Depends(require_user)) -> dict:
 @app.post("/api/evidence/submit", dependencies=[Depends(require_csrf)], include_in_schema=False)
 def submit_evidence(payload: EvidenceSubmitRequest, user: User = Depends(require_user), db: Session = Depends(get_db)) -> dict:
     raise HTTPException(410, "Ручная отправка доказательств отключена. Если данных матча не хватит, система создаст внутреннюю заявку автоматически.")
-    board = db.scalar(select(ContractBoard).options(selectinload(ContractBoard.options)).where(ContractBoard.id == str(payload.board_id), ContractBoard.user_id == user.id))
-    if not board or board.status == "OFFERED" or not board.locked_at:
-        raise HTTPException(409, "Сначала зафиксируйте контракты")
-    if board.status in {"SETTLED", "PARTIALLY_SETTLED"}:
-        raise HTTPException(409, "Это дело уже закрыто")
-    existing = db.scalar(select(EvidenceSubmission).where(EvidenceSubmission.board_id == board.id, EvidenceSubmission.status.in_(("PENDING", "NEEDS_INFO"))).order_by(EvidenceSubmission.created_at.desc()))
-    if existing and existing.status == "PENDING":
-        raise HTTPException(409, "Заявка уже ожидает проверки")
-    if payload.channel == "TELEGRAM" and not (settings.telegram_bot_token and settings.telegram_review_chat_id):
-        raise HTTPException(409, "Проверка через Telegram не настроена")
-    if payload.channel == "DISCORD" and not settings.discord_review_webhook_url:
-        raise HTTPException(409, "Проверка через Discord не настроена")
-    item = EvidenceSubmission(board_id=board.id, user_id=user.id, channel=payload.channel, notes=payload.notes or None, hero_name=payload.hero_name or None, match_started_at=payload.match_started_at, match_ended_at=payload.match_ended_at, status="PENDING")
-    db.add(item); db.flush()
-    evidence_dir = Path(settings.evidence_dir); evidence_dir.mkdir(parents=True, exist_ok=True)
-    written=[]
-    try:
-        for upload in payload.files:
-            try: raw = base64.b64decode(upload.data_base64, validate=True)
-            except Exception as exc: raise HTTPException(422, f"Некорректные данные файла {upload.name}") from exc
-            if not raw or len(raw) > settings.evidence_max_file_bytes: raise HTTPException(413, f"Файл {upload.name} слишком большой")
-            signatures={"image/jpeg": (b"\xff\xd8\xff",), "image/png": (b"\x89PNG\r\n\x1a\n",), "image/webp": (b"RIFF",)}
-            if not any(raw.startswith(sig) for sig in signatures[upload.mime_type]): raise HTTPException(422, f"Тип содержимого файла не соответствует {upload.mime_type}")
-            digest=hashlib.sha256(raw).hexdigest(); ext={"image/jpeg":"jpg","image/png":"png","image/webp":"webp"}[upload.mime_type]
-            storage=f"{item.id}-{secrets.token_hex(8)}.{ext}"; target=evidence_dir/storage
-            target.write_bytes(raw); target.chmod(0o600); written.append(target)
-            db.add(EvidenceFile(submission_id=item.id, original_name=_safe_file_name(upload.name), storage_name=storage, mime_type=upload.mime_type, size_bytes=len(raw), sha256=digest))
-        board.status = "VERIFYING"
-        db.add(AuditLog(user_id=user.id, action="evidence.submitted", entity_type="evidence_submission", entity_id=item.id, data={"channel": payload.channel, "files": len(payload.files)}))
-        db.commit(); db.refresh(item)
-    except Exception:
-        db.rollback()
-        for target in written: target.unlink(missing_ok=True)
-        raise
-    warning=_notify_review_channel(item,user,board)
-    if warning:
-        item.external_reference=warning; db.commit()
-    return {"submission": _serialize_submission(db,item,user), "notification_warning": warning}
 
 
 @app.get("/api/evidence/mine", include_in_schema=False)
 def my_evidence(user: User = Depends(require_user), db: Session = Depends(get_db)) -> dict:
     raise HTTPException(410, "Ручная проверка отключена в v0.3")
-    items=list(db.scalars(select(EvidenceSubmission).where(EvidenceSubmission.user_id==user.id).order_by(EvidenceSubmission.created_at.desc()).limit(20)).all())
-    return {"items": [_serialize_submission(db,item,user) for item in items]}
 
 
 @app.get("/api/evidence/files/{file_id}", include_in_schema=False)
 def evidence_file(file_id: UUID, user: User = Depends(require_user), db: Session = Depends(get_db)):
     raise HTTPException(410, "Ручная проверка отключена в v0.3")
-    file=db.get(EvidenceFile,str(file_id));
-    if not file: raise HTTPException(404,"Файл доказательства не найден")
-    submission=db.get(EvidenceSubmission,file.submission_id)
-    if not submission or (submission.user_id != user.id and not _is_admin(user)): raise HTTPException(403,"Доступ запрещён")
-    path=Path(settings.evidence_dir)/file.storage_name
-    if not path.is_file(): raise HTTPException(404,"Файл доказательства отсутствует")
-    return FileResponse(path, media_type=file.mime_type, filename=file.original_name, headers={"Cache-Control":"private, no-store","X-Content-Type-Options":"nosniff"})
 
 
 @app.get("/api/admin/evidence", include_in_schema=False)
 def admin_evidence(status: str = "PENDING", admin: User = Depends(_require_admin), db: Session = Depends(get_db)) -> dict:
     raise HTTPException(410, "Старая очередь ручных доказательств отключена; используйте /api/admin/auto-reviews")
-    query=select(EvidenceSubmission).order_by(EvidenceSubmission.created_at.desc()).limit(100)
-    if status != "ALL": query=query.where(EvidenceSubmission.status==status)
-    items=list(db.scalars(query).all())
-    return {"items": [_serialize_submission(db,item,admin) for item in items]}
 
 
 @app.post("/api/admin/evidence/{submission_id}/decision", dependencies=[Depends(require_csrf)], include_in_schema=False)
 def decide_evidence(submission_id: UUID, payload: EvidenceDecisionRequest, admin: User = Depends(_require_admin), db: Session = Depends(get_db)) -> dict:
     raise HTTPException(410, "Старая очередь ручных доказательств отключена; используйте /api/admin/auto-reviews")
-    item=db.get(EvidenceSubmission,str(submission_id))
-    if not item: raise HTTPException(404,"Заявка не найдена")
-    if item.status not in {"PENDING","NEEDS_INFO"}: raise HTTPException(409,"Заявка уже проверена")
-    board=db.scalar(select(ContractBoard).options(selectinload(ContractBoard.options)).where(ContractBoard.id==item.board_id))
-    if not board: raise HTTPException(404,"Доска контрактов не найдена")
-    selected={o.id:o for o in board.options if o.selected}
-    if payload.status=="APPROVED":
-        if {str(x.option_id) for x in payload.options} != set(selected): raise HTTPException(422,"Нужно указать решение для каждого выбранного контракта")
-        for verdict in payload.options:
-            option=selected[str(verdict.option_id)]; option.status=verdict.status; option.progress_current=verdict.progress_current; option.progress_target=option.target; option.explanation=verdict.explanation; option.settled_at=datetime.now(timezone.utc)
-            if verdict.status=="COMPLETED":
-                exists=db.scalar(select(RewardLedgerEntry).where(RewardLedgerEntry.source_type=="MANUAL_EVIDENCE",RewardLedgerEntry.source_id==option.id))
-                if not exists:
-                    owner=db.get(User,item.user_id); owner.xp += option.reward_xp
-                    db.add(RewardLedgerEntry(user_id=owner.id,source_type="MANUAL_EVIDENCE",source_id=option.id,delta=option.reward_xp,balance_after=owner.xp,policy_version="xp-manual-1"))
-        board.status="SETTLED"
-    item.status=payload.status; item.reviewer_id=admin.id; item.reviewer_note=payload.reviewer_note or None; item.decision_payload={"options":[x.model_dump(mode="json") for x in payload.options]}; item.reviewed_at=datetime.now(timezone.utc)
-    db.add(AuditLog(user_id=admin.id,action="evidence.reviewed",entity_type="evidence_submission",entity_id=item.id,data={"status":payload.status}))
-    db.commit(); db.refresh(item)
-    return {"submission":_serialize_submission(db,item,admin)}
 
 
 @app.get("/api/profile/public")
@@ -1382,9 +1566,24 @@ def update_public_profile(payload: PublicProfileUpdateRequest, user: User = Depe
     profile.show_links = payload.show_links
     profile.links = links
     db.add(profile)
-    db.flush()
-    db.add(AuditLog(user_id=user.id, action="profile.public_updated", entity_type="public_profile", entity_id=profile.id, data={"slug": profile.slug, "is_public": profile.is_public, "theme": profile.theme}))
-    db.commit()
+    try:
+        db.flush()
+        db.add(AuditLog(user_id=user.id, action="profile.public_updated", entity_type="public_profile", entity_id=profile.id, data={"slug": profile.slug, "is_public": profile.is_public, "theme": profile.theme}))
+        db.commit()
+    except IntegrityError as exc:
+        db.rollback()
+        original = getattr(exc, "orig", None)
+        diagnostic = getattr(original, "diag", None)
+        constraint_name = str(getattr(diagnostic, "constraint_name", "") or "").lower()
+        message = str(original or exc).lower()
+        slug_collision = (
+            constraint_name in {"public_profiles_slug_key", "ix_public_profiles_slug"}
+            or ("unique constraint failed" in message and "public_profiles.slug" in message)
+            or ("duplicate key" in message and "slug" in message)
+        )
+        if slug_collision:
+            raise HTTPException(409, "Этот public handle уже занят") from exc
+        raise
     db.refresh(profile)
     return {"profile": _public_profile_payload(db, user, profile, private=True)}
 
@@ -1516,7 +1715,7 @@ def _serialize_auto_review(db: Session, item: AutoReviewCase) -> dict:
         "id": item.id, "status": item.status, "board_id": item.board_id,
         "mode": board.game_match_mode if board else None,
         "player": {"display_name": owner.display_name if owner else "Unknown", "account_id": owner.account_id if owner else None},
-        "match_id": match.external_match_id if match else None,
+        "match_id": str(match.external_match_id) if match else None,
         "match_summary": {
             "provider": match.provider if match else None,
             "duration_s": match.duration_s if match else None,
@@ -1675,6 +1874,8 @@ def _admin_mission_payload(item: MissionDefinition) -> dict:
         "version": item.version,
         "title": item.title,
         "description": item.description,
+        "title_en": item.title_en,
+        "description_en": item.description_en,
         "metric": item.metric,
         "operator": item.operator,
         "target": item.target,
@@ -1701,7 +1902,7 @@ def _admin_match_payload(db: Session, item: Match) -> dict:
     review_count = db.scalar(select(func.count()).select_from(AutoReviewCase).where(AutoReviewCase.match_id == item.id)) or 0
     return {
         "id": item.id,
-        "match_id": item.external_match_id,
+        "match_id": str(item.external_match_id),
         "provider": item.provider,
         "started_at": item.started_at.isoformat() if item.started_at else None,
         "ended_at": item.ended_at.isoformat() if item.ended_at else None,
@@ -1765,7 +1966,7 @@ def admin_overview(admin: User = Depends(_require_admin), db: Session = Depends(
                 "board_id": option.board_id,
                 "option_id": option.id,
                 "title": option.rendered_title,
-                "match_id": match.external_match_id,
+                "match_id": str(match.external_match_id),
                 "mode": match.game_match_mode,
                 "missing_capabilities": missing,
                 "locked_at": option.locked_at.isoformat() if option.locked_at else None,
@@ -1793,7 +1994,11 @@ def admin_overview(admin: User = Depends(_require_admin), db: Session = Depends(
         "failed_jobs": int(failed_jobs),
         "pending_jobs": int(pending_jobs),
         "companion_online": int(companion_online),
-        "latest_match_id": db.scalar(select(func.max(Match.external_match_id))),
+        "latest_match_id": (
+            str(latest_match_id)
+            if (latest_match_id := db.scalar(select(func.max(Match.external_match_id)))) is not None
+            else None
+        ),
         "server_time": now.isoformat(),
         # Admin MAX detail.
         "users_new_24h": int(db.scalar(select(func.count()).select_from(User).where(User.created_at >= day_cutoff)) or 0),
@@ -1904,7 +2109,7 @@ def _admin_board_payload(db: Session, board: ContractBoard) -> dict:
             "status": option.status,
             "progress_current": option.progress_current,
             "explanation": option.explanation,
-            "bound_match_id": bound_external,
+            "bound_match_id": str(bound_external) if bound_external is not None else None,
         })
     return {
         "id": board.id,
@@ -1916,7 +2121,7 @@ def _admin_board_payload(db: Session, board: ContractBoard) -> dict:
         "generator_version": board.generator_version,
         "attempts_used": board.attempts_used,
         "max_attempts": board.max_attempts,
-        "baseline_match_id": board.baseline_match_id,
+        "baseline_match_id": str(board.baseline_match_id) if board.baseline_match_id is not None else None,
         "locked_at": board.locked_at.isoformat() if board.locked_at else None,
         "expires_at": board.expires_at.isoformat() if board.expires_at else None,
         "created_at": board.created_at.isoformat() if board.created_at else None,
@@ -1941,7 +2146,7 @@ def admin_user_detail(user_id: UUID, admin: User = Depends(_require_admin), db: 
         rows = db.execute(select(Match, MatchParticipant).join(MatchParticipant, MatchParticipant.match_id == Match.id).where(MatchParticipant.account_id == user.account_id).order_by(Match.started_at.desc().nullslast(), Match.external_match_id.desc()).limit(30)).all()
         for match, participant in rows:
             matches.append({
-                "match_id": match.external_match_id,
+                "match_id": str(match.external_match_id),
                 "mode": match.game_match_mode,
                 "provider": match.provider,
                 "is_final": match.is_final,
@@ -1959,7 +2164,19 @@ def admin_user_detail(user_id: UUID, admin: User = Depends(_require_admin), db: 
                 "healing": participant.healing,
             })
     board_ids = {board.id for board in boards}
-    recent_jobs = [item for item in db.scalars(select(Job).order_by(Job.created_at.desc()).limit(500)).all() if str((item.payload or {}).get("user_id") or "") == user.id or str((item.payload or {}).get("board_id") or "") in board_ids][:40]
+    recent_jobs = list(
+        db.scalars(
+            select(Job)
+            .where(
+                or_(
+                    Job.user_id == user.id,
+                    Job.board_id.in_(board_ids) if board_ids else Job.id.is_(None),
+                )
+            )
+            .order_by(Job.created_at.desc())
+            .limit(40)
+        ).all()
+    )
     adaptive_profiles = {mode: build_adaptive_profile(db, user, mode) for mode in GAME_MODES}
     return {
         "user": _admin_user_summary(db, user),
@@ -1967,7 +2184,7 @@ def admin_user_detail(user_id: UUID, admin: User = Depends(_require_admin), db: 
         "boards": [_admin_board_payload(db, board) for board in boards],
         "devices": [serialize_device(device) | {"id": device.id, "device_id": device.device_id, "created_at": device.created_at.isoformat() if device.created_at else None, "revoked_at": device.revoked_at.isoformat() if device.revoked_at else None} for device in devices],
         "evidence": [{
-            "match_id": item.external_match_id,
+            "match_id": str(item.external_match_id),
             "mode": item.game_match_mode,
             "hero_id": item.hero_id,
             "kills": item.kills,
@@ -1979,7 +2196,7 @@ def admin_user_detail(user_id: UUID, admin: User = Depends(_require_admin), db: 
             "souls": item.souls,
             "captured_at": item.captured_at.isoformat() if item.captured_at else None,
         } for item in evidence],
-        "events": [{"event_type": item.event_type, "match_id": item.external_match_id, "mode": item.game_match_mode, "phase": item.phase, "created_at": item.created_at.isoformat() if item.created_at else None} for item in events],
+        "events": [{"event_type": item.event_type, "match_id": str(item.external_match_id) if item.external_match_id else None, "mode": item.game_match_mode, "phase": item.phase, "created_at": item.created_at.isoformat() if item.created_at else None} for item in events],
         "matches": matches,
         "jobs": [{"id": item.id, "type": item.type, "status": item.status, "attempts": item.attempts, "max_attempts": item.max_attempts, "last_error": item.last_error, "run_after": item.run_after.isoformat() if item.run_after else None, "created_at": item.created_at.isoformat() if item.created_at else None} for item in recent_jobs],
         "sessions": [{"created_at": item.created_at.isoformat() if item.created_at else None, "last_seen_at": item.last_seen_at.isoformat() if item.last_seen_at else None, "expires_at": item.expires_at.isoformat() if item.expires_at else None, "admin_elevated": bool(item.admin_verified_at)} for item in sessions],
@@ -2268,13 +2485,19 @@ def admin_board_detail(board_id: UUID, admin: User = Depends(_require_admin), db
     options = list(db.scalars(select(BoardOption).where(BoardOption.board_id == board.id).order_by(BoardOption.created_at.asc())).all())
     option_ids = [item.id for item in options]
     evaluations = list(db.scalars(select(Evaluation).where(Evaluation.assignment_id.in_(option_ids)).order_by(Evaluation.created_at.desc())).all()) if option_ids else []
-    jobs = list(db.scalars(select(Job).order_by(Job.created_at.desc()).limit(500)).all())
-    jobs = [item for item in jobs if str((item.payload or {}).get("board_id") or "") == board.id][:50]
+    jobs = list(
+        db.scalars(
+            select(Job)
+            .where(Job.board_id == board.id)
+            .order_by(Job.created_at.desc())
+            .limit(50)
+        ).all()
+    )
     reviews = list(db.scalars(select(AutoReviewCase).where(AutoReviewCase.board_id == board.id).order_by(AutoReviewCase.created_at.desc())).all())
     return {
         "board": _admin_board_payload(db, board),
         "user": {"id": user.id, "display_name": user.display_name, "steam_id64": str(user.steam_id64 or ""), "account_id": user.account_id} if user else None,
-        "options": [{"id": item.id, "title": item.rendered_title, "description": item.rendered_description, "selected": item.selected, "status": item.status, "metric": item.metric, "operator": item.operator, "target": item.target, "reward_xp": item.reward_xp, "difficulty": item.difficulty, "rarity": item.rarity, "category": item.category, "conditions": item.conditions or [], "fingerprint": item.fingerprint, "generator_meta": item.generator_meta or {}, "progress_current": item.progress_current, "progress_target": item.progress_target, "explanation": item.explanation, "bound_match_id": db.get(Match, item.bound_match_id).external_match_id if item.bound_match_id and db.get(Match, item.bound_match_id) else None} for item in options],
+        "options": [{"id": item.id, "title": item.rendered_title, "description": item.rendered_description, "selected": item.selected, "status": item.status, "metric": item.metric, "operator": item.operator, "target": item.target, "reward_xp": item.reward_xp, "difficulty": item.difficulty, "rarity": item.rarity, "category": item.category, "conditions": item.conditions or [], "fingerprint": item.fingerprint, "generator_meta": item.generator_meta or {}, "progress_current": item.progress_current, "progress_target": item.progress_target, "explanation": item.explanation, "bound_match_id": str(db.get(Match, item.bound_match_id).external_match_id) if item.bound_match_id and db.get(Match, item.bound_match_id) else None} for item in options],
         "evaluations": [{"id": item.id, "assignment_id": item.assignment_id, "revision": item.revision, "status": item.status, "evidence_level": item.evidence_level, "progress_current": item.progress_current, "progress_target": item.progress_target, "score": item.score, "explanation": item.explanation, "facts": item.facts, "created_at": item.created_at.isoformat() if item.created_at else None} for item in evaluations],
         "jobs": [{"id": item.id, "type": item.type, "status": item.status, "attempts": item.attempts, "max_attempts": item.max_attempts, "run_after": item.run_after.isoformat() if item.run_after else None, "last_error": item.last_error, "payload": item.payload, "created_at": item.created_at.isoformat() if item.created_at else None} for item in jobs],
         "reviews": [{"id": item.id, "status": item.status, "reasons": item.reasons, "context": item.context, "reviewer_note": item.reviewer_note, "created_at": item.created_at.isoformat() if item.created_at else None} for item in reviews],
@@ -2287,7 +2510,11 @@ def admin_retry_board_verification(
     admin: User = Depends(_require_admin),
     db: Session = Depends(get_db),
 ) -> dict:
-    board = db.get(ContractBoard, str(board_id))
+    board = db.scalar(
+        select(ContractBoard)
+        .where(ContractBoard.id == str(board_id))
+        .with_for_update()
+    )
     if not board:
         raise HTTPException(404, "Дело не найдено")
     if board.status != "VERIFYING":
@@ -2301,48 +2528,60 @@ def admin_retry_board_verification(
             )
         ).all()
     )
-    match_ids = {item.bound_match_id for item in selected if item.bound_match_id}
-    if len(match_ids) != 1:
-        raise HTTPException(409, "У дела нет единственного привязанного матча")
-    match = db.get(Match, next(iter(match_ids)))
-    if not match or not match.is_final:
-        raise HTTPException(409, "Привязанный матч ещё не подтверждён как final")
+    match_ids = sorted({item.bound_match_id for item in selected if item.bound_match_id})
+    if not match_ids:
+        raise HTTPException(409, "У дела нет привязанных матчей")
 
-    queued = list(
-        db.scalars(
+    matches = {
+        item.id: item
+        for item in db.scalars(select(Match).where(Match.id.in_(match_ids))).all()
+    }
+    invalid = [match_id for match_id in match_ids if not matches.get(match_id) or not matches[match_id].is_final]
+    if invalid:
+        raise HTTPException(409, "Не все привязанные матчи подтверждены как final")
+
+    jobs: list[dict[str, Any]] = []
+    for match_id in match_ids:
+        match = matches[match_id]
+        existing = db.scalar(
             select(Job)
-            .where(Job.type == "evaluate_match", Job.status.in_(("PENDING", "RUNNING")))
+            .where(
+                Job.type == "evaluate_match",
+                Job.board_id == board.id,
+                Job.match_id == match.id,
+                Job.status.in_(("PENDING", "RUNNING")),
+            )
             .order_by(Job.created_at.desc())
-            .limit(200)
-        ).all()
-    )
-    existing = next(
-        (item for item in queued if str((item.payload or {}).get("board_id") or "") == board.id),
-        None,
-    )
-    if existing:
-        return {"ok": True, "already_queued": True, "job_id": existing.id, "match_id": match.external_match_id}
-
-    job = enqueue_job(
-        db,
-        "evaluate_match",
-        {
-            "board_id": board.id,
-            "match_id": match.id,
-            "admin_retry": True,
-        },
-        f"admin-evaluate:{board.id}:{match.id}:{secrets.token_hex(6)}",
-        max_attempts=max(3, settings.post_match_verification_max_attempts),
-    )
+            .limit(1)
+        )
+        if existing:
+            jobs.append({"job_id": existing.id, "match_id": str(match.external_match_id), "already_queued": True})
+            continue
+        job = enqueue_job(
+            db,
+            "evaluate_match",
+            {"board_id": board.id, "match_id": match.id, "admin_retry": True},
+            f"admin-evaluate:{board.id}:{match.id}:{secrets.token_hex(6)}",
+            max_attempts=max(3, settings.post_match_verification_max_attempts),
+            commit=False,
+        )
+        jobs.append({"job_id": job.id, "match_id": str(match.external_match_id), "already_queued": False})
     db.add(AuditLog(
         user_id=admin.id,
         action="admin.board_verification_retried",
         entity_type="contract_board",
         entity_id=board.id,
-        data={"job_id": job.id, "match_id": match.external_match_id},
+        data={"jobs": jobs},
     ))
     db.commit()
-    return {"ok": True, "already_queued": False, "job_id": job.id, "match_id": match.external_match_id}
+    first = jobs[0]
+    return {
+        "ok": True,
+        "jobs": jobs,
+        "already_queued": all(bool(item["already_queued"]) for item in jobs),
+        "job_id": first["job_id"],
+        "match_id": first["match_id"],
+    }
 
 
 @app.get("/api/admin/companions")
@@ -2419,8 +2658,54 @@ def admin_update_mission(mission_id: UUID, payload: AdminMissionUpdateRequest, o
     item = db.scalar(select(MissionDefinition).where(MissionDefinition.id == str(mission_id)).with_for_update())
     if not item:
         raise HTTPException(404, "Шаблон контракта не найден")
-    allowed = {"title", "description", "target", "reward_xp", "base_xp", "difficulty", "rarity", "drop_weight", "drop_chance_pct", "category", "status"}
+    allowed = {"title", "description", "title_en", "description_en", "target", "reward_xp", "base_xp", "difficulty", "rarity", "drop_weight", "drop_chance_pct", "category", "status"}
     before = {name: getattr(item, name) for name in allowed}
+    semantic_fields = set(payload.model_fields_set) - {"status"}
+    if item.status == "PUBLISHED" and semantic_fields:
+        version = int(
+            db.scalar(select(func.max(MissionDefinition.version)).where(MissionDefinition.key == item.key))
+            or item.version
+        ) + 1
+        draft = MissionDefinition(
+            key=item.key,
+            version=version,
+            title=item.title,
+            description=item.description,
+            title_en=item.title_en,
+            description_en=item.description_en,
+            metric=item.metric,
+            operator=item.operator,
+            target=item.target,
+            reward_xp=item.reward_xp,
+            base_xp=item.base_xp,
+            difficulty=item.difficulty,
+            rarity=item.rarity,
+            drop_weight=item.drop_weight,
+            drop_chance_pct=item.drop_chance_pct,
+            category=item.category,
+            required_capabilities=list(item.required_capabilities or []),
+            game_match_mode=item.game_match_mode,
+            ranked_policy=item.ranked_policy,
+            status="DRAFT",
+            safety_classification=item.safety_classification,
+            published_at=item.published_at,
+        )
+        for name in semantic_fields:
+            value = getattr(payload, name)
+            if name in allowed and value is not None:
+                setattr(draft, name, value)
+        db.add(draft)
+        db.flush()
+        db.add(AuditLog(
+            user_id=owner.id,
+            action="admin.mission_draft_created",
+            entity_type="mission_definition",
+            entity_id=draft.id,
+            data={"key": item.key, "base_version": item.version, "draft_version": draft.version},
+        ))
+        db.commit()
+        db.refresh(draft)
+        return {"mission": _admin_mission_payload(draft), "created_as_draft": True}
     for name in payload.model_fields_set:
         if name in allowed:
             value = getattr(payload, name)
@@ -2430,6 +2715,19 @@ def admin_update_mission(mission_id: UUID, payload: AdminMissionUpdateRequest, o
     changed = {name: {"from": before[name], "to": after[name]} for name in allowed if before[name] != after[name]}
     if not changed:
         raise HTTPException(422, "Фактических изменений нет")
+    if item.status == "PUBLISHED":
+        if not item.title_en or not item.description_en:
+            raise HTTPException(422, "Для публикации обязательны RU и EN название/описание")
+        db.execute(
+            MissionDefinition.__table__.update()
+            .where(
+                MissionDefinition.key == item.key,
+                MissionDefinition.id != item.id,
+                MissionDefinition.status == "PUBLISHED",
+            )
+            .values(status="DISABLED")
+        )
+        item.published_at = datetime.now(timezone.utc)
     db.add(AuditLog(user_id=owner.id, action="admin.mission_updated", entity_type="mission_definition", entity_id=item.id, data={"key": item.key, "version": item.version, "changes": changed}))
     db.commit()
     db.refresh(item)
@@ -2563,6 +2861,30 @@ def _outbox_health(
         "oldest_pending_seconds": oldest_pending_seconds,
     }
 
+
+def _serialize_outbox_event(item: OutboxEvent) -> dict:
+    if item.published_at is not None:
+        state = "PUBLISHED"
+    elif item.dead_lettered_at is not None:
+        state = "DEAD_LETTER"
+    elif int(item.attempts or 0) > 0:
+        state = "RETRYING"
+    else:
+        state = "PENDING"
+    return {
+        "id": item.id,
+        "event_type": item.event_type,
+        "aggregate_id": item.aggregate_id,
+        "state": state,
+        "attempts": int(item.attempts or 0),
+        "run_after": item.run_after.isoformat() if item.run_after else None,
+        "published_at": item.published_at.isoformat() if item.published_at else None,
+        "dead_lettered_at": item.dead_lettered_at.isoformat() if item.dead_lettered_at else None,
+        "last_error": item.last_error,
+        "payload": item.payload,
+        "created_at": item.created_at.isoformat() if item.created_at else None,
+    }
+
 @app.get("/api/admin/system")
 def admin_system(admin: User = Depends(_require_admin), db: Session = Depends(get_db)) -> dict:
     now = datetime.now(timezone.utc)
@@ -2571,7 +2893,8 @@ def admin_system(admin: User = Depends(_require_admin), db: Session = Depends(ge
         "database": {"dialect": engine.dialect.name},
         "provider": {"name": settings.provider, "base_url": settings.deadlock_api_base_url, "force_refetch": settings.deadlock_force_refetch, "adapter_version": settings.adapter_version, "mode_classifier_version": settings.mode_classifier_version, "evaluator_version": settings.evaluator_version},
         "contracts": {"board_reset_hour_utc": settings.board_reset_hour_utc, "case_max_attempts": settings.case_max_attempts, "case_ttl_hours": settings.case_ttl_hours, "discovery_retry_seconds": settings.discovery_retry_seconds, "max_discovery_attempts": settings.max_discovery_attempts},
-        "companion": {"online_seconds": settings.companion_online_seconds, "pairing_ttl_minutes": settings.companion_pairing_ttl_minutes, "event_retention_days": settings.companion_event_retention_days, "download_configured": bool(settings.companion_download_url)},
+        "companion": {"online_seconds": settings.companion_online_seconds, "pairing_ttl_minutes": settings.companion_pairing_ttl_minutes, "event_retention_days": settings.companion_event_retention_days, "download_configured": bool(settings.companion_download_url), "ingest_enabled": settings.companion_ingest_enabled, "ads_enabled": settings.companion_ads_enabled},
+        "kill_switches": {"reward_settlement_enabled": settings.reward_settlement_enabled, "companion_ingest_enabled": settings.companion_ingest_enabled, "companion_ads_enabled": settings.companion_ads_enabled},
         "security": {"totp_configured": bool(settings.admin_totp_secret), "owner_allowlist_count": len(settings.admin_steam_ids), "admin_session_ttl_minutes": settings.admin_session_ttl_minutes, "docs_enabled": settings.docs_enabled, "demo_auth": settings.allow_demo_auth, "dev_endpoints": settings.allow_dev_endpoints, "cookie_secure": settings.cookie_secure, "trusted_hosts": list(settings.trusted_hosts)},
         "limits": {"global_rate_limit_per_minute": settings.global_rate_limit_per_minute, "auth_rate_limit_per_10_minutes": settings.auth_rate_limit_per_10_minutes, "sync_rate_limit_per_hour": settings.sync_rate_limit_per_hour, "max_request_body_bytes": settings.max_request_body_bytes, "max_provider_response_bytes": settings.max_provider_response_bytes},
         "counts": {"users": int(db.scalar(select(func.count()).select_from(User)) or 0), "missions": int(db.scalar(select(func.count()).select_from(MissionDefinition)) or 0), "matches": int(db.scalar(select(func.count()).select_from(Match)) or 0), "boards": int(db.scalar(select(func.count()).select_from(ContractBoard)) or 0), "jobs": int(db.scalar(select(func.count()).select_from(Job)) or 0), "audit": int(db.scalar(select(func.count()).select_from(AuditLog)) or 0)},
@@ -2580,13 +2903,119 @@ def admin_system(admin: User = Depends(_require_admin), db: Session = Depends(ge
     }
 
 
+@app.get("/api/admin/outbox")
+def admin_outbox(
+    state: Literal["ALL", "PENDING", "RETRYING", "DEAD_LETTER", "PUBLISHED"] = "ALL",
+    event_type: str = "ALL",
+    query: str = "",
+    offset: int = 0,
+    limit: int = 100,
+    admin: User = Depends(_require_admin),
+    db: Session = Depends(get_db),
+) -> dict:
+    del admin
+    offset = max(0, min(int(offset), 100_000))
+    limit = max(1, min(int(limit), 250))
+    stmt = select(OutboxEvent)
+    if state == "PENDING":
+        stmt = stmt.where(OutboxEvent.published_at.is_(None), OutboxEvent.dead_lettered_at.is_(None), OutboxEvent.attempts == 0)
+    elif state == "RETRYING":
+        stmt = stmt.where(OutboxEvent.published_at.is_(None), OutboxEvent.dead_lettered_at.is_(None), OutboxEvent.attempts > 0)
+    elif state == "DEAD_LETTER":
+        stmt = stmt.where(OutboxEvent.dead_lettered_at.is_not(None))
+    elif state == "PUBLISHED":
+        stmt = stmt.where(OutboxEvent.published_at.is_not(None))
+    if event_type.upper() != "ALL":
+        stmt = stmt.where(OutboxEvent.event_type == event_type.strip()[:100])
+    value = query.strip()[:180]
+    if value:
+        stmt = stmt.where(
+            or_(
+                OutboxEvent.id.ilike(f"%{value}%"),
+                OutboxEvent.aggregate_id.ilike(f"%{value}%"),
+                OutboxEvent.event_type.ilike(f"%{value}%"),
+                OutboxEvent.last_error.ilike(f"%{value}%"),
+            )
+        )
+    total = int(db.scalar(select(func.count()).select_from(stmt.order_by(None).subquery())) or 0)
+    items = list(db.scalars(stmt.order_by(OutboxEvent.created_at.desc()).offset(offset).limit(limit)).all())
+    return {
+        "items": [_serialize_outbox_event(item) for item in items],
+        "total": total,
+        "offset": offset,
+        "limit": limit,
+        "health": _outbox_health(db),
+    }
+
+
+@app.post("/api/admin/outbox/{event_id}/replay", dependencies=[Depends(require_csrf)])
+def admin_replay_outbox(
+    event_id: UUID,
+    payload: AdminOutboxReplayRequest,
+    admin: User = Depends(_require_admin),
+    db: Session = Depends(get_db),
+) -> dict:
+    item = db.scalar(select(OutboxEvent).where(OutboxEvent.id == str(event_id)).with_for_update())
+    if not item:
+        raise HTTPException(404, "Outbox event не найден")
+    if item.published_at is not None:
+        raise HTTPException(409, "Уже опубликованное событие нельзя воспроизвести")
+    if item.dead_lettered_at is None:
+        raise HTTPException(409, "Replay разрешён только для dead-letter события")
+    previous = {
+        "attempts": int(item.attempts or 0),
+        "dead_lettered_at": item.dead_lettered_at.isoformat(),
+        "last_error": item.last_error,
+    }
+    item.attempts = 0
+    item.run_after = datetime.now(timezone.utc)
+    item.dead_lettered_at = None
+    item.last_error = None
+    db.add(AuditLog(
+        user_id=admin.id,
+        action="admin.outbox_replayed",
+        entity_type="outbox_event",
+        entity_id=item.id,
+        data={"reason": payload.reason, "previous": previous},
+    ))
+    db.commit()
+    db.refresh(item)
+    return {"ok": True, "event": _serialize_outbox_event(item)}
+
+
 @app.get("/api/admin/auto-reviews")
-def admin_auto_reviews(status: str = "PENDING", admin: User = Depends(_require_admin), db: Session = Depends(get_db)) -> dict:
-    query = select(AutoReviewCase).order_by(AutoReviewCase.created_at.desc()).limit(100)
+def admin_auto_reviews(
+    status: Literal["ALL", "PENDING", "NEEDS_INFO", "RESOLVED", "REJECTED"] = "PENDING",
+    offset: int = 0,
+    limit: int = 100,
+    admin: User = Depends(_require_admin),
+    db: Session = Depends(get_db),
+) -> dict:
+    del admin
+    offset = max(0, min(int(offset), 100_000))
+    limit = max(1, min(int(limit), 250))
+    stmt = select(AutoReviewCase)
     if status != "ALL":
-        query = query.where(AutoReviewCase.status == status)
-    items = list(db.scalars(query).all())
-    return {"items": [_serialize_auto_review(db, item) for item in items]}
+        stmt = stmt.where(AutoReviewCase.status == status)
+    total = int(db.scalar(select(func.count()).select_from(stmt.order_by(None).subquery())) or 0)
+    items = list(db.scalars(stmt.order_by(AutoReviewCase.created_at.asc()).offset(offset).limit(limit)).all())
+    oldest = db.scalar(
+        select(AutoReviewCase.created_at)
+        .where(AutoReviewCase.status.in_(("PENDING", "NEEDS_INFO")))
+        .order_by(AutoReviewCase.created_at.asc())
+        .limit(1)
+    )
+    now = datetime.now(timezone.utc)
+    if oldest and oldest.tzinfo is None:
+        oldest = oldest.replace(tzinfo=timezone.utc)
+    return {
+        "items": [_serialize_auto_review(db, item) for item in items],
+        "total": total,
+        "offset": offset,
+        "limit": limit,
+        "status_counts": _group_counts(db, AutoReviewCase, AutoReviewCase.status),
+        "oldest_open_seconds": max(0, int((now - oldest).total_seconds())) if oldest else None,
+    }
 
 
 @app.post("/api/admin/auto-reviews/{review_id}/decision", dependencies=[Depends(require_csrf)])
@@ -2618,11 +3047,54 @@ def decide_auto_review(review_id: UUID, payload: AutoReviewDecisionRequest, admi
             option.progress_target = float(len(option.conditions)) if option.conditions and len(option.conditions) > 1 else option.target
             option.explanation = verdict.explanation
         option.settled_at = now
-        if option.status == "COMPLETED":
-            exists = db.scalar(select(RewardLedgerEntry).where(RewardLedgerEntry.source_type == "AUTO_REVIEW", RewardLedgerEntry.source_id == option.id))
-            if not exists:
-                owner.xp += option.reward_xp
-                db.add(RewardLedgerEntry(user_id=owner.id, source_type="AUTO_REVIEW", source_id=option.id, delta=option.reward_xp, balance_after=owner.xp, policy_version="xp-v3-review"))
+        revision = (
+            db.scalar(
+                select(func.max(Evaluation.revision)).where(
+                    Evaluation.assignment_id == option.id
+                )
+            )
+            or 0
+        ) + 1
+        evaluation = Evaluation(
+            assignment_id=option.id,
+            match_id=item.match_id,
+            revision=revision,
+            status=option.status,
+            evidence_level="INTERNAL_REVIEW",
+            evaluator_version=settings.evaluator_version,
+            progress_current=option.progress_current,
+            progress_target=option.progress_target,
+            score=None,
+            explanation=option.explanation or "Internal review decision",
+            facts=[
+                {
+                    "source": "internal_review",
+                    "review_id": item.id,
+                    "decision": option.status,
+                }
+            ],
+        )
+        db.add(evaluation)
+        db.flush()
+        option.final_evaluation_id = evaluation.id
+        db.add(
+            OutboxEvent(
+                event_type="assignment.settled",
+                aggregate_id=option.id,
+                payload={
+                    "assignment_id": option.id,
+                    "board_id": board.id,
+                    "user_id": owner.id,
+                    "status": option.status,
+                    "reward_xp": (
+                        option.reward_xp if option.status == "COMPLETED" else 0
+                    ),
+                    "evaluation_id": evaluation.id,
+                    "match_id": item.match_id,
+                    "review_id": item.id,
+                },
+            )
+        )
     item.status = payload.status
     item.reviewer_id = admin.id
     item.reviewer_note = payload.reviewer_note or None
@@ -2653,27 +3125,28 @@ def decide_auto_review(review_id: UUID, payload: AutoReviewDecisionRequest, admi
         board.status = "REVIEW_REQUIRED"
 
     db.add(AuditLog(user_id=admin.id, action="auto_review.decided", entity_type="auto_review_case", entity_id=item.id, data={"status": payload.status, "board_id": board.id}))
-    db.commit()
     if resume_discovery:
         active = list(
             db.scalars(
                 select(Job).where(
                     Job.type == "discover_match",
+                    Job.board_id == board.id,
                     Job.status.in_(("PENDING", "RUNNING")),
                 )
             ).all()
         )
-        if not any(
-            str((candidate.payload or {}).get("board_id") or "") == board.id
-            for candidate in active
-        ):
+        if not active:
             enqueue_job(
                 db,
                 "discover_match",
                 {"board_id": board.id},
                 f"discover:{board.id}:review-resume:{item.id}",
                 max_attempts=settings.max_discovery_attempts,
+                commit=False,
             )
+    # Review decision, reward/status transitions and any resumed discovery job
+    # are committed atomically.
+    db.commit()
     db.refresh(item)
     return {"review": _serialize_auto_review(db, item)}
 
@@ -2690,8 +3163,19 @@ def sync_matches(mode: str = "STANDARD", user: User = Depends(require_user), db:
         return {"queued": False, "reason": "board_settled"}
 
     now = datetime.now(timezone.utc)
-    candidates = list(db.scalars(select(Job).where(Job.type == "discover_match", Job.status.in_(("PENDING", "RUNNING"))).order_by(Job.created_at.asc())).all())
-    job = next((item for item in candidates if str((item.payload or {}).get("board_id") or "") == board.id), None)
+    candidates = list(
+        db.scalars(
+            select(Job)
+            .where(
+                Job.type == "discover_match",
+                Job.board_id == board.id,
+                Job.status.in_(("PENDING", "RUNNING")),
+            )
+            .order_by(Job.created_at.asc())
+            .limit(1)
+        ).all()
+    )
+    job = candidates[0] if candidates else None
     if job:
         if job.status == "PENDING":
             job.run_after = now
@@ -2770,12 +3254,54 @@ def create_mock_match(payload: MockMatchRequest, user: User = Depends(require_us
     ))
     db.commit()
     job = enqueue_job(db, "bind_match", {"board_id": board.id, "match_id": match.id}, f"bind:{board.id}:{match.id}")
-    return {"created": True, "match_id": external_id, "job_id": job.id, "scenario": payload.scenario, "mode": payload.mode}
+    return {"created": True, "match_id": str(external_id), "job_id": job.id, "scenario": payload.scenario, "mode": payload.mode}
 
 
 @app.get("/api/history")
-def history(user: User = Depends(require_user), db: Session = Depends(get_db)) -> dict:
-    return {"items": _history_items(db, user)}
+def history(
+    limit: int = 100,
+    offset: int = 0,
+    user: User = Depends(require_user),
+    db: Session = Depends(get_db),
+) -> dict:
+    safe_limit = max(1, min(200, int(limit)))
+    safe_offset = max(0, int(offset))
+    total_cases = int(
+        db.scalar(
+            select(func.count(func.distinct(ContractBoard.id)))
+            .select_from(ContractBoard)
+            .join(BoardOption, BoardOption.board_id == ContractBoard.id)
+            .where(
+                ContractBoard.user_id == user.id,
+                BoardOption.selected.is_(True),
+            )
+        )
+        or 0
+    )
+    total_assignments = int(
+        db.scalar(
+            select(func.count())
+            .select_from(BoardOption)
+            .join(ContractBoard, ContractBoard.id == BoardOption.board_id)
+            .where(
+                ContractBoard.user_id == user.id,
+                BoardOption.selected.is_(True),
+            )
+        )
+        or 0
+    )
+    cases = _history_cases(db, user, safe_limit, safe_offset)
+    items = [item for case in cases for item in case["items"]]
+    return {
+        "cases": cases,
+        "items": items,
+        "total": total_cases,
+        "total_cases": total_cases,
+        "total_assignments": total_assignments,
+        "offset": safe_offset,
+        "limit": safe_limit,
+        "has_more": safe_offset + len(cases) < total_cases,
+    }
 
 
 @app.get("/api/xp-ledger")
@@ -2850,31 +3376,57 @@ def jobs(user: User = Depends(require_user), db: Session = Depends(get_db)) -> d
 
 
 @app.api_route("/api/{path:path}", methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"], include_in_schema=False)
-def unknown_api(path: str) -> JSONResponse:
-    return JSONResponse({"detail": "API endpoint not found"}, status_code=404)
+def unknown_api(path: str) -> None:
+    del path
+    raise HTTPException(404, "API endpoint не найден")
 
 
 @app.api_route("/auth/{path:path}", methods=["GET", "POST"], include_in_schema=False)
-def unknown_auth(path: str) -> JSONResponse:
-    return JSONResponse({"detail": "Authentication endpoint not found"}, status_code=404)
+def unknown_auth(path: str) -> None:
+    del path
+    raise HTTPException(404, "Endpoint авторизации не найден")
 
 
 @app.get("/openapi.json", include_in_schema=False)
-def disabled_openapi() -> JSONResponse:
-    return JSONResponse({"detail": "Not found"}, status_code=404)
+def disabled_openapi() -> None:
+    raise HTTPException(404, "Документация API отключена")
 
 
 @app.get("/docs", include_in_schema=False)
-def disabled_docs() -> JSONResponse:
-    return JSONResponse({"detail": "Not found"}, status_code=404)
+def disabled_docs() -> None:
+    raise HTTPException(404, "Документация API отключена")
 
 
 @app.get("/redoc", include_in_schema=False)
-def disabled_redoc() -> JSONResponse:
-    return JSONResponse({"detail": "Not found"}, status_code=404)
+def disabled_redoc() -> None:
+    raise HTTPException(404, "Документация API отключена")
 
 
 app.mount("/static", StaticFiles(directory=STATIC), name="static")
+
+
+@app.get("/robots.txt", include_in_schema=False, response_class=PlainTextResponse)
+def robots_txt() -> PlainTextResponse:
+    base = settings.app_base_url.rstrip("/")
+    return PlainTextResponse(
+        f"User-agent: *\nAllow: /\nDisallow: /api/\nDisallow: /reviewer\nSitemap: {base}/sitemap.xml\n",
+        media_type="text/plain",
+    )
+
+
+@app.get("/sitemap.xml", include_in_schema=False)
+def sitemap_xml() -> Response:
+    base = settings.app_base_url.rstrip("/")
+    pages = ("", "privacy", "terms", "support", "status", "changelog", "data-sources")
+    urls = []
+    for page in pages:
+        suffix = f"/{page}" if page else "/"
+        urls.append(f"<url><loc>{base}{suffix}</loc></url>")
+        if page:
+            urls.append(f"<url><loc>{base}/ru/{page}</loc></url>")
+            urls.append(f"<url><loc>{base}/en/{page}</loc></url>")
+    body = '<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">' + "".join(urls) + "</urlset>"
+    return Response(content=body, media_type="application/xml")
 
 
 @app.get("/reviewer", include_in_schema=False)
@@ -2890,34 +3442,59 @@ def reviewer_page() -> FileResponse:
     )
 
 
+def _legal_response(request: Request, language: str | None = None) -> FileResponse:
+    selected = language or request_language(request.headers.get("accept-language"))
+    return FileResponse(
+        STATIC / ("legal_en.html" if selected == "en" else "legal.html"),
+        headers={"Vary": "Accept-Language"} if language is None else None,
+    )
+
+
 @app.get("/privacy", include_in_schema=False)
-def privacy_page() -> FileResponse:
-    return FileResponse(STATIC / "legal.html")
+def privacy_page(request: Request) -> FileResponse:
+    return _legal_response(request)
 
 
 @app.get("/terms", include_in_schema=False)
-def terms_page() -> FileResponse:
-    return FileResponse(STATIC / "legal.html")
+def terms_page(request: Request) -> FileResponse:
+    return _legal_response(request)
 
 
 @app.get("/support", include_in_schema=False)
-def support_page() -> FileResponse:
-    return FileResponse(STATIC / "legal.html")
+def support_page(request: Request) -> FileResponse:
+    return _legal_response(request)
 
 
 @app.get("/status", include_in_schema=False)
-def public_status_page() -> FileResponse:
-    return FileResponse(STATIC / "legal.html")
+def public_status_page(request: Request) -> FileResponse:
+    return _legal_response(request)
 
 
 @app.get("/changelog", include_in_schema=False)
-def changelog_page() -> FileResponse:
-    return FileResponse(STATIC / "legal.html")
+def changelog_page(request: Request) -> FileResponse:
+    return _legal_response(request)
 
 
 @app.get("/data-sources", include_in_schema=False)
-def data_sources_page() -> FileResponse:
-    return FileResponse(STATIC / "legal.html")
+def data_sources_page(request: Request) -> FileResponse:
+    return _legal_response(request)
+
+
+@app.get("/ru/privacy", include_in_schema=False)
+@app.get("/ru/terms", include_in_schema=False)
+@app.get("/ru/support", include_in_schema=False)
+@app.get("/ru/status", include_in_schema=False)
+@app.get("/ru/changelog", include_in_schema=False)
+@app.get("/ru/data-sources", include_in_schema=False)
+@app.get("/en/privacy", include_in_schema=False)
+@app.get("/en/terms", include_in_schema=False)
+@app.get("/en/support", include_in_schema=False)
+@app.get("/en/status", include_in_schema=False)
+@app.get("/en/changelog", include_in_schema=False)
+@app.get("/en/data-sources", include_in_schema=False)
+def localized_legal_page(request: Request) -> FileResponse:
+    language = request.url.path.split("/", 2)[1]
+    return _legal_response(request, language)
 
 
 @app.get("/{path:path}")

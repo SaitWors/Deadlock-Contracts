@@ -1,6 +1,6 @@
-# Deadlock Contracts Web/Backend v0.10.1-alpha.8
+# Deadlock Contracts Web/Backend v0.10.1-alpha.9
 
-**0.10.1-alpha.8:** release-aligned Companion metadata, stricter terminal gameplay proof, dependency security updates and migration-safe deploys.
+**0.10.1-alpha.9:** первый pre-public QA candidate сайта и Companion с закрытой границей доверия, case-centric History и release-aligned metadata.
 
 Backend remains authoritative: Companion/GEP evidence is accepted only through strict exact-match/session correlation; provider facts win on conflict.
 
@@ -23,12 +23,16 @@ Backend remains authoritative: Companion/GEP evidence is accepted only through s
 - Desktop bootstrap отдаёт capability flags `adaptive_profiles_v1` и `debrief_v1`;
 - post-match read model сохраняет `last_attempt_match_id` и `latest_evaluation`, даже если retryable miss уже освободил `bound_match_id`;
 - `reward_granted_xp` берётся только из trusted contract reward-ledger sources; `ADMIN_ADJUSTMENT` не может быть выдан за XP конкретного контракта.
+- свежий независимый provider полностью заменяет legacy GEP-факты; клиентский апдейт не может дополнить подтверждённый матч;
+- History API и сайт пагинируют целыми делами, не разрезая 1–3 выбранных контракта между страницами;
+- offline-очередь Companion сохраняет обе границы жизненного цикла — `match_started` и `match_ended`;
+- рекламный слот fail-closed и отключён на всё время работы процесса Deadlock для первого QA.
 
 ## Документы
 
-- установка/обновление: `INSTALL_0.10.1_ALPHA8_RU.md`;
-- изменения: `RELEASE_NOTES_0.10.1_ALPHA8_RU.md`;
-- проверки: `TEST_REPORT_0.10.1_ALPHA8_RU.md`;
+- установка/обновление: `INSTALL_0.10.1_ALPHA9_RU.md`;
+- изменения: `RELEASE_NOTES_0.10.1_ALPHA9_RU.md`;
+- проверки: `TEST_REPORT_0.10.1_ALPHA9_RU.md`;
 - trust/security: `SECURITY_AND_TRUST_RU.md`.
 
 ## Проверка

@@ -1,4 +1,4 @@
-Deadlock Contracts Companion 0.5.2-alpha.4
+Deadlock Contracts Companion 0.5.2-alpha.7
 
 This package includes self-hosted font software distributed under the SIL Open Font License 1.1:
 

@@ -4,24 +4,27 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#080b0a">
+  <meta name="description" content="Документы Deadlock Contracts: данные, условия, поддержка, статус и источники.">
   <title>Deadlock Contracts — документы</title>
   <link rel="icon" href="/static/assets/mark.svg" type="image/svg+xml">
   <link rel="stylesheet" href="/static/styles.css">
   <script src="/static/legal.js" defer></script>
 </head>
 <body>
-  <header class="site-header"><div class="shell header-inner"><a class="brand" href="/"><img src="/static/assets/logo-horizontal.svg" alt="Deadlock Contracts" width="334" height="84"></a><a class="ghost-button" href="/">Вернуться</a></div></header>
+  <header class="site-header"><div class="shell header-inner"><a class="brand" href="/"><img src="/static/assets/logo-horizontal.svg" alt="Deadlock Contracts" width="334" height="84"></a><span><a class="ghost-button" href="/en/privacy">EN</a> <a class="ghost-button" href="/">Вернуться</a></span></div></header>
   <main class="legal-page shell">
     <article id="privacyDocument" class="legal-document hidden">
       <p class="eyebrow">PRIVACY NOTICE · PRE-RELEASE</p>
-      <h1>Обработка данных</h1>
-      <p class="legal-updated">Редакция от 3 августа 2026 года</p>
+      <h1>Политика конфиденциальности</h1>
+      <p class="legal-updated">Редакция от 24 августа 2026 года</p>
       <h2>Какие данные используются</h2>
       <p>SteamID64 и производный account ID, отображаемое имя и аватар Steam, выбранные контракты, итоговые показатели связанных матчей, статусы проверки, XP, технические audit-записи и server-side session records. Пароль Steam, платёжные данные, email Steam и содержимое личных сообщений не запрашиваются.</p>
       <h2>Для чего</h2>
       <p>Для входа, создания ежедневной доски, поиска первого подходящего матча после фиксации, проверки условий, предотвращения двойных наград, диагностики ошибок и защиты сервиса.</p>
       <h2>Источники и обработчики</h2>
       <p>Идентификация выполняется Steam OpenID. Имя и аватар могут запрашиваться через Steam Web API. Итоговая игровая статистика поступает из community-operated Deadlock API. Сервис размещается у выбранного владельцем хостинг-провайдера.</p>
+      <h2>Телеметрия Companion</h2>
+      <p>Overwolf Companion передаёт собственные поддерживаемые GEP-сигналы игрока, Match ID, режим, фазу и ограниченную диагностическую статистику. Клиентские данные предварительны и не могут самостоятельно закрыть контракт или начислить XP. В диагностике редактируются roster и Steam identifiers.</p>
       <h2>Хранение и удаление</h2>
       <p>Данные хранятся до удаления аккаунта или завершения теста, если более длительное хранение не требуется для безопасности и разрешения споров. Удаление доступно в разделе «Данные и аккаунт». Резервные копии могут сохраняться ограниченное время до плановой ротации.</p>
       <h2>Безопасность</h2>
@@ -33,7 +36,7 @@
     <article id="termsDocument" class="legal-document hidden">
       <p class="eyebrow">TEST TERMS · PRE-RELEASE</p>
       <h1>Условия тестирования</h1>
-      <p class="legal-updated">Редакция от 3 августа 2026 года</p>
+      <p class="legal-updated">Редакция от 24 августа 2026 года</p>
       <h2>Статус проекта</h2>
       <p>Deadlock Contracts — неофициальный community-проект и не связан с Valve. Deadlock, Steam и связанные обозначения принадлежат соответствующим правообладателям.</p>
       <h2>Предрелиз</h2>
@@ -65,19 +68,22 @@
     <article id="statusDocument" class="legal-document hidden">
       <p class="eyebrow">SERVICE STATUS</p>
       <h1>Статус сервиса</h1>
-      <p class="legal-updated">22 августа 2026 года</p>
+      <p class="legal-updated">25 августа 2026 года</p>
       <p>Публичная информация о текущем release и доступности сервиса.</p>
-      <pre id="publicStatus">Загрузка статуса…</pre>
+      <div id="publicStatus" class="public-status-grid" role="status" aria-live="polite">Загрузка статуса…</div>
       <p>Если status endpoint недоступен, используйте страницу <a href="/support">поддержки</a>.</p>
     </article>
 
     <article id="changelogDocument" class="legal-document hidden">
-      <p class="eyebrow">CHANGELOG · 0.10.1-alpha.8</p>
+      <p class="eyebrow">CHANGELOG · 0.10.1-alpha.9</p>
       <h1>Изменения</h1>
-      <p class="legal-updated">22 августа 2026 года</p>
+      <p class="legal-updated">25 августа 2026 года</p>
 
       <h2>Безопасность и lifecycle</h2>
-      <p>Усилена обработка suspended accounts, web/Companion principals и pending pairing codes.</p>
+      <p>Усилена обработка suspended accounts, web/Companion principals и pending pairing codes. Клиентские GEP-факты не могут участвовать в verdict или дополнять подтверждённый provider match.</p>
+
+      <h2>Архив дел</h2>
+      <p>История пагинируется целыми делами, поэтому выбранные вместе контракты всегда отображаются в одном case file.</p>
 
       <h2>PostgreSQL</h2>
       <p>Production schema changes переведены на Alembic migrations с отдельным pre-start migration step.</p>

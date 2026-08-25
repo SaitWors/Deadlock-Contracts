@@ -2,11 +2,14 @@ name: deadlock-contracts
 
 x-app-env: &app-env
   APP_ENV: production
-  APP_VERSION: 0.10.1-alpha.8
+  APP_VERSION: 0.10.1-alpha.9
   APP_BASE_URL: https://${DOMAIN:?Set DOMAIN in .env.production}
   TRUSTED_HOSTS: ${DOMAIN},www.${DOMAIN}
   CONTACT_EMAIL: ${CONTACT_EMAIL:?Set CONTACT_EMAIL in .env.production}
   TRUST_PROXY_HEADERS: "true"
+  TRUSTED_PROXY_NETWORKS: ${TRUSTED_PROXY_NETWORKS:-172.16.0.0/12,10.0.0.0/8}
+  FORWARDED_ALLOW_IPS: ${TRUSTED_PROXY_NETWORKS:-172.16.0.0/12,10.0.0.0/8}
+  RATE_LIMIT_REDIS_URL: redis://redis:6379/0
   DATABASE_URL_FILE: /run/secrets/database_url
   SESSION_SECRET_FILE: /run/secrets/session_secret
   SESSION_TTL_DAYS: "14"
@@ -31,7 +34,7 @@ x-app-env: &app-env
   REQUEST_TIMEOUT_SECONDS: "15"
   REQUEST_CONNECT_TIMEOUT_SECONDS: "5"
   MAX_PROVIDER_RESPONSE_BYTES: "4194304"
-  MAX_REQUEST_BODY_BYTES: "12582912"
+  MAX_REQUEST_BODY_BYTES: "1048576"
   EVIDENCE_DIR: /app/runtime/evidence
   EVIDENCE_MAX_FILES: ${EVIDENCE_MAX_FILES:-4}
   EVIDENCE_MAX_FILE_BYTES: ${EVIDENCE_MAX_FILE_BYTES:-3145728}
@@ -47,6 +50,10 @@ x-app-env: &app-env
   SYNC_RATE_LIMIT_PER_HOUR: ${SYNC_RATE_LIMIT_PER_HOUR:-20}
   CASE_MAX_ATTEMPTS: ${CASE_MAX_ATTEMPTS:-3}
   COMPANION_DOWNLOAD_URL: ${COMPANION_DOWNLOAD_URL:-}
+  COMPANION_INGEST_ENABLED: ${COMPANION_INGEST_ENABLED:-true}
+  COMPANION_ADS_ENABLED: ${COMPANION_ADS_ENABLED:-false}
+  COMPANION_MINIMUM_VERSION: ${COMPANION_MINIMUM_VERSION:-0.5.2-alpha.5}
+  REWARD_SETTLEMENT_ENABLED: ${REWARD_SETTLEMENT_ENABLED:-true}
   LOG_LEVEL: INFO
 
 x-app-security: &app-security
@@ -63,7 +70,7 @@ x-app-security: &app-security
 
 services:
   caddy:
-    image: caddy:2.10.2-alpine
+    image: caddy:2.10.2-alpine@sha256:4c6e91c6ed0e2fa03efd5b44747b625fec79bc9cd06ac5235a779726618e530d
     restart: unless-stopped
     environment:
       DOMAIN: ${DOMAIN}
@@ -92,7 +99,7 @@ services:
         condition: service_healthy
 
   db:
-    image: postgres:17.6-alpine
+    image: postgres:17.6-alpine@sha256:ef257d85f76e48da1c64832459b59fcaba1a4dac97bf5d7450c77753542eee94
     restart: unless-stopped
     environment:
       POSTGRES_DB: deadlock_contracts
@@ -112,6 +119,26 @@ services:
     pids_limit: 200
     mem_limit: 768m
     cpus: 1.0
+
+  redis:
+    image: redis:8.8.2-alpine@sha256:96cb544fa0af5aa898d160cffb7dae70c3df117190fc123831c64712cda425ff
+    restart: unless-stopped
+    command: ["redis-server", "--save", "", "--appendonly", "no", "--maxmemory", "64mb", "--maxmemory-policy", "allkeys-lru"]
+    networks: [data]
+    read_only: true
+    tmpfs:
+      - /data:size=16m,mode=0700
+    cap_drop: ["ALL"]
+    security_opt:
+      - no-new-privileges:true
+    pids_limit: 100
+    mem_limit: 96m
+    cpus: 0.25
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
 
   migrate:
     <<: *app-security
@@ -139,6 +166,8 @@ services:
     networks: [edge, data]
     depends_on:
       db:
+        condition: service_healthy
+      redis:
         condition: service_healthy
       migrate:
         condition: service_completed_successfully

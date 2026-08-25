@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect, useMemo, useState } from "react"
+import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react"
 
 export type Language = "en" | "ru"
 export type LanguageMode = "auto" | Language
@@ -30,6 +30,7 @@ type LanguageContextValue = {
   language: Language
   mode: LanguageMode
   setMode: (value: LanguageMode) => void
+  setServerDefault: (value: Language | null) => void
   locale: string
 }
 
@@ -37,13 +38,16 @@ const LanguageContext = createContext<LanguageContextValue>({
   language: "en",
   mode: "auto",
   setMode: () => undefined,
+  setServerDefault: () => undefined,
   locale: "en-US",
 })
 
 export function LanguageProvider({ children }: { children: React.ReactNode }) {
   const [mode, setModeState] = useState<LanguageMode>(() => storedMode())
   const [detected, setDetected] = useState<Language>(() => browserLanguage())
-  const language = mode === "auto" ? detected : mode
+  const [serverDefault, setServerDefaultState] = useState<Language | null>(null)
+  const language = mode === "auto" ? (serverDefault ?? detected) : mode
+  const setServerDefault = useCallback((value: Language | null) => setServerDefaultState(value), [])
 
   useEffect(() => {
     const onLanguageChange = () => setDetected(browserLanguage())
@@ -78,15 +82,22 @@ export function LanguageProvider({ children }: { children: React.ReactNode }) {
       language,
       mode,
       setMode,
+      setServerDefault,
       locale: language === "ru" ? "ru-RU" : "en-US",
     }),
-    [language, mode],
+    [language, mode, setServerDefault],
   )
   return <LanguageContext.Provider value={value}>{children}</LanguageContext.Provider>
 }
 
 export function useLanguage() {
   return useContext(LanguageContext)
+}
+
+export function apiLanguage(): Language {
+  if (typeof document !== "undefined" && document.documentElement.lang === "ru") return "ru"
+  if (typeof document !== "undefined" && document.documentElement.lang === "en") return "en"
+  return storedMode() === "ru" ? "ru" : storedMode() === "en" ? "en" : browserLanguage()
 }
 
 export function LanguageSwitch({ compact = false }: { compact?: boolean }) {
@@ -101,7 +112,9 @@ export function LanguageSwitch({ compact = false }: { compact?: boolean }) {
         className={mode === "auto" ? "active" : ""}
         onClick={() => setMode("auto")}
         title={
-          language === "ru" ? "Автоопределение по языку браузера" : "Detect from browser language"
+          language === "ru"
+            ? "Настройка аккаунта или язык браузера"
+            : "Account default or browser language"
         }
       >
         AUTO

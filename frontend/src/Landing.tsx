@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from "react"
-import logoImage from "@/imports/ChatGPT_Image_2____._2026__.__01_38_03_1_.png"
-import { LanguageSwitch, MCGCredit, t, useLanguage } from "./i18n"
+import logoImage from "@/imports/brand-hero.webp"
+import { apiLanguage, LanguageSwitch, MCGCredit, t, useLanguage } from "./i18n"
 
 type ContractCategory = "COMFORT" | "GROWTH" | "HERO" | "VARIETY" | "EVENT"
 type GameMode = "STANDARD" | "RANKED" | "STREET BRAWL"
@@ -788,7 +788,7 @@ export default function Landing() {
     setLeaderLoading(true)
     setLeaderError(null)
     fetch(`/api/public/leaderboard?scope=${leaderScope}&limit=50`, {
-      headers: { Accept: "application/json" },
+      headers: { Accept: "application/json", "Accept-Language": apiLanguage() },
       signal: controller.signal,
     })
       .then(async (response) => {

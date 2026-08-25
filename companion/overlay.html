@@ -11,17 +11,21 @@
 <body>
   <div id="overlayHoverSensor" class="overlay-hover-sensor" aria-hidden="true"></div>
   <main id="overlayShell" class="overlay-shell">
+    <div class="overlay-corner corner-a" aria-hidden="true"></div>
+    <div class="overlay-corner corner-b" aria-hidden="true"></div>
     <header>
-      <div><img src="assets/mark.svg" alt=""><b>DEADLOCK CONTRACTS</b></div>
+      <div><img src="assets/mark.svg" alt=""><b>DEADLOCK CONTRACTS</b><small>LIVE CASE FILE</small></div>
       <span id="overlayState">○ STANDBY</span>
     </header>
     <section>
       <div class="overlay-meta"><span id="overlayMode">WAITING FOR MATCH</span><b id="overlayAttempt">NO ACTIVE CASE</b></div>
       <article id="overlayFocus" class="overlay-focus" hidden>
+        <div class="focus-sigil" aria-hidden="true">◈</div>
         <div class="focus-kicker"><span id="overlayMetric">OBJECTIVE</span><em id="overlayXp">0 XP</em></div>
         <div class="focus-title-row"><b id="overlayTitle">WAITING FOR ACTIVITY</b><span id="overlayPercent">0%</span></div>
         <div class="focus-numbers"><strong id="overlayCurrent">0</strong><span id="overlayTarget">/ 0</span><i id="overlayHint">LIVE · PROVISIONAL</i></div>
-        <progress id="overlayProgress" class="focus-track" max="100" value="0"></progress>
+        <div class="focus-track-wrap"><progress id="overlayProgress" class="focus-track" max="100" value="0"></progress><i class="focus-progress-sheen" aria-hidden="true"></i></div>
+        <div class="completion-burst" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></div>
       </article>
       <div id="overlayEmpty" class="overlay-empty">WAITING FOR MATCH</div>
       <div id="overlaySelected" class="overlay-selected" aria-label="Selected contracts" hidden></div>

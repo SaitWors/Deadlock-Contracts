@@ -1,5 +1,6 @@
 (() => {
   const STORAGE_KEY = 'dc.ui.language'
+  const SERVER_LANGUAGE_KEY = 'dc.server.language'
   const copy = {
     en: {
       hq: 'HQ', contracts: 'CONTRACTS', activeCase: 'ACTIVE CASE', debrief: 'DEBRIEF', history: 'HISTORY', profile: 'PROFILE', settings: 'SETTINGS',
@@ -13,7 +14,7 @@
       settingsSecurity: 'No database credentials, master keys or settlement authority live in this package.', pairTitle: 'CONNECT DEADLOCK CONTRACTS',
       pairBody: 'Create a short-lived code on the official site, then enter it here. The code is exchanged once; the resulting token is encrypted for the current Windows user.',
       connect: 'CONNECT', openWebsite: 'OPEN PAIRING PAGE', pairHelp: 'Generate a short-lived code on the official site, then enter it here.', disconnect: 'DISCONNECT', syncNow: 'SYNC NOW',
-      language: 'LANGUAGE', languageBody: 'Use the system language or keep a manual choice.', overlay: 'OVERLAY', overlayBody: 'A minimal input-pass-through case widget. You can resize or reset it here.',
+      language: 'LANGUAGE', languageBody: 'Use the system language or keep a manual choice.', overlay: 'OVERLAY', overlayBody: 'A minimal input-pass-through case widget that auto-hides after a few seconds. You can resize or reset it here.',
       showOverlay: 'SHOW / HIDE', resetPosition: 'RESET POSITION', hotkeySettings: 'HOTKEY', diagnostics: 'DIAGNOSTICS', copyReport: 'COPY REPORT',
       updateBody: 'Release updates are delivered by Overwolf.', checkUpdate: 'CHECK UPDATE', exitApp: 'EXIT APP',
       ftueEyebrow: 'WELCOME TO THE CONTRACT BUREAU', ftueTitle: 'YOUR NEXT MATCH HAS A FILE NUMBER',
@@ -46,7 +47,7 @@
       settingsSecurity: 'В пакете нет ключей базы, master keys или права выносить решения.', pairTitle: 'ПОДКЛЮЧИТЬ DEADLOCK CONTRACTS',
       pairBody: 'Создайте короткоживущий код на официальном сайте и введите его здесь. Код обменивается один раз, а токен шифруется для текущего пользователя Windows.',
       connect: 'ПОДКЛЮЧИТЬ', openWebsite: 'ОТКРЫТЬ СТРАНИЦУ', pairHelp: 'Создайте короткоживущий код на официальном сайте и введите его здесь.', disconnect: 'ОТКЛЮЧИТЬ', syncNow: 'СИНХРОНИЗИРОВАТЬ',
-      language: 'ЯЗЫК', languageBody: 'Используйте язык системы или сохраните ручной выбор.', overlay: 'ОВЕРЛЕЙ', overlayBody: 'Минимальный input-pass-through виджет дела. Здесь можно изменить размер или сбросить позицию.',
+      language: 'ЯЗЫК', languageBody: 'Используйте язык системы или сохраните ручной выбор.', overlay: 'ОВЕРЛЕЙ', overlayBody: 'Минимальный input-pass-through виджет дела, который сам скрывается через несколько секунд. Здесь можно изменить размер или сбросить позицию.',
       showOverlay: 'ПОКАЗАТЬ / СКРЫТЬ', resetPosition: 'СБРОСИТЬ ПОЗИЦИЮ', hotkeySettings: 'HOTKEY', diagnostics: 'ДИАГНОСТИКА', copyReport: 'КОПИРОВАТЬ ОТЧЁТ',
       updateBody: 'Обновления приложения доставляет Overwolf.', checkUpdate: 'ПРОВЕРИТЬ', exitApp: 'ВЫЙТИ',
       ftueEyebrow: 'ДОБРО ПОЖАЛОВАТЬ В БЮРО', ftueTitle: 'У ВАШЕГО СЛЕДУЮЩЕГО МАТЧА ЕСТЬ НОМЕР ДЕЛА',
@@ -70,6 +71,8 @@
   }
 
   function detectedLanguage() {
+    const server = localStorage.getItem(SERVER_LANGUAGE_KEY)
+    if (server === 'ru' || server === 'en') return server
     const languages = Array.isArray(navigator.languages) && navigator.languages.length ? navigator.languages : [navigator.language || 'en']
     return languages.some(value => String(value).toLowerCase().startsWith('ru')) ? 'ru' : 'en'
   }
@@ -83,7 +86,41 @@
     localStorage.setItem(STORAGE_KEY, value)
     window.dispatchEvent(new CustomEvent('dc:language', { detail: { preference: value, language: language() } }))
   }
+  function setServerLanguage(value) {
+    if (value === 'ru' || value === 'en') localStorage.setItem(SERVER_LANGUAGE_KEY, value)
+    else localStorage.removeItem(SERVER_LANGUAGE_KEY)
+    if (preference() === 'auto') {
+      window.dispatchEvent(new CustomEvent('dc:language', { detail: { preference: 'auto', language: language() } }))
+    }
+  }
   function t(key) { return copy[language()]?.[key] ?? copy.en[key] ?? key }
+  const serverEnglish = {
+    'Некорректный код привязки': 'Invalid pairing code',
+    'Код привязки истёк или уже использован': 'The pairing code expired or was already used',
+    'Аккаунт заблокирован': 'The account is suspended',
+    'Пользователь не найден': 'User not found',
+    'Companion отключён': 'Companion is disconnected',
+    'Неизвестный режим матча': 'Unknown match mode',
+    'Доска не найдена': 'Board not found',
+    'После фиксации дела эту доску пересобрать нельзя': 'This board cannot be rerolled after the case is locked',
+    'Бесплатная пересборка на сегодня уже использована': "Today's free reroll has already been used",
+    'Дело этого режима уже зафиксировано': 'A case for this mode is already locked',
+    'Доска уже обновилась. Откройте новую подборку': 'The board has refreshed. Open the new selection.',
+    'Нужно выбрать от 1 до 3 контрактов': 'Choose between 1 and 3 contracts',
+    'Выбран контракт не с текущей доски': 'A selected contract does not belong to the current board',
+  }
+  function localizeServerText(value) {
+    const text = String(value || '')
+    if (!text || language() === 'ru') return text
+    if (serverEnglish[text]) return serverEnglish[text]
+    return text
+      .replace(/^Матч найден\. Ждём итоговые данные провайдера:\s*/i, 'Match found. Waiting for final provider data: ')
+      .replace(/Попытка сохранена и не будет потрачена повторно\./gi, 'The attempt is saved and will not be spent again.')
+      .replace(/^Попытка (\d+)\/(\d+):\s*/i, 'Attempt $1/$2: ')
+      .replace(/Осталось попыток:\s*(\d+)\./gi, 'Attempts remaining: $1.')
+      .replace(/Игрок не найден в составе матча\./gi, 'Player was not found in the match roster.')
+      .replace(/Недостаточно итоговых данных:/gi, 'Missing final match data:')
+  }
   function formatNumber(value, digits = 0) {
     const number = Number(value)
     if (!Number.isFinite(number)) return '—'
@@ -96,5 +133,5 @@
     return new Intl.DateTimeFormat(language() === 'ru' ? 'ru-RU' : 'en-US', { dateStyle: 'medium', timeStyle: 'short', ...options }).format(date)
   }
 
-  window.DCShared = { STORAGE_KEY, copy, detectedLanguage, preference, language, setPreference, t, formatNumber, formatDateTime }
+  window.DCShared = { STORAGE_KEY, SERVER_LANGUAGE_KEY, copy, detectedLanguage, preference, language, setPreference, setServerLanguage, t, localizeServerText, formatNumber, formatDateTime }
 })()

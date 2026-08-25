@@ -1,0 +1,11 @@
+Deadlock Contracts Companion 0.5.2-alpha.5
+Overwolf manifest: 0.5.2.5
+Evidence schema: 7
+Built: 2026-08-22
+
+Release focus:
+- preserve server-authoritative contracts, verdicts and XP from alpha.4;
+- replace the persistent hotkey panel behaviour with a user-invoked, 6.5-second transient overlay;
+- add a rounded live contract strip with progress, focus-switch and provisional completion motion;
+- add one desktop-HQ-only Overwolf Managed Ads 400x60 slot, disabled during active gameplay;
+- include alpha.5 OPK + reproducible QA bundle tooling.
