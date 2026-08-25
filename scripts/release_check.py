@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import json
 import re
+import subprocess
 import sys
 from pathlib import Path
 
@@ -42,6 +43,44 @@ def text(path: Path) -> str:
     return path.read_text(encoding="utf-8")
 
 
+def git_tracked_files(root: Path) -> set[str] | None:
+    """Return the Git release payload when *root* is a working tree.
+
+    Production checkouts intentionally contain ignored runtime-only paths such
+    as .env.production, secrets/ and backups/. They must never be shipped, but
+    their presence on the host must not make the repository release gate fail.
+    In a Git checkout we therefore scan the index (tracked files) only. When
+    Git metadata is unavailable, such as in an unpacked source archive, the
+    caller falls back to scanning the complete tree and keeps the stricter
+    forbidden-path checks.
+    """
+
+    try:
+        result = subprocess.run(
+            ["git", "-C", str(root), "ls-files", "-z"],
+            check=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.DEVNULL,
+        )
+    except (OSError, subprocess.CalledProcessError):
+        return None
+
+    return {
+        item
+        for item in result.stdout.decode("utf-8").split("\0")
+        if item
+    }
+
+
+def forbidden_parent(relative: Path) -> Path | None:
+    parts: list[str] = []
+    for part in relative.parts[:-1]:
+        parts.append(part)
+        if part.lower() in FORBIDDEN_DIRS:
+            return Path(*parts)
+    return None
+
+
 def main() -> int:
     root = Path(sys.argv[1] if len(sys.argv) > 1 else Path(__file__).resolve().parents[1]).resolve()
     errors: list[str] = []
@@ -67,10 +106,24 @@ def main() -> int:
         if not (root / relative).is_file():
             fail(errors, f"missing required file: {relative}")
 
+    tracked = git_tracked_files(root)
+
     for path in root.rglob("*"):
         relative = path.relative_to(root)
         if any(part in IGNORED_DIRS for part in relative.parts):
             continue
+
+        # In a live production checkout, ignored runtime data is expected to
+        # coexist with the source tree. Only tracked paths belong to the Git
+        # release payload and are eligible for release scanning.
+        if tracked is not None and relative.as_posix() not in tracked:
+            continue
+
+        parent = forbidden_parent(relative)
+        if parent is not None:
+            fail(errors, f"forbidden directory: {parent}")
+            continue
+
         if path.is_symlink():
             fail(errors, f"symlink is not allowed: {relative}")
             continue
