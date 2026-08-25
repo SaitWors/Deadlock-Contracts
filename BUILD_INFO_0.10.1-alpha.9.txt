@@ -1,5 +1,5 @@
-Deadlock Contracts Web/Backend v0.10.1-alpha.8
-Build date: 2026-08-24
+Deadlock Contracts Web/Backend v0.10.1-alpha.9
+Build date: 2026-08-25
 Base: 0.10.1-alpha.7
 
 Release focus:
@@ -12,14 +12,17 @@ Release focus:
 - admin outbox visibility/replay and immutable review settlement;
 - RU/EN mission, legal, API error and preference localization;
 - board/job/selection concurrency and lifecycle reconciliation;
+- independent-provider replacement of legacy client/GEP match facts;
+- whole-case History API pagination and frontend archive rendering;
+- pinned match start/end queue edges and process-wide in-game ad shutdown;
 - mandatory CI, dependency audits, frontend asset budgets and reproducible OPK/SBOM packaging;
 - release.json release identity;
 - honest non-persistent landing preview;
 - discoverable Privacy/Terms/Support/Status/Changelog/Data Sources.
 
 Canonical Companion:
-runtime 0.5.2-alpha.6
-manifest 0.5.2.6
+runtime 0.5.2-alpha.7
+manifest 0.5.2.7
 
 Submission follow-up:
 run the exact frozen OPK through real Windows/Overwolf/Deadlock QA,

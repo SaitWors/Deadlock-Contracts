@@ -997,14 +997,51 @@ def _require_companion_version(version: str | None) -> None:
             headers={"X-Minimum-Companion-Version": settings.companion_minimum_version},
         )
 
+def _history_case_ids(
+    db: Session,
+    user: User,
+    limit: int = 100,
+    offset: int = 0,
+) -> list[str]:
+    safe_limit = max(1, min(200, int(limit)))
+    safe_offset = max(0, int(offset))
+    return list(
+        db.scalars(
+            select(ContractBoard.id)
+            .join(BoardOption, BoardOption.board_id == ContractBoard.id)
+            .where(
+                ContractBoard.user_id == user.id,
+                BoardOption.selected.is_(True),
+            )
+            .group_by(ContractBoard.id)
+            .order_by(
+                func.coalesce(ContractBoard.locked_at, ContractBoard.created_at).desc(),
+                ContractBoard.id.desc(),
+            )
+            .offset(safe_offset)
+            .limit(safe_limit)
+        ).all()
+    )
+
+
 def _history_items(
     db: Session,
     user: User,
     limit: int = 200,
     offset: int = 0,
+    *,
+    board_ids: list[str] | None = None,
 ) -> list[dict[str, Any]]:
-    safe_limit = max(1, min(200, int(limit)))
-    safe_offset = max(0, int(offset))
+    selected_board_ids = (
+        list(board_ids)
+        if board_ids is not None
+        else _history_case_ids(db, user, limit, offset)
+    )
+    if not selected_board_ids:
+        return []
+    board_order = {
+        board_id: index for index, board_id in enumerate(selected_board_ids)
+    }
     options = list(
         db.scalars(
             select(BoardOption)
@@ -1014,11 +1051,19 @@ def _history_items(
                 selectinload(BoardOption.board),
                 selectinload(BoardOption.mission),
             )
-            .where(ContractBoard.user_id == user.id, BoardOption.selected.is_(True))
-            .order_by(BoardOption.created_at.desc())
-            .offset(safe_offset)
-            .limit(safe_limit)
+            .where(
+                ContractBoard.user_id == user.id,
+                BoardOption.selected.is_(True),
+                BoardOption.board_id.in_(selected_board_ids),
+            )
         ).all()
+    )
+    options.sort(
+        key=lambda option: (
+            board_order.get(option.board_id, len(board_order)),
+            option.created_at,
+            option.id,
+        )
     )
 
     assignment_ids = [option.id for option in options]
@@ -1145,9 +1190,49 @@ def _history_items(
     return items
 
 
+def _history_cases(
+    db: Session,
+    user: User,
+    limit: int = 100,
+    offset: int = 0,
+) -> list[dict[str, Any]]:
+    board_ids = _history_case_ids(db, user, limit, offset)
+    items = _history_items(db, user, board_ids=board_ids)
+    items_by_board: dict[str, list[dict[str, Any]]] = {
+        board_id: [] for board_id in board_ids
+    }
+    for item in items:
+        items_by_board.setdefault(item["board_id"], []).append(item)
+
+    cases: list[dict[str, Any]] = []
+    for board_id in board_ids:
+        case_items = items_by_board.get(board_id) or []
+        if not case_items:
+            continue
+        first = case_items[0]
+        settled_values = [
+            item["settled_at"] for item in case_items if item.get("settled_at")
+        ]
+        cases.append(
+            {
+                "board_id": board_id,
+                "game_match_mode": first["game_match_mode"],
+                "status": first["board_status"],
+                "locked_at": first["locked_at"],
+                "settled_at": max(settled_values) if settled_values else None,
+                "case_expires_at": first["case_expires_at"],
+                "attempts_used": first["attempts_used"],
+                "max_attempts": first["max_attempts"],
+                "items": case_items,
+            }
+        )
+    return cases
+
+
 def _desktop_bootstrap_payload(db: Session, owner: User, device: CompanionDevice, history_limit: int = 60) -> dict[str, Any]:
     board_models = ensure_daily_boards(db, owner)
     boards = [serialize_board(model) for model in board_models]
+    history_cases = _history_cases(db, owner, history_limit)
     active_cases = [
         {
             "board_id": board["id"],
@@ -1182,7 +1267,10 @@ def _desktop_bootstrap_payload(db: Session, owner: User, device: CompanionDevice
         "active_cases": active_cases,
         "adaptive_profiles": {mode: build_adaptive_profile(db, owner, mode) for mode in GAME_MODES},
         "progression": user_progression(db, owner),
-        "history": {"items": _history_items(db, owner, history_limit)},
+        "history": {
+            "cases": history_cases,
+            "items": [item for case in history_cases for item in case["items"]],
+        },
         "policy": {
             "selection_min": 1,
             "selection_max": 3,
@@ -3178,7 +3266,19 @@ def history(
 ) -> dict:
     safe_limit = max(1, min(200, int(limit)))
     safe_offset = max(0, int(offset))
-    total = int(
+    total_cases = int(
+        db.scalar(
+            select(func.count(func.distinct(ContractBoard.id)))
+            .select_from(ContractBoard)
+            .join(BoardOption, BoardOption.board_id == ContractBoard.id)
+            .where(
+                ContractBoard.user_id == user.id,
+                BoardOption.selected.is_(True),
+            )
+        )
+        or 0
+    )
+    total_assignments = int(
         db.scalar(
             select(func.count())
             .select_from(BoardOption)
@@ -3190,13 +3290,17 @@ def history(
         )
         or 0
     )
-    items = _history_items(db, user, safe_limit, safe_offset)
+    cases = _history_cases(db, user, safe_limit, safe_offset)
+    items = [item for case in cases for item in case["items"]]
     return {
+        "cases": cases,
         "items": items,
-        "total": total,
+        "total": total_cases,
+        "total_cases": total_cases,
+        "total_assignments": total_assignments,
         "offset": safe_offset,
         "limit": safe_limit,
-        "has_more": safe_offset + len(items) < total,
+        "has_more": safe_offset + len(cases) < total_cases,
     }
 
 

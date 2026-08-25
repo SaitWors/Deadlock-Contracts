@@ -40,7 +40,7 @@ def _csv(name: str, default: str = "") -> tuple[str, ...]:
 @dataclass(frozen=True)
 class Settings:
     app_name: str = os.getenv("APP_NAME", "Deadlock Contracts")
-    app_version: str = os.getenv("APP_VERSION", "0.10.1-alpha.8")
+    app_version: str = os.getenv("APP_VERSION", "0.10.1-alpha.9")
     app_env: str = os.getenv("APP_ENV", "development").strip().lower()
     service_role: str = os.getenv("SERVICE_ROLE", "web").strip().lower()
     app_base_url: str = os.getenv("APP_BASE_URL", "http://localhost:8080").rstrip("/")

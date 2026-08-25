@@ -1,7 +1,7 @@
 # Deadlock Contracts — полный test/deploy runbook
 
-Версии кандидата: Web/Backend `0.10.1-alpha.8`, Companion
-`0.5.2-alpha.6`, Overwolf manifest `0.5.2.6`.
+Версии кандидата: Web/Backend `0.10.1-alpha.9`, Companion
+`0.5.2-alpha.7`, Overwolf manifest `0.5.2.7`.
 
 Alpha 6 собрана поверх присланной рабочей alpha 5. Не смешивайте файлы разных
 OPK: тестируется и публикуется один frozen archive с одним SHA-256.
@@ -51,12 +51,12 @@ node scripts/check-release.mjs
 find src -type f -name '*.js' -print0 | xargs -0 -n1 node --check
 node --test tests/*.test.mjs
 node scripts/package-release.mjs
-sha256sum dist/Deadlock-Contracts-Companion-0.5.2-alpha.6.opk
-sha256sum dist/Deadlock-Contracts-Companion-0.5.2-alpha.6.cdx.json
-unzip -t dist/Deadlock-Contracts-Companion-0.5.2-alpha.6.opk
+sha256sum dist/Deadlock-Contracts-Companion-0.5.2-alpha.7.opk
+sha256sum dist/Deadlock-Contracts-Companion-0.5.2-alpha.7.cdx.json
+unzip -t dist/Deadlock-Contracts-Companion-0.5.2-alpha.7.opk
 node scripts/package-release.mjs
-sha256sum dist/Deadlock-Contracts-Companion-0.5.2-alpha.6.opk
-sha256sum dist/Deadlock-Contracts-Companion-0.5.2-alpha.6.cdx.json
+sha256sum dist/Deadlock-Contracts-Companion-0.5.2-alpha.7.opk
+sha256sum dist/Deadlock-Contracts-Companion-0.5.2-alpha.7.cdx.json
 node scripts/package-qa-bundle.mjs
 cd ..
 ```

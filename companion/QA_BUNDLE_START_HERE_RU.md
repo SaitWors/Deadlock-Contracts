@@ -1,14 +1,14 @@
-# Deadlock Contracts Companion — QA candidate 0.5.2-alpha.6
+# Deadlock Contracts Companion — QA candidate 0.5.2-alpha.7
 
 Это собранный QA комплект: внутри лежат правильный OPK, CycloneDX SBOM, checksums, QA-документы и отдельный source ZIP. Это **не** заявление, что Overwolf уже одобрил продукт.
 
 ## Быстрый порядок
 
-1. Убедиться, что Web/Backend `0.10.1-alpha.8` доступен, health/ready зелёные и pairing работает.
+1. Убедиться, что Web/Backend `0.10.1-alpha.9` доступен, health/ready зелёные и pairing работает.
 2. Сверить SHA-256 OPK и `.cdx.json` с `OPK/SHA256SUMS.txt`.
-3. Установить `OPK/Deadlock-Contracts-Companion-0.5.2-alpha.6.opk` через Overwolf Developer Options / testing channel.
+3. Установить `OPK/Deadlock-Contracts-Companion-0.5.2-alpha.7.opk` через Overwolf Developer Options / testing channel.
 4. Выполнить ручный чеклист из `QA_DOCS/OVERWOLF_QA_HANDOFF_RU.md` на Windows + актуальный Overwolf + Deadlock.
-5. Не отправлять в review, пока не выполнены проверки hotkey, auto-hide, active-game ad gating, GEP, fullscreen/windowed/Alt+Tab и resolution/DPI matrix.
+5. Не отправлять в review, пока не выполнены проверки hotkey, auto-hide, process-wide Deadlock ad shutdown, GEP, fullscreen/windowed/Alt+Tab и resolution/DPI matrix.
 
 ## Что проверяет автоматическая сборка
 

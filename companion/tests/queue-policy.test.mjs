@@ -17,9 +17,19 @@ test('queue pressure evicts replaceable telemetry before transitions', () => {
   assert.deepEqual(Policy.trim(queue, 3).map(entry => entry.id), ['start', 'phase', 'stop'])
 })
 
-test('terminal uploads are never discarded by the soft queue limit', () => {
-  const queue = [item('match_ended', 'final-a'), item('match_ended', 'final-b')]
-  assert.deepEqual(Policy.trim(queue, 1).map(entry => entry.id), ['final-a', 'final-b'])
+test('match lifecycle edges are never discarded by the soft queue limit', () => {
+  const queue = [
+    item('match_started', 'start-a'),
+    item('match_ended', 'final-a'),
+    item('match_started', 'start-b'),
+    item('match_ended', 'final-b'),
+  ]
+  assert.deepEqual(Policy.trim(queue, 1).map(entry => entry.id), [
+    'start-a',
+    'final-a',
+    'start-b',
+    'final-b',
+  ])
 })
 
 test('retry delay is bounded exponential backoff with jitter', () => {

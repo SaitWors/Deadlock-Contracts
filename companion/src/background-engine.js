@@ -1,5 +1,5 @@
 const FEATURES = ['gep_internal', 'game_info', 'match_info']
-const VERSION = '0.5.2-alpha.6'
+const VERSION = '0.5.2-alpha.7'
 const EVIDENCE_SCHEMA_VERSION = 7
 const BRIDGE_STATE_VERSION = 1
 const GAME_ID = 24482

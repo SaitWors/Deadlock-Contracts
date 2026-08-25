@@ -1,7 +1,7 @@
 {
   "product": "Deadlock Contracts Companion",
-  "runtime_version": "0.5.2-alpha.6",
-  "manifest_version": "0.5.2.6",
+  "runtime_version": "0.5.2-alpha.7",
+  "manifest_version": "0.5.2.7",
   "evidence_schema": 7,
   "remediation_base_runtime_version": "0.5.2-alpha.5",
   "remediation_base_manifest_version": "0.5.2.5",

@@ -1,4 +1,4 @@
-# Deadlock Contracts Companion 0.5.2-alpha.6
+# Deadlock Contracts Companion 0.5.2-alpha.7
 
 QA candidate для Deadlock Contracts от Mandarin Creator Group. Desktop — основной control room. Сайт/Backend остаётся единственным authority для контрактов, вердиктов и XP; Companion не имеет права сам закрывать задания или выдавать награды.
 
@@ -11,13 +11,13 @@ QA candidate для Deadlock Contracts от Mandarin Creator Group. Desktop — 
 - фактический hotkey из Overwolf Settings: default `Ctrl+Shift+C`, update без relaunch и отображение `UNASSIGNED`;
 - временный, input-pass-through Overlay: повторный hotkey скрывает его, иначе он сам исчезает через 6.5 сек;
 - новый rounded motion design: progress sweep, смена focus, brief provisional completion burst, reduced-motion fallback;
-- один подготовленный Overwolf Managed Ads `400×60` слот в Desktop HQ, без рекламы в Overlay и без рекламы при `GameInProgress`;
+- один подготовленный Overwolf Managed Ads `400×60` слот в Desktop HQ, без рекламы в Overlay и во время всего lifecycle процесса Deadlock;
 - self-hosted шрифты, строгий CSP, OS-bound encrypted pairing token.
 
 ## Версии и границы
 
-- Companion: `0.5.2-alpha.6` / manifest `0.5.2.6`;
-- требуется Backend/Web: `0.10.1-alpha.8`;
+- Companion: `0.5.2-alpha.7` / manifest `0.5.2.7`;
+- требуется Backend/Web: `0.10.1-alpha.9`;
 - Deadlock game id: `24482`;
 - minimum Overwolf: `0.305.0.9`; minimum GEP: `311.0.0`.
 
@@ -37,4 +37,4 @@ node scripts/package-qa-bundle.mjs
 
 ## Перед Overwolf submission
 
-Открыть `docs/OVERWOLF_QA_HANDOFF_RU.md`, `docs/OVERWOLF_RELEASE_MATRIX_RU.md` и `docs/ADVERTISING_AND_OVERLAY_POLICY_0.5.2-alpha.6_RU.md`. Особо проверить на реальном клиенте: exact packed OPK, hotkey, авто-скрытие, DPI/resolution matrix, fullscreen/windowed, Alt+Tab, live GEP и положение плашки относительно HUD.
+Открыть `docs/OVERWOLF_QA_HANDOFF_RU.md`, `docs/OVERWOLF_RELEASE_MATRIX_RU.md` и `docs/ADVERTISING_AND_OVERLAY_POLICY_0.5.2-alpha.7_RU.md`. Особо проверить на реальном клиенте: exact packed OPK, hotkey, авто-скрытие, DPI/resolution matrix, fullscreen/windowed, Alt+Tab, live GEP и положение плашки относительно HUD.

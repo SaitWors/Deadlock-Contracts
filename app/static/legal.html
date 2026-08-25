@@ -68,19 +68,22 @@
     <article id="statusDocument" class="legal-document hidden">
       <p class="eyebrow">SERVICE STATUS</p>
       <h1>Статус сервиса</h1>
-      <p class="legal-updated">24 августа 2026 года</p>
+      <p class="legal-updated">25 августа 2026 года</p>
       <p>Публичная информация о текущем release и доступности сервиса.</p>
       <div id="publicStatus" class="public-status-grid" role="status" aria-live="polite">Загрузка статуса…</div>
       <p>Если status endpoint недоступен, используйте страницу <a href="/support">поддержки</a>.</p>
     </article>
 
     <article id="changelogDocument" class="legal-document hidden">
-      <p class="eyebrow">CHANGELOG · 0.10.1-alpha.8</p>
+      <p class="eyebrow">CHANGELOG · 0.10.1-alpha.9</p>
       <h1>Изменения</h1>
-      <p class="legal-updated">24 августа 2026 года</p>
+      <p class="legal-updated">25 августа 2026 года</p>
 
       <h2>Безопасность и lifecycle</h2>
-      <p>Усилена обработка suspended accounts, web/Companion principals и pending pairing codes.</p>
+      <p>Усилена обработка suspended accounts, web/Companion principals и pending pairing codes. Клиентские GEP-факты не могут участвовать в verdict или дополнять подтверждённый provider match.</p>
+
+      <h2>Архив дел</h2>
+      <p>История пагинируется целыми делами, поэтому выбранные вместе контракты всегда отображаются в одном case file.</p>
 
       <h2>PostgreSQL</h2>
       <p>Production schema changes переведены на Alembic migrations с отдельным pre-start migration step.</p>

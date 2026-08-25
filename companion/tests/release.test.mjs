@@ -202,6 +202,8 @@ test('Overwolf-managed advertising is desktop-only, safe-moment gated and uses a
   assert.match(desktop, /snapshot\.phase/)
   assert.match(desktop, /game_state_confirmed/)
   assert.match(desktop, /observationFresh/)
+  assert.match(desktop, /if \(snapshot\.game_running\) return false/)
+  assert.doesNotMatch(desktop, /\['Init', 'WaitingForPlayersToJoin', 'PreGameWait', 'PostGame', 'LoadingScreen'\]/)
   assert.match(desktop, /modalIsClosed/)
   assert.match(desktop, /productReady/)
   assert.match(desktop, /serverAllowsAds/)

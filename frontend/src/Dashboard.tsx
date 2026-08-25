@@ -148,6 +148,17 @@ type HistoryItem = {
   board_status?: string
   case_expires_at?: string | null
 }
+type HistoryCase = {
+  board_id: string
+  game_match_mode: Mode
+  status: string
+  locked_at: string | null
+  settled_at: string | null
+  case_expires_at: string | null
+  attempts_used: number
+  max_attempts: number
+  items: HistoryItem[]
+}
 type Progression = {
   level: number
   total_xp: number
@@ -1162,7 +1173,7 @@ export default function Dashboard({ initialSession }: { initialSession: SessionP
   const [mode, setMode] = useState<Mode>("STANDARD")
   const [filter, setFilter] = useState<QuestFilter>("ALL")
   const [boardsPayload, setBoardsPayload] = useState<BoardsPayload | null>(null)
-  const [history, setHistory] = useState<HistoryItem[]>([])
+  const [historyCases, setHistoryCases] = useState<HistoryCase[]>([])
   const [historyTotal, setHistoryTotal] = useState(0)
   const [progression, setProgression] = useState<Progression | null>(null)
   const [reviews, setReviews] = useState<ReviewMine[]>([])
@@ -1184,6 +1195,10 @@ export default function Dashboard({ initialSession }: { initialSession: SessionP
   const xpRef = useRef<HTMLSpanElement>(null)
   const ripple = useRipple()
   const cardTilt = useTilt(10)
+  const history = useMemo(
+    () => historyCases.flatMap((historyCase) => historyCase.items),
+    [historyCases],
+  )
 
   useEffect(() => {
     const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC"
@@ -1216,26 +1231,26 @@ export default function Dashboard({ initialSession }: { initialSession: SessionP
     })
   }, [csrf])
   const loadHistory = useCallback(async () => {
-    const data = await api<{ items: HistoryItem[]; total: number }>(
+    const data = await api<{ cases: HistoryCase[]; total: number }>(
       "/api/history?limit=100&offset=0",
       csrf,
     )
-    setHistory(data.items)
+    setHistoryCases(data.cases)
     setHistoryTotal(data.total)
   }, [csrf])
   const loadMoreHistory = useCallback(async () => {
-    const data = await api<{ items: HistoryItem[]; total: number }>(
-      `/api/history?limit=100&offset=${history.length}`,
+    const data = await api<{ cases: HistoryCase[]; total: number }>(
+      `/api/history?limit=100&offset=${historyCases.length}`,
       csrf,
     )
-    setHistory((current) => [
+    setHistoryCases((current) => [
       ...current,
-      ...data.items.filter(
-        (next) => !current.some((existing) => existing.assignment_id === next.assignment_id),
+      ...data.cases.filter(
+        (next) => !current.some((existing) => existing.board_id === next.board_id),
       ),
     ])
     setHistoryTotal(data.total)
-  }, [csrf, history.length])
+  }, [csrf, historyCases.length])
   const loadProgression = useCallback(
     async () => setProgression(await api<Progression>("/api/progression", csrf)),
     [csrf],
@@ -1448,23 +1463,24 @@ export default function Dashboard({ initialSession }: { initialSession: SessionP
     [history],
   )
   const caseGroups = useMemo(() => {
-    const map = new Map<string, HistoryItem[]>()
-    history
-      .filter((item) => historyMode === "ALL" || item.game_match_mode === historyMode)
-      .forEach((item) => map.set(item.board_id, [...(map.get(item.board_id) || []), item]))
-    return [...map.entries()].map(([boardId, items]) => ({
-      boardId,
-      items,
-      mode: items[0].game_match_mode,
-      matchId:
-        items.find((item) => item.match_id)?.match_id ||
-        items.find((item) => item.last_attempt_match_id)?.last_attempt_match_id ||
-        null,
-      attemptsUsed: items[0].attempts_used || 0,
-      maxAttempts: items[0].max_attempts || 3,
-      date: items[0].settled_at || items[0].locked_at,
-    }))
-  }, [history, historyMode])
+    return historyCases
+      .filter(
+        (historyCase) =>
+          historyMode === "ALL" || historyCase.game_match_mode === historyMode,
+      )
+      .map((historyCase) => ({
+        boardId: historyCase.board_id,
+        items: historyCase.items,
+        mode: historyCase.game_match_mode,
+        matchId:
+          historyCase.items.find((item) => item.match_id)?.match_id ||
+          historyCase.items.find((item) => item.last_attempt_match_id)?.last_attempt_match_id ||
+          null,
+        attemptsUsed: historyCase.attempts_used || 0,
+        maxAttempts: historyCase.max_attempts || 3,
+        date: historyCase.settled_at || historyCase.locked_at,
+      }))
+  }, [historyCases, historyMode])
 
   const shownName = safeName(user.display_name, language)
   const level = progression?.level || 1
@@ -2439,9 +2455,9 @@ export default function Dashboard({ initialSession }: { initialSession: SessionP
                   )
                 })}
               </div>
-              {history.length < historyTotal && (
+              {historyCases.length < historyTotal && (
                 <button className="dc-ghost dc-history-more" onClick={() => void loadMoreHistory()}>
-                  {language === "ru" ? "ЗАГРУЗИТЬ ЕЩЁ" : "LOAD MORE"} · {history.length}/
+                  {language === "ru" ? "ЗАГРУЗИТЬ ЕЩЁ" : "LOAD MORE"} · {historyCases.length}/
                   {historyTotal}
                 </button>
               )}

@@ -47,7 +47,7 @@ def main() -> int:
     errors: list[str] = []
     required = [
         ".env.production.example",
-        "INSTALL_0.10.1_ALPHA8_RU.md",
+        "INSTALL_0.10.1_ALPHA9_RU.md",
         "TESTING_AND_PRODUCTION_RUNBOOK_RU.md",
         "release.json",
         "requirements-dev.txt",

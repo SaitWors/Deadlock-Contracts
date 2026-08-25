@@ -1,14 +1,14 @@
-Deadlock Contracts Companion 0.5.2-alpha.6
-Overwolf manifest: 0.5.2.6
+Deadlock Contracts Companion 0.5.2-alpha.7
+Overwolf manifest: 0.5.2.7
 Evidence schema: 7
-Built: 2026-08-24
+Built: 2026-08-25
 Base source: 0.5.2-alpha.5 (SHA-256 recorded in COMPANION_SOURCE_PROVENANCE.json)
 
 Release focus:
 - keep all contract settlement and XP server-authoritative;
-- preserve terminal events across offline queue pressure and retries;
+- preserve match start and terminal events across offline queue pressure and retries;
 - reset match-scoped state on every Match ID transition;
 - redact diagnostic GEP payloads and keep high-frequency snapshots compact;
-- fail closed for ads until a fresh, confirmed safe game state exists;
+- fail closed for ads until a fresh, confirmed state proves Deadlock is not running;
 - provide complete RU/EN contract, status, error and overlay copy.
 - publish a deterministic CycloneDX 1.6 file inventory beside the frozen OPK.

@@ -200,6 +200,7 @@ class ContractsV2EvaluatorTests(unittest.TestCase):
     def match(self, *, capabilities=None):
         return SimpleNamespace(
             is_final=True,
+            provider="deadlock_api",
             duration_s=1800,
             game_match_mode="RANKED",
             scoring_status="SCORED",

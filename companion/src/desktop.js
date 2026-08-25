@@ -9,7 +9,7 @@
   const PREVIEW = typeof overwolf === 'undefined' && new URLSearchParams(location.search).get('preview') === '1'
 
   const fallback = {
-    version: '0.5.2-alpha.6', paired: false, account: null, game_running: false, steam_id64: null,
+    version: '0.5.2-alpha.7', paired: false, account: null, game_running: false, steam_id64: null,
     game_state_observed_at: null, game_state_confirmed: false,
     identity_ok: null, phase: null, phase_display: '—', mode_display: '—', match_id: null,
     session: null, evidence: {}, match_clock_s: null, queue_count: 0, last_upload_status: '—',
@@ -116,10 +116,11 @@
     const observedAt = Date.parse(snapshot.game_state_observed_at || '')
     const observationFresh = Number.isFinite(observedAt) && Date.now() - observedAt <= 15000
     if (!snapshot.game_state_confirmed || !observationFresh) return false
-    if (!snapshot.game_running) return true
-    // Never request a desktop ad while Deadlock reports active gameplay. The
-    // slot may only exist in non-interrupting lobby/loading/post-match moments.
-    return ['Init', 'WaitingForPlayersToJoin', 'PreGameWait', 'PostGame', 'LoadingScreen'].includes(snapshot.phase)
+    // First public QA is deliberately stricter than the platform maximum: the
+    // desktop ad slot is off for the entire Deadlock process lifetime, including
+    // lobby, loading and post-game. Unknown/stale process state also fails closed.
+    if (snapshot.game_running) return false
+    return true
   }
 
   function syncDesktopAdSlot() {

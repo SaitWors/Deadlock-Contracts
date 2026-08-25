@@ -31,6 +31,12 @@ from .models import (
 from .services.boards import expire_stale_boards
 from .services.evaluator import capability_available, evaluate_board
 from .services.jobs import claim_next_job, complete_job, enqueue_job, retry_job
+from .services.match_trust import (
+    independent_provider_parts,
+    provider_has_client_source,
+    provider_has_independent_source,
+    provider_parts,
+)
 from .services.providers import DeadlockApiProvider, ProviderError, ProviderRateLimited
 from .services.seed import seed_missions
 
@@ -505,7 +511,9 @@ def init() -> None:
 
 
 def store_normalized_match(db: Session, data: dict) -> Match:
-    # Monotonic upsert: sparse/weak payloads must never erase richer facts.
+    # Monotonic upsert with an explicit trust boundary. Sparse independent
+    # provider refreshes may retain older independent facts, but client/GEP
+    # observations may never enrich or overwrite an independently sourced row.
     external_match_id = int(data["external_match_id"])
     incoming_provider = str(data.get("provider") or "unknown")
     incoming_classifier = str(data.get("mode_classifier_version") or "unknown-v1")
@@ -513,38 +521,102 @@ def store_normalized_match(db: Session, data: dict) -> Match:
     match = db.scalar(
         select(Match).where(Match.external_match_id == external_match_id)
     )
+    existing_provider = str(match.provider or "unknown") if match else "unknown"
+    existing_has_client = provider_has_client_source(existing_provider)
+    existing_has_independent = provider_has_independent_source(existing_provider)
+    incoming_has_independent = provider_has_independent_source(incoming_provider)
+    incoming_has_client = provider_has_client_source(incoming_provider)
+    existing_is_independent = existing_has_independent and not existing_has_client
+    incoming_is_independent = incoming_has_independent and not incoming_has_client
+    replace_tainted_facts = bool(incoming_is_independent and existing_has_client)
+    ignore_incoming_facts = bool(
+        existing_is_independent and not incoming_is_independent
+    )
+
     if not match:
         match = Match(
             external_match_id=external_match_id,
             provider=incoming_provider,
             mode_classifier_version=incoming_classifier,
             game_match_mode="UNKNOWN",
+            scoring_status="UNVERIFIABLE",
+            is_final=False,
+            capabilities=[],
         )
         db.add(match)
         db.flush()
 
-    providers = []
-    for source in (str(match.provider or ""), incoming_provider):
-        for part in source.split("+"):
-            part = part.strip()
-            if part and part != "unknown" and part not in providers:
+    source_repair: dict[str, Any] | None = None
+    if replace_tainted_facts:
+        # Old releases merged GEP and provider labels and kept sparse GEP stats.
+        # Once a fresh independent response arrives, discard every fact that
+        # could have originated on the client before applying that response.
+        source_repair = {
+            "discarded_provider": existing_provider,
+            "replacement_provider": incoming_provider,
+            "trust_class": "T2_INDEPENDENT_PROVIDER",
+            "repaired_at": utcnow().isoformat(),
+        }
+        for field in (
+            "provider_payload_hash",
+            "started_at",
+            "ended_at",
+            "duration_s",
+            "provider_mode_raw",
+            "game_version",
+        ):
+            setattr(match, field, None)
+        match.game_match_mode = "UNKNOWN"
+        match.mode_classifier_version = "unknown-v1"
+        match.mode_confidence = "LOW"
+        match.scoring_status = "UNVERIFIABLE"
+        match.is_final = False
+        match.capabilities = []
+        match.raw_summary = {"source_repair": source_repair}
+        for stale_participant in db.scalars(
+            select(MatchParticipant).where(MatchParticipant.match_id == match.id)
+        ).all():
+            for field in (
+                "steam_id64",
+                "hero_id",
+                "team",
+                "won",
+                "kills",
+                "deaths",
+                "assists",
+                "net_worth",
+                "hero_damage",
+                "object_damage",
+                "healing",
+            ):
+                setattr(stale_participant, field, None)
+
+    if replace_tainted_facts:
+        providers = independent_provider_parts(incoming_provider)
+    elif ignore_incoming_facts:
+        providers = provider_parts(existing_provider)
+    else:
+        providers = provider_parts(existing_provider)
+        for part in provider_parts(incoming_provider):
+            if part not in providers:
                 providers.append(part)
     match.provider = ("+".join(providers) or incoming_provider or "unknown")[:64]
 
-    for field in (
-        "provider_payload_hash",
-        "started_at",
-        "ended_at",
-        "duration_s",
-        "provider_mode_raw",
-        "scoring_status",
-        "game_version",
-    ):
-        value = data.get(field)
-        if value is not None and (not isinstance(value, str) or value.strip()):
-            setattr(match, field, value)
+    if not ignore_incoming_facts:
+        for field in (
+            "provider_payload_hash",
+            "started_at",
+            "ended_at",
+            "duration_s",
+            "provider_mode_raw",
+            "scoring_status",
+            "game_version",
+        ):
+            value = data.get(field)
+            if value is not None and (not isinstance(value, str) or value.strip()):
+                setattr(match, field, value)
 
-    if "is_final" in data:
+    if not ignore_incoming_facts and "is_final" in data:
         match.is_final = bool(match.is_final) or bool(data.get("is_final"))
 
     rank = {"LOW": 1, "MEDIUM": 2, "HIGH": 3}
@@ -553,37 +625,53 @@ def store_normalized_match(db: Session, data: dict) -> Match:
     incoming_mode = str(data.get("game_match_mode") or "UNKNOWN").upper()
     current_mode = str(match.game_match_mode or "UNKNOWN").upper()
     valid_modes = {"STANDARD", "RANKED", "STREET_BRAWL"}
-    gep_authoritative = "gep" in incoming_provider.lower()
 
-    if incoming_mode in valid_modes and (
+    if not ignore_incoming_facts and incoming_mode in valid_modes and (
         current_mode not in valid_modes
-        or gep_authoritative
         or rank.get(incoming_conf, 0) >= rank.get(current_conf, 0)
     ):
         match.game_match_mode = incoming_mode
 
-    if rank.get(incoming_conf, 0) > rank.get(current_conf, 0):
+    if not ignore_incoming_facts and rank.get(incoming_conf, 0) > rank.get(current_conf, 0):
         match.mode_confidence = incoming_conf
 
     if (
-        incoming_classifier
+        not ignore_incoming_facts
+        and incoming_classifier
         and incoming_classifier != "unknown-v1"
         and (
             not match.mode_classifier_version
-            or gep_authoritative
             or rank.get(incoming_conf, 0) >= rank.get(current_conf, 0)
         )
     ):
         match.mode_classifier_version = incoming_classifier
 
-    capabilities = set(match.capabilities or [])
-    capabilities.update(data.get("capabilities") or [])
-    match.capabilities = sorted(capabilities)
+    if not ignore_incoming_facts:
+        capabilities = set(match.capabilities or [])
+        capabilities.update(data.get("capabilities") or [])
+        match.capabilities = sorted(capabilities)
 
     incoming_summary = data.get("raw_summary")
-    if isinstance(incoming_summary, dict):
+    if ignore_incoming_facts and (incoming_has_client or incoming_provider == "unknown"):
+        old_summary = match.raw_summary if isinstance(match.raw_summary, dict) else {}
+        match.raw_summary = {
+            **old_summary,
+            "ignored_client_update": {
+                "provider": incoming_provider,
+                "keys": sorted(incoming_summary) if isinstance(incoming_summary, dict) else [],
+                "trust_class": "T0_UNTRUSTED",
+                "scoring_contribution": False,
+                "ignored_at": utcnow().isoformat(),
+            },
+        }
+    elif isinstance(incoming_summary, dict):
         old_summary = match.raw_summary if isinstance(match.raw_summary, dict) else {}
         match.raw_summary = {**old_summary, **incoming_summary}
+
+    if ignore_incoming_facts:
+        db.commit()
+        db.refresh(match)
+        return match
 
     participant_data = dict(data.get("participant") or {})
     account_id = participant_data.get("account_id")
@@ -603,22 +691,23 @@ def store_normalized_match(db: Session, data: dict) -> Match:
         )
         db.add(participant)
 
-    for field in (
-        "steam_id64",
-        "hero_id",
-        "team",
-        "won",
-        "kills",
-        "deaths",
-        "assists",
-        "net_worth",
-        "hero_damage",
-        "object_damage",
-        "healing",
-    ):
-        value = participant_data.get(field)
-        if value is not None:
-            setattr(participant, field, value)
+    if not ignore_incoming_facts:
+        for field in (
+            "steam_id64",
+            "hero_id",
+            "team",
+            "won",
+            "kills",
+            "deaths",
+            "assists",
+            "net_worth",
+            "hero_damage",
+            "object_damage",
+            "healing",
+        ):
+            value = participant_data.get(field)
+            if value is not None:
+                setattr(participant, field, value)
 
     db.commit()
     db.refresh(match)

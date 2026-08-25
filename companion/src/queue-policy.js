@@ -5,7 +5,10 @@
 })(typeof window !== 'undefined' ? window : globalThis, function createQueuePolicy() {
   const DEFAULT_LIMIT = 60
   const MAX_RETRY_DELAY_MS = 5 * 60 * 1000
-  const PINNED_TYPES = new Set(['match_ended'])
+  // A lifecycle pair is the minimum durable proof needed to correlate an
+  // exact play session after reconnect. Never sacrifice either edge to the
+  // soft queue limit; ordinary telemetry can always be reconstructed.
+  const PINNED_TYPES = new Set(['match_started', 'match_ended'])
   const TRANSITION_TYPES = new Set([
     'game_started',
     'game_stopped',
@@ -26,10 +29,10 @@
     return TRANSITION_TYPES.has(eventType(item))
   }
 
-  // Keep terminal evidence even when localStorage is under pressure. Replaceable
+  // Keep lifecycle evidence even when localStorage is under pressure. Replaceable
   // heartbeats are evicted first, then ordinary telemetry, then old transitions.
-  // If the queue contains only terminal events it is intentionally allowed to
-  // exceed the soft limit rather than silently lose a final match upload.
+  // If the queue contains only pinned lifecycle events it is intentionally
+  // allowed to exceed the soft limit rather than silently break correlation.
   function trim(queue, limit = DEFAULT_LIMIT) {
     const output = Array.isArray(queue) ? [...queue] : []
     const softLimit = Math.max(1, Number(limit) || DEFAULT_LIMIT)

@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session
 from ..config import settings
 from ..models import AutoReviewCase, BoardOption, ContractBoard, Evaluation, Match, MatchParticipant, OutboxEvent, utcnow
 from .jobs import enqueue_job
+from .match_trust import provider_has_client_source, provider_has_independent_source
 
 FINAL_STATUSES = {"COMPLETED", "FAILED", "EXPIRED", "VOID"}
 
@@ -148,25 +149,15 @@ def _has_trusted_finality(match: Match) -> bool:
     # Legacy rows may contain a client-only GEP fallback that earlier releases
     # marked SCORED/final.  A local Companion is not an attested data source;
     # never allow those rows to settle or re-settle a reward.
-    if "gep_fallback" in provider:
+    if (
+        provider_has_client_source(provider)
+        or not provider_has_independent_source(provider)
+    ):
         return False
-    raw_value = getattr(match, "raw_summary", None)
-    raw = raw_value if isinstance(raw_value, dict) else {}
-    gep_final = raw.get("companion_finalization")
-    if isinstance(gep_final, dict) and gep_final.get("trusted") is True:
-        # rc3/rc4 marked outcome-only snapshots trusted. Reject that legacy
-        # weak signal: Deadlock GEP can retain the previous match outcome after
-        # a new current Match ID is already active. Only lifecycle finality is
-        # strong enough for GEP fallback scoring.
-        signal = str(gep_final.get("signal") or "").strip().lower()
-        if signal in {"match_end", "postgame", "end", "session_end"}:
-            return True
-    # A bounded persisted duration together with is_final is also strong
-    # integrity evidence for legacy/provider matches.
-    if getattr(match, "duration_s", None) is not None:
-        return True
-    # Deadlock API/history is an independent final post-match source.
-    return bool(provider)
+    # The ``is_final`` flag is accepted only after the source itself is
+    # independent. Companion lifecycle signals remain useful for discovery and
+    # retry diagnostics but never provide scoring finality.
+    return True
 
 
 def _result(option: BoardOption, match: Match, participant: MatchParticipant | None) -> EvaluationResult:

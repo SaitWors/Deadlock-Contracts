@@ -1,6 +1,6 @@
-# Deadlock Contracts 0.10.1-alpha.8
+# Deadlock Contracts 0.10.1-alpha.9
 
-Дата кандидата: 24 августа 2026 года.
+Дата кандидата: 25 августа 2026 года.
 
 ## Надёжность
 
@@ -25,6 +25,16 @@
   только от явно доверенных сетей.
 - Admin получил outbox health, просмотр неизменяемого payload/error и
   аудируемый replay dead-letter событий.
+- Исправлен legacy source merge: свежий ответ `deadlock_api` очищает все
+  потенциально клиентские GEP stats/capabilities перед записью, а поздний GEP
+  больше не может обогатить независимый provider match.
+- Любой provider label из семейства Companion/GEP блокируется evaluator даже
+  при старом `is_final=true` и сохранённой duration.
+- History API пагинируется по `ContractBoard`, возвращает целые cases и
+  совместимый плоский `items`; сайт больше не разрезает одно дело на страницах.
+- Offline-очередь Companion pin-ит `match_started` вместе с `match_ended`.
+- Для первого QA рекламный контейнер выключен на всё время работы процесса
+  Deadlock, включая lobby/loading/post-game; stale/unknown state остаётся closed.
 
 ## Release gate
 
@@ -45,7 +55,7 @@ Status, Changelog и Data Sources.
 ## Companion
 
 Каноническая версия-кандидат:
-`0.5.2-alpha.6`, manifest `0.5.2.6`. Она построена поверх присланной и
+`0.5.2-alpha.7`, manifest `0.5.2.7`. Она построена поверх присланной и
 подтверждённой рабочей alpha 5; provenance и hash базы сохранены.
 
 ## Обязательный follow-up перед Overwolf
