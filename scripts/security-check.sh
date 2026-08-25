@@ -51,7 +51,7 @@ echo "== Published ports (должны быть только 80/443 у caddy) ==
 echo "== Security headers =="
 HEADERS="$(mktemp)"
 trap 'rm -f "$HEADERS"' EXIT
-"${CURL[@]}" -fsSI "$URL/api/health" > "$HEADERS"
+"${CURL[@]}" -fsS -D "$HEADERS" -o /dev/null "$URL/api/health"
 for header in content-security-policy strict-transport-security x-content-type-options x-frame-options referrer-policy permissions-policy cache-control; do
   grep -qi "^${header}:" "$HEADERS" || { echo "Отсутствует $header" >&2; exit 1; }
 done
