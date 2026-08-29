@@ -206,6 +206,8 @@ def reconcile_active_contracts(db: Session) -> dict[str, int]:
             repaired_states += 1
 
         for match_id in sorted({item.bound_match_id for item in verifying if item.bound_match_id}):
+            bound_match = db.get(Match, str(match_id))
+            evaluation_max_attempts = _evaluation_max_attempts_for_match(bound_match)
             candidates = [
                 job
                 for job in jobs
@@ -213,17 +215,25 @@ def reconcile_active_contracts(db: Session) -> dict[str, int]:
                 and job.board_id == board.id
                 and job.match_id == str(match_id)
             ]
-            if any(job.status in {"PENDING", "RUNNING"} for job in candidates):
+            active_candidates = [
+                job for job in candidates if job.status in {"PENDING", "RUNNING"}
+            ]
+            if active_candidates:
+                for candidate in active_candidates:
+                    candidate.max_attempts = max(
+                        int(candidate.max_attempts or 0),
+                        int(evaluation_max_attempts),
+                    )
                 continue
             if candidates:
-                reopen(candidates[0], max(3, settings.post_match_verification_max_attempts))
+                reopen(candidates[0], evaluation_max_attempts)
             else:
                 enqueue_job(
                     db,
                     "evaluate_match",
                     {"board_id": board.id, "match_id": match_id, "lifecycle_repair": True},
                     f"evaluate-reconcile-v1:{board.id}:{match_id}",
-                    max_attempts=max(3, settings.post_match_verification_max_attempts),
+                    max_attempts=evaluation_max_attempts,
                     commit=False,
                 )
                 created_jobs += 1
@@ -1207,14 +1217,156 @@ def _normalized_from_companion_evidence(
     job: Job,
     external_match_id: int,
 ) -> dict | None:
-    """Never manufacture a final match from client-controlled evidence.
+    """Never manufacture a scoring match from client-controlled evidence.
 
-    Kept as an explicit fail-closed seam because both exact-match resolution
-    and review refresh historically called this helper.  Companion evidence is
-    still attached diagnostically by :func:`merge_companion_evidence` after an
-    independent provider has confirmed the match.
+    Kept as an explicit fail-closed seam for legacy/manual review paths.
+    Automatic exact-match resolution may create a separate non-scoring
+    provisional row through _provisional_match_from_companion_evidence(), but
+    this helper itself intentionally contributes no match facts.
     """
     return None
+
+
+def _provisional_match_from_companion_evidence(
+    db: Session,
+    user: User,
+    job: Job,
+    external_match_id: int,
+) -> dict | None:
+    """Create a non-scoring provisional Match from strong Companion terminal evidence.
+
+    This path restores local exact-match binding without restoring client
+    authority over rewards. The row is intentionally marked as a client/GEP
+    provider and carries no scoring capabilities. A later independent provider
+    response replaces these provisional facts through store_normalized_match().
+    """
+
+    if user.account_id is None:
+        return None
+
+    evidence = _companion_evidence_for(
+        db,
+        user,
+        external_match_id,
+    )
+    if evidence is None:
+        return None
+
+    finalization = _companion_finalization_from_events(
+        db,
+        user,
+        external_match_id,
+    )
+    if finalization is None:
+        return None
+
+    started_at = finalization.get("started_at")
+    if isinstance(started_at, str):
+        started_at = _parse_companion_datetime(started_at)
+
+    ended_at = finalization.get("ended_at")
+    if isinstance(ended_at, str):
+        ended_at = _parse_companion_datetime(ended_at)
+
+    # Exact attempt binding requires a real session start. Do not substitute
+    # detected_at here because that timestamp is only diagnostic.
+    if not isinstance(started_at, datetime):
+        return None
+
+    if not isinstance(ended_at, datetime):
+        return None
+
+    mode = str(
+        evidence.game_match_mode
+        or job.game_match_mode
+        or (job.payload or {}).get("game_match_mode")
+        or ""
+    ).upper()
+
+    if mode not in {
+        "STANDARD",
+        "RANKED",
+        "STREET_BRAWL",
+    }:
+        return None
+
+    raw_summary = {
+        "provisional_binding": {
+            "source": "overwolf_gep",
+            "trust_class": "T0_UNTRUSTED",
+            "scoring_contribution": False,
+            "independent_provider_pending": True,
+            "external_match_id": int(external_match_id),
+        },
+        "companion_finalization": {
+            **{
+                key: value
+                for key, value in finalization.items()
+                if key not in {
+                    "started_at",
+                    "ended_at",
+                }
+            },
+            "started_at": started_at.isoformat(),
+            "ended_at": ended_at.isoformat(),
+            "trusted_for_scoring": False,
+            "trust_class": "T0_UNTRUSTED",
+        },
+    }
+
+    return {
+        "external_match_id": int(external_match_id),
+        "provider": "gep_fallback",
+        "provider_payload_hash": None,
+        "started_at": started_at,
+        "ended_at": ended_at,
+
+        # GEP match_clock stays diagnostic. Do not manufacture authoritative
+        # scored duration from it.
+        "duration_s": None,
+
+        "game_match_mode": mode,
+        "provider_mode_raw": f"companion:{mode}",
+        "mode_classifier_version": "companion-provisional-v1",
+        "mode_confidence": "MEDIUM",
+
+        # Lifecycle final means the exact local session ended. It still does
+        # not mean provider-authoritative scoring finality.
+        "is_final": True,
+        "scoring_status": "UNVERIFIABLE",
+
+        # Critical: no client observation becomes a server scoring capability.
+        "capabilities": [],
+
+        "raw_summary": raw_summary,
+
+        "participant": {
+            "account_id": int(user.account_id),
+            "steam_id64": (
+                int(evidence.steam_id64)
+                if evidence.steam_id64 is not None
+                else (
+                    int(user.steam_id64)
+                    if user.steam_id64 is not None
+                    else None
+                )
+            ),
+            "hero_id": evidence.hero_id,
+
+            # These values are stored for provisional UI/diagnostics only.
+            # Empty capabilities + client provider prevent reward settlement.
+            "kills": evidence.kills,
+            "deaths": evidence.deaths,
+            "assists": evidence.assists,
+            "net_worth": evidence.souls,
+            "hero_damage": evidence.hero_damage,
+            "object_damage": evidence.object_damage,
+            "healing": evidence.healing,
+
+            # Never derive win from client-only outcome.
+            "won": None,
+        },
+    }
 
 
 def _finish_discovery_jobs_for_board(db: Session, board_id: str) -> None:
@@ -1392,7 +1544,7 @@ def _resolve_exact_companion_payload(
     # Do not wait forever for external metadata if the Companion already has
     # a verified end-of-match snapshot.
     if normalized is None:
-        normalized = _normalized_from_companion_evidence(
+        normalized = _provisional_match_from_companion_evidence(
             db, user, job, external_match_id
         )
 
@@ -1619,6 +1771,7 @@ def _mark_board_verifying_for_facts(
         "summary.healing": "итоговое лечение союзников",
         "summary.duration": "длительность матча",
         "gep.scoreboard_healing": "лечение по итоговой таблице",
+        "independent_provider": "независимое подтверждение матча",
     }
     readable = ", ".join(labels.get(item, "итоговая статистика") for item in missing)
     message = (
@@ -1687,6 +1840,36 @@ def _scrub_legacy_weak_outcome_fact(
     db.commit()
     return True
 
+def _is_provisional_companion_match(match: Match | None) -> bool:
+    if match is None:
+        return False
+
+    provider = str(match.provider or "")
+    if not (
+        provider_has_client_source(provider)
+        and not provider_has_independent_source(provider)
+    ):
+        return False
+
+    raw_summary = match.raw_summary if isinstance(match.raw_summary, dict) else {}
+    provisional = raw_summary.get("provisional_binding")
+    return bool(
+        isinstance(provisional, dict)
+        and provisional.get("independent_provider_pending") is True
+        and provisional.get("scoring_contribution") is False
+    )
+
+
+def _evaluation_max_attempts_for_match(
+    match: Match | None,
+) -> int:
+    default_attempts = max(
+        3,
+        settings.post_match_verification_max_attempts,
+    )
+    if _is_provisional_companion_match(match):
+        return max(default_attempts, 144)
+    return default_attempts
 
 def _queue_repair_evaluation(
     db: Session,
@@ -1714,13 +1897,18 @@ def _queue_repair_evaluation(
         return
     board.status = "VERIFYING"
     _defer_pending_review_case(db, board.id)
-    enqueue_job(
+    evaluation_max_attempts = _evaluation_max_attempts_for_match(match)
+    evaluation_job = enqueue_job(
         db,
         "evaluate_match",
         {"board_id": board.id, "match_id": match.id, "finality_repair": "final-v5-outcome-v7"},
         f"evaluate-final-v5-outcome-v7:{board.id}:{match.id}",
-        max_attempts=max(3, settings.post_match_verification_max_attempts),
+        max_attempts=evaluation_max_attempts,
         commit=False,
+    )
+    evaluation_job.max_attempts = max(
+        int(evaluation_job.max_attempts or 0),
+        int(evaluation_max_attempts),
     )
     db.commit()
 
@@ -1840,6 +2028,9 @@ def bind_match(db: Session, board: ContractBoard, match: Match) -> None:
         option.status = "VERIFYING"
 
     board.status = "VERIFYING"
+
+    evaluation_max_attempts = _evaluation_max_attempts_for_match(match)
+
     enqueue_job(
         db,
         "evaluate_match",
@@ -1848,7 +2039,7 @@ def bind_match(db: Session, board: ContractBoard, match: Match) -> None:
             "match_id": match.id,
         },
         f"evaluate:{board.id}:{match.id}",
-        max_attempts=max(3, settings.post_match_verification_max_attempts),
+        max_attempts=evaluation_max_attempts,
         commit=False,
     )
     # Attempt binding and the evaluator job are one durable transition.
@@ -2259,7 +2450,9 @@ def handle_evaluate(db: Session, job: Job) -> None:
 
     missing_by_option = _missing_contract_facts_by_option(db, board, match)
     missing = sorted({fact for facts in missing_by_option.values() for fact in facts})
-    if missing and settings.provider == "deadlock_api":
+    provisional_companion_match = _is_provisional_companion_match(match)
+
+    if settings.provider == "deadlock_api" and (missing or provisional_companion_match):
         # Re-read the exact Match ID before escalating. This path is idempotent,
         # uses the provider cache first, and permits only a bounded expensive
         # Steam fallback through _resolve_exact_companion_payload.
@@ -2269,6 +2462,7 @@ def handle_evaluate(db: Session, job: Job) -> None:
             )
         except CompanionMatchNotReady:
             normalized = None
+
         if normalized is not None and normalized.get("is_final"):
             existing = db.get(Match, match.id)
             if existing is not None:
@@ -2278,6 +2472,52 @@ def handle_evaluate(db: Session, job: Job) -> None:
             match = store_normalized_match(db, normalized)
             missing_by_option = _missing_contract_facts_by_option(db, board, match)
             missing = sorted({fact for facts in missing_by_option.values() for fact in facts})
+
+        provisional_companion_match = _is_provisional_companion_match(match)
+
+        if provisional_companion_match:
+            max_wait_attempts = max(
+                1,
+                int(
+                    job.max_attempts
+                    or settings.post_match_verification_max_attempts
+                ),
+            )
+
+            if int(job.attempts or 0) < max_wait_attempts:
+                active_option_ids = {
+                    option.id
+                    for option in db.scalars(
+                        select(BoardOption).where(
+                            BoardOption.board_id == board.id,
+                            BoardOption.selected.is_(True),
+                            BoardOption.bound_match_id == match.id,
+                        )
+                    ).all()
+                    if option.status not in {
+                        "COMPLETED",
+                        "FAILED",
+                        "EXPIRED",
+                        "VOID",
+                    }
+                }
+
+                wait_reasons = ["independent_provider", *missing]
+                _mark_board_verifying_for_facts(
+                    db,
+                    board,
+                    wait_reasons,
+                    option_ids=active_option_ids,
+                )
+
+                raise FinalFactsPending(
+                    (
+                        f"Матч #{match.external_match_id} обнаружен и "
+                        "локально завершён; ждём независимое "
+                        "подтверждение провайдера"
+                    ),
+                    10 * 60,
+                )
 
     # Do not let one unavailable provider field freeze unrelated assignments.
     # Contract-grade facts already present on this exact final match are scored
@@ -2295,7 +2535,13 @@ def handle_evaluate(db: Session, job: Job) -> None:
         missing_by_option = _missing_contract_facts_by_option(db, board, match)
         missing = sorted({fact for facts in missing_by_option.values() for fact in facts})
 
-    max_wait_attempts = max(1, settings.post_match_verification_max_attempts)
+    max_wait_attempts = max(
+        1,
+        int(
+            job.max_attempts
+            or settings.post_match_verification_max_attempts
+        ),
+    )
     waiting_option_ids = {
         option_id for option_id, facts in missing_by_option.items() if facts
     }

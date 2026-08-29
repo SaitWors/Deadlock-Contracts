@@ -98,7 +98,8 @@ class NormalizationTests(unittest.TestCase):
         self.assertEqual(normalized["participant"]["hero_damage"], 12345)
         self.assertEqual(normalized["participant"]["healing"], 2345)
         self.assertIn("summary.hero_damage", normalized["capabilities"])
-        self.assertIn("summary.healing", normalized["capabilities"])
+        self.assertIn("summary.scoreboard_healing", normalized["capabilities"])
+        self.assertNotIn("summary.healing", normalized["capabilities"])
 
     def test_zero_stats_are_preserved_and_explicit_outcome_controls_scoring(self) -> None:
         normalized = normalize_deadlock_match(

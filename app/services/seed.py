@@ -127,7 +127,7 @@ MISSIONS_V2 = [
     mission("brawl_kda_2_5", "STREET_BRAWL", "Чистая улица", "Достигните KDA не ниже 2,5 в Уличной стычке.", "player.kda", "gte", 2.5, ["summary.kills", "summary.deaths", "summary.assists"], "FOCUSED", "UNCOMMON", "SURVIVAL"),
     mission("brawl_damage_14k", "STREET_BRAWL", "Громкое заявление", "Нанесите героям не менее 14 000 урона в Уличной стычке.", "player.hero_damage", "gte", 14000, ["summary.hero_damage"], "FOCUSED", "COMMON", "COMBAT"),
     mission("brawl_damage_22k", "STREET_BRAWL", "Улица запомнит", "Нанесите героям не менее 22 000 урона в Уличной стычке.", "player.hero_damage", "gte", 22000, ["summary.hero_damage"], "HARD", "RARE", "COMBAT"),
-    mission("brawl_scoreboard_heal_3k", "STREET_BRAWL", "Полевой медик", "Наберите не менее 3 000 лечения по итоговой таблице Уличной стычки.", "player.scoreboard_healing", "gte", 3000, ["gep.scoreboard_healing"], "FOCUSED", "UNCOMMON", "SUPPORT"),
+    mission("brawl_scoreboard_heal_3k", "STREET_BRAWL", "Полевой медик", "Наберите не менее 3 000 лечения по итоговой таблице Уличной стычки.", "player.scoreboard_healing", "gte", 3000, ["summary.scoreboard_healing"], "FOCUSED", "UNCOMMON", "SUPPORT"),
     mission("brawl_win", "STREET_BRAWL", "Хозяин улицы", "Победите в следующей Уличной стычке.", "match.win", "eq", 1, ["summary.result"], "FOCUSED", "COMMON", "COMBAT"),
     mission("brawl_kda_4", "STREET_BRAWL", "Легенда квартала", "Достигните KDA не ниже 4,0 в Уличной стычке.", "player.kda", "gte", 4, ["summary.kills", "summary.deaths", "summary.assists"], "EXTREME", "EPIC", "SURVIVAL"),
 ]
