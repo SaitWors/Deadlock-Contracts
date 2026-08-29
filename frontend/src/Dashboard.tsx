@@ -1262,7 +1262,7 @@ export default function Dashboard({ initialSession }: { initialSession: SessionP
   const loadCompanion = useCallback(async () => {
     const status = await api<CompanionStatus>("/api/companion/status", csrf)
     setCompanion(status.device)
-    setCompanionDevices(status.devices)
+    setCompanionDevices(status.devices.filter((device) => !device.revoked_at))
   }, [csrf])
   const reloadAll = useCallback(async () => {
     try {
