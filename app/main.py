@@ -70,7 +70,7 @@ from .services.auth import (
     verify_reviewer_access_code,
     verify_steam_callback,
 )
-from .services.companion import claim_pairing, companion_version_supported, create_pairing, get_device_by_token, record_snapshot, serialize_device
+from .services.companion import claim_pairing, companion_version_supported, create_pairing, get_device_by_token, record_snapshot, select_primary_device, serialize_device
 from .services.contract_factory import GENERATOR_VERSION, generate_contracts_v2, preview_payload
 from .services.boards import GAME_MODES, ensure_daily_board, ensure_daily_boards, lock_board, normalize_mode, refresh_summary, reroll_board, serialize_board, today_utc
 from .services.jobs import enqueue_job
@@ -1324,7 +1324,7 @@ def companion_status(user: User = Depends(require_user), db: Session = Depends(g
             .limit(20)
         ).all()
     )
-    device = next((item for item in devices if item.revoked_at is None), None)
+    device = select_primary_device(devices)
     return {
         "device": serialize_device(device),
         "devices": [

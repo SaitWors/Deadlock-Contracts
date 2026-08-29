@@ -273,14 +273,76 @@ def companion_authorization(authorization: str | None = Header(default=None)) ->
         db.close()
 
 
-def serialize_device(device: CompanionDevice | None) -> dict[str, Any]:
-    now = utcnow()
-    online = bool(
+def _device_online(
+    device: CompanionDevice | None,
+    *,
+    now: datetime | None = None,
+) -> bool:
+    """Return whether one paired device has a fresh server heartbeat."""
+    observed_at = now or utcnow()
+    return bool(
         device
         and device.revoked_at is None
         and device.last_seen_at
-        and (now - (aware(device.last_seen_at) or now)).total_seconds() <= settings.companion_online_seconds
+        and (
+            observed_at - (aware(device.last_seen_at) or observed_at)
+        ).total_seconds()
+        <= settings.companion_online_seconds
     )
+
+
+def select_primary_device(
+    devices: list[CompanionDevice],
+) -> CompanionDevice | None:
+    """Elect the account device that should represent live Companion status.
+
+    Multiple historical/non-revoked Companion installations may coexist.
+    A newer idle heartbeat must not hide another fresh device that currently
+    detects Deadlock. Preference order is:
+      1) fresh + game_running,
+      2) any fresh device,
+      3) most recently seen paired device.
+    """
+    active = [
+        item
+        for item in devices
+        if item.revoked_at is None
+    ]
+    if not active:
+        return None
+
+    floor = datetime.min.replace(tzinfo=timezone.utc)
+    active.sort(
+        key=lambda item: aware(item.last_seen_at) or floor,
+        reverse=True,
+    )
+
+    now = utcnow()
+    online = [
+        item
+        for item in active
+        if _device_online(item, now=now)
+    ]
+
+    running = next(
+        (
+            item
+            for item in online
+            if bool(item.game_running)
+        ),
+        None,
+    )
+    if running is not None:
+        return running
+
+    if online:
+        return online[0]
+
+    return active[0]
+
+
+def serialize_device(device: CompanionDevice | None) -> dict[str, Any]:
+    online = _device_online(device)
     if not device:
         return {
             "paired": False,
