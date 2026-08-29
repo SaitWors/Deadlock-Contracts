@@ -436,7 +436,7 @@ def _register_direct_match_job(
             },
             status="PENDING",
             attempts=0,
-            max_attempts=60,
+            max_attempts=144,
             run_after=now + timedelta(seconds=max(0, settings.companion_finalization_grace_seconds)),
             idempotency_key=key,
         )
