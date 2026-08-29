@@ -450,12 +450,26 @@ def normalize_deadlock_match(
         "object_damage": _bounded_int(_pick(player, "object_damage", "objective_damage", "damage_to_objects"), 0, 100_000_000),
         "healing": _bounded_int(
             _coalesce(
-                # Contract means healing teammates. A real zero must remain
-                # zero and must not fall through to self/player healing.
-                _pick(player, "teammate_healing"),
-                _pick(latest_stats, "teammate_healing"),
-                _pick(player, "hero_healing", "healing"),
-                _pick(latest_stats, "hero_healing", "healing"),
+                *(
+                    (
+                        _pick(player, "player_healing"),
+                        _pick(latest_stats, "player_healing"),
+                        _pick(player, "teammate_healing"),
+                        _pick(latest_stats, "teammate_healing"),
+                        _pick(player, "hero_healing", "healing"),
+                        _pick(latest_stats, "hero_healing", "healing"),
+                    )
+                    if mode == "STREET_BRAWL"
+                    else (
+                        # Standard/Ranked contracts mean healing teammates.
+                        # A real zero must remain zero and must not fall through
+                        # to broader player/self-healing aggregates.
+                        _pick(player, "teammate_healing"),
+                        _pick(latest_stats, "teammate_healing"),
+                        _pick(player, "hero_healing", "healing"),
+                        _pick(latest_stats, "hero_healing", "healing"),
+                    )
+                )
             ),
             0,
             100_000_000,
@@ -469,7 +483,18 @@ def normalize_deadlock_match(
         "summary.net_worth": participant["net_worth"],
         "summary.hero_damage": participant["hero_damage"],
         "summary.object_damage": participant["object_damage"],
-        "summary.healing": participant["healing"],
+        # Street Brawl's visible scoreboard healing is Valve's player_healing
+        # aggregate. Standard/Ranked contracts continue to use teammate_healing.
+        "summary.healing": (
+            participant["healing"]
+            if mode != "STREET_BRAWL"
+            else None
+        ),
+        "summary.scoreboard_healing": (
+            participant["healing"]
+            if mode == "STREET_BRAWL"
+            else None
+        ),
         "summary.duration": duration_s,
     }
     capabilities = [name for name, value in capability_fields.items() if value is not None]

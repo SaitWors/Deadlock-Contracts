@@ -105,9 +105,18 @@ def _legacy_street_brawl_healing_alias(
         return False
     if str(getattr(match, "game_match_mode", "") or "").upper() != "STREET_BRAWL":
         return False
-    if "gep_fallback" not in str(getattr(match, "provider", "") or "").lower():
-        return False
-    if "gep.scoreboard_healing" not in set(getattr(match, "capabilities", None) or []):
+
+    capabilities = set(getattr(match, "capabilities", None) or [])
+    provider = getattr(match, "provider", None)
+    has_legacy_client_scoreboard = (
+        "gep.scoreboard_healing" in capabilities
+        and "gep_fallback" in str(provider or "").lower()
+    )
+    has_independent_scoreboard = (
+        "summary.scoreboard_healing" in capabilities
+        and provider_has_independent_source(provider)
+    )
+    if not (has_legacy_client_scoreboard or has_independent_scoreboard):
         return False
 
     for condition in _condition_rows(option):
@@ -122,10 +131,51 @@ def _legacy_street_brawl_healing_alias(
     )
 
 
+def _legacy_brawl_scoreboard_provider_alias(
+    option: BoardOption,
+    match: Match,
+    capability: str,
+) -> bool:
+    """Let already-locked GEP-named Brawl healing cards use provider data.
+
+    Older generated Street Brawl options requested ``gep.scoreboard_healing``.
+    Reward settlement now requires an independent provider, so fresh provider
+    metadata exposes the same scoreboard aggregate as
+    ``summary.scoreboard_healing`` instead. Keep immutable locked options
+    playable without granting any trust to the client-side GEP source.
+    """
+    if capability != "gep.scoreboard_healing":
+        return False
+    if str(getattr(match, "game_match_mode", "") or "").upper() != "STREET_BRAWL":
+        return False
+    if not provider_has_independent_source(getattr(match, "provider", None)):
+        return False
+    if "summary.scoreboard_healing" not in set(
+        getattr(match, "capabilities", None) or []
+    ):
+        return False
+
+    conditions = _condition_rows(option)
+    return any(
+        str(condition.get("metric") or "") == "player.scoreboard_healing"
+        and "gep.scoreboard_healing"
+        in {str(item) for item in (condition.get("capabilities") or [])}
+        for condition in conditions
+    ) or (
+        str(getattr(option, "metric", "") or "")
+        == "player.scoreboard_healing"
+        and "gep.scoreboard_healing"
+        in set(getattr(option, "required_capabilities", None) or [])
+    )
+
+
 def capability_available(option: BoardOption, match: Match, capability: str) -> bool:
     if capability in set(getattr(match, "capabilities", None) or []):
         return True
-    return _legacy_street_brawl_healing_alias(option, match, capability)
+    return (
+        _legacy_street_brawl_healing_alias(option, match, capability)
+        or _legacy_brawl_scoreboard_provider_alias(option, match, capability)
+    )
 
 
 def _unverifiable(option: BoardOption, explanation: str) -> EvaluationResult:
