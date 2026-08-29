@@ -3228,7 +3228,31 @@ def create_mock_match(payload: MockMatchRequest, user: User = Depends(require_us
     if board.status == "SETTLED":
         raise HTTPException(409, "Дело этого режима уже закрыто")
     stats = _mock_stats(payload.scenario, payload.mode)
-    external_id = int(datetime.now(timezone.utc).timestamp() * 1000) + secrets.randbelow(1000)
+    mock_time_ms = int(
+        datetime.now(timezone.utc).timestamp() * 1000
+    )
+
+    for _ in range(16):
+        # Keep mock Match IDs time-sortable while giving every millisecond
+        # its own non-overlapping 20-bit random namespace.
+        external_id = (
+            (mock_time_ms << 20)
+            | secrets.randbits(20)
+        )
+
+        existing_match_id = db.scalar(
+            select(Match.id).where(
+                Match.external_match_id == external_id
+            )
+        )
+
+        if existing_match_id is None:
+            break
+    else:
+        raise HTTPException(
+            503,
+            "Не удалось сгенерировать уникальный тестовый Match ID",
+        )
     locked_at = board.locked_at if board.locked_at.tzinfo else board.locked_at.replace(tzinfo=timezone.utc)
     started_at = locked_at + timedelta(seconds=5)
     capabilities = [
