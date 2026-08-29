@@ -44,6 +44,9 @@ logging.basicConfig(level=os.getenv("LOG_LEVEL", "INFO"), format="%(asctime)s %(
 log = logging.getLogger("deadlock-contracts-worker")
 WORKER_ID = f"{socket.gethostname()}:{os.getpid()}"
 
+_STEAM_METADATA_FALLBACK_LAST_AT: datetime | None = None
+_STEAM_METADATA_FALLBACK_COOLDOWN_SECONDS = 20 * 60
+
 
 class NoMatchYet(RuntimeError):
     pass
@@ -1262,17 +1265,98 @@ def _resolve_exact_companion_payload(
 
     evidence = _companion_evidence_for(db, user, external_match_id)
 
-    # A verified exact Match ID may use the Steam-backed metadata path twice per
-    # job: once immediately and once later after the public cache had time to
-    # ingest the match. This avoids both request storms and the opposite failure
-    # mode where one unlucky early miss permanently prevents a later refresh.
-    steam_attempts = int(payload.get("_steam_fallback_attempts") or 0)
-    allow_late_retry = int(job.attempts or 0) >= 6 and steam_attempts < 2
-    if normalized is None and evidence is not None and (steam_attempts == 0 or allow_late_retry):
-        payload["_steam_fallback_attempts"] = steam_attempts + 1
-        payload["_steam_fallback_last_attempt"] = utcnow().isoformat()
+    history_attempts = int(
+        payload.get("_history_fallback_attempts") or 0
+    )
+
+    allow_history_retry = (
+        history_attempts == 0
+        or (
+            history_attempts == 1
+            and int(job.attempts or 0) >= 12
+        )
+    )
+
+    if normalized is None and allow_history_retry:
+        payload["_history_fallback_attempts"] = (
+            history_attempts + 1
+        )
+        payload["_history_fallback_last_attempt"] = (
+            utcnow().isoformat()
+        )
+
         job.payload = payload
         db.commit()
+
+        try:
+            with DeadlockApiProvider() as provider:
+                normalized = provider.fetch_match_by_id(
+                    user.account_id,
+                    external_match_id,
+                    disable_steam=True,
+                    consult_history=True,
+                )
+
+        except (
+            ProviderRateLimited,
+            ProviderError,
+        ) as exc:
+            remember_provider_wait(exc)
+            normalized = None
+
+    # A verified exact Match ID may use the Steam-backed metadata path at most
+    # twice per job. A process-wide cooldown additionally prevents concurrent
+    # pending matches from consuming the Steam fallback budget at the same time.
+    #
+    # Cheap cache/S3 metadata remains the primary retry path.
+    global _STEAM_METADATA_FALLBACK_LAST_AT
+
+    steam_attempts = int(
+        payload.get("_steam_fallback_attempts") or 0
+    )
+
+    now = datetime.now(timezone.utc)
+
+    steam_cooldown_ready = (
+        _STEAM_METADATA_FALLBACK_LAST_AT is None
+        or (
+            now - _STEAM_METADATA_FALLBACK_LAST_AT
+        ).total_seconds()
+        >= _STEAM_METADATA_FALLBACK_COOLDOWN_SECONDS
+    )
+
+    allow_late_retry = (
+        int(job.attempts or 0) >= 6
+        and steam_attempts < 2
+    )
+
+    allow_steam_fallback = (
+        normalized is None
+        and evidence is not None
+        and steam_cooldown_ready
+        and (
+            steam_attempts == 0
+            or allow_late_retry
+        )
+    )
+
+    if allow_steam_fallback:
+        payload["_steam_fallback_attempts"] = (
+            steam_attempts + 1
+        )
+
+        payload["_steam_fallback_last_attempt"] = (
+            now.isoformat()
+        )
+
+        job.payload = payload
+        db.commit()
+
+        # Reserve the shared Steam slot before the HTTP request.
+        # Even if the request fails, other pending matches must
+        # respect the cooldown instead of immediately retrying.
+        _STEAM_METADATA_FALLBACK_LAST_AT = now
+
         try:
             with DeadlockApiProvider() as provider:
                 normalized = provider.fetch_match_by_id(
@@ -1281,7 +1365,11 @@ def _resolve_exact_companion_payload(
                     disable_steam=False,
                     consult_history=False,
                 )
-        except (ProviderRateLimited, ProviderError) as exc:
+
+        except (
+            ProviderRateLimited,
+            ProviderError,
+        ) as exc:
             remember_provider_wait(exc)
             normalized = None
 
@@ -2050,8 +2138,10 @@ def handle_resolve_companion_match_auto(db: Session, job: Job) -> None:
         ):
             continue
         if _board_has_bound_match(db, board.id):
-            _finish_discovery_jobs_for_board(db, board.id)
-            continue
+            raise CompanionMatchNotReady(
+                f"Матч #{external_match_id} сохранён в очереди; "
+                "ждём завершения предыдущей попытки этой доски"
+            )
 
         bind_match(db, board, match)
         _finish_discovery_jobs_for_board(db, board.id)

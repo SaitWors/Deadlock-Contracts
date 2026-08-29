@@ -265,12 +265,62 @@ class DeadlockApiProvider:
             match_id,
             disable_steam=disable_steam,
         )
-        if metadata is None:
-            return None
 
-        history_entry: dict[str, Any] = {"match_id": match_id}
-        metadata_player = _find_player(metadata, account_id)
-        normalized = normalize_deadlock_match(account_id, history_entry, metadata)
+        history_entry: dict[str, Any] = {
+            "match_id": match_id,
+        }
+        history_found = False
+
+        # Metadata and player match-history are two separate provider paths.
+        #
+        # If exact metadata has not reached S3/cache yet, the exact Match ID may
+        # already exist in the player's provider-backed history. In that case we may
+        # safely normalize that provider entry without trusting Companion statistics.
+        if metadata is None:
+            if not consult_history:
+                return None
+
+            history_result = self.history(
+                account_id,
+                force_refetch=False,
+            )
+
+            for entry in history_result.matches:
+                try:
+                    candidate = int(
+                        entry.get("match_id")
+                        or entry.get("matchId")
+                        or 0
+                    )
+                except (TypeError, ValueError):
+                    continue
+
+                if candidate != match_id:
+                    continue
+
+                history_entry = entry
+                history_found = True
+                break
+
+            if not history_found:
+                return None
+
+            return normalize_deadlock_match(
+                account_id,
+                history_entry,
+                None,
+            )
+
+        metadata_player = _find_player(
+            metadata,
+            account_id,
+        )
+
+        normalized = normalize_deadlock_match(
+            account_id,
+            history_entry,
+            metadata,
+        )
 
         # Newer Deadlock metadata exposes the authoritative match duration
         # directly as match_info.duration_s. The old normalizer mainly relied
@@ -295,7 +345,6 @@ class DeadlockApiProvider:
             or normalized.get("started_at") is None
             or normalized.get("duration_s") is None
         )
-        history_found = False
         if need_history and consult_history:
             history_result = self.history(account_id, force_refetch=False)
             for entry in history_result.matches:
