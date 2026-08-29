@@ -569,19 +569,79 @@ class MatchFinalityRegressionTests(unittest.TestCase):
         user = SimpleNamespace(id="user-1", account_id=1020621313)
         job = SimpleNamespace(payload={}, attempts=1)
         evidence = SimpleNamespace(id="evidence")
-        with patch("app.worker._companion_evidence_for", return_value=evidence), patch(
-            "app.worker._normalized_from_companion_evidence", return_value=None
-        ), patch("app.worker.merge_companion_evidence", side_effect=lambda _db, _user, data, _mid: data), patch(
-            "app.worker.DeadlockApiProvider"
+        with patch(
+            "app.worker._companion_evidence_for",
+            return_value=evidence,
+        ), patch(
+            "app.worker._normalized_from_companion_evidence",
+            return_value=None,
+        ), patch(
+            "app.worker.merge_companion_evidence",
+            side_effect=lambda _db, _user, data, _mid: data,
+        ), patch(
+            "app.worker._STEAM_METADATA_FALLBACK_LAST_AT",
+            None,
+        ), patch(
+            "app.worker.DeadlockApiProvider",
         ) as provider_cls:
             provider = provider_cls.return_value.__enter__.return_value
             provider.fetch_match_by_id.side_effect = ProviderError("upstream 503")
             with self.assertRaises(CompanionMatchNotReady):
                 _resolve_exact_companion_payload(db, user, job, 99529660)
 
-        self.assertIn("upstream 503", job.payload["_provider_last_error"])
-        # cache request + one Steam-backed attempt, then fail closed
-        self.assertEqual(provider.fetch_match_by_id.call_count, 2)
+        self.assertIn(
+            "upstream 503",
+            job.payload["_provider_last_error"],
+        )
+
+        # Provider resolution now has three bounded independent paths:
+        #
+        # 1. cheap cache/S3 metadata;
+        # 2. exact provider-history fallback;
+        # 3. Steam-backed metadata fallback.
+        #
+        # All three may fail, but client-controlled Companion evidence must
+        # still never become authoritative scoring data.
+        self.assertEqual(
+            provider.fetch_match_by_id.call_count,
+            3,
+        )
+
+        calls = provider.fetch_match_by_id.call_args_list
+
+        self.assertEqual(
+            calls[0].kwargs,
+            {
+                "disable_steam": True,
+                "consult_history": False,
+            },
+        )
+
+        self.assertEqual(
+            calls[1].kwargs,
+            {
+                "disable_steam": True,
+                "consult_history": True,
+            },
+        )
+
+        self.assertEqual(
+            calls[2].kwargs,
+            {
+                "disable_steam": False,
+                "consult_history": False,
+            },
+        )
+
+        self.assertEqual(
+            job.payload["_history_fallback_attempts"],
+            1,
+        )
+
+        self.assertEqual(
+            job.payload["_steam_fallback_attempts"],
+            1,
+        )
 
     def test_finalization_scan_survives_more_than_256_post_terminal_events(self) -> None:
         """The terminal event must never disappear behind a fixed recent window.
