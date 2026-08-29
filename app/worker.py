@@ -53,7 +53,16 @@ class NoMatchYet(RuntimeError):
 
 
 class CompanionMatchNotReady(RuntimeError):
-    pass
+    def __init__(
+        self,
+        message: str,
+        delay_seconds: int = 60,
+    ) -> None:
+        super().__init__(message)
+        self.delay_seconds = max(
+            15,
+            min(int(delay_seconds), 6 * 60 * 60),
+        )
 
 
 class FinalFactsPending(RuntimeError):
@@ -491,7 +500,7 @@ def init() -> None:
                     },
                     key,
                     run_after=utcnow() + timedelta(seconds=max(0, settings.companion_finalization_grace_seconds)),
-                    max_attempts=60,
+                    max_attempts=144,
                 )
                 if existed is None:
                     finality_repairs_queued += 1
@@ -1389,9 +1398,10 @@ def _resolve_exact_companion_payload(
 
     if normalized is None:
         raise CompanionMatchNotReady(
-            f"Матч #{external_match_id} обнаружен Companion, "
-            "но пока нет ни внешнего metadata, ни достаточного "
-            "финального локального снимка"
+            f"Матч #{external_match_id} обнаружен Companion и "
+            "финальный локальный снимок сохранён, но независимый "
+            "провайдер пока не опубликовал матч",
+            delay_seconds=10 * 60,
         )
 
     normalized = merge_companion_evidence(
@@ -2580,8 +2590,17 @@ def run() -> None:
                     retry_job(db, job, exc, 30)
                     log.warning("Provider error for job %s; retry in 30s: %s", job_id, exc)
                 except CompanionMatchNotReady as exc:
-                    retry_job(db, job, exc, max(15, min(settings.discovery_retry_seconds, 60)))
-                    log.info("Companion match not ready for job %s", job.id)
+                    retry_job(
+                        db,
+                        job,
+                        exc,
+                        exc.delay_seconds,
+                    )
+                    log.info(
+                        "Companion match not ready for job %s; retry in %ss",
+                        job.id,
+                        exc.delay_seconds,
+                    )
                 except NoMatchYet as exc:
                     retry_job(db, job, exc, settings.discovery_retry_seconds)
                     log.info("No match yet for job %s", job.id)
