@@ -319,8 +319,18 @@ def normalize_deadlock_match(
     history: dict[str, Any],
     metadata: dict[str, Any] | None,
 ) -> dict[str, Any]:
-    player = _find_player(metadata, account_id) or history
-    root = metadata or history
+    metadata_root = metadata if isinstance(metadata, dict) else {}
+
+    nested_match_info = metadata_root.get("match_info")
+    provider_match = (
+        nested_match_info
+        if isinstance(nested_match_info, dict)
+        else metadata_root
+    )
+
+    player = _find_player(metadata_root, account_id) or history
+
+    root = provider_match or history
     match_id = _to_int(
         _coalesce(
             _pick(history, "match_id", "matchId"),
