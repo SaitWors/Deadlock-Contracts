@@ -72,6 +72,10 @@ from .services.auth import (
     verify_steam_callback,
 )
 from .services.companion import claim_pairing, companion_version_supported, create_pairing, get_device_by_token, record_snapshot, select_primary_device, serialize_device
+from .services.gep_settlement import (
+    finalize_gep_match,
+    start_gep_attempt_lease,
+)
 from .services.contract_factory import GENERATOR_VERSION, generate_contracts_v2, preview_payload
 from .services.boards import GAME_MODES, ensure_daily_board, ensure_daily_boards, lock_board, normalize_mode, refresh_summary, reroll_board, serialize_board, today_utc
 from .services.jobs import enqueue_job
@@ -192,6 +196,24 @@ class CompanionClaimRequest(StrictModel):
     version: str | None = Field(default=None, max_length=32)
 
 
+class CompanionAttemptStartRequest(StrictModel):
+    session_id: str = Field(
+        min_length=8,
+        max_length=80,
+        pattern=r"^[A-Za-z0-9._:-]+$",
+    )
+    steam_id64: int = Field(ge=1)
+    game_match_mode: Literal[
+        "STANDARD",
+        "RANKED",
+        "STREET_BRAWL",
+    ]
+    # Overwolf emits match_start independently from the match_id info update,
+    # therefore an exact Match ID is allowed to arrive on an idempotent retry.
+    match_id: int | None = Field(default=None, ge=1)
+    version: str | None = Field(default=None, max_length=32)
+
+
 class CompanionLiveStats(StrictModel):
     hero_id: int | None = Field(default=None, ge=0, le=10_000)
     kills: int | None = Field(default=None, ge=0, le=500)
@@ -201,6 +223,43 @@ class CompanionLiveStats(StrictModel):
     object_damage: int | None = Field(default=None, ge=0, le=100_000_000)
     healing: int | None = Field(default=None, ge=0, le=100_000_000)
     souls: int | None = Field(default=None, ge=0, le=10_000_000)
+
+
+class CompanionMatchFinalizeRequest(StrictModel):
+    session_id: str = Field(
+        min_length=8,
+        max_length=80,
+        pattern=r"^[A-Za-z0-9._:-]+$",
+    )
+    attempt_nonce: str = Field(
+        min_length=32,
+        max_length=128,
+        pattern=r"^[A-Za-z0-9_-]+$",
+    )
+    steam_id64: int = Field(ge=1)
+    match_id: int = Field(ge=1)
+    terminal_signal: Literal["match_end"]
+    match_clock_s: int = Field(
+        ge=1,
+        le=6 * 60 * 60,
+    )
+    final_sequence: int = Field(
+        ge=1,
+        le=10_000_000,
+    )
+    live_stats: CompanionLiveStats
+    local_team: Literal[
+        "AMBER",
+        "SAPPHIRE",
+    ] | None = None
+    winning_team: Literal[
+        "AMBER",
+        "SAPPHIRE",
+    ] | None = None
+    version: str | None = Field(
+        default=None,
+        max_length=32,
+    )
 
 
 class CompanionHeartbeatRequest(StrictModel):
@@ -1497,6 +1556,81 @@ def desktop_board_reroll(
         "refresh": refresh_summary(db, owner.id),
         "server_time": datetime.now(timezone.utc).isoformat(),
     }
+
+
+@app.post("/api/companion/attempts/start")
+def companion_attempt_start(
+    payload: CompanionAttemptStartRequest,
+    request: Request,
+    db: Session = Depends(get_db),
+) -> dict:
+    if not settings.companion_ingest_enabled:
+        raise HTTPException(
+            503,
+            "Приём данных Companion временно отключён",
+        )
+
+    device, owner = _companion_from_request(
+        request,
+        db,
+    )
+
+    _require_companion_version(
+        payload.version or device.version
+    )
+
+    return start_gep_attempt_lease(
+        db,
+        device=device,
+        user=owner,
+        session_id=payload.session_id,
+        steam_id64=payload.steam_id64,
+        game_match_mode=payload.game_match_mode,
+        companion_version=payload.version or device.version,
+        match_id=payload.match_id,
+    )
+
+
+@app.post("/api/companion/matches/finalize")
+def companion_match_finalize(
+    payload: CompanionMatchFinalizeRequest,
+    request: Request,
+    db: Session = Depends(get_db),
+) -> dict:
+    if not settings.companion_ingest_enabled:
+        raise HTTPException(
+            503,
+            "Приём данных Companion временно отключён",
+        )
+
+    device, owner = _companion_from_request(
+        request,
+        db,
+    )
+
+    _require_companion_version(
+        payload.version or device.version
+    )
+
+    return finalize_gep_match(
+        db,
+        device=device,
+        user=owner,
+        session_id=payload.session_id,
+        attempt_nonce=payload.attempt_nonce,
+        steam_id64=payload.steam_id64,
+        match_id=payload.match_id,
+        terminal_signal=payload.terminal_signal,
+        match_clock_s=payload.match_clock_s,
+        final_sequence=payload.final_sequence,
+        live_stats=payload.live_stats.model_dump(),
+        local_team=payload.local_team,
+        winning_team=payload.winning_team,
+        companion_version=(
+            payload.version
+            or device.version
+        ),
+    )
 
 
 @app.post("/api/companion/heartbeat")

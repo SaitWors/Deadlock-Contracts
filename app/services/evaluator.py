@@ -8,6 +8,11 @@ from sqlalchemy.orm import Session
 from ..config import settings
 from ..models import AutoReviewCase, BoardOption, ContractBoard, Evaluation, Match, MatchParticipant, OutboxEvent, utcnow
 from .jobs import enqueue_job
+from .gep_settlement import (
+    GEP_INTEGRITY_CLIENT_ATTESTED,
+    GEP_SETTLEMENT_SOURCE,
+    gep_settlement_managed_user,
+)
 from .match_trust import provider_has_client_source, provider_has_independent_source
 
 FINAL_STATUSES = {"COMPLETED", "FAILED", "EXPIRED", "VOID"}
@@ -195,6 +200,33 @@ def _ratio(operator: str, current: float, target: float) -> float:
 def _has_trusted_finality(match: Match) -> bool:
     if not getattr(match, "is_final", False):
         return False
+
+    # Companion-first trust tier: not independent-provider verified,
+    # but explicitly accepted by product policy for internal XP.
+    if (
+        str(
+            getattr(
+                match,
+                "settlement_source",
+                "",
+            )
+            or ""
+        ).upper()
+        == GEP_SETTLEMENT_SOURCE
+        and str(
+            getattr(
+                match,
+                "integrity_status",
+                "",
+            )
+            or ""
+        ).upper()
+        == GEP_INTEGRITY_CLIENT_ATTESTED
+    ):
+        return bool(
+            settings.gep_settlement_enabled
+        )
+
     provider = str(getattr(match, "provider", "") or "").lower()
     # Legacy rows may contain a client-only GEP fallback that earlier releases
     # marked SCORED/final.  A local Companion is not an attested data source;
@@ -515,14 +547,18 @@ def evaluate_board(
             int(board.baseline_match_id or 0),
             int(match.external_match_id),
         )
-        enqueue_job(
+        if not gep_settlement_managed_user(
             db,
-            "discover_match",
-            {"board_id": board.id},
-            f"discover:{board.id}:attempt:{attempt_no + 1}",
-            max_attempts=settings.max_discovery_attempts,
-            commit=False,
-        )
+            board.user,
+        ):
+            enqueue_job(
+                db,
+                "discover_match",
+                {"board_id": board.id},
+                f"discover:{board.id}:attempt:{attempt_no + 1}",
+                max_attempts=settings.max_discovery_attempts,
+                commit=False,
+            )
 
     elif has_review_assignments:
         board.status = "REVIEW_REQUIRED"
