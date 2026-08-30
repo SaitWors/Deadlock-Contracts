@@ -122,6 +122,30 @@ class Settings:
     )
     companion_event_retention_days: int = int(os.getenv("COMPANION_EVENT_RETENTION_DAYS", "14"))
     companion_ingest_enabled: bool = _bool("COMPANION_INGEST_ENABLED", True)
+
+    # Companion-first settlement is fail-closed during Alpha.11 rollout.
+    # Merely deploying the foundation must not change production scoring.
+    gep_settlement_enabled: bool = _bool("GEP_SETTLEMENT_ENABLED", False)
+    gep_settlement_allow_all: bool = _bool("GEP_SETTLEMENT_ALLOW_ALL", False)
+    gep_settlement_allowlist: tuple[str, ...] = _csv(
+        "GEP_SETTLEMENT_ALLOWLIST",
+        "",
+    )
+    gep_settlement_leaderboard_eligible: bool = _bool(
+        "GEP_SETTLEMENT_LEADERBOARD_ELIGIBLE",
+        False,
+    )
+
+    # Deadlock API will later move to this asynchronous audit path.
+    # It remains disabled until the actual audit worker is implemented.
+    match_audit_enabled: bool = _bool("MATCH_AUDIT_ENABLED", False)
+    match_audit_max_attempts: int = int(
+        os.getenv("MATCH_AUDIT_MAX_ATTEMPTS", "24")
+    )
+    match_audit_retry_seconds: int = int(
+        os.getenv("MATCH_AUDIT_RETRY_SECONDS", "900")
+    )
+
     companion_ads_enabled: bool = _bool("COMPANION_ADS_ENABLED", False)
     companion_minimum_version: str = os.getenv("COMPANION_MINIMUM_VERSION", "").strip()
     reward_settlement_enabled: bool = _bool("REWARD_SETTLEMENT_ENABLED", True)
@@ -235,6 +259,23 @@ class Settings:
             )
         if not 1 <= self.companion_event_retention_days <= 90:
             raise RuntimeError("COMPANION_EVENT_RETENTION_DAYS must be between 1 and 90")
+
+        for steam_id in self.gep_settlement_allowlist:
+            if not re.fullmatch(r"\d{17,20}", steam_id):
+                raise RuntimeError(
+                    "GEP_SETTLEMENT_ALLOWLIST contains an invalid SteamID64"
+                )
+
+        if not 1 <= self.match_audit_max_attempts <= 1008:
+            raise RuntimeError(
+                "MATCH_AUDIT_MAX_ATTEMPTS must be between 1 and 1008"
+            )
+
+        if not 60 <= self.match_audit_retry_seconds <= 86400:
+            raise RuntimeError(
+                "MATCH_AUDIT_RETRY_SECONDS must be between 60 and 86400"
+            )
+
         if self.companion_minimum_version and not re.fullmatch(
             r"\d+\.\d+\.\d+(?:-(?:alpha|beta|rc)\.\d+)?",
             self.companion_minimum_version,
