@@ -22,6 +22,7 @@ from ..models import (
     User,
 )
 from .jobs import enqueue_job
+from .gep_settlement import gep_settlement_managed_user
 from .contract_factory import GENERATOR_VERSION, generate_contracts_v2
 from .adaptive_profile import build_adaptive_profile
 
@@ -759,14 +760,17 @@ def lock_board(
         )
     )
 
-    enqueue_job(
-        db,
-        "discover_match",
-        {"board_id": board.id},
-        f"discover:{board.id}:attempt:1",
-        max_attempts=settings.max_discovery_attempts,
-        commit=False,
-    )
+    # Alpha.17 Companion-first users are event-driven by match_start.
+    # Legacy/Alpha.16 users keep the provider discovery path unchanged.
+    if not gep_settlement_managed_user(db, user):
+        enqueue_job(
+            db,
+            "discover_match",
+            {"board_id": board.id},
+            f"discover:{board.id}:attempt:1",
+            max_attempts=settings.max_discovery_attempts,
+            commit=False,
+        )
 
     # Board transition, selected assignments, audit row and first discovery
     # job become visible together or not at all.

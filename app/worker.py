@@ -19,6 +19,7 @@ from .models import (
     AutoReviewCase,
     BoardMatchCandidate,
     BoardOption,
+    CompanionAttemptLease,
     CompanionEvent,
     CompanionMatchEvidence,
     ContractBoard,
@@ -32,6 +33,12 @@ from .models import (
 )
 from .services.boards import expire_stale_boards
 from .services.evaluator import capability_available, evaluate_board
+from .services.gep_settlement import (
+    GEP_INTEGRITY_CLIENT_ATTESTED,
+    GEP_SETTLEMENT_SOURCE,
+    gep_settlement_managed_user,
+    normalized_gep_match_from_evidence,
+)
 from .services.jobs import claim_next_job, complete_job, enqueue_job, retry_job
 from .services.match_trust import (
     independent_provider_parts,
@@ -286,7 +293,12 @@ def reconcile_active_contracts(db: Session) -> dict[str, int]:
                 )
                 created_jobs += 1
 
-        if locked and not verifying and not _active_companion_candidate(db, board.id):
+        if (
+            locked
+            and not verifying
+            and not _active_companion_candidate(db, board.id)
+            and not gep_settlement_managed_user(db, board.user)
+        ):
             candidates = [
                 job
                 for job in jobs
@@ -681,6 +693,10 @@ def store_normalized_match(db: Session, data: dict) -> Match:
             "provider_mode_raw",
             "scoring_status",
             "game_version",
+            "settlement_source",
+            "integrity_status",
+            "audit_status",
+            "audited_at",
         ):
             value = data.get(field)
             if value is not None and (not isinstance(value, str) or value.strip()):
@@ -1908,6 +1924,34 @@ def _is_provisional_companion_match(match: Match | None) -> bool:
     )
 
 
+def _is_client_attested_gep_match(
+    match: Match | None,
+) -> bool:
+    if match is None:
+        return False
+
+    return bool(
+        str(
+            getattr(
+                match,
+                "settlement_source",
+                "",
+            )
+            or ""
+        ).upper()
+        == GEP_SETTLEMENT_SOURCE
+        and str(
+            getattr(
+                match,
+                "integrity_status",
+                "",
+            )
+            or ""
+        ).upper()
+        == GEP_INTEGRITY_CLIENT_ATTESTED
+    )
+
+
 def _evaluation_max_attempts_for_match(
     match: Match | None,
 ) -> int:
@@ -2717,6 +2761,131 @@ def handle_resolve_companion_match_auto(db: Session, job: Job) -> None:
 
 
 
+def handle_settle_gep_match(
+    db: Session,
+    job: Job,
+) -> None:
+    payload = dict(job.payload or {})
+
+    lease_id = str(
+        payload.get("lease_id")
+        or ""
+    )
+    evidence_id = str(
+        payload.get("evidence_id")
+        or ""
+    )
+
+    if not lease_id or not evidence_id:
+        raise ValueError(
+            "settle_gep_match: "
+            "lease/evidence id отсутствует"
+        )
+
+    lease = db.get(
+        CompanionAttemptLease,
+        lease_id,
+    )
+
+    evidence = db.get(
+        CompanionMatchEvidence,
+        evidence_id,
+    )
+
+    if not lease or not evidence:
+        raise ValueError(
+            "settle_gep_match: "
+            "lease/evidence не найден"
+        )
+
+    user = db.get(
+        User,
+        lease.user_id,
+    )
+
+    if not user:
+        raise ValueError(
+            "settle_gep_match: "
+            "user не найден"
+        )
+
+    if lease.status not in {
+        "CONSUMED",
+        "CONSUMED_QUEUED",
+    }:
+        raise ValueError(
+            "settle_gep_match: "
+            f"invalid lease state {lease.status}"
+        )
+
+    if (
+        evidence.user_id
+        != lease.user_id
+        or evidence.device_id
+        != lease.device_id
+        or evidence.gep_session_id
+        != lease.session_id
+        or evidence.attempt_nonce_hash
+        != lease.attempt_nonce_hash
+    ):
+        raise ValueError(
+            "settle_gep_match: "
+            "lease/evidence integrity mismatch"
+        )
+
+    normalized = (
+        normalized_gep_match_from_evidence(
+            lease=lease,
+            evidence=evidence,
+            user=user,
+        )
+    )
+
+    match = store_normalized_match(
+        db,
+        normalized,
+    )
+
+    board = (
+        db.get(
+            ContractBoard,
+            lease.board_id,
+        )
+        if lease.board_id
+        else None
+    )
+
+    if board is None:
+        return
+
+    if board.user_id != user.id:
+        raise ValueError(
+            "settle_gep_match: "
+            "board owner mismatch"
+        )
+
+    if (
+        board.game_match_mode
+        != match.game_match_mode
+    ):
+        raise ValueError(
+            "settle_gep_match: "
+            "mode mismatch"
+        )
+
+    _capture_or_bind_companion_match(
+        db,
+        board,
+        match,
+        capture_source="OVERWOLF_GEP_V9",
+    )
+
+    _finish_discovery_jobs_for_board(
+        db,
+        board.id,
+    )
+
+
 def handle_refresh_review_match(db: Session, job: Job) -> None:
     """Повторно загрузить final metadata уже привязанного матча и переоценить REVIEW_REQUIRED."""
 
@@ -2817,7 +2986,11 @@ def handle_evaluate(db: Session, job: Job) -> None:
     missing = sorted({fact for facts in missing_by_option.values() for fact in facts})
     provisional_companion_match = _is_provisional_companion_match(match)
 
-    if settings.provider == "deadlock_api" and (missing or provisional_companion_match):
+    if (
+        settings.provider == "deadlock_api"
+        and not _is_client_attested_gep_match(match)
+        and (missing or provisional_companion_match)
+    ):
         # Re-read the exact Match ID before escalating. This path is idempotent,
         # uses the provider cache first, and permits only a bounded expensive
         # Steam fallback through _resolve_exact_companion_payload.
@@ -2926,7 +3099,12 @@ def handle_evaluate(db: Session, job: Job) -> None:
     waiting_option_ids = {
         option_id for option_id, facts in missing_by_option.items() if facts
     }
-    if missing and settings.provider == "deadlock_api" and int(job.attempts or 0) < max_wait_attempts:
+    if (
+        missing
+        and settings.provider == "deadlock_api"
+        and not _is_client_attested_gep_match(match)
+        and int(job.attempts or 0) < max_wait_attempts
+    ):
         _mark_board_verifying_for_facts(
             db, board, missing, option_ids=waiting_option_ids
         )
@@ -3136,6 +3314,7 @@ def process_job(db: Session, job: Job) -> None:
         "discover_match": handle_discover,
         "resolve_companion_match": handle_resolve_companion_match,
         "resolve_companion_match_auto": handle_resolve_companion_match_auto,
+        "settle_gep_match": handle_settle_gep_match,
         "promote_board_match_candidate": handle_promote_board_match_candidate,
         "bind_match": handle_bind,
         "evaluate_match": handle_evaluate,

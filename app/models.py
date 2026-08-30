@@ -148,6 +148,9 @@ class CompanionMatchEvidence(Base):
     server_finalized_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     final_sequence: Mapped[int | None] = mapped_column(Integer, nullable=True)
     final_payload_hash: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    gep_match_clock_s: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    gep_local_team: Mapped[str | None] = mapped_column(String(16), nullable=True)
+    gep_winning_team: Mapped[str | None] = mapped_column(String(16), nullable=True)
     integrity_status: Mapped[str] = mapped_column(
         String(32),
         default="LEGACY_DIAGNOSTIC",
@@ -222,9 +225,9 @@ class CompanionAttemptLease(Base):
         index=True,
     )
 
-    # Planned states:
+    # States:
     # ISSUED_ACTIVE, ISSUED_QUEUED, INELIGIBLE,
-    # CONSUMED, VOID, REJECTED.
+    # CONSUMED, CONSUMED_QUEUED, VOID, REJECTED.
     status: Mapped[str] = mapped_column(String(32), index=True)
     ineligible_reason: Mapped[str | None] = mapped_column(
         String(120),
