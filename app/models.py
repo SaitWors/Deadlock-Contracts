@@ -264,6 +264,59 @@ class BoardOption(Base):
     match: Mapped[Match | None] = relationship()
 
 
+class BoardMatchCandidate(Base):
+    __tablename__ = "board_match_candidates"
+    __table_args__ = (
+        UniqueConstraint(
+            "board_id",
+            "match_id",
+            name="uq_board_match_candidate_board_match",
+        ),
+        Index(
+            "uq_board_match_candidate_attempt",
+            "board_id",
+            "attempt_no",
+            unique=True,
+            postgresql_where=text("attempt_no IS NOT NULL"),
+            sqlite_where=text("attempt_no IS NOT NULL"),
+        ),
+        Index(
+            "ix_board_match_candidate_board_status",
+            "board_id",
+            "status",
+        ),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uuid4)
+    board_id: Mapped[str] = mapped_column(
+        ForeignKey("contract_boards.id", ondelete="CASCADE"),
+        index=True,
+    )
+    match_id: Mapped[str] = mapped_column(
+        ForeignKey("matches.id", ondelete="CASCADE"),
+        index=True,
+    )
+    status: Mapped[str] = mapped_column(String(32), default="CAPTURED", index=True)
+    attempt_no: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    capture_source: Mapped[str] = mapped_column(String(64))
+    ignored_reason: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    captured_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=utcnow,
+        index=True,
+    )
+    bound_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=utcnow,
+        onupdate=utcnow,
+    )
+
+
+
 class DailyRefreshState(Base):
     __tablename__ = "daily_refresh_state"
     __table_args__ = (UniqueConstraint("user_id", "board_date", name="uq_refresh_user_date"),)

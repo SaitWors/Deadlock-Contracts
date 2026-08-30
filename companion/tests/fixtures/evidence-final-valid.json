@@ -1,0 +1,21 @@
+{
+  "schema_version": 8,
+  "client_version": "0.5.2-alpha.16",
+  "version": "0.5.2-alpha.16",
+  "device_id": "device-qa",
+  "event_type": "match_ended",
+  "observed_at": "2026-08-27T00:30:00Z",
+  "game_running": true,
+  "steam_id64": "76561198000000000",
+  "phase": "PostGame",
+  "game_match_mode": "STANDARD",
+  "match_id": 123456789,
+  "match_clock_s": 1800,
+  "session_id": "session-qa",
+  "session_started_at": "2026-08-27T00:00:00Z",
+  "session_start_reason": "match_start",
+  "live_stats": {"kills":8,"deaths":3,"assists":9},
+  "terminal_proof": {"type":"gep_match_end","observed_at":"2026-08-27T00:30:00Z"},
+  "sequence": 3,
+  "idempotency_key": "session:session-qa:event:match_ended:schema:8"
+}

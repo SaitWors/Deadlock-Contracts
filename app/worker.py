@@ -17,10 +17,12 @@ from .config import settings
 from .db import Base, SessionLocal, engine
 from .models import (
     AutoReviewCase,
+    BoardMatchCandidate,
     BoardOption,
     CompanionEvent,
     CompanionMatchEvidence,
     ContractBoard,
+    Evaluation,
     Job,
     Match,
     MatchParticipant,
@@ -196,7 +198,7 @@ def reconcile_active_contracts(db: Session) -> dict[str, int]:
         db.scalars(
             select(Job)
             .where(
-                Job.type.in_(("discover_match", "evaluate_match")),
+                Job.type.in_(("discover_match", "evaluate_match", "promote_board_match_candidate")),
             )
             .order_by(Job.created_at.desc())
         ).all()
@@ -248,6 +250,8 @@ def reconcile_active_contracts(db: Session) -> dict[str, int]:
         if board.status != desired:
             board.status = desired
             repaired_states += 1
+
+        _wake_board_match_candidate(db, board, commit=False)
 
         for match_id in sorted({item.bound_match_id for item in verifying if item.bound_match_id}):
             bound_match = db.get(Match, str(match_id))
@@ -554,7 +558,7 @@ def init() -> None:
                     },
                     key,
                     run_after=utcnow() + timedelta(seconds=max(0, settings.companion_finalization_grace_seconds)),
-                    max_attempts=144,
+                    max_attempts=settings.provisional_post_match_max_attempts,
                 )
                 if existed is None:
                     finality_repairs_queued += 1
@@ -1912,7 +1916,7 @@ def _evaluation_max_attempts_for_match(
         settings.post_match_verification_max_attempts,
     )
     if _is_provisional_companion_match(match):
-        return max(default_attempts, 144)
+        return max(default_attempts, settings.provisional_post_match_max_attempts)
     return default_attempts
 
 def _queue_repair_evaluation(
@@ -1957,7 +1961,13 @@ def _queue_repair_evaluation(
     db.commit()
 
 
-def bind_match(db: Session, board: ContractBoard, match: Match) -> None:
+def bind_match(
+    db: Session,
+    board: ContractBoard,
+    match: Match,
+    *,
+    commit: bool = True,
+) -> None:
     locked_board = db.scalar(
         select(ContractBoard).where(
             ContractBoard.id == board.id
@@ -2020,8 +2030,6 @@ def bind_match(db: Session, board: ContractBoard, match: Match) -> None:
 
     # После первой оценки retryable-контракт может отвязаться от матча,
     # поэтому одной проверки bound_match_id недостаточно.
-    from .models import Evaluation
-
     already_evaluated_for_board = db.scalar(
         select(Evaluation.id)
         .join(
@@ -2087,6 +2095,319 @@ def bind_match(db: Session, board: ContractBoard, match: Match) -> None:
         commit=False,
     )
     # Attempt binding and the evaluator job are one durable transition.
+    if commit:
+        db.commit()
+    else:
+        db.flush()
+
+
+def _candidate_promotion_max_attempts() -> int:
+    return max(
+        int(settings.max_discovery_attempts),
+        int(settings.provisional_post_match_max_attempts),
+    )
+
+
+def _earliest_captured_board_match_candidate(
+    db: Session,
+    board_id: str,
+) -> BoardMatchCandidate | None:
+    return db.scalar(
+        select(BoardMatchCandidate)
+        .join(Match, Match.id == BoardMatchCandidate.match_id)
+        .where(
+            BoardMatchCandidate.board_id == board_id,
+            BoardMatchCandidate.status == "CAPTURED",
+        )
+        .order_by(
+            Match.started_at.asc(),
+            Match.external_match_id.asc(),
+            BoardMatchCandidate.captured_at.asc(),
+        )
+        .limit(1)
+    )
+
+
+def _wake_board_match_candidate(
+    db: Session,
+    board: ContractBoard,
+    *,
+    commit: bool = True,
+) -> bool:
+    candidate = _earliest_captured_board_match_candidate(db, board.id)
+    if candidate is None:
+        return False
+
+    now = utcnow()
+    key = f"promote-board-match-candidate:{candidate.id}"
+    promotion = enqueue_job(
+        db,
+        "promote_board_match_candidate",
+        {
+            "board_id": board.id,
+            "candidate_id": candidate.id,
+            "match_id": candidate.match_id,
+            "mode_hint": board.game_match_mode,
+        },
+        key,
+        run_after=now,
+        max_attempts=_candidate_promotion_max_attempts(),
+        commit=False,
+    )
+    promotion.max_attempts = max(
+        int(promotion.max_attempts or 0),
+        _candidate_promotion_max_attempts(),
+    )
+    # The PostgreSQL candidate row is the truth. If an old wake-up job was
+    # completed/failed while the candidate is still CAPTURED, reopen it.
+    if promotion.status in {"DONE", "FAILED"}:
+        promotion.status = "PENDING"
+        promotion.attempts = 0
+        promotion.run_after = now
+        promotion.locked_at = None
+        promotion.locked_by = None
+        promotion.last_error = None
+    elif promotion.status == "PENDING":
+        current_run_after = aware(promotion.run_after)
+        if current_run_after is None or current_run_after > now:
+            promotion.run_after = now
+
+    if commit:
+        db.commit()
+    else:
+        db.flush()
+    return True
+
+
+def _ignore_board_match_candidate(
+    candidate: BoardMatchCandidate,
+    reason: str,
+) -> None:
+    candidate.status = "IGNORED"
+    candidate.ignored_reason = reason[:120]
+    candidate.attempt_no = None
+    candidate.bound_at = None
+
+
+def _capture_or_bind_companion_match(
+    db: Session,
+    board: ContractBoard,
+    match: Match,
+    *,
+    capture_source: str,
+) -> str:
+    locked_board = db.scalar(
+        select(ContractBoard)
+        .where(ContractBoard.id == board.id)
+        .with_for_update()
+    )
+    if not locked_board:
+        raise ValueError("Доска контрактов не найдена")
+    board = locked_board
+
+    candidate = db.scalar(
+        select(BoardMatchCandidate)
+        .where(
+            BoardMatchCandidate.board_id == board.id,
+            BoardMatchCandidate.match_id == match.id,
+        )
+        .with_for_update()
+    )
+    if candidate is None:
+        candidate = BoardMatchCandidate(
+            board_id=board.id,
+            match_id=match.id,
+            status="CAPTURED",
+            capture_source=capture_source,
+        )
+        db.add(candidate)
+        db.flush()
+    elif candidate.status in {"BOUND", "IGNORED"}:
+        return candidate.status
+
+    selected = list(
+        db.scalars(
+            select(BoardOption)
+            .where(
+                BoardOption.board_id == board.id,
+                BoardOption.selected.is_(True),
+            )
+            .with_for_update()
+        ).all()
+    )
+
+    # Duplicate delivery of the current attempt is idempotent.
+    if any(
+        option.bound_match_id == match.id
+        and option.status == "VERIFYING"
+        for option in selected
+    ):
+        candidate.status = "BOUND"
+        candidate.attempt_no = int(board.attempts_used or 0) or None
+        candidate.bound_at = candidate.bound_at or utcnow()
+        db.commit()
+        return "BOUND"
+
+    already_evaluated = db.scalar(
+        select(Evaluation.id)
+        .join(BoardOption, BoardOption.id == Evaluation.assignment_id)
+        .where(
+            BoardOption.board_id == board.id,
+            Evaluation.match_id == match.id,
+        )
+        .limit(1)
+    )
+    if already_evaluated:
+        _ignore_board_match_candidate(candidate, "ALREADY_EVALUATED")
+        db.commit()
+        return "IGNORED"
+
+    if board.status == "SETTLED":
+        _ignore_board_match_candidate(candidate, "BOARD_SETTLED")
+        db.commit()
+        return "IGNORED"
+
+    started_at = aware(match.started_at)
+    locked_at = aware(board.locked_at)
+    if started_at is None or locked_at is None or started_at <= locked_at:
+        _ignore_board_match_candidate(candidate, "MATCH_BEFORE_BOARD_LOCK")
+        db.commit()
+        return "IGNORED"
+    if match.game_match_mode != board.game_match_mode:
+        _ignore_board_match_candidate(candidate, "MODE_MISMATCH")
+        db.commit()
+        return "IGNORED"
+    if (
+        board.baseline_match_id is not None
+        and int(match.external_match_id) <= int(board.baseline_match_id)
+    ):
+        _ignore_board_match_candidate(candidate, "NOT_NEWER_THAN_BASELINE")
+        db.commit()
+        return "IGNORED"
+
+    locked_options = [item for item in selected if item.status == "LOCKED"]
+    if (
+        _board_has_bound_match(db, board.id)
+        or board.status == "REVIEW_REQUIRED"
+        or not locked_options
+    ):
+        _wake_board_match_candidate(db, board, commit=False)
+        db.commit()
+        return "CAPTURED"
+
+    before_attempts = int(board.attempts_used or 0)
+    bind_match(db, board, match, commit=False)
+    if int(board.attempts_used or 0) == before_attempts + 1:
+        candidate.status = "BOUND"
+        candidate.attempt_no = int(board.attempts_used)
+        candidate.bound_at = utcnow()
+        candidate.ignored_reason = None
+        db.commit()
+        return "BOUND"
+
+    # A no-op bind can only mean this match was already consumed or there is
+    # no eligible LOCKED assignment. Keep the latter durable instead of losing it.
+    if any(item.status == "LOCKED" for item in selected):
+        _ignore_board_match_candidate(candidate, "MATCH_NOT_BINDABLE")
+        db.commit()
+        return "IGNORED"
+
+    _wake_board_match_candidate(db, board, commit=False)
+    db.commit()
+    return "CAPTURED"
+
+
+def handle_promote_board_match_candidate(db: Session, job: Job) -> None:
+    candidate_id = str((job.payload or {}).get("candidate_id") or "")
+    if not candidate_id:
+        raise ValueError("promote_board_match_candidate: отсутствует candidate_id")
+
+    candidate = db.scalar(
+        select(BoardMatchCandidate)
+        .where(BoardMatchCandidate.id == candidate_id)
+        .with_for_update()
+    )
+    if candidate is None or candidate.status != "CAPTURED":
+        return
+
+    board = db.scalar(
+        select(ContractBoard)
+        .where(ContractBoard.id == candidate.board_id)
+        .with_for_update()
+    )
+    match = db.get(Match, candidate.match_id)
+    if board is None or match is None:
+        if candidate is not None:
+            _ignore_board_match_candidate(candidate, "MISSING_BOARD_OR_MATCH")
+            db.commit()
+        return
+
+    earliest = _earliest_captured_board_match_candidate(db, board.id)
+    if earliest is not None and earliest.id != candidate.id:
+        _wake_board_match_candidate(db, board, commit=False)
+        db.commit()
+        raise CompanionMatchNotReady(
+            "Более ранний сохранённый матч должен быть обработан первым",
+            delay_seconds=15,
+        )
+
+    if board.status == "SETTLED":
+        _ignore_board_match_candidate(candidate, "BOARD_SETTLED")
+        db.commit()
+        _wake_board_match_candidate(db, board)
+        return
+
+    if _board_has_bound_match(db, board.id):
+        raise CompanionMatchNotReady(
+            f"Матч #{match.external_match_id} сохранён; ждём предыдущий verdict",
+            delay_seconds=60,
+        )
+
+    selected = list(
+        db.scalars(
+            select(BoardOption)
+            .where(
+                BoardOption.board_id == board.id,
+                BoardOption.selected.is_(True),
+            )
+            .with_for_update()
+        ).all()
+    )
+    if board.status == "REVIEW_REQUIRED" or not any(
+        item.status == "LOCKED" for item in selected
+    ):
+        raise CompanionMatchNotReady(
+            f"Матч #{match.external_match_id} сохранён; ждём освобождения попытки",
+            delay_seconds=60,
+        )
+
+    if board.attempts_used >= board.max_attempts:
+        _ignore_board_match_candidate(candidate, "ATTEMPTS_EXHAUSTED")
+        db.commit()
+        _wake_board_match_candidate(db, board)
+        return
+
+    if (
+        board.baseline_match_id is not None
+        and int(match.external_match_id) <= int(board.baseline_match_id)
+    ):
+        _ignore_board_match_candidate(candidate, "NOT_NEWER_THAN_BASELINE")
+        db.commit()
+        _wake_board_match_candidate(db, board)
+        return
+
+    before_attempts = int(board.attempts_used or 0)
+    bind_match(db, board, match, commit=False)
+    if int(board.attempts_used or 0) != before_attempts + 1:
+        _ignore_board_match_candidate(candidate, "MATCH_NOT_BINDABLE")
+        db.commit()
+        _wake_board_match_candidate(db, board)
+        return
+
+    candidate.status = "BOUND"
+    candidate.attempt_no = int(board.attempts_used)
+    candidate.bound_at = utcnow()
+    candidate.ignored_reason = None
     db.commit()
 
 
@@ -2095,6 +2416,8 @@ def handle_discover(db: Session, job: Job) -> None:
     if not board:
         raise ValueError("Доска контрактов не найдена")
     if board.status == "SETTLED":
+        return
+    if _wake_board_match_candidate(db, board):
         return
     if _board_has_bound_match(db, board.id):
         return
@@ -2212,9 +2535,6 @@ def handle_resolve_companion_match(db: Session, job: Job) -> None:
     if board.status == "SETTLED":
         _finish_discovery_jobs_for_board(db, board.id)
         return
-    if _board_has_bound_match(db, board.id):
-        _finish_discovery_jobs_for_board(db, board.id)
-        return
     if not board.locked_at or board.user.account_id is None:
         raise ValueError("Данные доски или Steam-профиля неполны")
 
@@ -2278,7 +2598,12 @@ def handle_resolve_companion_match(db: Session, job: Job) -> None:
     else:
         raise ValueError(f"Неизвестный MATCH_PROVIDER={settings.provider}")
 
-    bind_match(db, board, match)
+    _capture_or_bind_companion_match(
+        db,
+        board,
+        match,
+        capture_source="COMPANION_DIRECT",
+    )
     _finish_discovery_jobs_for_board(db, board.id)
 
 
@@ -2367,9 +2692,6 @@ def handle_resolve_companion_match_auto(db: Session, job: Job) -> None:
             _finish_discovery_jobs_for_board(db, board.id)
             return
 
-        if board.status == "REVIEW_REQUIRED":
-            continue
-
         locked_at = aware(board.locked_at)
         if (
             started_at is None
@@ -2382,13 +2704,12 @@ def handle_resolve_companion_match_auto(db: Session, job: Job) -> None:
             and external_match_id <= int(board.baseline_match_id)
         ):
             continue
-        if _board_has_bound_match(db, board.id):
-            raise CompanionMatchNotReady(
-                f"Матч #{external_match_id} сохранён в очереди; "
-                "ждём завершения предыдущей попытки этой доски"
-            )
-
-        bind_match(db, board, match)
+        _capture_or_bind_companion_match(
+            db,
+            board,
+            match,
+            capture_source="COMPANION_AUTO",
+        )
         _finish_discovery_jobs_for_board(db, board.id)
         return
 
@@ -2634,6 +2955,9 @@ def handle_evaluate(db: Session, job: Job) -> None:
     elif not ready_option_ids:
         evaluate_board(db, board.id, match.id)
 
+    db.refresh(board)
+    _wake_board_match_candidate(db, board)
+
 OUTBOX_MAX_ATTEMPTS = 8
 OUTBOX_RETRY_BASE_SECONDS = 10
 OUTBOX_RETRY_MAX_SECONDS = 15 * 60
@@ -2812,6 +3136,7 @@ def process_job(db: Session, job: Job) -> None:
         "discover_match": handle_discover,
         "resolve_companion_match": handle_resolve_companion_match,
         "resolve_companion_match_auto": handle_resolve_companion_match_auto,
+        "promote_board_match_candidate": handle_promote_board_match_candidate,
         "bind_match": handle_bind,
         "evaluate_match": handle_evaluate,
         "refresh_review_match": handle_refresh_review_match,

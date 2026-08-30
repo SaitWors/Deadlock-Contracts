@@ -10,21 +10,21 @@
   <link rel="stylesheet" href="styles/app.css">
 </head>
 <body>
-  <div class="app-shell">
+  <div id="appShell" class="app-shell">
     <header id="titlebar" class="titlebar">
       <button id="brandBtn" class="brand" type="button" data-view-target="hq" aria-label="Deadlock Contracts HQ">
         <img src="assets/mark.svg" alt="" class="brand-mark">
-        <div class="brand-copy"><strong>DEADLOCK CONTRACTS</strong><span>COMPANION / M.C.G.</span></div>
+        <div class="brand-copy"><strong>DEADLOCK CONTRACTS</strong><span data-i18n="brandSub">COMPANION / M.C.G.</span></div>
       </button>
-      <div class="title-status" aria-label="System status">
+      <div class="title-status" data-i18n-aria="systemStatus" aria-label="System status">
         <span id="topServerStatus" class="status-chip"><i></i><b>SERVER</b><em>UNPAIRED</em></span>
         <span id="topGameStatus" class="status-chip"><i></i><b>DEADLOCK</b><em>NOT RUNNING</em></span>
       </div>
-      <div class="language-switch" aria-label="Language">
+      <div class="language-switch" data-i18n-aria="languageLabel" aria-label="Language">
         <button type="button" data-language="auto">AUTO</button><button type="button" data-language="en">EN</button><button type="button" data-language="ru">RU</button>
       </div>
       <div class="window-actions">
-        <button id="minimizeBtn" type="button" aria-label="Minimize">—</button><button id="closeBtn" type="button" aria-label="Close window">×</button>
+        <button id="minimizeBtn" type="button" data-i18n-aria="minimize" aria-label="Minimize">—</button><button id="closeBtn" type="button" data-i18n-aria="closeWindow" aria-label="Close window">×</button>
       </div>
     </header>
 
@@ -32,7 +32,7 @@
 
     <div class="app-body">
       <aside class="sidebar">
-        <nav class="side-nav" aria-label="Main navigation">
+        <nav class="side-nav" data-i18n-aria="mainNavigation" aria-label="Main navigation">
           <button class="active" type="button" data-view-target="hq"><span>01</span><b data-i18n="hq">HQ</b></button>
           <button type="button" data-view-target="contracts"><span>02</span><b data-i18n="contracts">CONTRACTS</b><em id="navContractsCount"></em></button>
           <button type="button" data-view-target="active"><span>03</span><b data-i18n="activeCase">ACTIVE CASE</b><em id="navActiveCount"></em></button>
@@ -43,7 +43,7 @@
         </nav>
         <div class="sidebar-footer">
           <button id="mcgBtn" class="mcg-credit" type="button"><span data-i18n="createdBy">CREATED BY</span><strong>M.C.G.</strong><small data-i18n="mcg">MANDARIN CREATOR GROUP</small></button>
-          <div class="build-mark"><span>QA CANDIDATE</span><b>0.5.2-alpha.7</b></div>
+          <div class="build-mark"><span data-i18n="qaCandidate">QA CANDIDATE</span><b id="buildVersion">—</b></div>
         </div>
       </aside>
 
@@ -61,16 +61,17 @@
           </div>
 
           <div class="signal-grid">
-            <article class="signal-card"><span>DEADLOCK</span><strong id="hqGame">NOT RUNNING</strong><small id="hqPhase">Phase: —</small></article>
-            <article class="signal-card"><span>GEP / EVIDENCE</span><strong id="hqGep">WAITING</strong><small id="hqGepVersion">Version: —</small></article>
-            <article class="signal-card"><span>IDENTITY</span><strong id="hqIdentity">WAITING</strong><small id="hqSteam">Steam: —</small></article>
-            <article class="signal-card"><span>SERVER LEDGER</span><strong id="hqServer">UNPAIRED</strong><small id="hqServerTime">Last sync: —</small></article>
+            <article class="signal-card"><span data-i18n="deadlockLabel">DEADLOCK</span><strong id="hqGame">NOT RUNNING</strong><small id="hqPhase">Phase: —</small></article>
+            <article class="signal-card"><span data-i18n="gepEvidenceLabel">GEP / EVIDENCE</span><strong id="hqGep">WAITING</strong><small id="hqGepVersion">Version: —</small></article>
+            <article class="signal-card"><span data-i18n="identityLabel">IDENTITY</span><strong id="hqIdentity">WAITING</strong><small id="hqSteam">Steam: —</small></article>
+            <article class="signal-card"><span data-i18n="serverLedger">SERVER LEDGER</span><strong id="hqServer">UNPAIRED</strong><small id="hqServerTime">Last sync: —</small></article>
           </div>
-          <div id="gepAlert" class="notice warning" hidden><b>GEP DEGRADED</b><span id="gepAlertText"></span></div>
+          <div id="gepAlert" class="notice warning" hidden><b>GEP</b><span id="gepAlertText"></span></div>
+          <div id="hqHotkeyAlert" class="notice warning" hidden><b data-i18n="overlayHotkeyUnassigned">Overlay hotkey is not assigned.</b><button id="hqHotkeyBtn" class="text-btn" type="button" data-i18n="openHotkeySettings">OPEN OVERWOLF HOTKEY SETTINGS</button></div>
           <div id="hqOperations" class="operations-grid" aria-live="polite"></div>
           <div id="hqCaseStrip" class="case-strip"></div>
           <aside id="desktopAdRail" class="desktop-ad-rail" aria-label="Sponsored content" hidden>
-            <div class="desktop-ad-copy"><span>SPONSORED CONTENT</span><b>DESKTOP-ONLY AD SPACE</b><small id="desktopAdStatus">AVAILABLE AFTER OVERWOLF QA ENABLES ADS</small></div>
+            <div class="desktop-ad-copy"><span data-i18n="sponsoredContent">SPONSORED CONTENT</span><b data-i18n="desktopAdSpace">DESKTOP-ONLY AD SPACE</b><small id="desktopAdStatus" data-i18n="adsInitialDisabled">AVAILABLE AFTER OVERWOLF QA ENABLES ADS</small></div>
             <div class="desktop-ad-stage">
               <div id="desktopAdContainer" class="overwolf-ad-container"></div>
             </div>
@@ -79,28 +80,28 @@
 
         <section id="view-contracts" class="view" data-view="contracts">
           <div class="page-head">
-            <div><span class="eyebrow">DAILY BOARD / CONTRACTS 2.0</span><h1 data-i18n="contracts">CONTRACTS</h1><p data-i18n="contractsBody">Choose one to three server-issued contracts. Locking is final for this daily board.</p></div>
+            <div><span class="eyebrow" data-i18n="dailyBoardEyebrow">DAILY BOARD / CONTRACTS 2.0</span><h1 data-i18n="contracts">CONTRACTS</h1><p data-i18n="contractsBody">Choose one to three server-issued contracts. Locking is final for this daily board.</p></div>
             <div class="head-status"><span id="boardAuthority" class="outline-badge">SERVER AUTHORITY</span><small id="boardReset">RESET —</small></div>
           </div>
           <div id="modeTabs" class="mode-tabs" role="tablist"></div>
           <article id="adaptiveIntel" class="adaptive-intel" aria-live="polite"></article>
           <div id="boardToolbar" class="board-toolbar">
             <div><b id="boardModeTitle">STANDARD BOARD</b><span id="boardMeta">Waiting for server</span></div>
-            <div class="toolbar-actions"><span id="selectionCount" class="selection-count">0 / 3 SELECTED</span><button id="rerollBtn" class="secondary-btn" type="button">REROLL</button><button id="lockBtn" class="primary-btn" type="button">LOCK CASE</button></div>
+            <div class="toolbar-actions"><div class="selection-stack"><span id="selectionCount" class="selection-count">0 / 3 SELECTED</span><small id="boardActionReason" class="action-reason" aria-live="polite"></small></div><button id="rerollBtn" class="secondary-btn" type="button">REROLL</button><button id="lockBtn" class="primary-btn" type="button">LOCK CASE</button></div>
           </div>
-          <div id="contractBoard" class="contract-grid" aria-live="polite"></div>
+          <div id="contractBoard" class="contract-grid" role="tabpanel" aria-live="polite"></div>
         </section>
 
         <section id="view-active" class="view" data-view="active">
           <div class="page-head">
-            <div><span class="eyebrow">LIVE CASE / MATCH EVIDENCE</span><h1 data-i18n="activeCase">ACTIVE CASE</h1><p data-i18n="verifiedLater">Live values are provisional. The server issues the final verdict after the match.</p></div>
+            <div><span class="eyebrow" data-i18n="liveCaseEyebrow">LIVE CASE / MATCH EVIDENCE</span><h1 data-i18n="activeCase">ACTIVE CASE</h1><p data-i18n="verifiedLater">Live values are provisional. The server issues the final verdict after the match.</p></div>
             <span id="activeCaseBadge" class="outline-badge">NO ACTIVE CASE</span>
           </div>
           <div id="activeModeTabs" class="mode-tabs compact" role="tablist"></div>
           <div class="active-layout">
-            <div id="activeCaseContent" class="case-stack"></div>
+            <div id="activeCaseContent" class="case-stack" role="tabpanel"></div>
             <article class="evidence-panel">
-              <div class="panel-head"><div><span class="eyebrow">CURRENT MATCH</span><h3 id="activeMatchTitle">WAITING FOR DEADLOCK</h3></div><span id="activeSession" class="outline-badge">NO SESSION</span></div>
+              <div class="panel-head"><div><span class="eyebrow" data-i18n="currentMatchEyebrow">CURRENT MATCH</span><h3 id="activeMatchTitle">WAITING FOR DEADLOCK</h3></div><span id="activeSession" class="outline-badge">NO SESSION</span></div>
               <div class="evidence-grid">
                 <div><span data-i18n="kills">KILLS</span><strong id="statKills">—</strong></div><div><span data-i18n="deaths">DEATHS</span><strong id="statDeaths">—</strong></div>
                 <div><span data-i18n="assists">ASSISTS</span><strong id="statAssists">—</strong></div><div><span data-i18n="healing">HEALING</span><strong id="statHealing">—</strong></div>
@@ -113,23 +114,23 @@
         </section>
 
         <section id="view-debrief" class="view" data-view="debrief">
-          <div class="page-head"><div><span class="eyebrow">POST-MATCH / SERVER VERDICT</span><h1 data-i18n="debrief">DEBRIEF</h1><p data-i18n="debriefBody">The latest server-evaluated match, XP ledger result and current adaptive baseline.</p></div><span id="debriefStatus" class="outline-badge">NO RESULT</span></div>
+          <div class="page-head"><div><span class="eyebrow" data-i18n="postMatchEyebrow">POST-MATCH / SERVER VERDICT</span><h1 data-i18n="debrief">DEBRIEF</h1><p data-i18n="debriefBody">The latest server-evaluated match, XP ledger result and current adaptive baseline.</p></div><span id="debriefStatus" class="outline-badge">NO RESULT</span></div>
           <div id="debriefContent" class="debrief-layout" aria-live="polite"></div>
         </section>
 
         <section id="view-history" class="view" data-view="history">
-          <div class="page-head"><div><span class="eyebrow">CASE ARCHIVE / SERVER LEDGER</span><h1 data-i18n="history">HISTORY</h1><p data-i18n="historyBody">Every locked assignment and its authoritative settlement record.</p></div><span id="historyTotal" class="outline-badge">0 RECORDS</span></div>
-          <div class="history-filters"><button class="active" type="button" data-history-filter="ALL">ALL</button><button type="button" data-history-filter="ACTIVE">ACTIVE</button><button type="button" data-history-filter="COMPLETED">COMPLETED</button><button type="button" data-history-filter="FAILED">FAILED</button></div>
+          <div class="page-head"><div><span class="eyebrow" data-i18n="archiveEyebrow">CASE ARCHIVE / SERVER LEDGER</span><h1 data-i18n="history">HISTORY</h1><p data-i18n="historyBody">Every locked assignment and its authoritative settlement record.</p></div><span id="historyTotal" class="outline-badge">0 RECORDS</span></div>
+          <div class="history-filters"><button class="active" type="button" data-history-filter="ALL" data-i18n="historyAll">ALL</button><button type="button" data-history-filter="ACTIVE" data-i18n="historyActive">ACTIVE</button><button type="button" data-history-filter="COMPLETED" data-i18n="historyCompleted">COMPLETED</button><button type="button" data-history-filter="FAILED" data-i18n="historyFailed">FAILED</button></div>
           <div id="historyList" class="history-list" aria-live="polite"></div>
         </section>
 
         <section id="view-profile" class="view" data-view="profile">
-          <div class="page-head"><div><span class="eyebrow">OPERATIVE RECORD / SERVER VERIFIED</span><h1 data-i18n="profile">PROFILE</h1><p data-i18n="profileBody">Identity, progression and performance by operation.</p></div><span id="profileLevelBadge" class="outline-badge">LEVEL —</span></div>
+          <div class="page-head"><div><span class="eyebrow" data-i18n="profileEyebrow">OPERATIVE RECORD / SERVER VERIFIED</span><h1 data-i18n="profile">PROFILE</h1><p data-i18n="profileBody">Identity, progression and performance by operation.</p></div><span id="profileLevelBadge" class="outline-badge">LEVEL —</span></div>
           <div class="profile-grid">
-            <article class="profile-card identity-card"><img src="assets/curator-contract.jpg" alt=""><div><span data-i18n="account">ACCOUNT</span><h2 id="profileName">UNPAIRED OPERATIVE</h2><p id="profileSteam">Steam ID —</p><div id="profileBadges" class="badge-row"></div></div></article>
-            <article class="metric-card"><span>TOTAL XP</span><strong id="profileXp">—</strong><small id="profileXpNext">Server ledger</small></article>
+            <article class="profile-card identity-card"><img src="assets/curator-contract.jpg" alt=""><div><span data-i18n="account">ACCOUNT</span><h2 id="profileName">UNPAIRED OPERATIVE</h2><p id="profileSteam">Steam ID —</p><div class="profile-id-actions"><button id="showSteamBtn" class="text-btn" type="button" data-i18n="showId">SHOW ID</button><button id="copySteamBtn" class="text-btn" type="button" data-i18n="copyId">COPY ID</button></div><div id="profileBadges" class="badge-row"></div></div></article>
+            <article class="metric-card"><span data-i18n="totalXp">TOTAL XP</span><strong id="profileXp">—</strong><small id="profileXpNext">Server ledger</small></article>
             <article class="metric-card"><span>COMPLETED</span><strong id="profileCompleted">—</strong><small id="profileReview">0 under review</small></article>
-            <article class="metric-card"><span>SUCCESS RATE</span><strong id="profileSuccess">—</strong><small id="profileFailed">0 failed</small></article>
+            <article class="metric-card"><span data-i18n="successRate">SUCCESS RATE</span><strong id="profileSuccess">—</strong><small id="profileFailed">0 failed</small></article>
           </div>
           <div id="profileProgress" class="level-progress"></div>
           <div id="modeStats" class="mode-stat-grid"></div>
@@ -138,19 +139,19 @@
         </section>
 
         <section id="view-settings" class="view" data-view="settings">
-          <div class="page-head"><div><span class="eyebrow">SYSTEM / CONTROL</span><h1 data-i18n="settings">SETTINGS</h1><p data-i18n="settingsSecurity">No database credentials, master keys or settlement authority live in this package.</p></div></div>
+          <div class="page-head"><div><span class="eyebrow" data-i18n="systemControl">SYSTEM / CONTROL</span><h1 data-i18n="settings">SETTINGS</h1><p data-i18n="settingsSecurity">No database credentials, master keys or settlement authority live in this package.</p></div></div>
           <div class="settings-grid">
             <article class="settings-card wide">
               <div class="settings-head"><div><span class="eyebrow" data-i18n="pairTitle">CONNECT DEADLOCK CONTRACTS</span><h3 id="pairAccount">NOT PAIRED</h3></div><span id="pairBadge" class="outline-badge">NOT PAIRED</span></div>
               <p data-i18n="pairBody">Create a short-lived code on the official site, then enter it here. The code is exchanged once; the resulting token is encrypted for the current Windows user.</p>
-              <div class="pair-row"><label class="sr-only" for="pairCode">Pairing code</label><input id="pairCode" type="text" inputmode="text" autocomplete="off" spellcheck="false" maxlength="12" placeholder="ABCD-EFGH"><button id="pairBtn" class="primary-btn" type="button" data-i18n="connect">CONNECT</button><button id="pairSiteBtn" class="secondary-btn" type="button" data-i18n="openWebsite">OPEN PAIRING PAGE</button></div>
-              <small id="pairMessage" data-i18n="pairHelp">Generate a short-lived code on the official site, then enter it here.</small>
-              <div class="settings-actions"><button id="disconnectBtn" class="text-btn danger-text" type="button" data-i18n="disconnect">DISCONNECT</button><button id="syncBtn" class="text-btn" type="button" data-i18n="syncNow">SYNC NOW</button></div>
+              <div class="pair-row"><label class="sr-only" for="pairCode" data-i18n="pairingCodeLabel">Pairing code</label><input id="pairCode" type="text" inputmode="text" autocomplete="off" spellcheck="false" maxlength="12" placeholder="ABCD-EFGH"><button id="pairBtn" class="primary-btn" type="button" data-i18n="connect">CONNECT</button><button id="pairSiteBtn" class="secondary-btn" type="button" data-i18n="openWebsite">OPEN PAIRING PAGE</button></div>
+              <small id="pairMessage" class="durable-message" aria-live="polite" data-i18n="pairHelp">Generate a short-lived code on the official site, then enter it here.</small>
+              <div class="settings-actions"><button id="disconnectBtn" class="text-btn danger-text" type="button" data-i18n="revokeDisconnect">REVOKE &amp; DISCONNECT</button><button id="forceSignOutBtn" class="text-btn danger-text" type="button" data-i18n="forceLocalSignOut">FORCE LOCAL SIGN-OUT</button><button id="syncBtn" class="text-btn" type="button" data-i18n="syncNow">SYNC NOW</button></div>
             </article>
             <article class="settings-card"><span class="eyebrow" data-i18n="language">LANGUAGE</span><h3>AUTO / EN / RU</h3><p data-i18n="languageBody">Use the system language or keep a manual choice.</p><div class="language-switch settings-language"><button type="button" data-language="auto">AUTO</button><button type="button" data-language="en">EN</button><button type="button" data-language="ru">RU</button></div></article>
-            <article class="settings-card"><span class="eyebrow" data-i18n="overlay">OVERLAY</span><h3 id="hotkeyBinding">CTRL + SHIFT + C</h3><p data-i18n="overlayBody">A minimal, input-pass-through case widget that auto-hides after a few seconds. You can resize or reset it here.</p><div class="overlay-presets"><button type="button" data-overlay-scale="compact">S</button><button type="button" data-overlay-scale="regular">M</button><button type="button" data-overlay-scale="large">L</button></div><div class="settings-actions"><button id="overlayBtn" class="secondary-btn" type="button" data-i18n="showOverlay">SHOW / HIDE</button><button id="overlayResetBtn" class="text-btn" type="button" data-i18n="resetPosition">RESET POSITION</button><button id="hotkeyBtn" class="text-btn" type="button" data-i18n="hotkeySettings">HOTKEY</button></div></article>
-            <article class="settings-card"><span class="eyebrow" data-i18n="diagnostics">DIAGNOSTICS</span><h3 id="diagState">BACKGROUND READY</h3><p id="diagCopy">Diagnostics never include bearer tokens.</p><div class="settings-actions"><button id="reportBtn" class="secondary-btn" type="button" data-i18n="copyReport">COPY REPORT</button></div></article>
-            <article class="settings-card"><span class="eyebrow">APP UPDATE</span><h3 id="updateState">NOT CHECKED</h3><p data-i18n="updateBody">Release updates are delivered by Overwolf.</p><div class="settings-actions"><button id="updateBtn" class="secondary-btn" type="button" data-i18n="checkUpdate">CHECK UPDATE</button><button id="exitBtn" class="danger-btn" type="button" data-i18n="exitApp">EXIT APP</button></div></article>
+            <article class="settings-card"><span class="eyebrow" data-i18n="overlay">OVERLAY</span><h3 id="hotkeyBinding">CTRL + SHIFT + C</h3><p data-i18n="overlayBody">A minimal, input-pass-through case widget that auto-hides after a few seconds. You can resize or reset it here.</p><div class="overlay-presets"><button type="button" data-overlay-scale="compact">S</button><button type="button" data-overlay-scale="regular">M</button><button type="button" data-overlay-scale="large">L</button></div><div class="auto-hide-row" aria-label="Overlay auto-hide"><span data-i18n="autoHide">AUTO-HIDE</span><button type="button" data-auto-hide="0" data-i18n="never">NEVER</button><button type="button" data-auto-hide="5000">5s</button><button type="button" data-auto-hide="10000">10s</button><button type="button" data-auto-hide="30000">30s</button></div><div id="hotkeyWarning" class="inline-warning" hidden data-i18n="overlayHotkeyWarning">Overlay hotkey is unassigned. Open Overwolf Hotkey Settings to assign one.</div><div class="settings-actions"><button id="overlayBtn" class="secondary-btn" type="button" data-i18n="showOverlay">SHOW / HIDE</button><button id="overlayResetBtn" class="text-btn" type="button" data-i18n="resetPosition">RESET POSITION</button><button id="hotkeyBtn" class="text-btn" type="button" data-i18n="hotkeySettings">HOTKEY</button></div></article>
+            <article class="settings-card wide"><span class="eyebrow" data-i18n="diagnostics">DIAGNOSTICS</span><h3 id="diagState" data-i18n="backgroundReady">BACKGROUND READY</h3><p id="diagCopy" data-i18n="diagnosticsSafe">Diagnostics omit bearer tokens, raw GEP payloads, and full SteamID by default.</p><div id="healthGrid" class="health-grid" aria-live="polite"></div><div class="settings-actions"><button id="reportBtn" class="secondary-btn" type="button" data-i18n="copyReport">COPY REPORT</button><button id="exportQueueBtn" class="text-btn" type="button" data-i18n="exportPending">EXPORT PENDING</button><button id="clearCacheBtn" class="text-btn" type="button" data-i18n="clearCache">CLEAR CACHE</button><button id="clearAllDataBtn" class="text-btn danger-text" type="button" data-i18n="clearAllData">CLEAR ALL LOCAL DATA</button></div></article>
+            <article class="settings-card"><span class="eyebrow" data-i18n="updateHelp">APP UPDATE / HELP</span><h3 id="updateState" data-i18n="notChecked">NOT CHECKED</h3><p data-i18n="updateBody">Release updates are delivered by Overwolf.</p><div class="settings-actions"><button id="updateBtn" class="secondary-btn" type="button" data-i18n="checkUpdate">CHECK UPDATE</button><button id="helpBtn" class="text-btn" type="button" data-i18n="helpRules">HELP &amp; RULES</button><button id="privacyBtn" class="text-btn" type="button" data-i18n="privacy">PRIVACY</button><button id="supportBtn" class="text-btn" type="button" data-i18n="support">REPORT A PROBLEM</button><button id="replayIntroBtn" class="text-btn" type="button" data-i18n="replayIntro">REPLAY INTRODUCTION</button><button id="exitBtn" class="danger-btn" type="button" data-i18n="exitApp">EXIT APP</button></div></article>
           </div>
         </section>
       </main>
@@ -159,16 +160,21 @@
 
   <div id="ftue" class="ftue-backdrop" hidden>
     <section class="ftue-card" role="dialog" aria-modal="true" aria-labelledby="ftueTitle">
-      <div class="ftue-copy"><span class="eyebrow" data-i18n="ftueEyebrow">WELCOME TO THE CONTRACT BUREAU</span><h1 id="ftueTitle" data-i18n="ftueTitle">YOUR NEXT MATCH HAS A FILE NUMBER</h1><p data-i18n="ftueBody">Pick one to three contracts, play the matching Deadlock mode, and wait for the server verdict. Live numbers are guidance, never a self-issued reward.</p><div class="ftue-points"><span><b>01</b><em data-i18n="ftueOne">Pair your website account</em></span><span><b>02</b><em data-i18n="ftueTwo">Lock a daily case before the match</em></span><span><b>03</b><em><span data-i18n="ftueThreePrefix">Toggle the overlay with</span> <strong id="ftueHotkey">Ctrl + Shift + C</strong></em></span></div><div class="ftue-actions"><button id="ftueContinue" class="primary-btn" type="button" data-i18n="continue">ENTER HQ</button><button id="ftuePair" class="secondary-btn" type="button" data-i18n="pairNow">PAIR ACCOUNT</button></div><small data-i18n="ftuePrivacy">Only your own game telemetry is collected for contract verification.</small></div>
-      <div class="ftue-art"><img src="assets/curator-contract.jpg" alt="Deadlock Contracts Curator"><div class="ftue-seal">PLAY<br>COMPLETE<br>EARN</div></div>
+      <div class="ftue-copy"><span class="eyebrow" data-i18n="ftueEyebrow">WELCOME TO THE CONTRACT BUREAU</span><h1 id="ftueTitle" data-i18n="ftueTitle">YOUR NEXT MATCH HAS A FILE NUMBER</h1><p data-i18n="ftueBody">Pick one to three contracts, play the matching Deadlock mode, and wait for the server verdict. Live numbers are guidance, never a self-issued reward.</p><div class="ftue-points"><span><b>01</b><em data-i18n="ftueOne">Pair your website account</em></span><span><b>02</b><em data-i18n="ftueTwo">Lock a daily case before the match</em></span><span><b>03</b><em><span data-i18n="ftueThreePrefix">Toggle the overlay with</span> <strong id="ftueHotkey">Ctrl + Shift + C</strong></em></span></div><div class="ftue-actions"><button id="ftueContinue" class="primary-btn" type="button" data-i18n="continue">ENTER HQ</button><button id="ftuePair" class="secondary-btn" type="button" data-i18n="pairNow">PAIR ACCOUNT</button></div><small data-i18n="ftuePrivacy">The app processes your account pairing, local Deadlock telemetry, cached contract data, and technical ad/diagnostic events. Rewards and final verdicts remain server-authoritative.</small></div>
+      <div class="ftue-art"><img src="assets/curator-contract.jpg" alt="Deadlock Contracts Curator"><div class="ftue-seal"><span data-i18n="ftuePlay">PLAY</span><span data-i18n="ftueComplete">COMPLETE</span><span data-i18n="ftueEarn">EARN</span></div></div>
     </section>
   </div>
 
   <div id="confirmModal" class="modal-backdrop" hidden>
-    <section class="modal-card" role="dialog" aria-modal="true" aria-labelledby="modalTitle"><span class="eyebrow">AUTHORITATIVE ACTION</span><h2 id="modalTitle">CONFIRM</h2><div id="modalBody"></div><div class="modal-actions"><button id="modalCancel" class="secondary-btn" type="button">CANCEL</button><button id="modalConfirm" class="primary-btn" type="button">CONFIRM</button></div></section>
+    <section class="modal-card" role="dialog" aria-modal="true" aria-labelledby="modalTitle" aria-describedby="modalBody"><span class="eyebrow" data-i18n="authoritativeAction">AUTHORITATIVE ACTION</span><h2 id="modalTitle">CONFIRM</h2><div id="modalBody"></div><div class="modal-actions"><button id="modalCancel" class="secondary-btn" type="button" data-i18n="cancel">CANCEL</button><button id="modalConfirm" class="primary-btn" type="button" data-i18n="common.confirm">CONFIRM</button></div></section>
   </div>
   <div id="toastRegion" class="toast-region" aria-live="polite" aria-atomic="true"></div>
 
+  <script src="src/release-meta.js"></script>
+  <script src="src/i18n.js"></script>
+  <script src="src/schema.js"></script>
+  <script src="src/progress.js"></script>
+  <script src="src/storage.js"></script>
   <script src="src/shared.js"></script>
   <script src="src/product.js"></script>
   <script src="src/desktop-ads.js"></script>

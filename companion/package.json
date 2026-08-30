@@ -1,11 +1,19 @@
 {
   "name": "deadlock-contracts-companion",
-  "version": "0.5.2-alpha.7",
+  "version": "0.5.2-alpha.16",
   "private": true,
   "type": "commonjs",
   "scripts": {
-    "test": "node --test tests/*.test.mjs",
+    "lint": "node scripts/check-syntax.mjs",
+    "test": "node --test tests/unit/*.test.mjs tests/integration/*.test.mjs tests/contract/*.test.mjs",
+    "test:i18n": "node scripts/check-i18n-invariants.mjs",
     "check": "node scripts/check-release.mjs",
+    "release:check": "npm run lint && npm test && npm run test:i18n && npm run test:ui && npm run test:contrast && npm run release:meta && npm run check",
+    "release:meta": "node scripts/build-release.mjs",
+    "test:ui": "node scripts/check-user-facing-strings.mjs",
+    "build:opk": "node scripts/package-release.mjs",
+    "verify:opk": "node scripts/verify-opk.mjs dist/Deadlock-Contracts-Companion-0.5.2-alpha.16.opk",
+    "test:contrast": "node scripts/check-contrast.mjs",
     "package": "node scripts/package-release.mjs"
   }
 }

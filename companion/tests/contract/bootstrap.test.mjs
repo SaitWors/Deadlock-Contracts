@@ -1,0 +1,2 @@
+import test from 'node:test';import assert from 'node:assert/strict';import fs from 'node:fs';import {createRequire} from 'node:module';const require=createRequire(import.meta.url);const S=require('../../src/schema.js');const fixture=JSON.parse(fs.readFileSync(new URL('../fixtures/bootstrap-valid.json',import.meta.url),'utf8'))
+test('bootstrap fixture satisfies desktop.v1 schema v2',()=>assert.equal(S.validateBootstrapV2(fixture),true))

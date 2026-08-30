@@ -1,0 +1,12 @@
+{
+  "api_version": "desktop.v1",
+  "schema_version": 2,
+  "minimum_client_version": "0.5.2-alpha.16",
+  "server_time": "2026-08-27T00:00:00Z",
+  "desktop_features": ["adaptive_profiles_v1", "debrief_v1"],
+  "account": {"display_name":"QA Operative","locale":"en"},
+  "boards": [],
+  "active_cases": [],
+  "history": {"items": []},
+  "adaptive_profiles": {}
+}

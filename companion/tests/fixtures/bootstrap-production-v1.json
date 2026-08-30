@@ -1,0 +1,198 @@
+{
+  "api_version": "desktop.v1",
+  "schema_version": 1,
+  "desktop_features": [
+    "adaptive_profiles_v1",
+    "debrief_v1"
+  ],
+  "server_time": "2026-08-27T09:00:00+00:00",
+  "account": {
+    "display_name": "Production QA",
+    "steam_id64": "76561198000000000",
+    "locale": "en"
+  },
+  "device": {
+    "paired": true,
+    "online": true,
+    "game_running": false,
+    "phase": null,
+    "game_match_mode": null,
+    "current_match_id": null,
+    "last_seen_at": "2026-08-27T08:59:55+00:00",
+    "identity_ok": true,
+    "version": "0.5.2-alpha.16",
+    "gep_version": "311.0.0",
+    "label": "Deadlock Contracts Desktop"
+  },
+  "refresh": {
+    "remaining": 1,
+    "reset_at": "2026-08-28T03:00:00+00:00"
+  },
+  "boards": [
+    {
+      "id": "board-prod-v1",
+      "date": "2026-08-27",
+      "status": "LOCKED",
+      "game_match_mode": "STANDARD",
+      "generation": 1,
+      "generator_version": "contracts-v2",
+      "attempts_used": 0,
+      "max_attempts": 3,
+      "attempts_remaining": 3,
+      "offered_at": "2026-08-27T03:00:00+00:00",
+      "locked_at": "2026-08-27T08:00:00+00:00",
+      "expires_at": "2026-08-28T03:00:00+00:00",
+      "case_expires_at": "2026-08-28T03:00:00+00:00",
+      "daily_reset_at": "2026-08-28T03:00:00+00:00",
+      "next_board_ready": false,
+      "options": [
+        {
+          "id": "option-prod-v1",
+          "title": "Сделайте 8 убийств",
+          "title_i18n": {
+            "ru": "Сделайте 8 убийств",
+            "en": "Get 8 kills"
+          },
+          "description": "Убейте 8 героев",
+          "description_i18n": {
+            "ru": "Убейте 8 героев",
+            "en": "Eliminate 8 enemy heroes"
+          },
+          "metric": "player.kills",
+          "operator": "gte",
+          "target": 8,
+          "reward_xp": 100,
+          "difficulty": "FOCUSED",
+          "rarity": "COMMON",
+          "drop_chance_pct": 25,
+          "category": "COMBAT",
+          "conditions": [
+            {
+              "metric": "player.kills",
+              "operator": "gte",
+              "target": 8,
+              "capabilities": [
+                "gep"
+              ]
+            }
+          ],
+          "personalization": {},
+          "selected": true,
+          "status": "LOCKED",
+          "progress_current": null,
+          "progress_target": 8,
+          "explanation": null,
+          "bound_match_id": null
+        },
+        {
+          "id": "option-prod-skipped",
+          "title": "Пропущенный контракт",
+          "title_i18n": {
+            "ru": "Пропущенный контракт",
+            "en": "Skipped contract"
+          },
+          "description": "Убейте 8 героев",
+          "description_i18n": {
+            "ru": "Убейте 8 героев",
+            "en": "Eliminate 8 enemy heroes"
+          },
+          "metric": "player.kills",
+          "operator": "gte",
+          "target": 8,
+          "reward_xp": 100,
+          "difficulty": "FOCUSED",
+          "rarity": "COMMON",
+          "drop_chance_pct": 25,
+          "category": "COMBAT",
+          "conditions": [
+            {
+              "metric": "player.kills",
+              "operator": "gte",
+              "target": 8,
+              "capabilities": [
+                "gep"
+              ]
+            }
+          ],
+          "personalization": {},
+          "selected": false,
+          "status": "SKIPPED",
+          "progress_current": null,
+          "progress_target": 8,
+          "explanation": null,
+          "bound_match_id": null
+        }
+      ]
+    }
+  ],
+  "active_cases": [
+    {
+      "board_id": "board-prod-v1",
+      "game_match_mode": "STANDARD",
+      "status": "LOCKED",
+      "locked_at": "2026-08-27T08:00:00+00:00",
+      "expires_at": "2026-08-28T03:00:00+00:00",
+      "attempts_used": 0,
+      "max_attempts": 3,
+      "attempts_remaining": 3,
+      "options": [
+        {
+          "id": "option-prod-v1",
+          "title": "Сделайте 8 убийств",
+          "title_i18n": {
+            "ru": "Сделайте 8 убийств",
+            "en": "Get 8 kills"
+          },
+          "description": "Убейте 8 героев",
+          "description_i18n": {
+            "ru": "Убейте 8 героев",
+            "en": "Eliminate 8 enemy heroes"
+          },
+          "metric": "player.kills",
+          "operator": "gte",
+          "target": 8,
+          "reward_xp": 100,
+          "difficulty": "FOCUSED",
+          "rarity": "COMMON",
+          "drop_chance_pct": 25,
+          "category": "COMBAT",
+          "conditions": [
+            {
+              "metric": "player.kills",
+              "operator": "gte",
+              "target": 8,
+              "capabilities": [
+                "gep"
+              ]
+            }
+          ],
+          "personalization": {},
+          "selected": true,
+          "status": "LOCKED",
+          "progress_current": null,
+          "progress_target": 8,
+          "explanation": null,
+          "bound_match_id": null
+        }
+      ]
+    }
+  ],
+  "adaptive_profiles": {},
+  "progression": {
+    "level": 1,
+    "total_xp": 0
+  },
+  "history": {
+    "cases": [],
+    "items": []
+  },
+  "policy": {
+    "selection_min": 1,
+    "selection_max": 3,
+    "server_authoritative": true,
+    "client_can_settle": false,
+    "companion_ingest_enabled": true,
+    "reward_settlement_enabled": true,
+    "minimum_companion_version": "0.5.2-alpha.5"
+  }
+}

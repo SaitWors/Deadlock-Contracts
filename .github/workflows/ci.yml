@@ -203,9 +203,9 @@ jobs:
             -print0 \
             | xargs -0 -n1 node --check
 
-      - name: Run Companion tests
+      - name: Run Companion release checks
         run: |
-          node --test tests/*.test.mjs
+          npm run release:check
 
       - name: Install OPK packaging dependency
         run: |
@@ -331,5 +331,6 @@ jobs:
               test -f /app/app/migrate.py
               test -f /app/app/maintenance.py
               test -f /app/alembic/versions/0007_mission_localization.py
+          test -f /app/alembic/versions/0008_board_match_candidate_queue.py
               echo "release image OK"
             '

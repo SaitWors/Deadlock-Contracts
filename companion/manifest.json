@@ -5,7 +5,7 @@
     "name": "Deadlock Contracts Companion",
     "author": "Deadlock Contracts",
     "author_display": "Mandarin Creator Group (M.C.G.)",
-    "version": "0.5.2.7",
+    "version": "0.5.2.16",
     "minimum-overwolf-version": "0.305.0.9",
     "minimum-gep-version": "311.0.0",
     "description": "Choose daily Deadlock contracts, follow provisional live progress, and receive authoritative post-match verdicts, XP and history.",
@@ -17,6 +17,7 @@
     "splash_image": "assets/icon.png"
   },
   "permissions": [
+    "Clipboard",
     "Extensions",
     "Streaming",
     "Profile",
@@ -75,7 +76,7 @@
         },
         "resizable": true,
         "show_in_taskbar": true,
-        "transparent": true,
+        "transparent": false,
         "desktop_only": true,
         "native_window": true,
         "use_os_windowing": true,
@@ -89,22 +90,22 @@
       "overlay": {
         "file": "overlay.html",
         "size": {
-          "width": 420,
-          "height": 320
+          "width": 440,
+          "height": 190
         },
         "min_size": {
-          "width": 420,
-          "height": 320
+          "width": 440,
+          "height": 190
         },
         "max_size": {
-          "width": 540,
-          "height": 360
+          "width": 560,
+          "height": 220
         },
         "start_position": {
-          "top": 72,
-          "left": 72
+          "top": 16,
+          "left": 16
         },
-        "resizable": true,
+        "resizable": false,
         "show_in_taskbar": false,
         "transparent": true,
         "in_game_only": true,

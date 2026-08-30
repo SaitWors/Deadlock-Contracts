@@ -175,6 +175,7 @@ def main() -> int:
         companion_manifest = json.loads(text(root / "companion/manifest.json"))
         companion_index = text(root / "companion/index.html")
         companion_desktop = text(root / "companion/src/desktop.js")
+        companion_release_meta = text(root / "companion/src/release-meta.js")
         companion_notices = text(root / "companion/THIRD_PARTY_NOTICES.txt")
         if companion_manifest.get("meta", {}).get("version") != companion_manifest_version:
             fail(errors, "Companion manifest version is not aligned with release.json")
@@ -182,10 +183,14 @@ def main() -> int:
             fail(errors, "Companion source provenance runtime is not aligned with release.json")
         if companion_provenance.get("manifest_version") != companion_manifest_version:
             fail(errors, "Companion source provenance manifest is not aligned with release.json")
-        if f"<b>{companion_version}</b>" not in companion_index:
-            fail(errors, "Companion build mark is not aligned with release.json")
-        if f"version: '{companion_version}'" not in companion_desktop:
-            fail(errors, "Companion fallback version is not aligned with release.json")
+        if f"productVersion: '{companion_version}'" not in companion_release_meta:
+            fail(errors, "Companion release-meta runtime is not aligned with release.json")
+        if f"manifestVersion: '{companion_manifest_version}'" not in companion_release_meta:
+            fail(errors, "Companion release-meta manifest is not aligned with release.json")
+        if 'id="buildVersion"' not in companion_index:
+            fail(errors, "Companion dynamic build version marker is missing")
+        if "window.DCRelease?.productVersion" not in companion_desktop:
+            fail(errors, "Companion desktop does not consume canonical release metadata")
         if not companion_notices.startswith(f"Deadlock Contracts Companion {companion_version}\n"):
             fail(errors, "Companion notices header is not aligned with release.json")
 

@@ -1,0 +1,15 @@
+{
+  "name": "normal-match-one-final",
+  "source": "documented-simulator",
+  "steps": [
+    {"type":"history","matches":[{"match_id":7000}],"at":"2026-08-27T08:00:00Z"},
+    {"type":"process","running":true,"processId":102,"gameSessionId":2,"at":"2026-08-27T08:01:00Z"},
+    {"type":"match_start","at":"2026-08-27T08:01:10Z"},
+    {"type":"match_id","matchId":7001,"source":"info_update","at":"2026-08-27T08:01:11Z"},
+    {"type":"clock","seconds":1,"at":"2026-08-27T08:01:12Z"},
+    {"type":"clock","seconds":900,"at":"2026-08-27T08:16:11Z"},
+    {"type":"terminal","signal":"match_end","at":"2026-08-27T08:16:12Z"},
+    {"type":"history","matches":[{"match_id":7000},{"match_id":7001}],"at":"2026-08-27T08:16:15Z"}
+  ],
+  "expect":{"state":"FINALIZED","finals":1,"match_id":7001}
+}

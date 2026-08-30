@@ -108,12 +108,15 @@ log "Shared rate limiter is healthy"
 
 DOMAIN="$(sed -n 's/^DOMAIN=//p' .env.production | tail -n1 | tr -d '\r')"
 check_public(){ curl -fsS --connect-timeout 5 --max-time 12 "https://${DOMAIN}/api/health" >/tmp/dc-health.json && curl -fsS --connect-timeout 5 --max-time 12 "https://${DOMAIN}/api/ready" >/tmp/dc-ready.json; }
-if ! check_public; then
-  log "Public health failed after web recreate; restarting Caddy to refresh Docker DNS/upstream state"
-  "${COMPOSE[@]}" restart caddy
-  sleep 5
-  check_public || { "${COMPOSE[@]}" logs --tail=120 caddy web || true; fail "public health still failing"; }
-fi
+
+log "Recreating Caddy from current release"
+"${COMPOSE[@]}" up -d --no-deps --force-recreate caddy
+caddy_id="$("${COMPOSE[@]}" ps -q caddy)"
+[[ -n "$caddy_id" ]] || fail "caddy container id not found"
+caddy_root="$(docker inspect --format '{{ index .Config.Labels "com.docker.compose.project.working_dir" }}' "$caddy_id")"
+[[ "$caddy_root" == "$ROOT" ]] || fail "caddy uses wrong root: expected=$ROOT actual=$caddy_root"
+sleep 2
+check_public || { "${COMPOSE[@]}" logs --tail=120 caddy web || true; fail "public health check failed"; }
 PUBLIC_VERSION="$(python3 - <<'PY'
 import json
 try:

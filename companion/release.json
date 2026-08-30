@@ -1,0 +1,13 @@
+{
+  "product_version": "0.5.2-alpha.16",
+  "manifest_version": "0.5.2.16",
+  "evidence_schema_version": 8,
+  "bootstrap_schema_version": 2,
+  "bootstrap_compatible_versions": [
+    1,
+    2
+  ],
+  "production_web_version": "0.10.1-alpha.10",
+  "production_bootstrap_schema_version": 1,
+  "production_heartbeat_contract": "companion-heartbeat.v1"
+}

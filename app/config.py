@@ -40,7 +40,7 @@ def _csv(name: str, default: str = "") -> tuple[str, ...]:
 @dataclass(frozen=True)
 class Settings:
     app_name: str = os.getenv("APP_NAME", "Deadlock Contracts")
-    app_version: str = os.getenv("APP_VERSION", "0.10.1-alpha.9")
+    app_version: str = os.getenv("APP_VERSION", "0.10.1-alpha.10")
     app_env: str = os.getenv("APP_ENV", "development").strip().lower()
     service_role: str = os.getenv("SERVICE_ROLE", "web").strip().lower()
     app_base_url: str = os.getenv("APP_BASE_URL", "http://localhost:8080").rstrip("/")
@@ -117,6 +117,9 @@ class Settings:
     # Keep the board in VERIFYING and retry exact metadata before escalating to
     # internal review. This does not consume additional contract attempts.
     post_match_verification_max_attempts: int = int(os.getenv("POST_MATCH_VERIFICATION_MAX_ATTEMPTS", "12"))
+    provisional_post_match_max_attempts: int = int(
+        os.getenv("PROVISIONAL_POST_MATCH_MAX_ATTEMPTS", "144")
+    )
     companion_event_retention_days: int = int(os.getenv("COMPANION_EVENT_RETENTION_DAYS", "14"))
     companion_ingest_enabled: bool = _bool("COMPANION_INGEST_ENABLED", True)
     companion_ads_enabled: bool = _bool("COMPANION_ADS_ENABLED", False)
@@ -226,6 +229,10 @@ class Settings:
             raise RuntimeError("COMPANION_FINALIZATION_GRACE_SECONDS must be between 0 and 30")
         if not 2 <= self.post_match_verification_max_attempts <= 30:
             raise RuntimeError("POST_MATCH_VERIFICATION_MAX_ATTEMPTS must be between 2 and 30")
+        if not 24 <= self.provisional_post_match_max_attempts <= 1008:
+            raise RuntimeError(
+                "PROVISIONAL_POST_MATCH_MAX_ATTEMPTS must be between 24 and 1008"
+            )
         if not 1 <= self.companion_event_retention_days <= 90:
             raise RuntimeError("COMPANION_EVENT_RETENTION_DAYS must be between 1 and 90")
         if self.companion_minimum_version and not re.fullmatch(

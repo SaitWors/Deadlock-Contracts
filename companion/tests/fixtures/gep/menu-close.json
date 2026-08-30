@@ -1,0 +1,10 @@
+{
+  "name": "menu-close-no-final",
+  "source": "documented-simulator",
+  "steps": [
+    {"type":"process","running":true,"processId":101,"gameSessionId":1,"at":"2026-08-27T08:00:00Z"},
+    {"type":"phase","phase":"WaitingForPlayersToJoin","source":"info_update","at":"2026-08-27T08:00:05Z"},
+    {"type":"process","running":false,"at":"2026-08-27T08:00:10Z"}
+  ],
+  "expect":{"state":"NO_GAME","finals":0}
+}

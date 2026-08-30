@@ -30,22 +30,20 @@ def test_client_only_normalization_fails_closed():
 
 
 def test_nested_info_update_is_distinct_from_cached_get_info():
-    assert "function extractMatchInfo(mi, source = 'get_info')" in BACKGROUND
-    assert "applyMatchOutcome(mi.match_outcome, source)" in BACKGROUND
-    assert "function classifyInfoSource(result)" in BACKGROUND
-    assert (
-        "return result?.feature && result?.info "
-        "? 'info_update' : 'get_info'"
-    ) in BACKGROUND
-    assert "const source = classifyInfoSource(result)" in BACKGROUND
-    assert "extractMatchInfo(res.match_info, source)" in BACKGROUND
+    assert "function extractKnown(result, source = null)" in BACKGROUND
+    assert "const provenance = source || (result?.feature && result?.info ? 'info_update' : 'get_info')" in BACKGROUND
+    assert "if (mi.match_outcome != null) applyOutcome(mi.match_outcome, provenance)" in BACKGROUND
+    assert "extractKnown(result, 'get_info')" in BACKGROUND
+    assert "if (info?.info) extractKnown(info, 'info_update')" in BACKGROUND
 
 
 def test_flat_deadlock_info_update_remains_supported():
-    assert "applyMatchOutcome(value, 'info_update')" in BACKGROUND
+    assert "else if (key === 'match_outcome') applyOutcome(value, 'info_update')" in BACKGROUND
 
 
 def test_result_marker_still_requires_real_info_update_and_exact_current_match():
-    assert "source === 'info_update' && state.matchId" in BACKGROUND
-    assert "state.matchOutcomeEventAt = nowIso()" in BACKGROUND
-    assert "state.matchOutcomeEventMatchId = Number(state.matchId)" in BACKGROUND
+    assert "if (source === 'info_update')" in BACKGROUND
+    assert "const exactMatchId = asInt(session?.match_id || state.matchId)" in BACKGROUND
+    assert "if (session?.session_id && exactMatchId)" in BACKGROUND
+    assert "state.matchOutcomeEventAt = observedAt" in BACKGROUND
+    assert "state.matchOutcomeEventMatchId = exactMatchId" in BACKGROUND
