@@ -133,8 +133,136 @@ class CompanionMatchEvidence(Base):
     object_damage: Mapped[int | None] = mapped_column(Integer, nullable=True)
     healing: Mapped[int | None] = mapped_column(Integer, nullable=True)
     souls: Mapped[int | None] = mapped_column(Integer, nullable=True)
+
+    # Evidence v8 rows are legacy diagnostic evidence. Evidence v9 will
+    # populate the session/lease/finality fields below explicitly.
+    evidence_schema_version: Mapped[int] = mapped_column(Integer, default=8)
+    # Do not reuse legacy companion_match_evidence.session_id.
+    # That pre-Alembic field remains unmanaged by the ORM migration model.
+    # Evidence v9 gets its own immutable GEP session identifier.
+    gep_session_id: Mapped[str | None] = mapped_column(String(80), nullable=True, index=True)
+    attempt_nonce_hash: Mapped[str | None] = mapped_column(String(64), nullable=True, index=True)
+    terminal_signal: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    terminal_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    server_first_seen_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    server_finalized_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    final_sequence: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    final_payload_hash: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    integrity_status: Mapped[str] = mapped_column(
+        String(32),
+        default="LEGACY_DIAGNOSTIC",
+        index=True,
+    )
+
     captured_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, index=True)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
+
+
+class CompanionAttemptLease(Base):
+    """Server-issued eligibility lease for one immutable Companion session.
+
+    The table is intentionally usable for both active and queued sessions.
+    A VERIFYING board may therefore receive ISSUED_QUEUED without consuming
+    another contract attempt. Sessions with no eligible board may still be
+    persisted as INELIGIBLE so a board locked mid-match cannot retroactively
+    claim that match.
+    """
+
+    __tablename__ = "companion_attempt_leases"
+    __table_args__ = (
+        UniqueConstraint(
+            "user_id",
+            "session_id",
+            name="uq_companion_attempt_lease_user_session",
+        ),
+        UniqueConstraint(
+            "attempt_nonce_hash",
+            name="uq_companion_attempt_lease_nonce",
+        ),
+        Index(
+            "ix_companion_attempt_lease_board_status",
+            "board_id",
+            "status",
+        ),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uuid4)
+
+    user_id: Mapped[str] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"),
+        index=True,
+    )
+    device_id: Mapped[str] = mapped_column(
+        ForeignKey("companion_devices.id", ondelete="CASCADE"),
+        index=True,
+    )
+
+    # Nullable by design: an INELIGIBLE session is recorded even when no
+    # suitable board existed when match_start reached the backend.
+    board_id: Mapped[str | None] = mapped_column(
+        ForeignKey("contract_boards.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
+
+    session_id: Mapped[str] = mapped_column(String(80), index=True)
+    attempt_nonce_hash: Mapped[str | None] = mapped_column(
+        String(64),
+        nullable=True,
+    )
+
+    game_match_mode: Mapped[str | None] = mapped_column(
+        String(32),
+        nullable=True,
+        index=True,
+    )
+    external_match_id: Mapped[int | None] = mapped_column(
+        BigInteger,
+        nullable=True,
+        index=True,
+    )
+
+    # Planned states:
+    # ISSUED_ACTIVE, ISSUED_QUEUED, INELIGIBLE,
+    # CONSUMED, VOID, REJECTED.
+    status: Mapped[str] = mapped_column(String(32), index=True)
+    ineligible_reason: Mapped[str | None] = mapped_column(
+        String(120),
+        nullable=True,
+    )
+
+    server_first_seen_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=utcnow,
+        index=True,
+    )
+    issued_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+    )
+    expires_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+        index=True,
+    )
+    consumed_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+    )
+    voided_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+    )
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=utcnow,
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=utcnow,
+        onupdate=utcnow,
+    )
 
 
 class SessionToken(Base):
@@ -367,6 +495,29 @@ class Match(Base):
     is_final: Mapped[bool] = mapped_column(Boolean, default=True)
     capabilities: Mapped[list[str]] = mapped_column(JSON, default=list)
     raw_summary: Mapped[dict[str, Any] | None] = mapped_column(JSON, nullable=True)
+
+    # New trust/audit metadata. Existing rows are deliberately NOT upgraded
+    # to SERVER_VERIFIED merely because the columns now exist.
+    settlement_source: Mapped[str] = mapped_column(
+        String(32),
+        default="LEGACY",
+        index=True,
+    )
+    integrity_status: Mapped[str] = mapped_column(
+        String(32),
+        default="LEGACY_DIAGNOSTIC",
+        index=True,
+    )
+    audit_status: Mapped[str] = mapped_column(
+        String(32),
+        default="NOT_REQUESTED",
+        index=True,
+    )
+    audited_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+    )
+
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
     participants: Mapped[list[MatchParticipant]] = relationship(back_populates="match", cascade="all, delete-orphan")
 
