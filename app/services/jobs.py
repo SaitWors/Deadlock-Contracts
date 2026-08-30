@@ -118,7 +118,7 @@ def enqueue_job(
         )
         if (
             existing.match_id is None
-            and job_type in {"bind_match", "evaluate_match", "refresh_review_match"}
+            and job_type in {"bind_match", "evaluate_match", "refresh_review_match", "audit_match"}
             and payload.get("match_id")
         ):
             existing.match_id = str(payload["match_id"])
@@ -147,7 +147,7 @@ def enqueue_job(
         board_id=str(payload.get("board_id")) if payload.get("board_id") else None,
         match_id=(
             str(payload.get("match_id"))
-            if job_type in {"bind_match", "evaluate_match", "refresh_review_match"}
+            if job_type in {"bind_match", "evaluate_match", "refresh_review_match", "audit_match"}
             and payload.get("match_id")
             else None
         ),

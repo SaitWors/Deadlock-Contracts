@@ -40,6 +40,12 @@ from .services.gep_settlement import (
     normalized_gep_match_from_evidence,
 )
 from .services.jobs import claim_next_job, complete_job, enqueue_job, retry_job
+from .services.match_audit import (
+    MatchAuditPending,
+    reconcile_match_audits,
+    run_match_audit_job,
+    schedule_gep_match_audit,
+)
 from .services.match_trust import (
     independent_provider_parts,
     provider_has_client_source,
@@ -590,6 +596,13 @@ def init() -> None:
         lifecycle = reconcile_active_contracts(db)
         if any(lifecycle.values()):
             log.info("Startup lifecycle reconciliation: %s", lifecycle)
+
+        audit_jobs = reconcile_match_audits(db)
+        if audit_jobs:
+            log.info(
+                "Startup match audit reconciliation: queued=%s",
+                audit_jobs,
+            )
 
 
 def store_normalized_match(db: Session, data: dict) -> Match:
@@ -2885,6 +2898,23 @@ def handle_settle_gep_match(
         board.id,
     )
 
+    # Audit is intentionally after the settlement transition. Failure to
+    # enqueue/read Deadlock API must never roll back a bound match or reward.
+    audit_external_match_id = int(match.external_match_id)
+
+    try:
+        schedule_gep_match_audit(
+            db,
+            match,
+            user.id,
+        )
+    except Exception:
+        db.rollback()
+        log.exception(
+            "Non-blocking Deadlock API audit scheduling failed for match=%s",
+            audit_external_match_id,
+        )
+
 
 def handle_refresh_review_match(db: Session, job: Job) -> None:
     """Повторно загрузить final metadata уже привязанного матча и переоценить REVIEW_REQUIRED."""
@@ -3315,6 +3345,7 @@ def process_job(db: Session, job: Job) -> None:
         "resolve_companion_match": handle_resolve_companion_match,
         "resolve_companion_match_auto": handle_resolve_companion_match_auto,
         "settle_gep_match": handle_settle_gep_match,
+        "audit_match": run_match_audit_job,
         "promote_board_match_candidate": handle_promote_board_match_candidate,
         "bind_match": handle_bind,
         "evaluate_match": handle_evaluate,
@@ -3370,6 +3401,13 @@ def run() -> None:
                     lifecycle = reconcile_active_contracts(db)
                     if any(lifecycle.values()):
                         log.info("Lifecycle reconciliation: %s", lifecycle)
+
+                    audit_jobs = reconcile_match_audits(db)
+                    if audit_jobs:
+                        log.info(
+                            "Match audit reconciliation: queued=%s",
+                            audit_jobs,
+                        )
             except Exception:
                 log.exception("Lifecycle reconciliation failed")
             next_maintenance_at = time.monotonic() + 60
@@ -3390,6 +3428,18 @@ def run() -> None:
                     process_job(db, job)
                     complete_job(db, job)
                     log.info("Completed job %s %s", job_type, job_id)
+                except MatchAuditPending as exc:
+                    retry_job(
+                        db,
+                        job,
+                        exc,
+                        exc.delay_seconds,
+                    )
+                    log.info(
+                        "Match audit pending for job %s; retry in %ss",
+                        job_id,
+                        exc.delay_seconds,
+                    )
                 except ProviderRateLimited as exc:
                     retry_job(db, job, exc, max(exc.retry_after, 30))
                     log.warning("Provider rate limited; retry in %ss", exc.retry_after)

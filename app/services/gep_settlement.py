@@ -1646,7 +1646,11 @@ def normalized_gep_match_from_evidence(
             ),
             "hero_id":
                 evidence.hero_id,
-            "team": local_team,
+            # MatchParticipant.team is an Integer provider field.
+            # Overwolf exposes AMBER/SAPPHIRE names here; keep those names
+            # in raw_summary and derive `won`, but never write a string into
+            # the PostgreSQL integer column.
+            "team": None,
             "won": won,
             "kills":
                 evidence.kills,
