@@ -9,6 +9,8 @@
 
   const $ = id => document.getElementById(id)
 
+  const t = key => window.DCI18n?.t?.(key) || key
+
   function setStatus(message, phase = 'idle') {
     const rail = $('desktopAdRail')
     const status = $('desktopAdStatus')
@@ -49,19 +51,22 @@
         },
       })
       state.ad = ad
-      ad.addEventListener?.('display_ad_loaded', () => setStatus('AD SERVED BY OVERWOLF', 'ready'))
-      ad.addEventListener?.('play', () => setStatus('SPONSORED CONTENT', 'ready'))
+      ad.addEventListener?.('display_ad_loaded', () => setStatus(t('ad.served'), 'ready'))
+      ad.addEventListener?.('play', () => setStatus(t('ad.sponsored'), 'ready'))
       const onAdError = () => {
         shutDown()
         setRailVisible(false)
-        setStatus('AD SLOT UNAVAILABLE', 'unavailable')
+        setStatus(t('ad.unavailable'), 'unavailable')
       }
       ad.addEventListener?.('error', onAdError)
       ad.addEventListener?.('ad_error', onAdError)
-      setStatus('REQUESTING OVERWOLF AD', 'loading')
+      setStatus(t('ad.requesting'), 'loading')
     } catch (error) {
       state.ad = null
-      setStatus('AD SLOT UNAVAILABLE IN THIS BUILD', 'unavailable')
+      state.sdkFailedAt = Date.now()
+      setRailVisible(false)
+      setStatus(t('ad.unavailable'), 'unavailable')
+      try { window.DCDesktopAdDiagnostic?.('AD_CONSTRUCTOR_FAILED', { message: String(error?.message || error) }) } catch (_) {}
       console.warn('Overwolf ad slot unavailable', error)
     }
   }
@@ -70,7 +75,7 @@
     if (state.sdkRequested || !state.eligible) return
     if (state.sdkFailedAt && Date.now() - state.sdkFailedAt < SDK_RETRY_MS) return
     state.sdkRequested = true
-    setStatus('LOADING OVERWOLF AD SDK', 'loading')
+    setStatus(t('ad.loading_sdk'), 'loading')
     const script = document.createElement('script')
     script.src = SDK_URL
     script.async = true
@@ -78,7 +83,7 @@
       if (typeof window.OwAd !== 'function') {
         state.sdkRequested = false
         state.sdkFailedAt = Date.now()
-        setStatus('AD SDK DID NOT INITIALIZE', 'unavailable')
+        setStatus(t('ad.sdk_init_failed'), 'unavailable')
         setRailVisible(false)
         return
       }
@@ -88,7 +93,7 @@
     script.onerror = () => {
       state.sdkRequested = false
       state.sdkFailedAt = Date.now()
-      setStatus('AD SDK UNAVAILABLE', 'unavailable')
+      setStatus(t('ad.sdk_unavailable'), 'unavailable')
       setRailVisible(false)
     }
     document.head.appendChild(script)
@@ -109,6 +114,7 @@
     else loadSdk()
   }
 
+  document.addEventListener('visibilitychange', () => { if (document.visibilityState !== 'visible') { state.eligible = false; shutDown(); setRailVisible(false) } })
   window.addEventListener('beforeunload', shutDown)
   window.DCDesktopAds = { setEligible, shutDown }
 })()

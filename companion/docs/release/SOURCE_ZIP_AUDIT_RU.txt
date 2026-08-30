@@ -1,0 +1,57 @@
+Deadlock Contracts Companion 0.5.2-alpha.16 — SOURCE ZIP AUDIT
+Generated: 2026-08-29
+
+Artifact type: SOURCE ZIP (NOT OPK)
+Runtime version: 0.5.2-alpha.13
+Manifest version: 0.5.2.13
+Deadlock game ID: 24482
+Minimum GEP version: 311.0.0
+Production compatibility target: deadlock-contracts.online web 0.10.1-alpha.10
+Production wire contract: companion-heartbeat.v1
+Local evidence schema: v8
+
+AUTOMATED RELEASE GATES
+- npm run release:check: PASS
+- JavaScript syntax: PASS (41 files)
+- Node tests: PASS (90/90)
+- i18n logic invariants: PASS
+- critical user-facing string scanner: PASS
+- contrast: PASS (28 token pairs >= 4.5:1)
+- release metadata identity: PASS (0.5.2-alpha.13 / 0.5.2.13)
+- Alpha.13 post-match/recovery safety invariants: PASS
+
+KEY SAFETY REGRESSIONS
+- final GEP details are captured at terminal commit, not frozen at match_end
+- bounded 5-second final collection grace accepts late roster/outcome/match_id/clock
+- TERMINAL_PENDING proof/deadline survives restart
+- explicit Exit force-commits a proven terminal final before background root closes
+- durable final queue persistence precedes lifecycle FINALIZED
+- causal identity uses immutable session_id only
+- unknown-id match_started cannot be bypassed by exact-id match_ended
+- persisted IN_FLIGHT recovers as RETRY_WAIT with the original idempotency identity
+- previous finalized Match ID cannot bind to a new scoring session
+- new scoring sessions reset match-scoped identity/outcome/team/mode/clock/evidence
+- same-session restart recovery preserves evidence and does not duplicate match_started
+- identity is processed before phase/clock recovery
+- outcome-before-ID is session-bound and rebound to exact Match ID
+- menu/lobby process stop produces no scoring final
+- mid-match stop without terminal proof remains non-final/interrupted
+- Street Brawl partial/lower roster updates do not decrease accumulated evidence
+- Street Brawl PostGame remains a round boundary, not a whole-match final
+- local Evidence v8 is projected to the current production heartbeat v1 allow-list
+
+NOT CLAIMED BY THIS AUTOMATED AUDIT
+- Real Windows/Overwolf/Deadlock runtime QA
+- Fullscreen/borderless/windowed, DPI, multi-monitor and real hotkey conflict testing
+- Real ad serving lifecycle
+- VirusTotal / official QA submission acceptance
+- Arbitrarily late post-final enrichment after the bounded grace window
+- New server-side match_enriched wire contract (not part of Alpha.13)
+
+See:
+- README_RU.md
+- CHANGELOG.md
+- docs/release/AUTOMATED_TEST_REPORT_RU.md
+- docs/release/ALPHA9_QA_MATRIX_RU.md
+- docs/release/SUPPORT_MATRIX_RU.md
+- docs/architecture/PRODUCTION_SERVER_COMPAT_RU.md

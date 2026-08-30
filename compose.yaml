@@ -27,7 +27,7 @@ services:
         condition: service_healthy
     environment: &app-env
       APP_ENV: development
-      APP_VERSION: 0.10.1-alpha.9
+      APP_VERSION: 0.10.1-alpha.10
       APP_BASE_URL: ${APP_BASE_URL:-http://localhost:8080}
       TRUSTED_HOSTS: ${TRUSTED_HOSTS:-localhost,127.0.0.1,testserver}
       DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-deadlock}:${POSTGRES_PASSWORD:-deadlock_local_password}@db:5432/${POSTGRES_DB:-deadlock_contracts}

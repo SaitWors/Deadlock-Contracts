@@ -1,0 +1,9 @@
+Product: Deadlock Contracts Companion
+Product version: 0.5.2-alpha.16
+Manifest version: 0.5.2.16
+Evidence schema: 8
+Bootstrap local schema: 2 (compatible with production schema 1)
+Target web/backend: 0.10.1-alpha.10
+Deadlock game id: 24482
+Packaging: deterministic ZIP/OPK via zip -X + CycloneDX SBOM
+Trust model: Companion provisional; independent server provider authoritative for rewards

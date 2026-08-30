@@ -29,6 +29,7 @@ from .db import Base, SessionLocal, engine, get_db
 from .models import (
     AuditLog,
     AutoReviewCase,
+    BoardMatchCandidate,
     EvidenceFile,
     EvidenceSubmission,
     BoardOption,
@@ -721,6 +722,40 @@ def _provider_status(db: Session, board_id: str) -> dict | None:
     if not board:
         return None
 
+    queued_rows = list(
+        db.scalars(
+            select(BoardMatchCandidate)
+            .join(Match, Match.id == BoardMatchCandidate.match_id)
+            .where(
+                BoardMatchCandidate.board_id == board_id,
+                BoardMatchCandidate.status == "CAPTURED",
+            )
+            .order_by(
+                Match.started_at.asc(),
+                Match.external_match_id.asc(),
+                BoardMatchCandidate.captured_at.asc(),
+            )
+        ).all()
+    )
+    queued_matches = []
+    for position, candidate in enumerate(queued_rows, start=1):
+        queued_match = db.get(Match, candidate.match_id)
+        if queued_match is None:
+            continue
+        queued_matches.append({
+            "position": position,
+            "match_id": str(queued_match.external_match_id),
+            "captured_at": candidate.captured_at.isoformat(),
+            "state": "WAITING_PREVIOUS_VERDICT",
+        })
+
+    def with_queue(payload: dict) -> dict:
+        return {
+            **payload,
+            "queued_count": len(queued_matches),
+            "queued_matches": queued_matches,
+        }
+
     selected = list(
         db.scalars(
             select(BoardOption).where(
@@ -759,14 +794,14 @@ def _provider_status(db: Session, board_id: str) -> dict | None:
                     key=lambda item: item.external_match_id,
                 ).external_match_id
 
-        return {
+        return with_queue({
             "phase": "SETTLED",
             "message": (
                 f"Дело закрыто. Использовано матчей: "
                 f"{board.attempts_used}/{board.max_attempts}."
             ),
             "match_id": str(external_id) if external_id is not None else None,
-        }
+        })
 
     if active_bound_ids and board.status in {"VERIFYING", "REVIEW_REQUIRED"}:
         relevant_status = "VERIFYING" if board.status == "VERIFYING" else "REVIEW_REQUIRED"
@@ -784,7 +819,7 @@ def _provider_status(db: Session, board_id: str) -> dict | None:
         external_ids = [item.external_match_id for item in matches]
 
         if board.status == "REVIEW_REQUIRED":
-            return {
+            return with_queue({
                 "phase": "REVIEW_REQUIRED",
                 "message": (
                     f"Матч #{external_id} найден. "
@@ -794,9 +829,9 @@ def _provider_status(db: Session, board_id: str) -> dict | None:
                 ),
                 "match_id": str(external_id) if external_id is not None else None,
                 "active_match_ids": [str(value) for value in external_ids],
-            }
+            })
 
-        return {
+        return with_queue({
             "phase": "VERIFYING",
             "message": (
                 f"Проверяем попытку "
@@ -809,7 +844,7 @@ def _provider_status(db: Session, board_id: str) -> dict | None:
             ),
             "match_id": str(external_id) if external_id is not None else None,
             "active_match_ids": [str(value) for value in external_ids],
-        }
+        })
 
     direct_jobs = list(
         db.scalars(
@@ -850,7 +885,7 @@ def _provider_status(db: Session, board_id: str) -> dict | None:
             direct.payload or {}
         ).get("external_match_id")
 
-        return {
+        return with_queue({
             "phase": "MATCH_DETECTED",
             "message": (
                 f"Компаньон обнаружил матч #{external_id}. "
@@ -863,7 +898,7 @@ def _provider_status(db: Session, board_id: str) -> dict | None:
                 if direct.status == "PENDING"
                 else None
             ),
-        }
+        })
 
     jobs = list(
         db.scalars(
@@ -877,6 +912,12 @@ def _provider_status(db: Session, board_id: str) -> dict | None:
     job = jobs[0] if jobs else None
 
     if not job:
+        if queued_matches:
+            return with_queue({
+                "phase": "QUEUED",
+                "message": "Матч сохранён и ждёт обработки предыдущей попытки.",
+                "match_id": None,
+            })
         return None
 
     next_attempt = min(
@@ -884,7 +925,7 @@ def _provider_status(db: Session, board_id: str) -> dict | None:
         board.max_attempts,
     )
 
-    return {
+    return with_queue({
         "phase": "SEARCHING",
         "status": job.status,
         "attempts": job.attempts,
@@ -900,7 +941,7 @@ def _provider_status(db: Session, board_id: str) -> dict | None:
             f"Ничего нажимать не нужно."
         ),
         "delayed_by_provider": bool(job.last_error),
-    }
+    })
 
 
 def _is_admin(user: User) -> bool:
@@ -1231,7 +1272,11 @@ def _history_cases(
 
 def _desktop_bootstrap_payload(db: Session, owner: User, device: CompanionDevice, history_limit: int = 60) -> dict[str, Any]:
     board_models = ensure_daily_boards(db, owner)
-    boards = [serialize_board(model) for model in board_models]
+    boards = []
+    for model in board_models:
+        serialized = serialize_board(model)
+        serialized["provider_status"] = _provider_status(db, model.id)
+        boards.append(serialized)
     history_cases = _history_cases(db, owner, history_limit)
     active_cases = [
         {
@@ -1243,6 +1288,7 @@ def _desktop_bootstrap_payload(db: Session, owner: User, device: CompanionDevice
             "attempts_used": board["attempts_used"],
             "max_attempts": board["max_attempts"],
             "attempts_remaining": board["attempts_remaining"],
+            "provider_status": board.get("provider_status"),
             "options": [item for item in board["options"] if item["selected"]],
         }
         for board in boards

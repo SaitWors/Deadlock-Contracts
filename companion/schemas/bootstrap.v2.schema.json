@@ -1,0 +1,74 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://deadlock-contracts.online/schemas/bootstrap.v2.schema.json",
+  "type": "object",
+  "required": ["api_version", "schema_version", "server_time", "desktop_features", "boards", "active_cases", "history"],
+  "properties": {
+    "api_version": {"const": "desktop.v1"},
+    "schema_version": {"const": 2},
+    "server_time": {"type": "string", "minLength": 1},
+    "desktop_features": {"type": "array", "items": {"type": "string"}},
+    "boards": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/board"}
+    },
+    "active_cases": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/activeCase"}
+    },
+    "history": {
+      "type": "object",
+      "required": ["items"],
+      "properties": {"items": {"type": "array"}},
+      "additionalProperties": true
+    }
+  },
+  "$defs": {
+    "condition": {
+      "type": "object",
+      "required": ["metric", "operator", "target"],
+      "properties": {
+        "metric": {"type": "string", "minLength": 1},
+        "operator": {"enum": ["gte", "lte", "eq"]},
+        "target": {"type": "number", "minimum": 0}
+      },
+      "additionalProperties": true
+    },
+    "option": {
+      "type": "object",
+      "required": ["id", "conditions", "reward_xp", "status"],
+      "properties": {
+        "id": {"type": "string", "minLength": 1},
+        "title_key": {"type": ["string", "null"]},
+        "title_i18n": {"type": ["object", "null"]},
+        "flavor_i18n": {"type": ["object", "null"]},
+        "game_match_mode": {"enum": ["STANDARD", "RANKED", "STREET_BRAWL"]},
+        "conditions": {"type": "array", "minItems": 1, "maxItems": 3, "items": {"$ref": "#/$defs/condition"}},
+        "reward_xp": {"type": "integer", "minimum": 0},
+        "status": {"type": "string", "minLength": 1}
+      },
+      "anyOf": [{"required": ["title_key"]}, {"required": ["title_i18n"]}],
+      "additionalProperties": true
+    },
+    "board": {
+      "type": "object",
+      "required": ["id", "game_match_mode", "options"],
+      "properties": {
+        "id": {"type": "string", "minLength": 1},
+        "game_match_mode": {"enum": ["STANDARD", "RANKED", "STREET_BRAWL"]},
+        "options": {"type": "array", "items": {"$ref": "#/$defs/option"}}
+      },
+      "additionalProperties": true
+    },
+    "activeCase": {
+      "type": "object",
+      "required": ["game_match_mode"],
+      "properties": {
+        "game_match_mode": {"enum": ["STANDARD", "RANKED", "STREET_BRAWL"]},
+        "options": {"type": "array", "items": {"$ref": "#/$defs/option"}}
+      },
+      "additionalProperties": true
+    }
+  },
+  "additionalProperties": true
+}

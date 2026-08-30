@@ -1,20 +1,21 @@
 (() => {
-  const Product = window.DCProduct
-  const Focus = window.DCOverlayFocus
   const PREVIEW = typeof overwolf === 'undefined' && new URLSearchParams(location.search).get('preview') === '1'
-  const REFRESH_MS = 400
-  const router = Focus.createRouter({ switchDelayMs: 3000 })
+  const REFRESH_MS = 1000
   let backgroundWindow = null
   let previewPromise = null
-  let lastRenderedKey = null
-  let lastRenderedValue = null
-  let lastCompletionKey = null
-  let dodgeLeaveTimer = 0
+  let lastRevision = -1
+  let lastFocusKey = ''
+  let lastValue = null
+  let lastCompletionKey = ''
+  let visibleSince = Date.now()
+  let lastSuccessAt = 0
+  let consecutiveFailures = 0
 
   const $ = id => document.getElementById(id)
-  const number = value => window.DCShared.formatNumber(value, 1)
-  const language = () => window.DCShared.language()
-  const ui = (english, russian) => language() === 'ru' ? russian : english
+  const I18n = window.DCI18n
+  const Product = window.DCProduct
+  const language = () => I18n?.language?.() || 'en'
+  const ui = (en, ru) => I18n?.literal?.(en, ru, language()) || (language() === 'ru' ? ru : en)
 
   function controller() {
     if (!backgroundWindow && typeof overwolf !== 'undefined') {
@@ -22,348 +23,166 @@
     }
     return backgroundWindow?.dcCompanion || null
   }
-
-  function strictActiveCase(product, mode) {
-    const normalized = Product.normalizeMode(mode)
-    if (!normalized) return null
-    return (product?.active_cases || []).find(item => item.game_match_mode === normalized) || null
+  function setVisible(element, visible) { if (element) element.hidden = !visible }
+  function number(value, digits = 1) {
+    if (value === null || value === undefined || value === '') return '—'
+    const n = Number(value)
+    if (!Number.isFinite(n)) return '—'
+    return n.toLocaleString(language() === 'ru' ? 'ru-RU' : 'en-US', { maximumFractionDigits: digits })
   }
-
-  function setVisible(element, visible) {
-    if (!element) return
-    element.hidden = !visible
-  }
-
-  function serverStatus(option) {
-    const value = String(option?.status || '').toUpperCase()
-    if (value === 'COMPLETED') return ui('COMPLETED', 'ВЫПОЛНЕНО')
-    if (value === 'FAILED') return ui('FAILED', 'ПРОВАЛЕНО')
-    if (value === 'REVIEW_REQUIRED') return ui('REVIEW REQUIRED', 'НУЖНА ПРОВЕРКА')
-    if (value === 'VERIFYING' || value === 'PENDING') return ui('VERIFYING', 'ПРОВЕРКА')
-    return null
-  }
-
-  function serverPercent(option) {
-    const status = String(option?.status || '').toUpperCase()
-    if (status === 'COMPLETED') return 100
-    const conditions = option?.conditions || []
-    if (conditions.length !== 1 || option?.progress_current == null) return 0
-    const condition = conditions[0]
-    const current = Number(option.progress_current)
-    const target = Number(condition.target)
-    if (!Number.isFinite(current) || !Number.isFinite(target)) return 0
-    if (condition.metric === 'match.win') return current === 1 ? 100 : 0
-    if (condition.operator === 'lte') return current <= target ? Math.max(0, Math.min(100, (1 - current / Math.max(target, 1)) * 100)) : 0
-    if (condition.operator === 'eq') return current === target ? 100 : 0
-    if (target <= 0) return current >= target ? 100 : 0
-    return Math.max(0, Math.min(100, current / target * 100))
-  }
-
   function displayValue(metric, value) {
+    if (value === null || value === undefined) return '—'
     if (metric === 'match.win') return Number(value) === 1 ? ui('WIN', 'ПОБЕДА') : '—'
     if (metric === 'match.duration_s') {
       const seconds = Math.max(0, Math.trunc(Number(value) || 0))
-      const minutes = Math.floor(seconds / 60)
-      const rest = String(seconds % 60).padStart(2, '0')
-      return `${minutes}:${rest}`
+      return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}`
     }
-    return number(value)
+    return number(value, metric === 'player.kda' ? 2 : 0)
   }
-
-  function progressFor(candidate, option, live) {
-    if (live && candidate?.progress) return candidate.progress
-    const condition = candidate?.condition || option?.conditions?.[0] || null
-    const target = Number(condition?.target ?? option?.progress_target ?? option?.target ?? 0)
-    const current = Number(option?.progress_current)
-    return {
-      supported: !!condition,
-      known: Number.isFinite(current),
-      value: Number.isFinite(current) ? current : null,
-      target: Number.isFinite(target) ? target : null,
-      operator: String(condition?.operator || option?.operator || 'gte'),
-      percent: serverPercent(option),
-      provisional_pass: String(option?.status || '').toUpperCase() === 'COMPLETED',
-    }
-  }
-
-  function animateCardSwitch() {
+  function animate(className) {
     const card = $('overlayFocus')
-    if (!card) return
-    card.classList.remove('focus-enter')
+    if (!card || window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) return
+    card.classList.remove(className)
     void card.offsetWidth
-    card.classList.add('focus-enter')
+    card.classList.add(className)
   }
-
-  function animateProgress() {
-    const card = $('overlayFocus')
-    if (!card) return
-    card.classList.remove('focus-progressing')
-    void card.offsetWidth
-    card.classList.add('focus-progressing')
-  }
-
-  function animateCompletion() {
-    const card = $('overlayFocus')
-    if (!card) return
-    card.classList.remove('focus-completion-burst')
-    void card.offsetWidth
-    card.classList.add('focus-completion-burst')
-  }
-
-  function renderSelected(activeCase, candidate) {
+  function renderSelected(selected = [], focusedId = null) {
     const container = $('overlaySelected')
     if (!container) return
-
-    const options = Product.selectedContracts(activeCase)
-
-    if (!options.length) {
-      container.replaceChildren()
-      container.removeAttribute('data-signature')
-      setVisible(container, false)
-      return
-    }
-
-    const signature = options
-      .map(option => `${option.id}:${option.title}:${language()}`)
-      .join('|')
-
-    if (
-      container.getAttribute('data-signature')
-      !== signature
-    ) {
-      const fragment =
-        document.createDocumentFragment()
-
-      options.forEach((option, index) => {
-        const item =
-          document.createElement('div')
-
-        item.className = 'selected-contract'
-        item.dataset.optionId =
-          String(option.id || '')
-        item.title =
-          String(
-            Product.contractTitle(option, language())
-            || ui('Selected contract', 'Выбранный контракт'),
-          )
-
-        const number =
-          document.createElement('span')
-
-        number.textContent =
-          String(index + 1)
-
-        const title =
-          document.createElement('b')
-
-        title.textContent =
-          String(
-            Product.contractTitle(option, language())
-            || ui('UNTITLED CONTRACT', 'КОНТРАКТ БЕЗ НАЗВАНИЯ'),
-          )
-
-        item.append(number, title)
-        fragment.appendChild(item)
-      })
-
-      container.replaceChildren(fragment)
-
-      container.setAttribute(
-        'data-signature',
-        signature,
-      )
-    }
-
-    const focusedId =
-      String(candidate?.option?.id || '')
-
-    for (
-      const item
-      of container.children
-    ) {
-      item.classList.toggle(
-        'active',
-        !!focusedId
-          && item.dataset.optionId
-            === focusedId,
-      )
-    }
-
+    if (!selected.length) { container.replaceChildren(); setVisible(container, false); return }
+    const fragment = document.createDocumentFragment()
+    selected.slice(0, 3).forEach((item, index) => {
+      const row = document.createElement('div')
+      row.className = `selected-contract${String(item.id) === String(focusedId) ? ' active' : ''}`
+      const n = document.createElement('span'); n.textContent = String(index + 1)
+      const b = document.createElement('b'); b.textContent = String(item.title || ui('CONTRACT', 'КОНТРАКТ'))
+      row.append(n, b); fragment.appendChild(row)
+    })
+    container.replaceChildren(fragment)
     setVisible(container, true)
   }
+  function renderEmpty(title, mode = '—', attempt = '—', foot = '') {
+    setVisible($('overlayFocus'), false)
+    setVisible($('overlayEmpty'), true)
+    setVisible($('overlaySelected'), false)
+    $('overlayEmpty').textContent = title
+    $('overlayMode').textContent = mode
+    $('overlayAttempt').textContent = attempt
+    $('overlayFoot').textContent = foot
+  }
+  function render(dto, { force = false } = {}) {
+    if (!dto || Number(dto.dto_version) !== 2) {
+      renderEmpty(ui('OVERLAY DATA UNAVAILABLE', 'ДАННЫЕ ОВЕРЛЕЯ НЕДОСТУПНЫ'), 'DTO v2 REQUIRED', '—', ui('OPEN DESKTOP FOR DIAGNOSTICS', 'ОТКРОЙТЕ DESKTOP ДЛЯ ДИАГНОСТИКИ'))
+      return
+    }
+    if (!force && Number(dto.revision) === lastRevision) {
+      updateCountdown(dto)
+      return
+    }
+    lastRevision = Number(dto.revision)
+    document.documentElement.lang = dto.language || language()
+    const hotkey = dto.hotkey?.assigned ? dto.hotkey.binding : 'UNASSIGNED'
+    $('overlayHotkey').textContent = String(hotkey || 'UNASSIGNED').toUpperCase()
 
-  function renderCandidate(candidate, live, pending) {
-    const option = candidate?.option
-    const condition = candidate?.condition || option?.conditions?.[0]
-    if (!option || !condition) return false
-    const progress = progressFor(candidate, option, live)
-    const metric = String(condition.metric || option.metric || '')
-    const percent = Math.max(0, Math.min(100, Math.round(Number(progress.percent) || 0)))
-    const current = progress.known ? displayValue(metric, progress.value) : '—'
-    const target = metric === 'match.win' ? ui('WIN', 'ПОБЕДА') : displayValue(metric, progress.target)
-    const key = candidate.key || `${option.id}:${metric}`
+    const gameState = String(dto.health?.game || 'NO_GAME')
+    const gepStatus = String(dto.health?.gep || 'STARTING')
+    const stale = ['STALE', 'UNAVAILABLE'].includes(gepStatus)
+    const backendBad = ['OFFLINE', 'DEGRADED'].includes(String(dto.health?.backend || ''))
+    $('overlayState').className = stale || backendBad ? 'warn' : gameState === 'MATCH' ? 'live' : ''
+    $('overlayState').textContent = stale ? `◐ ${gepStatus}` : gameState === 'MATCH' ? '● LIVE' : ui('○ STANDBY', '○ ОЖИДАНИЕ')
+
+    if (!dto.hotkey?.assigned) {
+      renderEmpty(ui('OVERLAY HOTKEY UNASSIGNED', 'HOTKEY ОВЕРЛЕЯ НЕ НАЗНАЧЕН'), dto.match?.mode || '—', '—', ui('OPEN DESKTOP → HOTKEY SETTINGS', 'ОТКРОЙТЕ DESKTOP → HOTKEY'))
+      return
+    }
+    if (gameState === 'NO_GAME') {
+      renderEmpty(ui('WAITING FOR DEADLOCK', 'ОЖИДАНИЕ DEADLOCK'), ui('NO LIVE MATCH', 'НЕТ АКТИВНОГО МАТЧА'), '—', backendBad ? ui('SERVER OFFLINE · LOCAL STATE PRESERVED', 'СЕРВЕР OFFLINE · ЛОКАЛЬНОЕ СОСТОЯНИЕ СОХРАНЕНО') : ui('HOTKEY TO HIDE', 'HOTKEY СКРЫВАЕТ ОВЕРЛЕЙ'))
+      return
+    }
+    if (gameState === 'PROCESS_ONLY') {
+      renderEmpty(ui('WAITING FOR CONFIRMED MATCH', 'ОЖИДАНИЕ ПОДТВЕРЖДЁННОГО МАТЧА'), dto.match?.mode || ui('DETECTING MODE', 'ОПРЕДЕЛЯЕМ РЕЖИМ'), '—', ui('PROCESS DETECTED · NO SCORING SESSION YET', 'ПРОЦЕСС НАЙДЕН · SCORING-СЕССИЯ ЕЩЁ НЕ НАЧАТА'))
+      return
+    }
+    if (stale) {
+      renderEmpty(ui('LIVE DATA IS STALE', 'LIVE-ДАННЫЕ УСТАРЕЛИ'), dto.match?.mode || '—', dto.match?.attempt ? `${dto.match.attempt.current}/${dto.match.attempt.max}` : '—', `${ui('GEP', 'GEP')} ${gepStatus} · ${Math.round(Number(dto.health?.age_ms || 0) / 1000)}s`)
+      return
+    }
+    const focus = dto.focus
+    if (!focus?.condition || !focus?.progress) {
+      renderEmpty(ui('NO LIVE-SUPPORTED OBJECTIVE', 'НЕТ ЦЕЛИ С LIVE-ПРОГРЕССОМ'), dto.match?.mode || '—', dto.match?.attempt ? `${dto.match.attempt.current}/${dto.match.attempt.max}` : '—', backendBad ? ui('SERVER DEGRADED', 'СЕРВЕР НЕДОСТУПЕН') : ui('SERVER VERDICT REMAINS AUTHORITATIVE', 'ФИНАЛЬНЫЙ ВЕРДИКТ ОСТАЁТСЯ ЗА СЕРВЕРОМ'))
+      renderSelected(dto.selected || [])
+      return
+    }
 
     setVisible($('overlayFocus'), true)
     setVisible($('overlayEmpty'), false)
-    $('overlayMetric').textContent = Product.metricLabel(metric, language())
-    $('overlayXp').textContent = `${number(option.reward_xp)} XP`
-    $('overlayTitle').textContent = Product.contractTitle(option, language())
-    $('overlayCurrent').textContent = current
-    $('overlayTarget').textContent = `/ ${target}`
+    const progress = focus.progress
+    const condition = focus.condition
+    const metric = String(condition.metric || '')
+    const percent = Math.max(0, Math.min(100, Math.round(Number(progress.percent) || 0)))
+    $('overlayMode').textContent = `${Product?.modeLabel?.(dto.match?.mode, dto.language) || dto.match?.mode || '—'}${dto.match?.id ? ` · #${dto.match.id}` : ''}`
+    $('overlayAttempt').textContent = dto.match?.attempt ? `${ui('ATTEMPT', 'ПОПЫТКА')} ${dto.match.attempt.current}/${dto.match.attempt.max}` : '—'
+    $('overlayMetric').textContent = focus.metric_label || metric
+    $('overlayXp').textContent = `${number(focus.reward_xp, 0)} XP`
+    $('overlayTitle').textContent = focus.title || ui('CONTRACT', 'КОНТРАКТ')
+    $('overlayCurrent').textContent = progress.known ? displayValue(metric, progress.value) : '—'
+    $('overlayTarget').textContent = metric === 'match.win' ? `/ ${ui('WIN', 'ПОБЕДА')}` : `/ ${displayValue(metric, progress.target)}`
     $('overlayPercent').textContent = `${percent}%`
     $('overlayProgress').value = percent
+    const stateLabel = String(progress.state || 'PENDING')
+    $('overlayHint').textContent = progress.final ? stateLabel : `${stateLabel} · ${ui('PROVISIONAL', 'ПРЕДВАРИТЕЛЬНО')}`
+    const completionReady = progress.allow_completion_animation === true || ['TARGET_REACHED_PROVISIONAL','ON_TARGET_PROVISIONAL','COMPLETED','SETTLED'].includes(String(progress.state || ''))
+    $('overlayFocus').classList.toggle('focus-complete', completionReady)
+    renderSelected(dto.selected || [], focus.option_id)
 
-    const status = serverStatus(option)
-    if (live) {
-      $('overlayHint').textContent = pending
-        ? ui('FOCUS LOCK · 3 SEC', 'ФОКУС · 3 СЕК')
-        : progress.provisional_pass
-          ? ui('TARGET MET · PROVISIONAL', 'ЦЕЛЬ ДОСТИГНУТА · ПРЕДВАРИТЕЛЬНО')
-          : ui('LIVE · PROVISIONAL', 'LIVE · ПРЕДВАРИТЕЛЬНО')
-    } else {
-      $('overlayHint').textContent = status || ui('SERVER STATE', 'СОСТОЯНИЕ СЕРВЕРА')
-    }
-
-    const completed = live && progress.provisional_pass
-    $('overlayFocus').classList.toggle('focus-complete', completed)
-    if (lastRenderedKey !== key) {
-      animateCardSwitch()
-      lastRenderedKey = key
-      lastRenderedValue = progress.value
-    } else if (progress.known && Number(progress.value) !== Number(lastRenderedValue)) {
-      animateProgress()
-      lastRenderedValue = progress.value
-    }
-    const completionKey = `${key}:${percent}`
-    if (completed && lastCompletionKey !== completionKey) {
-      animateCompletion()
-      lastCompletionKey = completionKey
-    } else if (!completed) {
-      lastCompletionKey = null
-    }
-    return true
+    const focusKey = `${focus.option_id}:${focus.condition_index ?? 0}:${metric}`
+    if (focusKey !== lastFocusKey) { animate('focus-enter'); lastFocusKey = focusKey; lastValue = progress.value }
+    else if (progress.known && Number(progress.value) !== Number(lastValue)) { animate('focus-progressing'); lastValue = progress.value }
+    const completionKey = `${focusKey}:${stateLabel}:${percent}`
+    if (completionReady && completionKey !== lastCompletionKey) { animate('focus-completion-burst'); lastCompletionKey = completionKey }
+    if (!completionReady) lastCompletionKey = ''
+    $('overlayFoot').textContent = backendBad ? ui('SERVER DEGRADED · FINAL WILL WAIT FOR ACK', 'СЕРВЕР НЕДОСТУПЕН · ФИНАЛ ЖДЁТ ACK') : ui('SERVER FINAL · LIVE VALUES PROVISIONAL', 'ФИНАЛ ЗА СЕРВЕРОМ · LIVE ПРЕДВАРИТЕЛЬНЫЙ')
+    updateCountdown(dto)
   }
-
-  function render(snapshot) {
-    const product = snapshot?.product || Product.emptyProductState()
-    const detectedMode = Product.normalizeMode(snapshot?.mode_display)
-    const active = snapshot?.game_running ? strictActiveCase(product, detectedMode) : null
-    const verifying = !!active && ['VERIFYING', 'REVIEW_REQUIRED'].includes(String(active.status || '').toUpperCase())
-    const live = !!snapshot?.game_running && !!active && !verifying
-    const hotkey = String(snapshot?.hotkey_binding || 'Ctrl+Shift+C')
-
-    setVisible($('overlaySelected'), false)
-    if ($('overlayHotkey')) $('overlayHotkey').textContent = hotkey.toUpperCase()
-    $('overlayState').className = live ? 'live' : verifying ? 'warn' : ''
-    $('overlayState').textContent = live ? '● LIVE' : verifying ? ui('◐ VERIFYING', '◐ ПРОВЕРКА') : ui('○ STANDBY', '○ ОЖИДАНИЕ')
-
-    if (!snapshot?.paired) {
-      router.reset('unpaired')
-      setVisible($('overlayFocus'), false)
-      setVisible($('overlayEmpty'), true)
-      $('overlayEmpty').textContent = ui('PAIR ACCOUNT IN DESKTOP', 'ПРИВЯЖИТЕ АККАУНТ В DESKTOP')
-      $('overlayMode').textContent = ui('ACCOUNT REQUIRED', 'НУЖЕН АККАУНТ')
-      $('overlayAttempt').textContent = ui('NO ACTIVE CASE', 'НЕТ АКТИВНОГО ДЕЛА')
-      $('overlayFoot').textContent = ui('OPEN DESKTOP TO CONNECT', 'ОТКРОЙТЕ DESKTOP ДЛЯ ПРИВЯЗКИ')
-      return
-    }
-
-    if (snapshot?.game_running && !detectedMode) {
-      router.reset(`match:${snapshot?.match_id || 'unknown'}:mode-pending`)
-      setVisible($('overlayFocus'), false)
-      setVisible($('overlayEmpty'), true)
-      $('overlayEmpty').textContent = ui('DETECTING CURRENT MODE', 'ОПРЕДЕЛЯЕМ РЕЖИМ')
-      $('overlayMode').textContent = snapshot?.match_id ? `${ui('MATCH', 'МАТЧ')} #${snapshot.match_id}` : ui('MATCH DETECTED', 'МАТЧ ОБНАРУЖЕН')
-      $('overlayAttempt').textContent = ui('WAITING FOR MODE', 'ОЖИДАНИЕ РЕЖИМА')
-      $('overlayFoot').textContent = ui('NO CROSS-MODE FALLBACK', 'БЕЗ ПОДМЕНЫ РЕЖИМА')
-      return
-    }
-
-    if (!snapshot?.game_running) {
-      router.reset('no-game')
-      setVisible($('overlayFocus'), false)
-      setVisible($('overlayEmpty'), true)
-      $('overlayEmpty').textContent = ui('WAITING FOR MATCH', 'ОЖИДАНИЕ МАТЧА')
-      $('overlayMode').textContent = ui('NO LIVE MATCH', 'НЕТ АКТИВНОГО МАТЧА')
-      $('overlayAttempt').textContent = '—'
-      $('overlayFoot').textContent = ui('HOTKEY TO HIDE', 'HOTKEY СКРЫВАЕТ ОВЕРЛЕЙ')
-      return
-    }
-
-    if (!active) {
-      router.reset(`match:${snapshot?.match_id || 'unknown'}:${detectedMode}:no-case`)
-      setVisible($('overlayFocus'), false)
-      setVisible($('overlayEmpty'), true)
-      $('overlayEmpty').textContent = `${ui('NO', 'НЕТ ДЕЛА ДЛЯ')} ${Product.modeLabel(detectedMode)}${language() === 'ru' ? '' : ' CASE'}`
-      $('overlayMode').textContent = `${Product.modeLabel(detectedMode)}${snapshot.match_id ? ` · #${snapshot.match_id}` : ''}`
-      $('overlayAttempt').textContent = ui('OPEN DESKTOP', 'ОТКРОЙТЕ DESKTOP')
-      $('overlayFoot').textContent = ui('ONLY CURRENT MODE IS SHOWN', 'ПОКАЗАН ТОЛЬКО ТЕКУЩИЙ РЕЖИМ')
-      return
-    }
-
-    $('overlayMode').textContent = `${Product.modeLabel(detectedMode)}${snapshot.match_id ? ` · #${snapshot.match_id}` : ''}`
-    $('overlayAttempt').textContent = `${ui('ATTEMPT', 'ПОПЫТКА')} ${Math.min(active.max_attempts, active.attempts_used + 1)}/${active.max_attempts}`
-
-    const context = `${snapshot.match_id || 'no-match'}:${detectedMode}:${active.board_id}`
-    const focus = router.update({
-      activeCase: active,
-      snapshot,
-      live,
-      context,
-      now: Date.now(),
-      progressOf: (condition, value) => Product.conditionProgress(condition, value),
+  function updateCountdown(dto) {
+    const hotkey = dto?.hotkey?.assigned ? dto.hotkey.binding : 'UNASSIGNED'
+    if (!dto?.auto_hide_ms) { $('overlayHotkey').textContent = String(hotkey).toUpperCase(); return }
+    const remaining = Math.max(0, Number(dto.auto_hide_ms) - (Date.now() - visibleSince))
+    $('overlayHotkey').textContent = remaining > 0 && remaining <= 3000
+      ? `${String(hotkey).toUpperCase()} · ${Math.ceil(remaining / 1000)}s`
+      : String(hotkey).toUpperCase()
+  }
+  async function previewDto() {
+    if (!previewPromise) previewPromise = fetch('fixtures/preview.json', { cache: 'no-store' }).then(response => {
+      if (!response.ok) throw new Error(`Preview fixture HTTP ${response.status}`)
+      return response.json()
     })
-
-    renderSelected(active, focus.candidate)
-
-    if (!renderCandidate(focus.candidate, live, focus.pending)) {
-      setVisible($('overlayFocus'), false)
-      setVisible($('overlayEmpty'), true)
-      $('overlayEmpty').textContent = ui('NO LIVE-SUPPORTED OBJECTIVE', 'НЕТ ЦЕЛИ С LIVE-ПРОГРЕССОМ')
-    }
-    $('overlayFoot').textContent = verifying
-      ? ui('AWAITING SERVER VERDICT', 'ОЖИДАЕМ ВЕРДИКТ СЕРВЕРА')
-      : live
-        ? focus.pending
-          ? ui('ACTIVITY DETECTED · SWITCHING AFTER 3 SEC', 'АКТИВНОСТЬ · ПЕРЕКЛЮЧЕНИЕ ЧЕРЕЗ 3 СЕК')
-          : `${Product.selectedContracts(active).length} ${ui('SELECTED · ONE ACTIVITY FOCUS · SERVER FINAL', 'ВЫБРАНО · ФОКУС НА ОДНОЙ ЦЕЛИ · ФИНАЛ ЗА СЕРВЕРОМ')}`
-        : ui('SERVER STATE', 'СОСТОЯНИЕ СЕРВЕРА')
+    const fixture = await previewPromise
+    return fixture.overlay || fixture.overlay_dto || fixture
   }
-
-  async function previewSnapshot() {
-    if (!previewPromise) previewPromise = fetch('tests/fixtures/preview.json', { cache: 'no-store' }).then(response => response.json())
-    return await previewPromise
-  }
-
   async function refresh() {
     try {
       const api = controller()
-      if (api?.getOverlaySnapshot) render(await api.getOverlaySnapshot())
-      else if (api?.getSnapshot) render(await api.getSnapshot())
-      else if (PREVIEW) render(await previewSnapshot())
-      else render({ paired: false, game_running: false, product: Product.emptyProductState() })
-    } catch (_) {}
-  }
-
-  function installDodgeBehavior() {
-    const sensor = $('overlayHoverSensor')
-    if (!sensor) return
-    const enter = () => {
-      clearTimeout(dodgeLeaveTimer)
-      document.body.classList.add('overlay-dodge')
+      const dto = api?.getOverlaySnapshot ? await api.getOverlaySnapshot() : PREVIEW ? await previewDto() : null
+      if (!dto) throw Object.assign(new Error('Background controller unavailable'), {code:'BACKGROUND_UNAVAILABLE'})
+      lastSuccessAt = Date.now()
+      consecutiveFailures = 0
+      render(dto)
+    } catch (error) {
+      consecutiveFailures += 1
+      const ageMs = lastSuccessAt ? Date.now() - lastSuccessAt : Infinity
+      const hideValues = !Number.isFinite(ageMs) || ageMs >= 60000
+      renderEmpty(
+        hideValues ? ui('OPEN DESKTOP FOR RECOVERY', 'ОТКРОЙТЕ DESKTOP ДЛЯ ВОССТАНОВЛЕНИЯ') : ui('LIVE DATA IS STALE', 'LIVE-ДАННЫЕ УСТАРЕЛИ'),
+        '—', '—',
+        `${String(error?.code || 'BACKGROUND_REFRESH_FAILED')} · ${Number.isFinite(ageMs) ? Math.round(ageMs / 1000) : 0}s`
+      )
+      $('overlayState').className = 'warn'
+      $('overlayState').textContent = '◐ STALE'
     }
-    const leave = () => {
-      clearTimeout(dodgeLeaveTimer)
-      dodgeLeaveTimer = setTimeout(() => document.body.classList.remove('overlay-dodge'), 260)
-    }
-    sensor.addEventListener('pointerenter', enter)
-    sensor.addEventListener('pointerleave', leave)
-    sensor.addEventListener('mouseenter', enter)
-    sensor.addEventListener('mouseleave', leave)
   }
-
   window.addEventListener('DOMContentLoaded', () => {
-    installDodgeBehavior()
+    visibleSince = Date.now()
     void refresh()
     setInterval(() => void refresh(), REFRESH_MS)
   })

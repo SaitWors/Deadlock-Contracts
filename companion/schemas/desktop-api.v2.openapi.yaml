@@ -1,0 +1,56 @@
+openapi: 3.1.0
+info:
+  title: Deadlock Contracts Desktop API Contract
+  version: 2.0.0-alpha.9
+  description: Contract required by Companion 0.5.2-alpha.16. The production backend must implement and independently test these invariants.
+servers:
+  - url: https://deadlock-contracts.online
+paths:
+  /api/desktop/v1/bootstrap:
+    get:
+      summary: Locale-invariant desktop bootstrap
+      responses:
+        '200':
+          description: Bootstrap schema v2
+          content:
+            application/json:
+              schema:
+                $ref: './bootstrap.v2.schema.json'
+        '426': {description: Client update required}
+  /api/companion/heartbeat:
+    post:
+      summary: Idempotent causal evidence ingest
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: './evidence.v8.schema.json'
+      responses:
+        '200': {description: Accepted, duplicate, acknowledged, or quarantined response}
+        '202': {description: Accepted into explicit quarantine/review}
+        '401': {description: Stable auth failure code only}
+        '422': {description: Stable semantic/schema rejection for Alpha.9}
+  /api/companion/pairing/claim:
+    post:
+      summary: One-time pairing code exchange
+      responses:
+        '200': {description: Pairing token encrypted locally by the Companion}
+        '400': {description: Stable pairing format/expired/used error code}
+  /api/desktop/v1/boards/lock:
+    post:
+      summary: Lock 1–3 canonical server options
+      responses:
+        '200': {description: Locked and refreshed}
+        '409': {description: Board revision/fingerprint conflict}
+  /api/desktop/v1/boards/{mode}/reroll:
+    post:
+      summary: Reroll canonical board for one mode
+      parameters:
+        - in: path
+          name: mode
+          required: true
+          schema: {enum: [STANDARD, RANKED, STREET_BRAWL]}
+      responses:
+        '200': {description: Rerolled and refreshed}
+components: {}

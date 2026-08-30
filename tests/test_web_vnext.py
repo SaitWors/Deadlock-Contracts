@@ -12,9 +12,9 @@ MAIN = (ROOT / "app/main.py").read_text(encoding="utf-8")
 
 
 def test_release_version_is_consistent() -> None:
-    assert 'os.getenv("APP_VERSION", "0.10.1-alpha.9")' in CONFIG
-    assert "APP_VERSION: 0.10.1-alpha.9" in (ROOT / "compose.prod.yaml").read_text(encoding="utf-8")
-    assert '"version": "0.10.1-alpha.9"' in (ROOT / "frontend/package.json").read_text(encoding="utf-8")
+    assert 'os.getenv("APP_VERSION", "0.10.1-alpha.10")' in CONFIG
+    assert "APP_VERSION: 0.10.1-alpha.10" in (ROOT / "compose.prod.yaml").read_text(encoding="utf-8")
+    assert '"version": "0.10.1-alpha.10"' in (ROOT / "frontend/package.json").read_text(encoding="utf-8")
 
 
 def test_landing_is_exact_legacy_motion_restore() -> None:
@@ -107,9 +107,9 @@ def test_alpha9_public_release_hygiene() -> None:
         ROOT / "release.json"
     ).read_text(encoding="utf-8")
 
-    assert '"web_version": "0.10.1-alpha.9"' in release
-    assert '"companion_version": "0.5.2-alpha.7"' in release
-    assert '"companion_manifest_version": "0.5.2.7"' in release
+    assert '"web_version": "0.10.1-alpha.10"' in release
+    assert '"companion_version": "0.5.2-alpha.16"' in release
+    assert '"companion_manifest_version": "0.5.2.16"' in release
 
     assert 'href="#"' not in LANDING
     assert "INTERACTIVE PREVIEW / NOT SAVED" in LANDING

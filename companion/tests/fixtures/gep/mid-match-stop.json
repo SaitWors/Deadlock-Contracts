@@ -1,0 +1,11 @@
+{
+  "name": "mid-match-stop-interrupted",
+  "source": "documented-simulator",
+  "steps": [
+    {"type":"process","running":true,"processId":103,"gameSessionId":3,"at":"2026-08-27T09:00:00Z"},
+    {"type":"match_id","matchId":8001,"source":"info_update","at":"2026-08-27T09:00:02Z"},
+    {"type":"clock","seconds":120,"at":"2026-08-27T09:02:00Z"},
+    {"type":"process","running":false,"at":"2026-08-27T09:02:01Z"}
+  ],
+  "expect":{"state":"INTERRUPTED","finals":0}
+}
