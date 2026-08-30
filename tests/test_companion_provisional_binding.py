@@ -470,7 +470,7 @@ class ProvisionalBindingRegressionTests(unittest.TestCase):
                 with self.assertRaises(FinalFactsPending) as captured:
                     handle_evaluate(db, job)
 
-            self.assertEqual(captured.exception.delay_seconds, 600)
+            self.assertEqual(captured.exception.delay_seconds, 10)
 
             db.refresh(board)
             db.refresh(current_option)

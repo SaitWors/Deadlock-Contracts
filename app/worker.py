@@ -73,6 +73,50 @@ class FinalFactsPending(RuntimeError):
         self.delay_seconds = max(5, int(delay_seconds))
 
 
+_PROVISIONAL_PROVIDER_RETRY_SCHEDULE = (
+    10,
+    20,
+    40,
+    60,
+    120,
+    300,
+    600,
+)
+
+
+def _provisional_provider_retry_delay(
+    attempt: int,
+    provider_retry_after: int = 0,
+) -> int:
+    """Poll cheap provider cache/S3 quickly, then back off safely.
+
+    This delay is used only after an exact Companion terminal match has already
+    been bound provisionally. The provider lookup itself still starts with
+    disable_steam=True, while the expensive Steam fallback remains separately
+    throttled by the existing process-wide cooldown.
+    """
+    try:
+        attempt_no = max(1, int(attempt))
+    except (TypeError, ValueError):
+        attempt_no = 1
+
+    index = min(
+        attempt_no - 1,
+        len(_PROVISIONAL_PROVIDER_RETRY_SCHEDULE) - 1,
+    )
+    base_delay = _PROVISIONAL_PROVIDER_RETRY_SCHEDULE[index]
+
+    try:
+        retry_after = int(provider_retry_after or 0)
+    except (TypeError, ValueError):
+        retry_after = 0
+
+    return max(
+        base_delay,
+        min(3600, max(0, retry_after)),
+    )
+
+
 def utcnow() -> datetime:
     return datetime.now(timezone.utc)
 
@@ -2510,13 +2554,29 @@ def handle_evaluate(db: Session, job: Job) -> None:
                     option_ids=active_option_ids,
                 )
 
+                provider_retry_after = 0
+                try:
+                    provider_retry_after = int(
+                        (job.payload or {}).get(
+                            "_provider_retry_after"
+                        )
+                        or 0
+                    )
+                except (TypeError, ValueError):
+                    provider_retry_after = 0
+
+                delay = _provisional_provider_retry_delay(
+                    int(job.attempts or 1),
+                    provider_retry_after,
+                )
+
                 raise FinalFactsPending(
                     (
                         f"Матч #{match.external_match_id} обнаружен и "
                         "локально завершён; ждём независимое "
                         "подтверждение провайдера"
                     ),
-                    10 * 60,
+                    delay,
                 )
 
     # Do not let one unavailable provider field freeze unrelated assignments.
