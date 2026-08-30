@@ -14,6 +14,19 @@ def utcnow() -> datetime:
     return datetime.now(timezone.utc)
 
 
+def _aware_utc(value: datetime | None) -> datetime | None:
+    # Normalize DB datetimes before comparing retry schedules.
+    # PostgreSQL returns timezone-aware values for timestamptz, while the
+    # SQLite test dialect can round-trip DateTime values without tzinfo.
+    # Treat a naive stored value as UTC because scheduler timestamps in this
+    # service are written from utcnow().
+    if value is None:
+        return None
+    if value.tzinfo is None:
+        return value.replace(tzinfo=timezone.utc)
+    return value.astimezone(timezone.utc)
+
+
 def enqueue_job(
     db: Session,
     job_type: str,
@@ -24,6 +37,77 @@ def enqueue_job(
     max_attempts: int = 20,
     commit: bool = True,
 ) -> Job:
+    # evaluate_match has several legitimate producers (normal bind, startup
+    # repair, finality repair). Their historical idempotency keys differ, but
+    # semantically there must be only one active evaluator for one board+match.
+    #
+    # Without this guard, two PENDING evaluator jobs can poll the exact same
+    # Deadlock API metadata concurrently, doubling provider traffic and making
+    # retry timing harder to reason about.
+    semantic_board_id = (
+        str(payload.get("board_id"))
+        if payload.get("board_id")
+        else None
+    )
+    semantic_match_id = (
+        str(payload.get("match_id"))
+        if payload.get("match_id")
+        else None
+    )
+
+    if (
+        job_type == "evaluate_match"
+        and semantic_board_id
+        and semantic_match_id
+    ):
+        active_evaluator = db.scalar(
+            select(Job)
+            .where(
+                Job.type == "evaluate_match",
+                Job.board_id == semantic_board_id,
+                Job.match_id == semantic_match_id,
+                Job.status.in_(("PENDING", "RUNNING")),
+            )
+            .order_by(
+                Job.run_after.asc(),
+                Job.created_at.asc(),
+            )
+            .limit(1)
+        )
+
+        if active_evaluator is not None:
+            active_evaluator.max_attempts = max(
+                int(active_evaluator.max_attempts or 0),
+                int(max_attempts),
+            )
+
+            # A repair request may intentionally ask for an earlier retry.
+            # Never postpone an already queued evaluator.
+            requested_run_after = _aware_utc(run_after)
+            current_run_after = _aware_utc(
+                active_evaluator.run_after
+            )
+
+            if (
+                active_evaluator.status == "PENDING"
+                and requested_run_after is not None
+                and (
+                    current_run_after is None
+                    or current_run_after
+                    > requested_run_after
+                )
+            ):
+                # Preserve the caller's original datetime value; normalization
+                # above is only for a safe UTC comparison.
+                active_evaluator.run_after = run_after
+
+            if commit:
+                db.commit()
+            else:
+                db.flush()
+
+            return active_evaluator
+
     existing = db.scalar(select(Job).where(Job.idempotency_key == idempotency_key))
     if existing:
         existing.user_id = existing.user_id or (
