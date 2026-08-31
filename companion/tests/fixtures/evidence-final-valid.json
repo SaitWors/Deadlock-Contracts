@@ -1,7 +1,7 @@
 {
-  "schema_version": 8,
-  "client_version": "0.5.2-alpha.16",
-  "version": "0.5.2-alpha.16",
+  "schema_version": 9,
+  "client_version": "0.5.2-alpha.17",
+  "version": "0.5.2-alpha.17",
   "device_id": "device-qa",
   "event_type": "match_ended",
   "observed_at": "2026-08-27T00:30:00Z",
@@ -14,8 +14,15 @@
   "session_id": "session-qa",
   "session_started_at": "2026-08-27T00:00:00Z",
   "session_start_reason": "match_start",
-  "live_stats": {"kills":8,"deaths":3,"assists":9},
-  "terminal_proof": {"type":"gep_match_end","observed_at":"2026-08-27T00:30:00Z"},
+  "live_stats": {
+    "kills": 8,
+    "deaths": 3,
+    "assists": 9
+  },
+  "terminal_proof": {
+    "type": "gep_match_end",
+    "observed_at": "2026-08-27T00:30:00Z"
+  },
   "sequence": 3,
-  "idempotency_key": "session:session-qa:event:match_ended:schema:8"
+  "idempotency_key": "session:session-qa:event:match_ended:schema:9"
 }

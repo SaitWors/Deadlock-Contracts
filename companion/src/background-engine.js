@@ -1,11 +1,11 @@
-/* Deadlock Contracts Companion — Alpha.16 orchestration layer.
+/* Deadlock Contracts Companion — Alpha.17 orchestration layer.
  * Lifecycle, queue, schema, progress, storage and health rules live in dedicated modules.
  */
 const FEATURES = ['gep_internal', 'game_info', 'match_info']
 const GAME_ID = 24482
 const VERSION = window.DCRelease?.productVersion
 if (!VERSION) throw new Error('Generated release metadata is missing')
-const EVIDENCE_SCHEMA_VERSION = window.DCRelease?.evidenceSchemaVersion || 8
+const EVIDENCE_SCHEMA_VERSION = window.DCRelease?.evidenceSchemaVersion || 9
 const HOTKEY_NAME = 'toggle_contract_overlay'
 const DEFAULT_HOTKEY = 'Ctrl+Shift+C'
 const ALLOWED_SERVER_URLS = new Set(['https://deadlock-contracts.online'])
@@ -37,8 +37,9 @@ const Health = window.DCHealth
 const Lifecycle = window.DCLifecycle
 const UploadQueue = window.DCUploadQueue
 const ServerCompat = window.DCServerCompat
-if (![Storage, Schema, Product, I18n, Progress, Health, Lifecycle, UploadQueue, ServerCompat].every(Boolean)) {
-  throw new Error('Alpha.16 runtime modules were not loaded in the required order')
+const GepSettlement = window.DCGepSettlement
+if (![Storage, Schema, Product, I18n, Progress, Health, Lifecycle, UploadQueue, ServerCompat, GepSettlement].every(Boolean)) {
+  throw new Error('Alpha.17 runtime modules were not loaded in the required order')
 }
 
 const $ = id => document.getElementById(id)
@@ -54,6 +55,7 @@ const STORAGE = Object.freeze({
   queueSecure: 'dc.queue.v3.secure',
   queueLegacy: 'dc.queue.v2',
   lifecycleSecure: 'dc.lifecycle.v3.secure',
+  gepSettlementSecure: 'dc.gep.settlement.v1.secure',
   product: 'dc.product.v3',
   overlayScale: 'dc.overlay.scale.v2',
   overlayAutoHide: 'dc.overlay.autohide.v2',
@@ -155,6 +157,7 @@ const state = {
   pairingError: null,
   updateState: 'NOT_CHECKED',
   processObservedAt: null,
+  gepSettlement: GepSettlement.emptyState(),
 }
 
 function randomId(prefix = 'dc') {
@@ -328,6 +331,7 @@ function clearLocalAuth() {
   Storage.remove(STORAGE.tokenLegacy)
   Storage.remove(STORAGE.tokenEncrypted)
   Storage.remove(STORAGE.tokenEncryptedLegacy)
+  clearGepSettlementState()
   setHealth('auth', 'UNPAIRED')
 }
 
@@ -814,6 +818,14 @@ function applyPhase(value, source) {
   if (phase === 'PostGame' && source === 'info_update') {
     if (isStreetBrawl()) {
       log('STREET_BRAWL_ROUND_POSTGAME', { round_epoch: state.streetBrawlRoundEpoch, match_id: state.matchId })
+    } else if (GepSettlement.canFinalize(state.gepSettlement.current)) {
+      // Alpha.17 settlement deliberately waits for Overwolf's explicit
+      // match_end event. PostGame remains useful as legacy/provider fallback
+      // only when the server did not issue an eligible GEP lease.
+      log('GEP_WAITING_EXPLICIT_MATCH_END', {
+        session_id: lifecycle.currentSession()?.session_id || null,
+        match_id: state.matchId,
+      })
     } else {
       const observedAt = nowIso()
       const candidate = lifecycle.observeTerminalSignal({ type: 'phase_postgame', observedAt })
@@ -866,6 +878,7 @@ function applyMatchId(value, source) {
   }
 
   handleSessionTransition(before, lifecycle.snapshot().state, `match_id:${source}`, result)
+  if (result?.confirmed && state.token) void ensureGepAttemptLease(result.session || session)
   if (result?.confirmed && state.pendingOutcome) bindPendingOutcome(result.session?.match_id || state.matchId)
   if (lifecycle.snapshot().state === Lifecycle.MATCH_STATE.TERMINAL_PENDING) {
     void checkpointLifecycle({ force: true })
@@ -1114,6 +1127,196 @@ async function flushQueue({ deadlineMs = null } = {}) {
   })
   return flushPromise
 }
+
+async function persistGepSettlementState() {
+  const result = await Storage.writeSecureJson(
+    STORAGE.gepSettlementSecure,
+    GepSettlement.restore(state.gepSettlement),
+    { schemaVersion: 1 },
+  )
+  if (!result.ok) log('GEP_SETTLEMENT_PERSIST_FAILED', { code: result.code || 'SECURE_STORAGE_FAILED' })
+  return result
+}
+
+async function restoreGepSettlementState() {
+  const result = await Storage.readSecureJson(
+    STORAGE.gepSettlementSecure,
+    { schemaVersion: 1 },
+  )
+  if (result.ok && result.value) state.gepSettlement = GepSettlement.restore(result.value)
+  else if (!result.missing) {
+    state.gepSettlement = GepSettlement.emptyState()
+    log('GEP_SETTLEMENT_RESTORE_FAILED', { code: result.code || 'SECURE_STORAGE_FAILED' })
+  }
+}
+
+function clearGepSettlementState() {
+  state.gepSettlement = GepSettlement.emptyState()
+  Storage.remove(STORAGE.gepSettlementSecure)
+}
+
+async function ensureGepAttemptLease(session = lifecycle.currentSession()) {
+  if (!state.token || !session?.session_id) return { ok: false, code: 'NO_AUTH_OR_SESSION' }
+
+  const current = state.gepSettlement.current
+  const currentStatus = String(current?.status || '').toUpperCase()
+  if (
+    current?.session_id === session.session_id
+    && ['INELIGIBLE', 'DISABLED', 'CONSUMED', 'CONSUMED_QUEUED', 'VOID', 'REJECTED'].includes(currentStatus)
+  ) {
+    return { ok: false, code: currentStatus }
+  }
+
+  const built = GepSettlement.buildStartPayload({
+    session,
+    steamId: state.steamId,
+    gameMode: state.mode?.value,
+    matchId: session.match_id || state.matchId,
+    version: VERSION,
+  })
+
+  if (!built.ok) {
+    state.gepSettlement = GepSettlement.markStartError(state.gepSettlement, {
+      sessionId: session.session_id,
+      code: built.code,
+      message: 'Waiting for GEP identity/mode before attempt lease',
+    })
+    await persistGepSettlementState()
+    publishRuntimeState()
+    return built
+  }
+
+  if (
+    current?.session_id === session.session_id
+    && current?.eligible === true
+    && (!built.payload.match_id || Number(current.match_id) === Number(built.payload.match_id))
+  ) {
+    return { ok: true, cached: true }
+  }
+
+  try {
+    const response = await serverFetch('/api/companion/attempts/start', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(built.payload),
+    })
+    state.gepSettlement = GepSettlement.applyStartResponse(
+      state.gepSettlement,
+      response,
+      { sessionId: session.session_id },
+    )
+    await persistGepSettlementState()
+    log('GEP_ATTEMPT_LEASE', {
+      status: state.gepSettlement.current?.status,
+      queued: state.gepSettlement.current?.queued === true,
+      match_id: state.gepSettlement.current?.match_id || null,
+    })
+    publishRuntimeState()
+    return { ok: true, response }
+  } catch (error) {
+    state.gepSettlement = GepSettlement.markStartError(state.gepSettlement, {
+      sessionId: session.session_id,
+      code: error.code || `HTTP_${error.status || 0}`,
+      message: error.message || 'Attempt lease failed',
+    })
+    await persistGepSettlementState()
+    log('GEP_ATTEMPT_LEASE_FAILED', { code: error.code || null, status: error.status || null })
+    publishRuntimeState()
+    return { ok: false, code: error.code || 'START_FAILED' }
+  }
+}
+
+async function stageGepFinalize(candidate, details, legacyPayload) {
+  const session = lifecycle.currentSession() || candidate?.session_snapshot
+  const current = state.gepSettlement.current
+
+  if (!GepSettlement.canFinalize(current)) return { ok: false, code: 'LEASE_NOT_ELIGIBLE' }
+  if (!session || current.session_id !== session.session_id) return { ok: false, code: 'SESSION_MISMATCH' }
+
+  const matchId = asInt(details?.match_id || session.match_id || state.matchId)
+  const outcomeForMatch = (
+    matchId && asInt(state.matchOutcomeEventMatchId) === matchId
+  ) ? normalizeTeam(state.matchOutcome) : null
+
+  const built = GepSettlement.buildFinalizePayload({
+    current,
+    session,
+    terminalType: candidate?.type,
+    steamId: state.steamId,
+    matchId,
+    matchClockS: details?.match_clock_s ?? state.matchClockS,
+    finalSequence: legacyPayload?.sequence,
+    evidence: details?.evidence || state.evidence,
+    localTeam: state.localTeam,
+    winningTeam: outcomeForMatch,
+    version: VERSION,
+  })
+
+  if (!built.ok) {
+    log('GEP_FINALIZE_NOT_STAGED', { code: built.code })
+    return built
+  }
+
+  state.gepSettlement = GepSettlement.stageFinalize(state.gepSettlement, built.payload)
+  await persistGepSettlementState()
+  log('GEP_FINALIZE_STAGED', {
+    session_id: built.payload.session_id,
+    match_id: built.payload.match_id,
+  })
+  return { ok: true, payload: built.payload }
+}
+
+async function flushPendingGepFinalize() {
+  if (!state.token) return { ok: false, code: 'UNPAIRED' }
+  const due = GepSettlement.dueFinalizes(state.gepSettlement)
+  if (!due.length) return { ok: true, sent: 0 }
+
+  let sent = 0
+  for (const item of due) {
+    try {
+      const response = await serverFetch('/api/companion/matches/finalize', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(item.payload),
+      })
+      state.gepSettlement = GepSettlement.acknowledgeFinalize(
+        state.gepSettlement,
+        item.key,
+        response,
+      )
+      await persistGepSettlementState()
+      sent += 1
+      log('GEP_FINALIZE_ACK', {
+        status: response?.status || null,
+        match_id: response?.match_id || item.payload?.match_id || null,
+        idempotent: response?.idempotent === true,
+      })
+    } catch (error) {
+      const attempts = Number(item.attempts || 0)
+      const retryMs = Math.min(300000, 15000 * Math.max(1, 2 ** Math.min(attempts, 4)))
+      state.gepSettlement = GepSettlement.markFinalizeError(
+        state.gepSettlement,
+        item.key,
+        {
+          code: error.code || `HTTP_${error.status || 0}`,
+          message: error.message || 'Finalize failed',
+          retryMs,
+        },
+      )
+      await persistGepSettlementState()
+      log('GEP_FINALIZE_RETRY', {
+        code: error.code || null,
+        status: error.status || null,
+        match_id: item.payload?.match_id || null,
+      })
+    }
+  }
+
+  publishRuntimeState()
+  return { ok: true, sent }
+}
+
+
 function handleSessionTransition(before, after, reason, result = null) {
   const newSession = result?.created === true || result?.replaced_interrupted === true
   if (newSession) {
@@ -1125,7 +1328,10 @@ function handleSessionTransition(before, after, reason, result = null) {
       state.matchClockObservedAt = result.session.match_clock_observed_at || state.matchClockObservedAt
     }
     void checkpointLifecycle({ force: true })
-    if (state.token) void enqueueSessionEvent('match_started').then(() => flushQueue())
+    if (state.token) {
+      void enqueueSessionEvent('match_started').then(() => flushQueue())
+      void ensureGepAttemptLease(result?.session || lifecycle.currentSession())
+    }
   } else if (result?.recovered === true) {
     // Same-session restart recovery preserves evidence and must not emit another
     // match_started edge for the same immutable session id.
@@ -1189,11 +1395,14 @@ async function commitPendingTerminal(candidateId, { force = false, flush = true 
     return queued
   }
 
+  await stageGepFinalize(candidate, details, payload)
+
   const finalized = lifecycle.finalize(candidate.id, candidate.proof || proof, { details })
   if (!finalized.ok) return finalized
   clearTerminalTimer(candidate.id)
   clearRecoveryTimers()
   await checkpointLifecycle({ force: true })
+  if (state.token) void flushPendingGepFinalize()
   if (state.token && flush) await flushQueue()
   return { ok: true, queued, finalized: finalized.finalized }
 }
@@ -1429,6 +1638,10 @@ function transitionToUnpaired(reason = 'AUTH_REQUIRED') {
 }
 async function sendPresenceHeartbeat() {
   if (!state.token) return { ok: false, code: 'UNPAIRED' }
+
+  const activeGepSession = lifecycle.currentSession()
+  if (activeGepSession) void ensureGepAttemptLease(activeGepSession)
+  void flushPendingGepFinalize()
 
   const observedAt = nowIso()
   const payload = {
@@ -1917,6 +2130,7 @@ function publicSnapshot() {
     queue: { ...totals, last_ack_at: state.lastAckAt },
     last_synced_at: state.lastSyncedAt,
     last_upload_status: state.lastUploadStatus,
+    gep_settlement: GepSettlement.publicState(state.gepSettlement),
     event_status: clone(lastEventStatus),
     product: clone(state.product),
   }
@@ -1987,6 +2201,7 @@ async function init() {
   ensureDeviceId()
   ensureDiagnosticInstallId()
   await loadToken()
+  await restoreGepSettlementState()
   restoreProductCache()
   await restoreQueue()
   await restoreLifecycleCheckpoint()

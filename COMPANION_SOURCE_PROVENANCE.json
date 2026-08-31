@@ -1,14 +1,15 @@
 {
   "product": "Deadlock Contracts Companion",
-  "runtime_version": "0.5.2-alpha.16",
-  "manifest_version": "0.5.2.16",
-  "evidence_schema": 8,
-  "remediation_base_runtime_version": "0.5.2-alpha.15",
-  "remediation_base_manifest_version": "0.5.2.15",
-  "imported_at": "2026-08-30",
-  "source_bundle": "Deadlock-Contracts-Companion-0.5.2-alpha.16-FIXED.zip",
-  "source_bundle_sha256": "88af4dd2d6fc6a35c3e5c6bdcf62344ddadf7e4b7659c91fd799103490649284",
-  "source_archive": "Deadlock-Contracts-Companion-0.5.2-alpha.16-FIXED.zip",
-  "source_archive_sha256": "88af4dd2d6fc6a35c3e5c6bdcf62344ddadf7e4b7659c91fd799103490649284",
-  "verified_tests": 95
+  "runtime_version": "0.5.2-alpha.17",
+  "manifest_version": "0.5.2.17",
+  "evidence_schema": 9,
+  "remediation_base_runtime_version": "0.5.2-alpha.16",
+  "remediation_base_manifest_version": "0.5.2.16",
+  "imported_at": "2026-08-31",
+  "source_bundle": "Git main + Companion-first settlement Alpha.17",
+  "source_bundle_sha256": null,
+  "source_archive": "Git main + Companion-first settlement Alpha.17",
+  "source_archive_sha256": null,
+  "verified_tests": 102,
+  "source_commit_base": "38d737f432dffbd7707f2cf07163ef40a6125d4c"
 }

@@ -7,8 +7,8 @@ const Q = require('../../src/upload-queue.js')
 
 function payload(session, match, event, sequence) {
   return {
-    schema_version: 8,
-    client_version: '0.5.2-alpha.16',
+    schema_version: 9,
+    client_version: '0.5.2-alpha.17',
     device_id: 'd',
     event_type: event,
     session_id: session,
@@ -58,7 +58,7 @@ test('persisted in-flight request recovers to retry-wait with same idempotency k
 
 test('v2 causal keys are migrated without changing idempotency identity', () => {
   const q = Q.createUploadQueue({now: () => 5000})
-  const oldKey = 'match:unknown:session:s:event:match_started:schema:8'
+  const oldKey = 'match:unknown:session:s:event:match_started:schema:9'
   const restored = q.replace({
     schema_version: 2,
     items: [{
