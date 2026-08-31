@@ -31,7 +31,7 @@ test('start payload keeps SteamID64 as string and match_id is optional', () => {
     session: { ...SESSION, match_id: null },
     steamId: STEAM,
     gameMode: 'STANDARD',
-    version: '0.5.2-alpha.17',
+    version: '0.5.2-alpha.18',
   })
   assert.equal(first.ok, true)
   assert.equal(first.payload.steam_id64, STEAM)
@@ -41,7 +41,7 @@ test('start payload keeps SteamID64 as string and match_id is optional', () => {
     session: SESSION,
     steamId: STEAM,
     gameMode: 'STANDARD',
-    version: '0.5.2-alpha.17',
+    version: '0.5.2-alpha.18',
   })
   assert.equal(retry.ok, true)
   assert.equal(retry.payload.match_id, 102910001)
@@ -63,7 +63,7 @@ test('queued lease can finalize but only from explicit match_end', () => {
     steamId: STEAM,
     finalSequence: 8,
     evidence: { kills: 3, deaths: 0, assists: 8 },
-    version: '0.5.2-alpha.17',
+    version: '0.5.2-alpha.18',
   })
   assert.equal(bad.ok, false)
   assert.equal(bad.code, 'EXPLICIT_MATCH_END_REQUIRED')
@@ -80,7 +80,7 @@ test('queued lease can finalize but only from explicit match_end', () => {
     },
     localTeam: 'AMBER',
     winningTeam: 'AMBER',
-    version: '0.5.2-alpha.17',
+    version: '0.5.2-alpha.18',
   })
   assert.equal(good.ok, true)
   assert.equal(good.payload.terminal_signal, 'match_end')
@@ -99,7 +99,7 @@ test('winning team is omitted unless both team facts are present', () => {
     evidence: { kills: 1 },
     localTeam: 'AMBER',
     winningTeam: null,
-    version: '0.5.2-alpha.17',
+    version: '0.5.2-alpha.18',
   })
   assert.equal(result.ok, true)
   assert.equal(result.payload.local_team, null)

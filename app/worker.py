@@ -2674,6 +2674,25 @@ def handle_resolve_companion_match_auto(db: Session, job: Job) -> None:
     if external_match_id <= 0:
         raise ValueError("Companion не передал корректный Match ID")
 
+    # Old queued jobs can survive after the new GEP settlement already stored
+    # this exact match. Do not call Deadlock API again for that legacy path.
+    settled_gep_match = db.scalar(
+        select(Match)
+        .where(
+            Match.external_match_id == external_match_id,
+            Match.settlement_source == GEP_SETTLEMENT_SOURCE,
+            Match.integrity_status == GEP_INTEGRITY_CLIENT_ATTESTED,
+        )
+        .order_by(Match.created_at.desc())
+        .limit(1)
+    )
+    if settled_gep_match is not None:
+        log.info(
+            "Skipping legacy Companion resolver for GEP-settled match %s",
+            external_match_id,
+        )
+        return
+
     if settings.provider == "mock":
         match = db.scalar(
             select(Match).where(Match.external_match_id == external_match_id)

@@ -17,7 +17,7 @@ function lifecycleMachine() {
 function queuedEvent(sessionId, matchId, eventType, sequence, proof = null) {
   return {
     schema_version: 9,
-    client_version: '0.5.2-alpha.17',
+    client_version: '0.5.2-alpha.18',
     device_id: 'device',
     event_type: eventType,
     session_id: sessionId,

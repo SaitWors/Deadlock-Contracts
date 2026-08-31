@@ -8,7 +8,7 @@ import json
 print(json.load(open('companion/release.json'))['product_version'])
 PY
 )"
-EXPECTED="0.5.2-alpha.17"
+EXPECTED="0.5.2-alpha.18"
 [[ "$VERSION" == "$EXPECTED" ]] || {
   echo "[publish-companion][FAIL] expected $EXPECTED, got $VERSION" >&2
   exit 1

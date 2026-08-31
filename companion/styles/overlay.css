@@ -127,3 +127,92 @@ footer b { flex: 0 0 auto; padding: 4px 7px; border: 1px solid rgba(161,140,103,
   background: rgba(8, 10, 9, .91);
   box-shadow: 0 8px 22px rgba(0,0,0,.28);
 }
+
+
+/* Alpha.18 — useful no-contract match dashboard. */
+.overlay-stats {
+  grid-row: 1 / 3;
+  min-height: 0;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  gap: 6px;
+  padding: 8px 10px;
+  overflow: hidden;
+  border: 1px solid rgba(112, 218, 151, .24);
+  border-radius: 10px;
+  background:
+    linear-gradient(145deg, rgba(112, 218, 151, .06), transparent 48%),
+    rgba(7, 14, 11, .94);
+  box-shadow: inset 0 1px rgba(255,255,255,.025);
+}
+.overlay-stats[hidden] { display: none !important; }
+.overlay-stats.stale {
+  border-color: rgba(208, 174, 83, .42);
+  background:
+    linear-gradient(145deg, rgba(208, 174, 83, .055), transparent 48%),
+    rgba(7, 12, 10, .95);
+}
+.overlay-stats-head,
+.overlay-stats-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  min-width: 0;
+}
+.overlay-stats-head b {
+  overflow: hidden;
+  color: #f0e8d4;
+  font-size: 10px;
+  letter-spacing: .13em;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.overlay-stats-head span {
+  flex: 0 0 auto;
+  color: var(--green);
+  font-size: 8px;
+  font-weight: 800;
+  letter-spacing: .1em;
+}
+.overlay-stats.stale .overlay-stats-head span { color: #d0ae53; }
+.overlay-stat-grid {
+  min-height: 0;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-rows: repeat(2, minmax(0, 1fr));
+  gap: 5px;
+}
+.overlay-stat-grid > div {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 1px;
+  padding: 4px 6px;
+  border: 1px solid rgba(112, 218, 151, .12);
+  background: rgba(255,255,255,.018);
+}
+.overlay-stat-grid span {
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 7px;
+  font-weight: 800;
+  letter-spacing: .08em;
+  line-height: 1.05;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.overlay-stat-grid strong {
+  color: #f0e8d4;
+  font-family: Oswald, sans-serif;
+  font-size: 15px;
+  line-height: 1;
+}
+.overlay-stats.stale .overlay-stat-grid strong { opacity: .72; }
+.overlay-stats-foot {
+  color: var(--muted);
+  font-size: 7px;
+  font-weight: 700;
+  letter-spacing: .07em;
+}

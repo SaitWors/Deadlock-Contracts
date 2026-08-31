@@ -86,9 +86,11 @@ test('evidence keeps per-metric correlation metadata and performance counters ar
   assert.match(src, /performanceCounters\.runtime_state_publications\s*\+=\s*1/)
 })
 
-test('server actions fail closed on stale GEP while Deadlock is running', () => {
-  assert.match(src, /function liveGepBlocksServerAction\(/)
-  assert.match(src, /ACTION_BLOCKED_GEP_STALE/)
+test('server board actions are not blocked merely because Deadlock is open or GEP is stale', () => {
+  assert.doesNotMatch(src, /function liveGepBlocksServerAction\(/)
+  assert.doesNotMatch(src, /ACTION_BLOCKED_GEP_STALE/)
+  assert.doesNotMatch(src, /LIVE_MODE_MISMATCH/)
+  assert.match(src, /\/api\/companion\/attempts\/start/)
 })
 
 test('game mode resolver consumes the complete GEP game_mode payload', () => {

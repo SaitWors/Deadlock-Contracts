@@ -586,3 +586,47 @@ def test_gep_team_name_is_not_written_into_integer_team_column():
     # PostgreSQL column is Integer; never send "AMBER"/"SAPPHIRE" into it.
     assert normalized["participant"]["team"] is None
     assert normalized["participant"]["won"] is True
+
+
+
+def test_reconciler_does_not_reschedule_existing_pending_audit():
+    db = fresh_db()
+
+    try:
+        _, match, _ = create_gep_match(db)
+
+        with audit_settings(
+            enabled=True,
+            max_attempts=3,
+            retry_seconds=60,
+        ):
+            first = reconcile_match_audits(db)
+            assert first == 1
+
+            db.refresh(match)
+            first_report = dict(match.raw_summary["audit"])
+
+            job = db.scalar(
+                select(Job).where(
+                    Job.type == "audit_match",
+                    Job.match_id == match.id,
+                )
+            )
+            assert job is not None
+
+            first_run_after = job.run_after
+            first_attempts = job.attempts
+
+            second = reconcile_match_audits(db)
+
+        assert second == 0
+
+        db.refresh(match)
+        db.refresh(job)
+
+        assert match.raw_summary["audit"] == first_report
+        assert job.run_after == first_run_after
+        assert job.attempts == first_attempts
+
+    finally:
+        db.close()

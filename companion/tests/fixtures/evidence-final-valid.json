@@ -1,7 +1,7 @@
 {
   "schema_version": 9,
-  "client_version": "0.5.2-alpha.17",
-  "version": "0.5.2-alpha.17",
+  "client_version": "0.5.2-alpha.18",
+  "version": "0.5.2-alpha.18",
   "device_id": "device-qa",
   "event_type": "match_ended",
   "observed_at": "2026-08-27T00:30:00Z",

@@ -474,13 +474,13 @@
     setText('lockBtn', t('lockCase'))
 
     const backendStatus = String(snapshot.health?.backend?.status || '')
-    const gepStatus = String(snapshot.health?.gep?.status || '')
-    const gepBlocksAction = !!snapshot.game_running && ['STALE', 'UNAVAILABLE'].includes(gepStatus)
+    const lifecycleState = String(snapshot.lifecycle?.state || '')
+    const currentMatchStarted = ['MATCH_CONFIRMED', 'TERMINAL_PENDING'].includes(lifecycleState)
     const modeKnown = !!Product.normalizeMode(activeMode)
     const serverFresh = product.status === 'ONLINE' && !product.stale && backendStatus === 'OK'
     const attemptsRemaining = Number(board?.attempts_remaining || 0)
-    const rerollDisabled = busy || !canEdit || !serverFresh || gepBlocksAction || !modeKnown || attemptsRemaining <= 0 || Number(refresh.remaining || 0) < 1
-    const lockDisabled = busy || !canEdit || !serverFresh || gepBlocksAction || !modeKnown || attemptsRemaining <= 0 || !selected?.size
+    const rerollDisabled = busy || !canEdit || !serverFresh || !modeKnown || attemptsRemaining <= 0 || Number(refresh.remaining || 0) < 1
+    const lockDisabled = busy || !canEdit || !serverFresh || !modeKnown || attemptsRemaining <= 0 || !selected?.size
     $('rerollBtn').disabled = rerollDisabled
     $('lockBtn').disabled = lockDisabled
     $('rerollBtn').dataset.baseDisabled = rerollDisabled ? '1' : '0'
@@ -491,10 +491,16 @@
     if (busy) { actionReason = t('lockBlockedBusy'); actionReasonClass = 'warn' }
     else if (!modeKnown) { actionReason = t('lockBlockedMode'); actionReasonClass = 'bad' }
     else if (backendStatus === 'OFFLINE') { actionReason = t('lockBlockedOffline'); actionReasonClass = 'bad' }
-    else if (gepBlocksAction) { actionReason = t('lockBlockedGep'); actionReasonClass = 'bad' }
     else if (!serverFresh || product.status === 'INCOMPATIBLE') { actionReason = t('lockBlockedStale'); actionReasonClass = 'bad' }
     else if (attemptsRemaining <= 0) { actionReason = t('lockBlockedAttempts'); actionReasonClass = 'bad' }
     else if (!selected?.size) { actionReason = t('lockBlockedSelection'); actionReasonClass = 'warn' }
+    else if (currentMatchStarted) {
+      actionReason = ui(
+        'CURRENT MATCH ALREADY STARTED · CHANGES APPLY TO NEXT MATCH',
+        'ТЕКУЩИЙ МАТЧ УЖЕ НАЧАЛСЯ · ИЗМЕНЕНИЯ ДЛЯ СЛЕДУЮЩЕГО МАТЧА'
+      )
+      actionReasonClass = 'warn'
+    }
     if ($('boardActionReason')) {
       $('boardActionReason').textContent = actionReason
       $('boardActionReason').className = `action-reason ${actionReasonClass}`.trim()

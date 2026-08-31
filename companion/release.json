@@ -1,13 +1,13 @@
 {
-  "product_version": "0.5.2-alpha.17",
-  "manifest_version": "0.5.2.17",
+  "product_version": "0.5.2-alpha.18",
+  "manifest_version": "0.5.2.18",
   "evidence_schema_version": 9,
   "bootstrap_schema_version": 2,
   "bootstrap_compatible_versions": [
     1,
     2
   ],
-  "production_web_version": "0.10.1-alpha.11",
+  "production_web_version": "0.10.1-alpha.12",
   "production_bootstrap_schema_version": 1,
   "production_heartbeat_contract": "companion-heartbeat.v1"
 }

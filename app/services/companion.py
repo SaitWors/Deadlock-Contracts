@@ -68,6 +68,29 @@ def companion_version_supported(value: str | None, minimum: str | None = None) -
     return candidate is not None and candidate >= floor
 
 
+GEP_DIRECT_SETTLEMENT_MIN_VERSION = "0.5.2-alpha.17"
+
+
+def _gep_managed_direct_settlement(
+    device: CompanionDevice,
+    user: User,
+) -> bool:
+    if not settings.gep_settlement_enabled:
+        return False
+    if not companion_version_supported(
+        device.version,
+        GEP_DIRECT_SETTLEMENT_MIN_VERSION,
+    ):
+        return False
+    steam_id = str(user.steam_id64 or "").strip()
+    if not steam_id:
+        return False
+    return bool(
+        settings.gep_settlement_allow_all
+        or steam_id in settings.gep_settlement_allowlist
+    )
+
+
 def aware(value: datetime | None) -> datetime | None:
     if value is None:
         return None
@@ -466,6 +489,10 @@ def _register_direct_match_job(
     if match_id <= 0:
         return
     if user.steam_id64 is not None and identity_ok is not True:
+        return
+    # Alpha.17+ managed GEP sessions have their own durable /matches/finalize
+    # path. Do not start the old provider resolver in parallel.
+    if _gep_managed_direct_settlement(device, user):
         return
 
     now = utcnow()

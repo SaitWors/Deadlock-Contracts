@@ -26,6 +26,23 @@
         <div class="focus-track-wrap"><progress id="overlayProgress" class="focus-track" max="100" value="0"></progress><i class="focus-progress-sheen" aria-hidden="true"></i></div>
         <div class="completion-burst" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></div>
       </article>
+      <article id="overlayStats" class="overlay-stats" hidden>
+        <div class="overlay-stats-head">
+          <b id="overlayStatsMatch">CURRENT MATCH</b>
+          <span id="overlayStatsStatus">● LIVE</span>
+        </div>
+        <div class="overlay-stat-grid">
+          <div><span id="overlayStatKillsLabel">KILLS</span><strong id="overlayStatKills">0</strong></div>
+          <div><span id="overlayStatDeathsLabel">DEATHS</span><strong id="overlayStatDeaths">0</strong></div>
+          <div><span id="overlayStatAssistsLabel">ASSISTS</span><strong id="overlayStatAssists">0</strong></div>
+          <div><span id="overlayStatHealingLabel">HEALING</span><strong id="overlayStatHealing">0</strong></div>
+          <div><span id="overlayStatHeroDamageLabel">HERO DMG</span><strong id="overlayStatHeroDamage">0</strong></div>
+          <div><span id="overlayStatObjectDamageLabel">OBJECT DMG</span><strong id="overlayStatObjectDamage">0</strong></div>
+          <div><span id="overlayStatSoulsLabel">SOULS</span><strong id="overlayStatSouls">0</strong></div>
+          <div><span id="overlayStatClockLabel">CLOCK</span><strong id="overlayStatClock">0:00</strong></div>
+        </div>
+        <div class="overlay-stats-foot"><span id="overlayStatsFoot">NO ACTIVE CONTRACTS</span></div>
+      </article>
       <div id="overlayEmpty" class="overlay-empty">WAITING FOR MATCH</div>
       <div id="overlaySelected" class="overlay-selected" aria-label="Selected contracts" hidden></div>
       <footer><span id="overlayFoot">SERVER VERDICT · LIVE VALUES PROVISIONAL</span><b id="overlayHotkey">CTRL+SHIFT+C</b></footer>
