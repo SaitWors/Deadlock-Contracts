@@ -25,7 +25,7 @@ from app.models import (
     PublicProfile,
     User,
 )
-from app.services.boards import lock_board
+from app.services.boards import lock_board, today_utc
 from app.services.gep_settlement import (
     GEP_INTEGRITY_CLIENT_ATTESTED,
     GEP_SETTLEMENT_MIN_COMPANION_VERSION,
@@ -169,7 +169,7 @@ def create_board(
 
     board = ContractBoard(
         user_id=user.id,
-        board_date=now.date(),
+        board_date=today_utc(),
         status=status,
         game_match_mode="STANDARD",
         seed=f"gep-board-{uuid4()}",

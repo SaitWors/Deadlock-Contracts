@@ -13,14 +13,22 @@
     -Server
   }
 
-  reverse_proxy web:8080 {
-    health_uri /api/health
-    health_status 200
-    health_headers {
-      Host {$DOMAIN}
-    }
-    health_interval 30s
-    health_timeout 3s
+  handle_path /downloads/* {
+    root * /srv/downloads
+    header Content-Type application/octet-stream
+    header Content-Disposition "attachment"
+    file_server
   }
 
+  handle {
+    reverse_proxy web:8080 {
+      health_uri /api/health
+      health_status 200
+      health_headers {
+        Host {$DOMAIN}
+      }
+      health_interval 30s
+      health_timeout 3s
+    }
+  }
 }

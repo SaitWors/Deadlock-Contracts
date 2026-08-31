@@ -300,8 +300,24 @@
     }
 
     function observeTerminalSignal({ type, observedAt = now(), details = null } = {}) {
-      if (!session || state !== MATCH_STATE.MATCH_CONFIRMED || !gameplayProof()) return null
       const signal = String(type || '')
+      if (
+        signal === 'match_end'
+        && state === MATCH_STATE.TERMINAL_PENDING
+        && terminalCandidate?.type === 'phase_postgame'
+      ) {
+        terminalCandidate = Object.freeze({
+          ...clone(terminalCandidate),
+          type: 'match_end',
+          observed_at: observedAt,
+          previous_terminal_signal: 'phase_postgame',
+          proof: null,
+          commit_deadline_at: null,
+        })
+        touch()
+        return clone(terminalCandidate)
+      }
+      if (!session || state !== MATCH_STATE.MATCH_CONFIRMED || !gameplayProof()) return null
       if (!['match_end', 'phase_postgame'].includes(signal)) return null
       terminalCandidate = Object.freeze({
         id: createId('terminal'),

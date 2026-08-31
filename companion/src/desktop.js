@@ -14,7 +14,7 @@
   const fallback = {
     version: window.DCRelease?.productVersion || 'UNKNOWN', paired: false, account: null, game_running: false, steam_id64: null, steam_id_masked: '—',
     game_state_observed_at: null, game_state_confirmed: false, identity_ok: null, phase: null, phase_display: '—', mode_display: '—', match_id: null,
-    session: null, lifecycle: null, evidence: {}, evidence_revision: 0, match_clock_s: null, queue_count: 0, queue: {items:0,dead_letter:0,last_ack_at:null}, last_upload_status: '—',
+    session: null, lifecycle: null, evidence: {}, evidence_revision: 0, match_clock_s: null, queue_count: 0, queue: {items:0,dead_letter:0,last_ack_at:null}, last_upload_status: '—', gep_settlement: null,
     gep_version: null, gep_public_version: null, gep_updated: null, gep_feature_health: { status: 'WAITING', attempts: 0, last_error: null }, health: {}, pairing_error: null, last_error: '', overlay_scale: 'compact', overlay_auto_hide_ms: 10000, hotkey_binding: 'Ctrl+Shift+C',
     product: Product.emptyProductState(),
   }
@@ -193,7 +193,7 @@
       OFFERED: t('offered'), LOCKED: t('locked'), VERIFYING: t('verifying'), REVIEW_REQUIRED: t('reviewRequired'),
       COMPLETED: t('completed'), FAILED: t('failed'), PARTIAL: t('partial'), SETTLED: t('completed'), PARTIALLY_SETTLED: t('partial'),
       ONLINE: t('online'), OFFLINE: t('offline'), DEGRADED: t('degraded'), INCOMPATIBLE: t('incompatible'),
-      UNPAIRED: t('unpaired'), CONNECTING: t('waiting'), PENDING: t('verifying'), VOID: t('voidStatus'), EXPIRED: t('expired'),
+      UNPAIRED: t('unpaired'), CONNECTING: t('waiting'), PENDING: t('verifying'), VOID: t('voidStatus'), EXPIRED: t('expired'), ISSUED_ACTIVE: 'ACTIVE', ISSUED_QUEUED: 'QUEUED', INELIGIBLE: 'INELIGIBLE', CONSUMED: 'SETTLED', CONSUMED_QUEUED: 'QUEUED',
     }[String(status || '').toUpperCase()] || (status ? t('unknownServerStatus') : '—')
   }
 

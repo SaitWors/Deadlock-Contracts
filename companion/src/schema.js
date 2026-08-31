@@ -9,7 +9,7 @@
   const CLIENT_VERSION = Release.productVersion
   const BOOTSTRAP_SCHEMA_VERSION = 2
   const BOOTSTRAP_COMPAT_VERSIONS = new Set([1, 2])
-  const EVIDENCE_SCHEMA_VERSION = 8
+  const EVIDENCE_SCHEMA_VERSION = 9
   const MODES = new Set(['STANDARD','RANKED','STREET_BRAWL'])
   const OPERATORS = new Set(['gte','lte','eq'])
   const METRICS = new Set(['player.kills','player.deaths','player.assists','player.kda','player.net_worth.final','player.hero_damage','player.object_damage','player.healing','player.scoreboard_healing','match.duration_s','match.win'])

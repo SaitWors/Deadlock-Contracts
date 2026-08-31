@@ -3,7 +3,7 @@
   if (typeof module === 'object' && module.exports) module.exports = api
   if (root) root.DCServerCompat = api
 })(typeof window !== 'undefined' ? window : globalThis, () => {
-  const PRODUCTION_WEB_VERSION = '0.10.1-alpha.10'
+  const PRODUCTION_WEB_VERSION = '0.10.1-alpha.11'
   const PRODUCTION_BOOTSTRAP_SCHEMA = 1
   const SUPPORTED_BOOTSTRAP_SCHEMAS = Object.freeze([1, 2])
   const SERVER_EVENTS = new Set(['heartbeat','game_started','game_stopped','match_started','match_ended','phase_changed'])

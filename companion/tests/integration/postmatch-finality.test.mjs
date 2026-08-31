@@ -16,8 +16,8 @@ function lifecycleMachine() {
 
 function queuedEvent(sessionId, matchId, eventType, sequence, proof = null) {
   return {
-    schema_version: 8,
-    client_version: '0.5.2-alpha.16',
+    schema_version: 9,
+    client_version: '0.5.2-alpha.17',
     device_id: 'device',
     event_type: eventType,
     session_id: sessionId,
@@ -104,4 +104,35 @@ test('crash recovery keeps terminal proof and retries unknown in-flight predeces
   const final = q2.enqueue(queuedEvent(sessionId, 321, 'match_ended', 2, restoredCandidate.proof), {sequence: 2})
   assert.equal(final.ok, true)
   assert.equal(q2.nextDue().id, recoveredStart.id)
+})
+
+
+test('explicit match_end upgrades a pending PostGame candidate', () => {
+  const m = lifecycleMachine()
+  m.observeProcess({running: true})
+  m.observeMatchStart()
+  m.observeMatchId({matchId: 777, source: 'info_update'})
+  m.observeMatchClock({seconds: 90})
+
+  const phase = m.observeTerminalSignal({
+    type: 'phase_postgame',
+    observedAt: '2026-08-31T00:00:00Z',
+  })
+  assert.equal(phase.type, 'phase_postgame')
+
+  const phaseProof = m.correlateTerminal(phase.id, {history_ids: [777]})
+  assert.equal(phaseProof.ok, true)
+  m.attachTerminalProof(phase.id, phaseProof, {deadlineAt: 5000})
+
+  const explicit = m.observeTerminalSignal({
+    type: 'match_end',
+    observedAt: '2026-08-31T00:00:01Z',
+  })
+  assert.equal(explicit.id, phase.id)
+  assert.equal(explicit.type, 'match_end')
+  assert.equal(explicit.proof, null)
+
+  const proof = m.correlateTerminal(explicit.id)
+  assert.equal(proof.ok, true)
+  assert.equal(proof.type, 'gep_match_end')
 })

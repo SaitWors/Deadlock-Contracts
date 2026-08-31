@@ -1,8 +1,8 @@
 {
   "product": "Deadlock Contracts",
-  "web_version": "0.10.1-alpha.10",
-  "companion_version": "0.5.2-alpha.16",
-  "companion_manifest_version": "0.5.2.16",
+  "web_version": "0.10.1-alpha.11",
+  "companion_version": "0.5.2-alpha.17",
+  "companion_manifest_version": "0.5.2.17",
   "channel": "alpha",
-  "release_date": "2026-08-30"
+  "release_date": "2026-08-31"
 }
