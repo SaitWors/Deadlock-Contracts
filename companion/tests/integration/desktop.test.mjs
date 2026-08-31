@@ -5,10 +5,11 @@ test('sync success requires structured result ok',()=>{assert.match(js,/result\.
 test('clipboard uses background Overwolf Clipboard API and no execCommand',()=>{assert.match(js,/call\(['\"]copyText/);assert.doesNotMatch(js,/execCommand/)})
 test('settings expose recovery, auto-hide, privacy and explicit exit controls',()=>{for(const id of ['forceSignOutBtn','exportQueueBtn','clearCacheBtn','privacyBtn','supportBtn','replayIntroBtn','exitBtn','hotkeyWarning'])assert.match(html,new RegExp(`id=["']${id}["']`),id);assert.match(html,/data-auto-hide="0"/);assert.match(html,/data-auto-hide="30000"/)})
 
-test('lock and reroll UI fail closed on stale GEP during a running game',()=>{
-  assert.match(js,/gepBlocksAction/)
-  assert.match(js,/\['STALE',\s*'UNAVAILABLE'\]/)
-  assert.match(js,/lockBlockedGep/)
+test('lock and reroll stay available in menu or lobby while Deadlock is running',()=>{
+  assert.doesNotMatch(js,/gepBlocksAction/)
+  assert.match(js,/currentMatchStarted/)
+  assert.match(js,/CURRENT MATCH ALREADY STARTED/)
+  assert.match(js,/NEXT MATCH/)
 })
 
 

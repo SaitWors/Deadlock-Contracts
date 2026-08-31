@@ -224,6 +224,21 @@ def reconcile_match_audits(
     scheduled = 0
 
     for match in matches:
+        # enqueue_job is idempotent and returns an existing PENDING job.
+        # Alpha.17 counted that as a new queue every minute and rewrote the
+        # audit scheduled_at timestamp. Leave an existing retry untouched.
+        audit_key = f"audit-match-v1:{match.id}"
+        existing = db.scalar(
+            select(Job).where(
+                Job.idempotency_key == audit_key
+            )
+        )
+        if (
+            existing is not None
+            and existing.status in {"PENDING", "RUNNING"}
+        ):
+            continue
+
         user = _user_for_match(db, match)
         if user is None:
             continue

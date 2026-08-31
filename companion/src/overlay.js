@@ -63,6 +63,7 @@
   }
   function renderEmpty(title, mode = '—', attempt = '—', foot = '') {
     setVisible($('overlayFocus'), false)
+    setVisible($('overlayStats'), false)
     setVisible($('overlayEmpty'), true)
     setVisible($('overlaySelected'), false)
     $('overlayEmpty').textContent = title
@@ -70,6 +71,63 @@
     $('overlayAttempt').textContent = attempt
     $('overlayFoot').textContent = foot
   }
+
+  function statText(value) {
+    if (value === null || value === undefined || value === '') return '—'
+    const n = Number(value)
+    if (!Number.isFinite(n)) return '—'
+    return number(n, 0)
+  }
+  function renderMatchDashboard(dto, { stale = false, backendBad = false } = {}) {
+    const stats = dto?.stats || {}
+    setVisible($('overlayFocus'), false)
+    setVisible($('overlayEmpty'), false)
+    setVisible($('overlaySelected'), false)
+    setVisible($('overlayStats'), true)
+
+    const matchId = dto?.match?.id
+    const staleSeconds = Math.max(0, Math.round(Number(dto?.health?.age_ms || 0) / 1000))
+    $('overlayMode').textContent = `${Product?.modeLabel?.(dto.match?.mode, dto.language) || dto.match?.mode || '—'}${matchId ? ` · #${matchId}` : ''}`
+    $('overlayAttempt').textContent = ui('NO ACTIVE CONTRACTS', 'НЕТ АКТИВНЫХ КОНТРАКТОВ')
+    $('overlayStatsMatch').textContent = matchId
+      ? `${ui('MATCH', 'МАТЧ')} #${matchId}`
+      : ui('CURRENT MATCH', 'ТЕКУЩИЙ МАТЧ')
+    $('overlayStatsStatus').textContent = stale
+      ? `◐ ${ui('STALE', 'УСТАРЕЛО')} · ${staleSeconds}s`
+      : '● LIVE'
+    $('overlayStats').classList.toggle('stale', stale)
+
+    const labels = {
+      overlayStatKillsLabel: ui('KILLS', 'УБИЙСТВА'),
+      overlayStatDeathsLabel: ui('DEATHS', 'СМЕРТИ'),
+      overlayStatAssistsLabel: ui('ASSISTS', 'ПОМОЩИ'),
+      overlayStatHealingLabel: ui('HEALING', 'ЛЕЧЕНИЕ'),
+      overlayStatHeroDamageLabel: ui('HERO DMG', 'УРОН ГЕРОЯМ'),
+      overlayStatObjectDamageLabel: ui('OBJECT DMG', 'УРОН ОБЪЕКТАМ'),
+      overlayStatSoulsLabel: ui('SOULS', 'ДУШИ'),
+      overlayStatClockLabel: ui('CLOCK', 'ВРЕМЯ'),
+    }
+    for (const [id, label] of Object.entries(labels)) if ($(id)) $(id).textContent = label
+
+    $('overlayStatKills').textContent = statText(stats.kills)
+    $('overlayStatDeaths').textContent = statText(stats.deaths)
+    $('overlayStatAssists').textContent = statText(stats.assists)
+    $('overlayStatHealing').textContent = statText(stats.healing)
+    $('overlayStatHeroDamage').textContent = statText(stats.hero_damage)
+    $('overlayStatObjectDamage').textContent = statText(stats.object_damage)
+    $('overlayStatSouls').textContent = statText(stats.souls)
+    $('overlayStatClock').textContent = displayValue('match.duration_s', stats.match_clock_s)
+
+    $('overlayStatsFoot').textContent = stale
+      ? ui('LAST KNOWN GEP VALUES', 'ПОСЛЕДНИЕ ИЗВЕСТНЫЕ ДАННЫЕ GEP')
+      : ui('LIVE MATCH DATA · NO ACTIVE CONTRACTS', 'LIVE-ДАННЫЕ МАТЧА · НЕТ АКТИВНЫХ КОНТРАКТОВ')
+    $('overlayFoot').textContent = backendBad
+      ? ui('SERVER DEGRADED · LIVE DATA STAYS LOCAL', 'СЕРВЕР НЕДОСТУПЕН · LIVE-ДАННЫЕ ОСТАЮТСЯ ЛОКАЛЬНО')
+      : stale
+        ? ui('GEP STALE · SHOWING LAST KNOWN VALUES', 'GEP УСТАРЕЛ · ПОКАЗАНЫ ПОСЛЕДНИЕ ЗНАЧЕНИЯ')
+        : ui('MATCH DASHBOARD', 'ПАНЕЛЬ МАТЧА')
+  }
+
   function render(dto, { force = false } = {}) {
     if (!dto || Number(dto.dto_version) !== 2) {
       renderEmpty(ui('OVERLAY DATA UNAVAILABLE', 'ДАННЫЕ ОВЕРЛЕЯ НЕДОСТУПНЫ'), 'DTO v2 REQUIRED', '—', ui('OPEN DESKTOP FOR DIAGNOSTICS', 'ОТКРОЙТЕ DESKTOP ДЛЯ ДИАГНОСТИКИ'))
@@ -103,6 +161,11 @@
       renderEmpty(ui('WAITING FOR CONFIRMED MATCH', 'ОЖИДАНИЕ ПОДТВЕРЖДЁННОГО МАТЧА'), dto.match?.mode || ui('DETECTING MODE', 'ОПРЕДЕЛЯЕМ РЕЖИМ'), '—', ui('PROCESS DETECTED · NO SCORING SESSION YET', 'ПРОЦЕСС НАЙДЕН · SCORING-СЕССИЯ ЕЩЁ НЕ НАЧАТА'))
       return
     }
+    const selected = Array.isArray(dto.selected) ? dto.selected : []
+    if (gameState === 'MATCH' && selected.length === 0) {
+      renderMatchDashboard(dto, { stale, backendBad })
+      return
+    }
     if (stale) {
       renderEmpty(ui('LIVE DATA IS STALE', 'LIVE-ДАННЫЕ УСТАРЕЛИ'), dto.match?.mode || '—', dto.match?.attempt ? `${dto.match.attempt.current}/${dto.match.attempt.max}` : '—', `${ui('GEP', 'GEP')} ${gepStatus} · ${Math.round(Number(dto.health?.age_ms || 0) / 1000)}s`)
       return
@@ -115,6 +178,7 @@
     }
 
     setVisible($('overlayFocus'), true)
+    setVisible($('overlayStats'), false)
     setVisible($('overlayEmpty'), false)
     const progress = focus.progress
     const condition = focus.condition

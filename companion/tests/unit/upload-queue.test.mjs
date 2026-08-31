@@ -8,7 +8,7 @@ const Q = require('../../src/upload-queue.js')
 function payload(session, match, event, sequence) {
   return {
     schema_version: 9,
-    client_version: '0.5.2-alpha.17',
+    client_version: '0.5.2-alpha.18',
     device_id: 'd',
     event_type: event,
     session_id: session,

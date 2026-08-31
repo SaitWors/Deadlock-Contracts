@@ -1,4 +1,4 @@
-/* Deadlock Contracts Companion — Alpha.17 orchestration layer.
+/* Deadlock Contracts Companion — Alpha.18 orchestration layer.
  * Lifecycle, queue, schema, progress, storage and health rules live in dedicated modules.
  */
 const FEATURES = ['gep_internal', 'game_info', 'match_info']
@@ -39,7 +39,7 @@ const UploadQueue = window.DCUploadQueue
 const ServerCompat = window.DCServerCompat
 const GepSettlement = window.DCGepSettlement
 if (![Storage, Schema, Product, I18n, Progress, Health, Lifecycle, UploadQueue, ServerCompat, GepSettlement].every(Boolean)) {
-  throw new Error('Alpha.17 runtime modules were not loaded in the required order')
+  throw new Error('Alpha.18 runtime modules were not loaded in the required order')
 }
 
 const $ = id => document.getElementById(id)
@@ -1523,8 +1523,28 @@ function applyNewEvent(name, data) {
   log('GEP_EVENT', { name })
   if (name === 'match_clock') { applyMatchClock(data); return }
   if (['kill','death','assist'].includes(name)) {
+    // Deadlock roster is the documented absolute K/D/A snapshot. The separate
+    // kill/death/assist event is only an activity signal; adding +1 here races
+    // the roster update and permanently over-counts monotonic evidence.
     const key = name === 'assist' ? 'assists' : `${name}s`
-    updateEvidenceMetric(key, Number(state.evidence[key] || 0) + 1, { source: `event:${name}`, monotonic: true })
+    const observedAt = nowIso()
+    const observedMs = Date.now()
+    const currentValue = state.evidence[key] ?? null
+    state.metricActivity[key] = {
+      at: observedMs,
+      observed_at: observedAt,
+      value: currentValue,
+      previous: currentValue,
+      source: `event:${name}`,
+      priority_until: observedMs + 4500,
+      revision: state.evidenceRevision,
+    }
+    log('GEP_KDA_EVENT_HINT', { name, key })
+    publishRuntimeState()
+    void getInfoSnapshot().catch(error => log('KDA_EVENT_REFRESH_FAILED', {
+      name,
+      code: error?.code || 'GEP_GET_INFO_FAILED',
+    }))
     return
   }
   if (name === 'match_start') {
@@ -1760,17 +1780,12 @@ function forceLocalSignOut() {
   publishRuntimeState()
   return publicSnapshot()
 }
-function liveGepBlocksServerAction() {
-  return state.gameRunning && ['STALE', 'UNAVAILABLE'].includes(String(health.state.gep.status || ''))
-}
 async function lockContracts(mode, optionIds) {
   if (!state.token) throw Object.assign(new Error('Pairing required'), { code: 'UNPAIRED' })
   if (health.state.backend.status === 'OFFLINE' || state.product.stale || state.product.status !== 'ONLINE') throw Object.assign(new Error('Fresh server data is required'), { code: 'ACTION_BLOCKED_STALE' })
-  if (liveGepBlocksServerAction()) throw Object.assign(new Error('Live GEP data is stale or unavailable while Deadlock is running'), { code: 'ACTION_BLOCKED_GEP_STALE' })
   const normalized = Product.normalizeMode(mode)
   const ids = [...new Set((Array.isArray(optionIds) ? optionIds : []).map(String).filter(Boolean))]
   if (!normalized) throw Object.assign(new Error('Unknown mode'), { code: 'MODE_UNKNOWN' })
-  if (state.gameRunning && state.mode.value && normalized !== state.mode.value) throw Object.assign(new Error(`Live Deadlock mode is ${state.mode.value}; cannot lock ${normalized} contracts.`), { code: 'LIVE_MODE_MISMATCH' })
   if (ids.length < 1 || ids.length > 3) throw Object.assign(new Error('Select 1–3 contracts'), { code: 'SELECTION_INVALID' })
   const board = Product.boardForMode(state.product, normalized)
   if (!board || board.attempts_remaining <= 0) throw Object.assign(new Error('No attempts remaining'), { code: 'ATTEMPTS_EXHAUSTED' })
@@ -1781,7 +1796,6 @@ async function lockContracts(mode, optionIds) {
 async function rerollBoard(mode) {
   if (!state.token) throw Object.assign(new Error('Pairing required'), { code: 'UNPAIRED' })
   if (health.state.backend.status === 'OFFLINE' || state.product.stale || state.product.status !== 'ONLINE') throw Object.assign(new Error('Fresh server data is required'), { code: 'ACTION_BLOCKED_STALE' })
-  if (liveGepBlocksServerAction()) throw Object.assign(new Error('Live GEP data is stale or unavailable while Deadlock is running'), { code: 'ACTION_BLOCKED_GEP_STALE' })
   const normalized = Product.normalizeMode(mode)
   if (!normalized) throw Object.assign(new Error('Unknown mode'), { code: 'MODE_UNKNOWN' })
   await serverFetch(`/api/desktop/v1/boards/${encodeURIComponent(normalized)}/reroll`, { method: 'POST' })
@@ -2044,6 +2058,7 @@ function buildOverlayDto() {
     focus: focusCandidate?.key || null,
     progress,
     evidence_revision: state.evidenceRevision,
+    match_clock_s: state.matchClockS,
     hotkey: state.hotkeyBinding,
     auto: overlayAutoHideMs(),
   })
@@ -2067,6 +2082,17 @@ function buildOverlayDto() {
       id: session?.match_id || state.matchId || null,
       mode: state.mode.value,
       attempt: active ? { current: active.current_attempt || 1, max: active.max_attempts || 3 } : null,
+    },
+    stats: {
+      kills: state.evidence.kills ?? null,
+      deaths: state.evidence.deaths ?? null,
+      assists: state.evidence.assists ?? null,
+      healing: state.evidence.healing ?? null,
+      hero_damage: state.evidence.hero_damage ?? null,
+      object_damage: state.evidence.object_damage ?? null,
+      souls: state.evidence.souls ?? null,
+      match_clock_s: state.matchClockS ?? null,
+      observed_at: state.lastRosterAt || state.matchClockObservedAt || null,
     },
     focus: focusOption && condition && progress ? {
       option_id: focusOption.id,
