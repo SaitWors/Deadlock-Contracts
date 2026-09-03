@@ -85,6 +85,7 @@ from .services.progression import user_progression
 from .services.adaptive_profile import build_adaptive_profile
 from .services.leaderboard import TRUSTED_REWARD_SOURCES, public_leaderboard as build_public_leaderboard
 from .services.localization import error_metadata, request_language
+from .services.permissions import permissions_for_role, role_has_permission
 
 log = logging.getLogger(__name__)
 STATIC = Path(__file__).parent / "static"
@@ -136,7 +137,7 @@ class AdminOutboxReplayRequest(StrictModel):
 
 
 class AdminIdentityUpdateRequest(StrictModel):
-    access_role: Literal["PLAYER", "TESTER", "ADMIN"]
+    access_role: Literal["PLAYER", "TESTER", "MODERATOR", "ADMIN"]
     badges: list[Literal["DEVELOPER", "STREAMER", "EARLY_TESTER", "CONTRIBUTOR"]] = Field(default_factory=list, max_length=4)
 
 
@@ -573,7 +574,7 @@ def logout(response: Response, request: Request, user: User = Depends(require_us
     return {"ok": True}
 
 
-ACCESS_ROLES = {"PLAYER", "TESTER", "ADMIN"}
+ACCESS_ROLES = {"PLAYER", "TESTER", "MODERATOR", "ADMIN"}
 PUBLIC_BADGES = {"DEVELOPER", "STREAMER", "EARLY_TESTER", "CONTRIBUTOR"}
 BADGE_ORDER = ("CREATOR", "ADMIN", "DEVELOPER", "STREAMER", "EARLY_TESTER", "TESTER", "CONTRIBUTOR", "PLAYER")
 
@@ -727,6 +728,8 @@ def serialize_user(user: User) -> dict:
         "badges": _display_badges(user),
         "created_at": user.created_at.isoformat() if user.created_at else None,
         "is_admin": role in {"OWNER", "ADMIN"},
+        "is_staff": role_has_permission(role, "admin.access"),
+        "permissions": permissions_for_role(role),
         "can_manage_roles": role == "OWNER",
     }
 
@@ -1007,6 +1010,16 @@ def _is_admin(user: User) -> bool:
     return _effective_access_role(user) in {"OWNER", "ADMIN"}
 
 
+def _is_staff(user: User) -> bool:
+    return role_has_permission(_effective_access_role(user), "admin.access")
+
+
+def _require_staff_identity(user: User = Depends(require_user)) -> User:
+    if not _is_staff(user):
+        raise HTTPException(403, "Требуется staff-доступ")
+    return user
+
+
 def _require_admin_identity(user: User = Depends(require_user)) -> User:
     if not _is_admin(user):
         raise HTTPException(403, "Требуется доступ администратора")
@@ -1043,6 +1056,29 @@ def _require_admin(
     if expires_at is None or expires_at <= now:
         raise HTTPException(403, "Требуется подтверждение TOTP для административного доступа")
     return user
+
+
+def _require_staff(
+    request: Request,
+    user: User = Depends(_require_staff_identity),
+    db: Session = Depends(get_db),
+) -> User:
+    session = _admin_browser_session(request, db)
+    expires_at = _admin_elevation_expires(session)
+    now = datetime.now(timezone.utc)
+    if expires_at is None or expires_at <= now:
+        raise HTTPException(403, "Требуется подтверждение TOTP для staff-доступа")
+    return user
+
+
+def _require_permission(permission: str):
+    def dependency(user: User = Depends(_require_staff)) -> User:
+        role = _effective_access_role(user)
+        if not role_has_permission(role, permission):
+            raise HTTPException(403, "Недостаточно прав для этого действия")
+        return user
+
+    return dependency
 
 
 def _require_owner(admin: User = Depends(_require_admin)) -> User:
@@ -1882,7 +1918,7 @@ def my_auto_reviews(user: User = Depends(require_user), db: Session = Depends(ge
     }
 
 
-def _serialize_auto_review(db: Session, item: AutoReviewCase) -> dict:
+def _serialize_auto_review(db: Session, item: AutoReviewCase, *, redact: bool = False) -> dict:
     board = db.scalar(select(ContractBoard).options(selectinload(ContractBoard.options)).where(ContractBoard.id == item.board_id))
     match = db.get(Match, item.match_id)
     owner = db.get(User, item.user_id)
@@ -1894,7 +1930,7 @@ def _serialize_auto_review(db: Session, item: AutoReviewCase) -> dict:
     return {
         "id": item.id, "status": item.status, "board_id": item.board_id,
         "mode": board.game_match_mode if board else None,
-        "player": {"display_name": owner.display_name if owner else "Unknown", "account_id": owner.account_id if owner else None},
+        "player": {"display_name": owner.display_name if owner else "Unknown", "account_id": None if redact else (owner.account_id if owner else None)},
         "match_id": str(match.external_match_id) if match else None,
         "match_summary": {
             "provider": match.provider if match else None,
@@ -1922,7 +1958,7 @@ def _serialize_auto_review(db: Session, item: AutoReviewCase) -> dict:
                 "souls": gep_evidence.souls if gep_evidence else None,
             } if gep_evidence else None,
         },
-        "reasons": item.reasons, "context": item.context, "reviewer_note": item.reviewer_note,
+        "reasons": item.reasons, "context": {} if redact else item.context, "reviewer_note": item.reviewer_note,
         "created_at": item.created_at.isoformat(), "reviewed_at": item.reviewed_at.isoformat() if item.reviewed_at else None,
         "contracts": [
             {"id": option.id, "title": option.rendered_title, "status": option.status, "reward_xp": option.reward_xp, "metric": option.metric, "target": option.target, "explanation": option.explanation}
@@ -1943,6 +1979,8 @@ def _admin_status_payload(request: Request, db: Session, user: User) -> dict:
         "expires_at": expires_at.isoformat() if elevated and expires_at else None,
         "ttl_minutes": settings.admin_session_ttl_minutes,
         "can_manage_roles": role == "OWNER",
+        "is_staff": role_has_permission(role, "admin.access"),
+        "permissions": permissions_for_role(role),
         "admin": {
             "id": user.id,
             "display_name": user.display_name,
@@ -1956,7 +1994,7 @@ def _admin_status_payload(request: Request, db: Session, user: User) -> dict:
 @app.get("/api/admin/auth/status")
 def admin_auth_status(
     request: Request,
-    admin: User = Depends(_require_admin_identity),
+    admin: User = Depends(_require_staff_identity),
     db: Session = Depends(get_db),
 ) -> dict:
     return _admin_status_payload(request, db, admin)
@@ -1966,7 +2004,7 @@ def admin_auth_status(
 def admin_auth_totp(
     payload: AdminTotpRequest,
     request: Request,
-    admin: User = Depends(_require_admin_identity),
+    admin: User = Depends(_require_staff_identity),
     db: Session = Depends(get_db),
 ) -> dict:
     if not settings.admin_totp_secret:
@@ -1992,7 +2030,7 @@ def admin_auth_totp(
 @app.post("/api/admin/auth/lock", dependencies=[Depends(require_csrf)])
 def admin_auth_lock(
     request: Request,
-    admin: User = Depends(_require_admin_identity),
+    admin: User = Depends(_require_staff_identity),
     db: Session = Depends(get_db),
 ) -> dict:
     browser_session = _admin_browser_session(request, db)
@@ -3165,17 +3203,19 @@ def admin_replay_outbox(
 
 @app.get("/api/admin/auto-reviews")
 def admin_auto_reviews(
-    status: Literal["ALL", "PENDING", "NEEDS_INFO", "RESOLVED", "REJECTED"] = "PENDING",
+    status: Literal["OPEN", "ALL", "PENDING", "NEEDS_INFO", "RESOLVED", "REJECTED"] = "OPEN",
     offset: int = 0,
     limit: int = 100,
-    admin: User = Depends(_require_admin),
+    admin: User = Depends(_require_permission("reviews.read")),
     db: Session = Depends(get_db),
 ) -> dict:
-    del admin
+    redact = not role_has_permission(_effective_access_role(admin), "users.read")
     offset = max(0, min(int(offset), 100_000))
     limit = max(1, min(int(limit), 250))
     stmt = select(AutoReviewCase)
-    if status != "ALL":
+    if status == "OPEN":
+        stmt = stmt.where(AutoReviewCase.status.in_(("PENDING", "NEEDS_INFO")))
+    elif status != "ALL":
         stmt = stmt.where(AutoReviewCase.status == status)
     total = int(db.scalar(select(func.count()).select_from(stmt.order_by(None).subquery())) or 0)
     items = list(db.scalars(stmt.order_by(AutoReviewCase.created_at.asc()).offset(offset).limit(limit)).all())
@@ -3189,7 +3229,7 @@ def admin_auto_reviews(
     if oldest and oldest.tzinfo is None:
         oldest = oldest.replace(tzinfo=timezone.utc)
     return {
-        "items": [_serialize_auto_review(db, item) for item in items],
+        "items": [_serialize_auto_review(db, item, redact=redact) for item in items],
         "total": total,
         "offset": offset,
         "limit": limit,
@@ -3199,7 +3239,7 @@ def admin_auto_reviews(
 
 
 @app.post("/api/admin/auto-reviews/{review_id}/decision", dependencies=[Depends(require_csrf)])
-def decide_auto_review(review_id: UUID, payload: AutoReviewDecisionRequest, admin: User = Depends(_require_admin), db: Session = Depends(get_db)) -> dict:
+def decide_auto_review(review_id: UUID, payload: AutoReviewDecisionRequest, admin: User = Depends(_require_permission("reviews.decide")), db: Session = Depends(get_db)) -> dict:
     item = db.scalar(select(AutoReviewCase).where(AutoReviewCase.id == str(review_id)).with_for_update())
     if not item:
         raise HTTPException(404, "Внутренняя заявка не найдена")
@@ -3328,7 +3368,8 @@ def decide_auto_review(review_id: UUID, payload: AutoReviewDecisionRequest, admi
     # are committed atomically.
     db.commit()
     db.refresh(item)
-    return {"review": _serialize_auto_review(db, item)}
+    redact = not role_has_permission(_effective_access_role(admin), "users.read")
+    return {"review": _serialize_auto_review(db, item, redact=redact)}
 
 
 @app.post("/api/matches/sync", dependencies=[Depends(require_csrf)])

@@ -17,7 +17,7 @@ import {
 } from "./i18n"
 
 type Mode = "STANDARD" | "RANKED" | "STREET_BRAWL"
-type AccessRole = "OWNER" | "ADMIN" | "TESTER" | "PLAYER"
+type AccessRole = "OWNER" | "ADMIN" | "MODERATOR" | "TESTER" | "PLAYER"
 type BadgeId =
   | "CREATOR"
   | "ADMIN"
@@ -39,6 +39,8 @@ type User = {
   badges: BadgeId[]
   created_at: string | null
   is_admin: boolean
+  is_staff: boolean
+  permissions: string[]
   can_manage_roles: boolean
 }
 type SessionPayload = {
@@ -238,6 +240,8 @@ type AdminAuthStatus = {
   expires_at: string | null
   ttl_minutes: number
   can_manage_roles: boolean
+  is_staff: boolean
+  permissions: string[]
   admin: {
     id: string
     display_name: string
@@ -604,6 +608,49 @@ type AdminSection =
   | "outbox"
   | "audit"
   | "system"
+
+const ADMIN_SECTION_PERMISSIONS: Record<AdminSection, string> = {
+  overview: "admin.overview.read",
+  users: "users.read",
+  reviews: "reviews.read",
+  matches: "matches.read",
+  boards: "boards.read",
+  companions: "companions.read",
+  missions: "missions.read",
+  generator: "generator.preview",
+  jobs: "jobs.read",
+  outbox: "outbox.read",
+  audit: "audit.read",
+  system: "system.read",
+}
+
+const ADMIN_SECTION_ORDER: Array<[AdminSection, string]> = [
+  ["overview", "Обзор"],
+  ["users", "Игроки"],
+  ["reviews", "Проверки"],
+  ["matches", "Матчи"],
+  ["boards", "Дела"],
+  ["companions", "Companion"],
+  ["missions", "Контракты"],
+  ["generator", "Generator Lab"],
+  ["jobs", "Jobs"],
+  ["outbox", "Outbox"],
+  ["audit", "Аудит"],
+  ["system", "Система"],
+]
+
+function hasAdminPermission(permissions: string[], permission: string) {
+  return permissions.includes("*") || permissions.includes(permission)
+}
+
+function firstAdminSectionForPermissions(permissions: string[]): AdminSection {
+  return (
+    ADMIN_SECTION_ORDER.find(([key]) =>
+      hasAdminPermission(permissions, ADMIN_SECTION_PERMISSIONS[key]),
+    )?.[0] || "reviews"
+  )
+}
+
 type CompanionDeviceStatus = {
   paired: boolean
   online: boolean
@@ -1489,7 +1536,7 @@ export default function Dashboard({ initialSession }: { initialSession: SessionP
     ["history", "ARCHIVE", "case"],
     ["profile", "PROFILE", "profile"],
   ]
-  if (user.is_admin) nav.push(["admin", "ADMIN", "admin"])
+  if (user.is_staff) nav.push(["admin", "ADMIN", "admin"])
 
   return (
     <div className="dc-dashboard dc-redesign dc-v3 dc-vnext min-h-screen">
@@ -2752,7 +2799,7 @@ export default function Dashboard({ initialSession }: { initialSession: SessionP
             </>
           )}
 
-          {tab === "admin" && user.is_admin && (
+          {tab === "admin" && user.is_staff && (
             <AdminConsole
               csrf={csrf}
               reloadAll={reloadAll}
@@ -2862,7 +2909,7 @@ function AdminConsole({
   const [generator, setGenerator] = useState<AdminGeneratorPreview | null>(null)
   const [system, setSystem] = useState<AdminSystem | null>(null)
   const [busy, setBusy] = useState(false)
-  const [identityRole, setIdentityRole] = useState<"PLAYER" | "TESTER" | "ADMIN">("PLAYER")
+  const [identityRole, setIdentityRole] = useState<"PLAYER" | "TESTER" | "MODERATOR" | "ADMIN">("PLAYER")
   const [identityBadges, setIdentityBadges] = useState<
     Array<"DEVELOPER" | "STREAMER" | "EARLY_TESTER" | "CONTRIBUTOR">
   >([])
@@ -2870,12 +2917,18 @@ function AdminConsole({
   const loadAuth = useCallback(async () => {
     const data = await api<AdminAuthStatus>("/api/admin/auth/status", csrf)
     setAuth(data)
+    setSection((current) =>
+      hasAdminPermission(data.permissions, ADMIN_SECTION_PERMISSIONS[current])
+        ? current
+        : firstAdminSectionForPermissions(data.permissions),
+    )
     return data
   }, [csrf])
 
   const loadSection = useCallback(
     async (target: AdminSection) => {
       if (!auth?.elevated) return
+      if (!hasAdminPermission(auth.permissions, ADMIN_SECTION_PERMISSIONS[target])) return
       try {
         if (target === "overview")
           setOverview(await api<AdminOverview>("/api/admin/overview", csrf))
@@ -2897,7 +2950,7 @@ function AdminConsole({
         }
         if (target === "reviews")
           setReviews(
-            (await api<{ items: AdminReview[] }>("/api/admin/auto-reviews?status=ALL", csrf)).items,
+            (await api<{ items: AdminReview[] }>("/api/admin/auto-reviews?status=OPEN", csrf)).items,
           )
         if (target === "jobs") {
           const params = new URLSearchParams({
@@ -3039,8 +3092,13 @@ function AdminConsole({
         body: JSON.stringify({ code }),
       })
       setAuth(data)
+      setSection((current) =>
+        hasAdminPermission(data.permissions, ADMIN_SECTION_PERMISSIONS[current])
+          ? current
+          : firstAdminSectionForPermissions(data.permissions),
+      )
       setCode("")
-      setNotice(`Административный доступ подтверждён на ${data.ttl_minutes} минут.`)
+      setNotice(`Staff-доступ подтверждён на ${data.ttl_minutes} минут.`)
     } catch (reason) {
       setError((reason as Error).message)
     } finally {
@@ -3068,7 +3126,7 @@ function AdminConsole({
       const data = await api<AdminUserDetail>(`/api/admin/users/${id}`, csrf)
       setDetail(data)
       if (data.user.access_role !== "OWNER")
-        setIdentityRole(data.user.access_role as "PLAYER" | "TESTER" | "ADMIN")
+        setIdentityRole(data.user.access_role as "PLAYER" | "TESTER" | "MODERATOR" | "ADMIN")
       setIdentityBadges(
         data.user.badges.filter(
           (item): item is "DEVELOPER" | "STREAMER" | "EARLY_TESTER" | "CONTRIBUTOR" =>
@@ -3402,20 +3460,9 @@ function AdminConsole({
       </section>
     )
 
-  const sections: Array<[AdminSection, string]> = [
-    ["overview", "Обзор"],
-    ["users", "Игроки"],
-    ["reviews", "Проверки"],
-    ["matches", "Матчи"],
-    ["boards", "Дела"],
-    ["companions", "Companion"],
-    ["missions", "Контракты"],
-    ["generator", "Generator Lab"],
-    ["jobs", "Jobs"],
-    ["outbox", "Outbox"],
-    ["audit", "Аудит"],
-    ["system", "Система"],
-  ]
+  const sections = ADMIN_SECTION_ORDER.filter(([key]) =>
+    hasAdminPermission(auth.permissions, ADMIN_SECTION_PERMISSIONS[key]),
+  )
   const kv = (data: Record<string, unknown>) =>
     Object.entries(data).map(([key, value]) => (
       <div className="dc-admin-kv" key={key}>
@@ -3629,6 +3676,7 @@ function AdminConsole({
               <option value="ALL">Все роли</option>
               <option>OWNER</option>
               <option>ADMIN</option>
+              <option>MODERATOR</option>
               <option>TESTER</option>
               <option>PLAYER</option>
             </select>
@@ -3769,11 +3817,12 @@ function AdminConsole({
                             <select
                               value={identityRole}
                               onChange={(event) =>
-                                setIdentityRole(event.target.value as "PLAYER" | "TESTER" | "ADMIN")
+                                setIdentityRole(event.target.value as "PLAYER" | "TESTER" | "MODERATOR" | "ADMIN")
                               }
                             >
                               <option value="PLAYER">PLAYER — обычный игрок</option>
                               <option value="TESTER">TESTER — участник тестирования</option>
+                              <option value="MODERATOR">MODERATOR — только Review + TOTP</option>
                               <option value="ADMIN">ADMIN — административный доступ + TOTP</option>
                             </select>
                           </label>
@@ -3984,7 +4033,7 @@ function AdminConsole({
           csrf={csrf}
           reload={async () => {
             setReviews(
-              (await api<{ items: AdminReview[] }>("/api/admin/auto-reviews?status=ALL", csrf))
+              (await api<{ items: AdminReview[] }>("/api/admin/auto-reviews?status=OPEN", csrf))
                 .items,
             )
             await reloadAll()
