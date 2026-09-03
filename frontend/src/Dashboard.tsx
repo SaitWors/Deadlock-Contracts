@@ -2909,7 +2909,9 @@ function AdminConsole({
   const [generator, setGenerator] = useState<AdminGeneratorPreview | null>(null)
   const [system, setSystem] = useState<AdminSystem | null>(null)
   const [busy, setBusy] = useState(false)
-  const [identityRole, setIdentityRole] = useState<"PLAYER" | "TESTER" | "MODERATOR" | "ADMIN">("PLAYER")
+  const [identityRole, setIdentityRole] = useState<"PLAYER" | "TESTER" | "MODERATOR" | "ADMIN">(
+    "PLAYER",
+  )
   const [identityBadges, setIdentityBadges] = useState<
     Array<"DEVELOPER" | "STREAMER" | "EARLY_TESTER" | "CONTRIBUTOR">
   >([])
@@ -2950,7 +2952,8 @@ function AdminConsole({
         }
         if (target === "reviews")
           setReviews(
-            (await api<{ items: AdminReview[] }>("/api/admin/auto-reviews?status=OPEN", csrf)).items,
+            (await api<{ items: AdminReview[] }>("/api/admin/auto-reviews?status=OPEN", csrf))
+              .items,
           )
         if (target === "jobs") {
           const params = new URLSearchParams({
@@ -3817,7 +3820,9 @@ function AdminConsole({
                             <select
                               value={identityRole}
                               onChange={(event) =>
-                                setIdentityRole(event.target.value as "PLAYER" | "TESTER" | "MODERATOR" | "ADMIN")
+                                setIdentityRole(
+                                  event.target.value as "PLAYER" | "TESTER" | "MODERATOR" | "ADMIN",
+                                )
                               }
                             >
                               <option value="PLAYER">PLAYER — обычный игрок</option>
