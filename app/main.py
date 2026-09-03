@@ -19,7 +19,7 @@ from fastapi.responses import FileResponse, JSONResponse, PlainTextResponse, Red
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, ConfigDict, Field
-from sqlalchemy import and_, delete, exists, func, or_, select, text
+from sqlalchemy import String, and_, cast, delete, exists, func, or_, select, text
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, selectinload
 from starlette.middleware.trustedhost import TrustedHostMiddleware
@@ -86,10 +86,18 @@ from .services.adaptive_profile import build_adaptive_profile
 from .services.leaderboard import TRUSTED_REWARD_SOURCES, public_leaderboard as build_public_leaderboard
 from .services.localization import error_metadata, request_language
 from .services.permissions import permissions_for_role, role_has_permission
+from .services.evaluator import capability_available
 from .services.moderation import (
     ModerationError,
     decide_review,
     preview_review_decision,
+)
+from .services.review_claims import (
+    ReviewClaimError,
+    claim_review,
+    mark_review_needs_info,
+    release_review,
+    review_claim_payload,
 )
 
 log = logging.getLogger(__name__)
@@ -136,6 +144,14 @@ class AutoReviewDecisionRequest(StrictModel):
     ] | None = None
     reviewer_note: str = Field(default="", max_length=1500)
     options: list[AutoReviewDecisionItem] = Field(default_factory=list, max_length=3)
+
+
+class AutoReviewClaimRequest(StrictModel):
+    force: bool = False
+
+
+class AutoReviewNeedsInfoRequest(StrictModel):
+    note: str = Field(min_length=5, max_length=1500)
 
 
 class AdminTotpRequest(StrictModel):
@@ -1932,19 +1948,228 @@ def my_auto_reviews(user: User = Depends(require_user), db: Session = Depends(ge
     }
 
 
+def _review_metric_value(
+    metric: str,
+    match: Match | None,
+    participant: MatchParticipant | None,
+) -> float | None:
+    if match is None or participant is None:
+        return None
+    values: dict[str, float | None] = {
+        "match.win": (
+            1.0
+            if participant.won is True
+            else (0.0 if participant.won is False else None)
+        ),
+        "match.duration_s": (
+            float(match.duration_s)
+            if match.duration_s is not None
+            else None
+        ),
+        "player.kills": (
+            float(participant.kills)
+            if participant.kills is not None
+            else None
+        ),
+        "player.deaths": (
+            float(participant.deaths)
+            if participant.deaths is not None
+            else None
+        ),
+        "player.assists": (
+            float(participant.assists)
+            if participant.assists is not None
+            else None
+        ),
+        "player.net_worth.final": (
+            float(participant.net_worth)
+            if participant.net_worth is not None
+            else None
+        ),
+        "player.hero_damage": (
+            float(participant.hero_damage)
+            if participant.hero_damage is not None
+            else None
+        ),
+        "player.object_damage": (
+            float(participant.object_damage)
+            if participant.object_damage is not None
+            else None
+        ),
+        "player.healing": (
+            float(participant.healing)
+            if participant.healing is not None
+            else None
+        ),
+        "player.scoreboard_healing": (
+            float(participant.healing)
+            if participant.healing is not None
+            else None
+        ),
+    }
+    if metric == "player.kda":
+        if (
+            participant.kills is None
+            or participant.deaths is None
+            or participant.assists is None
+        ):
+            return None
+        return float(
+            (participant.kills + participant.assists)
+            / max(1, participant.deaths)
+        )
+    return values.get(metric)
+
+
+def _review_condition_rows(option: BoardOption) -> list[dict[str, Any]]:
+    rows = [
+        dict(value)
+        for value in (option.conditions or [])
+        if isinstance(value, dict)
+    ]
+    if rows:
+        return rows
+    return [
+        {
+            "metric": option.metric,
+            "operator": option.operator,
+            "target": option.target,
+            "capabilities": list(option.required_capabilities or []),
+        }
+    ]
+
+
+def _serialize_review_contract(
+    db: Session,
+    option: BoardOption,
+    match: Match | None,
+    participant: MatchParticipant | None,
+) -> dict[str, Any]:
+    required = [str(value) for value in (option.required_capabilities or [])]
+    missing = [
+        value
+        for value in required
+        if not match or not capability_available(option, match, value)
+    ]
+    conditions = []
+    for row in _review_condition_rows(option):
+        metric = str(row.get("metric") or option.metric)
+        operator = str(row.get("operator") or option.operator)
+        target = float(row.get("target", option.target))
+        capabilities = [
+            str(value)
+            for value in (row.get("capabilities") or [])
+        ]
+        missing_caps = [
+            value
+            for value in capabilities
+            if not match or not capability_available(option, match, value)
+        ]
+        conditions.append(
+            {
+                "metric": metric,
+                "operator": operator,
+                "target": target,
+                "capabilities": capabilities,
+                "missing_capabilities": missing_caps,
+                "actual": _review_metric_value(metric, match, participant),
+            }
+        )
+
+    evaluations = list(
+        db.scalars(
+            select(Evaluation)
+            .where(Evaluation.assignment_id == option.id)
+            .order_by(Evaluation.revision.desc())
+            .limit(20)
+        ).all()
+    )
+    return {
+        "id": option.id,
+        "title": option.rendered_title,
+        "status": option.status,
+        "reward_xp": option.reward_xp,
+        "metric": option.metric,
+        "operator": option.operator,
+        "target": option.target,
+        "progress_current": option.progress_current,
+        "progress_target": option.progress_target,
+        "explanation": option.explanation,
+        "required_capabilities": required,
+        "missing_capabilities": missing,
+        "actual": _review_metric_value(option.metric, match, participant),
+        "conditions": conditions,
+        "evaluations": [
+            {
+                "id": evaluation.id,
+                "revision": evaluation.revision,
+                "status": evaluation.status,
+                "evidence_level": evaluation.evidence_level,
+                "progress_current": evaluation.progress_current,
+                "progress_target": evaluation.progress_target,
+                "explanation": evaluation.explanation,
+                "created_at": (
+                    evaluation.created_at.isoformat()
+                    if evaluation.created_at
+                    else None
+                ),
+            }
+            for evaluation in evaluations
+        ],
+    }
+
+
 def _serialize_auto_review(db: Session, item: AutoReviewCase, *, redact: bool = False) -> dict:
-    board = db.scalar(select(ContractBoard).options(selectinload(ContractBoard.options)).where(ContractBoard.id == item.board_id))
+    board = db.scalar(
+        select(ContractBoard)
+        .options(selectinload(ContractBoard.options))
+        .where(ContractBoard.id == item.board_id)
+    )
     match = db.get(Match, item.match_id)
     owner = db.get(User, item.user_id)
     participant = None
     gep_evidence = None
     if match and owner and owner.account_id is not None:
-        participant = db.scalar(select(MatchParticipant).where(MatchParticipant.match_id == match.id, MatchParticipant.account_id == owner.account_id))
-        gep_evidence = db.scalar(select(CompanionMatchEvidence).where(CompanionMatchEvidence.user_id == owner.id, CompanionMatchEvidence.external_match_id == match.external_match_id))
+        participant = db.scalar(
+            select(MatchParticipant).where(
+                MatchParticipant.match_id == match.id,
+                MatchParticipant.account_id == owner.account_id,
+            )
+        )
+        gep_evidence = db.scalar(
+            select(CompanionMatchEvidence).where(
+                CompanionMatchEvidence.user_id == owner.id,
+                CompanionMatchEvidence.external_match_id
+                == match.external_match_id,
+            )
+        )
+
+    history = list(
+        db.scalars(
+            select(AuditLog)
+            .where(
+                AuditLog.entity_type == "auto_review_case",
+                AuditLog.entity_id == item.id,
+            )
+            .order_by(AuditLog.created_at.desc())
+            .limit(50)
+        ).all()
+    )
+
     return {
-        "id": item.id, "status": item.status, "board_id": item.board_id,
+        "id": item.id,
+        "status": item.status,
+        "priority": int(getattr(item, "priority", 50) or 50),
+        "board_id": item.board_id,
         "mode": board.game_match_mode if board else None,
-        "player": {"display_name": owner.display_name if owner else "Unknown", "account_id": None if redact else (owner.account_id if owner else None)},
+        "player": {
+            "display_name": owner.display_name if owner else "Unknown",
+            "account_id": (
+                None
+                if redact
+                else (owner.account_id if owner else None)
+            ),
+        },
         "match_id": str(match.external_match_id) if match else None,
         "match_summary": {
             "provider": match.provider if match else None,
@@ -1953,30 +2178,82 @@ def _serialize_auto_review(db: Session, item: AutoReviewCase, *, redact: bool = 
             "mode_raw": match.provider_mode_raw if match else None,
             "mode_confidence": match.mode_confidence if match else None,
             "scoring_status": match.scoring_status if match else None,
+            "settlement_source": (
+                match.settlement_source if match else None
+            ),
+            "integrity_status": (
+                match.integrity_status if match else None
+            ),
+            "audit_status": match.audit_status if match else None,
+            "audited_at": (
+                match.audited_at.isoformat()
+                if match and match.audited_at
+                else None
+            ),
             "capabilities": list(match.capabilities or []) if match else [],
             "kills": participant.kills if participant else None,
             "deaths": participant.deaths if participant else None,
             "assists": participant.assists if participant else None,
             "net_worth": participant.net_worth if participant else None,
             "hero_damage": participant.hero_damage if participant else None,
-            "object_damage": participant.object_damage if participant else None,
+            "object_damage": (
+                participant.object_damage if participant else None
+            ),
             "healing": participant.healing if participant else None,
+            "won": participant.won if participant else None,
             "gep_evidence": {
-                "captured_at": gep_evidence.captured_at.isoformat() if gep_evidence and gep_evidence.captured_at else None,
+                "captured_at": (
+                    gep_evidence.captured_at.isoformat()
+                    if gep_evidence and gep_evidence.captured_at
+                    else None
+                ),
                 "kills": gep_evidence.kills if gep_evidence else None,
                 "deaths": gep_evidence.deaths if gep_evidence else None,
                 "assists": gep_evidence.assists if gep_evidence else None,
-                "hero_damage": gep_evidence.hero_damage if gep_evidence else None,
-                "object_damage": gep_evidence.object_damage if gep_evidence else None,
+                "hero_damage": (
+                    gep_evidence.hero_damage if gep_evidence else None
+                ),
+                "object_damage": (
+                    gep_evidence.object_damage if gep_evidence else None
+                ),
                 "healing": gep_evidence.healing if gep_evidence else None,
                 "souls": gep_evidence.souls if gep_evidence else None,
-            } if gep_evidence else None,
+            }
+            if gep_evidence
+            else None,
         },
-        "reasons": item.reasons, "context": {} if redact else item.context, "reviewer_note": item.reviewer_note,
-        "created_at": item.created_at.isoformat(), "reviewed_at": item.reviewed_at.isoformat() if item.reviewed_at else None,
+        "reasons": item.reasons,
+        "context": {} if redact else item.context,
+        "reviewer_note": item.reviewer_note,
+        "created_at": item.created_at.isoformat(),
+        "reviewed_at": (
+            item.reviewed_at.isoformat()
+            if item.reviewed_at
+            else None
+        ),
+        "claim": review_claim_payload(db, item),
         "contracts": [
-            {"id": option.id, "title": option.rendered_title, "status": option.status, "reward_xp": option.reward_xp, "metric": option.metric, "target": option.target, "explanation": option.explanation}
-            for option in (board.options if board else []) if option.selected
+            _serialize_review_contract(
+                db,
+                option,
+                match,
+                participant,
+            )
+            for option in (board.options if board else [])
+            if option.selected
+        ],
+        "history": [
+            {
+                "action": entry.action,
+                "actor_user_id": entry.user_id,
+                "data": entry.data,
+                "created_at": (
+                    entry.created_at.isoformat()
+                    if entry.created_at
+                    else None
+                ),
+            }
+            for entry in history
         ],
     }
 
@@ -3217,38 +3494,373 @@ def admin_replay_outbox(
 
 @app.get("/api/admin/auto-reviews")
 def admin_auto_reviews(
-    status: Literal["OPEN", "ALL", "PENDING", "NEEDS_INFO", "RESOLVED", "REJECTED"] = "OPEN",
+    status: Literal[
+        "OPEN",
+        "ALL",
+        "PENDING",
+        "NEEDS_INFO",
+        "RESOLVED",
+        "REJECTED",
+    ] = "OPEN",
+    mode: str = "ALL",
+    claim: Literal["ALL", "FREE", "MINE", "CLAIMED"] = "ALL",
+    settlement_source: str = "ALL",
+    audit_status: str = "ALL",
+    priority: Literal["ALL", "HIGH", "NORMAL"] = "ALL",
+    age: Literal["ALL", "15M", "1H", "6H", "24H"] = "ALL",
+    reason: str = "",
+    claimed_by: str = "",
+    query: str = "",
     offset: int = 0,
     limit: int = 100,
     admin: User = Depends(_require_permission("reviews.read")),
     db: Session = Depends(get_db),
 ) -> dict:
-    redact = not role_has_permission(_effective_access_role(admin), "users.read")
+    redact = not role_has_permission(
+        _effective_access_role(admin),
+        "users.read",
+    )
     offset = max(0, min(int(offset), 100_000))
     limit = max(1, min(int(limit), 250))
-    stmt = select(AutoReviewCase)
+    now = datetime.now(timezone.utc)
+
+    stmt = (
+        select(AutoReviewCase)
+        .join(ContractBoard, ContractBoard.id == AutoReviewCase.board_id)
+        .join(Match, Match.id == AutoReviewCase.match_id)
+        .join(User, User.id == AutoReviewCase.user_id)
+    )
+
     if status == "OPEN":
-        stmt = stmt.where(AutoReviewCase.status.in_(("PENDING", "NEEDS_INFO")))
+        stmt = stmt.where(
+            AutoReviewCase.status.in_(("PENDING", "NEEDS_INFO"))
+        )
     elif status != "ALL":
         stmt = stmt.where(AutoReviewCase.status == status)
-    total = int(db.scalar(select(func.count()).select_from(stmt.order_by(None).subquery())) or 0)
-    items = list(db.scalars(stmt.order_by(AutoReviewCase.created_at.asc()).offset(offset).limit(limit)).all())
+
+    normalized_mode = mode.strip().upper()
+    if normalized_mode in GAME_MODES:
+        stmt = stmt.where(
+            ContractBoard.game_match_mode == normalized_mode
+        )
+
+    normalized_source = settlement_source.strip().upper()
+    if normalized_source != "ALL":
+        stmt = stmt.where(
+            Match.settlement_source == normalized_source
+        )
+
+    normalized_audit = audit_status.strip().upper()
+    if normalized_audit != "ALL":
+        stmt = stmt.where(Match.audit_status == normalized_audit)
+
+    if priority == "HIGH":
+        stmt = stmt.where(AutoReviewCase.priority <= 25)
+    elif priority == "NORMAL":
+        stmt = stmt.where(AutoReviewCase.priority > 25)
+
+    age_delta = {
+        "15M": timedelta(minutes=15),
+        "1H": timedelta(hours=1),
+        "6H": timedelta(hours=6),
+        "24H": timedelta(hours=24),
+    }.get(age)
+    if age_delta is not None:
+        stmt = stmt.where(
+            AutoReviewCase.created_at <= now - age_delta
+        )
+
+    active_claim = and_(
+        AutoReviewCase.claimed_by_user_id.is_not(None),
+        AutoReviewCase.claim_expires_at.is_not(None),
+        AutoReviewCase.claim_expires_at > now,
+    )
+    free_claim = or_(
+        AutoReviewCase.claimed_by_user_id.is_(None),
+        AutoReviewCase.claim_expires_at.is_(None),
+        AutoReviewCase.claim_expires_at <= now,
+    )
+    if claim == "FREE":
+        stmt = stmt.where(free_claim)
+    elif claim == "MINE":
+        stmt = stmt.where(
+            active_claim,
+            AutoReviewCase.claimed_by_user_id == admin.id,
+        )
+    elif claim == "CLAIMED":
+        stmt = stmt.where(active_claim)
+
+    reason_value = reason.strip()[:120]
+    if reason_value:
+        stmt = stmt.where(
+            cast(AutoReviewCase.reasons, String).ilike(
+                f"%{reason_value}%"
+            )
+        )
+
+    claimant_value = claimed_by.strip()[:120]
+    if claimant_value:
+        claimant_ids = list(
+            db.scalars(
+                select(User.id).where(
+                    or_(
+                        User.id == claimant_value,
+                        User.display_name.ilike(
+                            f"%{claimant_value}%"
+                        ),
+                    )
+                )
+            ).all()
+        )
+        if claimant_ids:
+            stmt = stmt.where(
+                AutoReviewCase.claimed_by_user_id.in_(
+                    claimant_ids
+                )
+            )
+        else:
+            stmt = stmt.where(AutoReviewCase.id == "")
+
+    value = query.strip()[:180]
+    if value:
+        clauses = [
+            AutoReviewCase.id.ilike(f"%{value}%"),
+            AutoReviewCase.board_id.ilike(f"%{value}%"),
+            User.display_name.ilike(f"%{value}%"),
+        ]
+        if value.isdigit():
+            number_value = int(value)
+            clauses.append(Match.external_match_id == number_value)
+            if not redact:
+                clauses.extend(
+                    (
+                        User.steam_id64 == number_value,
+                        User.account_id == number_value,
+                    )
+                )
+        stmt = stmt.where(or_(*clauses))
+
+    total = int(
+        db.scalar(
+            select(func.count()).select_from(
+                stmt.order_by(None).subquery()
+            )
+        )
+        or 0
+    )
+    items = list(
+        db.scalars(
+            stmt.order_by(
+                AutoReviewCase.priority.asc(),
+                AutoReviewCase.created_at.asc(),
+            )
+            .offset(offset)
+            .limit(limit)
+        ).all()
+    )
+
     oldest = db.scalar(
         select(AutoReviewCase.created_at)
-        .where(AutoReviewCase.status.in_(("PENDING", "NEEDS_INFO")))
+        .where(
+            AutoReviewCase.status.in_(("PENDING", "NEEDS_INFO"))
+        )
         .order_by(AutoReviewCase.created_at.asc())
         .limit(1)
     )
-    now = datetime.now(timezone.utc)
     if oldest and oldest.tzinfo is None:
         oldest = oldest.replace(tzinfo=timezone.utc)
+
+    open_where = AutoReviewCase.status.in_(
+        ("PENDING", "NEEDS_INFO")
+    )
+    free_count = int(
+        db.scalar(
+            select(func.count())
+            .select_from(AutoReviewCase)
+            .where(open_where, free_claim)
+        )
+        or 0
+    )
+    claimed_count = int(
+        db.scalar(
+            select(func.count())
+            .select_from(AutoReviewCase)
+            .where(open_where, active_claim)
+        )
+        or 0
+    )
+    mine_count = int(
+        db.scalar(
+            select(func.count())
+            .select_from(AutoReviewCase)
+            .where(
+                open_where,
+                active_claim,
+                AutoReviewCase.claimed_by_user_id == admin.id,
+            )
+        )
+        or 0
+    )
+
     return {
-        "items": [_serialize_auto_review(db, item, redact=redact) for item in items],
+        "items": [
+            _serialize_auto_review(db, item, redact=redact)
+            for item in items
+        ],
         "total": total,
         "offset": offset,
         "limit": limit,
-        "status_counts": _group_counts(db, AutoReviewCase, AutoReviewCase.status),
-        "oldest_open_seconds": max(0, int((now - oldest).total_seconds())) if oldest else None,
+        "status_counts": _group_counts(
+            db,
+            AutoReviewCase,
+            AutoReviewCase.status,
+        ),
+        "claim_counts": {
+            "free": free_count,
+            "claimed": claimed_count,
+            "mine": mine_count,
+        },
+        "oldest_open_seconds": (
+            max(0, int((now - oldest).total_seconds()))
+            if oldest
+            else None
+        ),
+        "server_time": now.isoformat(),
+    }
+
+
+@app.get("/api/admin/auto-reviews/{review_id}")
+def admin_auto_review_detail(
+    review_id: UUID,
+    admin: User = Depends(_require_permission("reviews.read")),
+    db: Session = Depends(get_db),
+) -> dict:
+    item = db.get(AutoReviewCase, str(review_id))
+    if item is None:
+        raise HTTPException(404, "Внутренняя заявка не найдена")
+    redact = not role_has_permission(
+        _effective_access_role(admin),
+        "users.read",
+    )
+    return {
+        "review": _serialize_auto_review(
+            db,
+            item,
+            redact=redact,
+        )
+    }
+
+
+@app.post(
+    "/api/admin/auto-reviews/{review_id}/claim",
+    dependencies=[Depends(require_csrf)],
+)
+def admin_claim_auto_review(
+    review_id: UUID,
+    payload: AutoReviewClaimRequest,
+    admin: User = Depends(_require_permission("reviews.claim")),
+    db: Session = Depends(get_db),
+) -> dict:
+    role = _effective_access_role(admin)
+    if payload.force and role not in {"OWNER", "ADMIN"}:
+        raise HTTPException(
+            403,
+            "Принудительный перехват доступен только ADMIN/OWNER",
+        )
+    try:
+        claim_payload = claim_review(
+            db,
+            review_id=str(review_id),
+            actor_user_id=admin.id,
+            force=payload.force,
+        )
+    except ReviewClaimError as exc:
+        raise HTTPException(exc.status_code, exc.detail) from exc
+
+    item = db.get(AutoReviewCase, str(review_id))
+    if item is None:
+        raise HTTPException(404, "Внутренняя заявка не найдена")
+    redact = not role_has_permission(role, "users.read")
+    return {
+        "claim": claim_payload,
+        "review": _serialize_auto_review(
+            db,
+            item,
+            redact=redact,
+        ),
+    }
+
+
+@app.post(
+    "/api/admin/auto-reviews/{review_id}/release",
+    dependencies=[Depends(require_csrf)],
+)
+def admin_release_auto_review(
+    review_id: UUID,
+    payload: AutoReviewClaimRequest,
+    admin: User = Depends(_require_permission("reviews.claim")),
+    db: Session = Depends(get_db),
+) -> dict:
+    role = _effective_access_role(admin)
+    if payload.force and role not in {"OWNER", "ADMIN"}:
+        raise HTTPException(
+            403,
+            "Принудительное освобождение доступно только ADMIN/OWNER",
+        )
+    try:
+        claim_payload = release_review(
+            db,
+            review_id=str(review_id),
+            actor_user_id=admin.id,
+            force=payload.force,
+        )
+    except ReviewClaimError as exc:
+        raise HTTPException(exc.status_code, exc.detail) from exc
+
+    item = db.get(AutoReviewCase, str(review_id))
+    if item is None:
+        raise HTTPException(404, "Внутренняя заявка не найдена")
+    redact = not role_has_permission(role, "users.read")
+    return {
+        "claim": claim_payload,
+        "review": _serialize_auto_review(
+            db,
+            item,
+            redact=redact,
+        ),
+    }
+
+
+@app.post(
+    "/api/admin/auto-reviews/{review_id}/needs-info",
+    dependencies=[Depends(require_csrf)],
+)
+def admin_auto_review_needs_info(
+    review_id: UUID,
+    payload: AutoReviewNeedsInfoRequest,
+    admin: User = Depends(_require_permission("reviews.decide")),
+    db: Session = Depends(get_db),
+) -> dict:
+    try:
+        item = mark_review_needs_info(
+            db,
+            review_id=str(review_id),
+            actor_user_id=admin.id,
+            note=payload.note,
+        )
+    except ReviewClaimError as exc:
+        raise HTTPException(exc.status_code, exc.detail) from exc
+
+    redact = not role_has_permission(
+        _effective_access_role(admin),
+        "users.read",
+    )
+    return {
+        "review": _serialize_auto_review(
+            db,
+            item,
+            redact=redact,
+        )
     }
 
 
@@ -3272,6 +3884,7 @@ def preview_auto_review_decision(
             reason_code=payload.reason_code,
             reviewer_note=payload.reviewer_note,
             options=[entry.model_dump(mode="json") for entry in payload.options],
+            required_claim_by=admin.id,
         )
     except ModerationError as exc:
         raise HTTPException(exc.status_code, exc.detail) from exc
@@ -3299,6 +3912,7 @@ def decide_auto_review(
             reason_code=payload.reason_code,
             reviewer_note=payload.reviewer_note,
             options=[entry.model_dump(mode="json") for entry in payload.options],
+            required_claim_by=admin.id,
         )
     except ModerationError as exc:
         raise HTTPException(exc.status_code, exc.detail) from exc

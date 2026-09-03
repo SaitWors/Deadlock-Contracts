@@ -462,7 +462,20 @@ class DailyRefreshState(Base):
 
 class AutoReviewCase(Base):
     __tablename__ = "auto_review_cases"
-    __table_args__ = (UniqueConstraint("board_id", "match_id", name="uq_auto_review_board_match"),)
+    __table_args__ = (
+        UniqueConstraint("board_id", "match_id", name="uq_auto_review_board_match"),
+        Index(
+            "ix_auto_review_cases_status_priority_created",
+            "status",
+            "priority",
+            "created_at",
+        ),
+        Index(
+            "ix_auto_review_cases_claim_owner_expiry",
+            "claimed_by_user_id",
+            "claim_expires_at",
+        ),
+    )
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uuid4)
     board_id: Mapped[str] = mapped_column(ForeignKey("contract_boards.id", ondelete="CASCADE"), index=True)
@@ -471,6 +484,23 @@ class AutoReviewCase(Base):
     status: Mapped[str] = mapped_column(String(32), default="PENDING", index=True)
     reasons: Mapped[list[dict[str, Any]]] = mapped_column(JSON, default=list)
     context: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
+    claimed_by_user_id: Mapped[str | None] = mapped_column(
+        ForeignKey(
+            "users.id",
+            ondelete="SET NULL",
+            name="fk_auto_review_cases_claimed_by_user",
+        ),
+        nullable=True,
+    )
+    claimed_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+    )
+    claim_expires_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+    )
+    priority: Mapped[int] = mapped_column(Integer, default=50)
     reviewer_id: Mapped[str | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
     reviewer_note: Mapped[str | None] = mapped_column(Text, nullable=True)
     decision_payload: Mapped[dict[str, Any] | None] = mapped_column(JSON, nullable=True)

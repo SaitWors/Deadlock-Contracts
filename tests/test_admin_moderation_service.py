@@ -417,9 +417,16 @@ def test_main_delegates_http_decision_to_service() -> None:
 
 
 def test_frontend_supplies_reason_code_for_negative_verdicts() -> None:
-    source = open("frontend/src/Dashboard.tsx", encoding="utf-8").read()
+    # Stage 3 moved Review UI out of Dashboard.tsx and replaced the
+    # implicit FAILED/VOID reason heuristic with an explicit structured
+    # moderator choice. Keep this regression test pointed at the actual
+    # Review implementation instead of the removed legacy component.
+    source = open("frontend/src/admin/ReviewDesk.tsx", encoding="utf-8").read()
 
-    assert 'const reasonCode = statuses.includes("VOID")' in source
+    assert 'const [reasonCode, setReasonCode]' in source
+    assert 'const hasNegative = selectedPending.some' in source
+    assert '["FAILED", "VOID"].includes(decisions[item.id])' in source
+    assert 'if (hasNegative && !reasonCode)' in source
     assert '"INSUFFICIENT_EVIDENCE"' in source
     assert '"NOT_COMPLETED"' in source
-    assert "reason_code: reasonCode" in source
+    assert "reason_code: hasNegative ? reasonCode : null" in source

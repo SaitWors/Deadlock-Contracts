@@ -1,0 +1,672 @@
+.dc-v3 .dc-review3 {
+  display: grid;
+  gap: 14px;
+}
+
+.dc-v3 .dc-review3-head {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 24px;
+  padding: 2px 0 8px;
+}
+
+.dc-v3 .dc-review3-head h1 {
+  margin: 3px 0 6px;
+  font: 800 clamp(26px, 3vw, 42px) "Barlow Condensed";
+  letter-spacing: .01em;
+  color: #efe2c6;
+}
+
+.dc-v3 .dc-review3-head p {
+  max-width: 760px;
+  color: #829087;
+  font-size: 11px;
+  line-height: 1.6;
+}
+
+.dc-v3 .dc-review3-summary {
+  min-width: 130px;
+  display: grid;
+  justify-items: end;
+  border-left: 1px solid #2b3e34;
+  padding-left: 20px;
+}
+
+.dc-v3 .dc-review3-summary b {
+  font: 800 32px "Barlow Condensed";
+  color: #9bd3a8;
+}
+
+.dc-v3 .dc-review3-summary span {
+  color: #66746c;
+  font-size: 8px;
+  text-transform: uppercase;
+  letter-spacing: .12em;
+}
+
+.dc-v3 .dc-review3-filters {
+  display: grid;
+  grid-template-columns: minmax(180px, 1.5fr) repeat(6, minmax(116px, .75fr)) minmax(135px, .9fr) minmax(135px, .9fr) auto;
+  gap: 7px;
+  padding: 10px;
+  border: 1px solid #293b32;
+  background: rgba(7, 13, 10, .92);
+}
+
+.dc-v3 .dc-review3-filters input,
+.dc-v3 .dc-review3-filters select,
+.dc-v3 .dc-review3-form select,
+.dc-v3 .dc-review3-form textarea,
+.dc-v3 .dc-review3-verdict input {
+  width: 100%;
+  min-height: 36px;
+  border: 1px solid #30453a;
+  background: #09110d;
+  color: #cfc4ad;
+  padding: 8px 9px;
+  font: 600 9px "Inter";
+  outline: none;
+}
+
+.dc-v3 .dc-review3-filters input:focus,
+.dc-v3 .dc-review3-filters select:focus,
+.dc-v3 .dc-review3-form select:focus,
+.dc-v3 .dc-review3-form textarea:focus,
+.dc-v3 .dc-review3-verdict input:focus {
+  border-color: #5b8e6a;
+  box-shadow: 0 0 0 1px rgba(104, 168, 122, .18);
+}
+
+.dc-v3 .dc-review3-layout {
+  display: grid;
+  grid-template-columns: minmax(270px, 330px) minmax(0, 1fr);
+  min-height: 620px;
+  border: 1px solid #2b3f35;
+  background: #070d0a;
+}
+
+.dc-v3 .dc-review3-inbox {
+  min-width: 0;
+  border-right: 1px solid #293c32;
+  background: #080f0c;
+}
+
+.dc-v3 .dc-review3-inbox > button {
+  width: 100%;
+  display: grid;
+  gap: 5px;
+  text-align: left;
+  padding: 13px 14px;
+  border: 0;
+  border-bottom: 1px solid #1f3028;
+  background: transparent;
+  color: #c8beaa;
+}
+
+.dc-v3 .dc-review3-inbox > button:hover,
+.dc-v3 .dc-review3-inbox > button.active {
+  background: #0e1a14;
+}
+
+.dc-v3 .dc-review3-inbox > button.active {
+  box-shadow: inset 3px 0 0 #73b486;
+}
+
+.dc-v3 .dc-review3-inbox > button header {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  align-items: center;
+}
+
+.dc-v3 .dc-review3-inbox > button header b {
+  font: 800 15px "Barlow Condensed";
+  color: #e2d5ba;
+}
+
+.dc-v3 .dc-review3-inbox > button strong {
+  font: 700 12px "Barlow Condensed";
+  color: #cfc5b1;
+}
+
+.dc-v3 .dc-review3-inbox > button small {
+  font-size: 8px;
+  color: #68766e;
+}
+
+.dc-v3 .dc-review3-inbox > button em {
+  justify-self: start;
+  margin-top: 3px;
+  padding: 4px 6px;
+  border: 1px solid #304137;
+  font: 700 7px "Barlow Condensed";
+  letter-spacing: .09em;
+  font-style: normal;
+}
+
+.dc-v3 .dc-review3-inbox > button em.mine,
+.dc-v3 .dc-review3-claimbar .mine {
+  border-color: #4f8e62;
+  color: #9bd3a8;
+  background: rgba(55, 107, 70, .14);
+}
+
+.dc-v3 .dc-review3-inbox > button em.claimed,
+.dc-v3 .dc-review3-claimbar .claimed {
+  border-color: #755e3d;
+  color: #c7a978;
+  background: rgba(102, 76, 40, .13);
+}
+
+.dc-v3 .dc-review3-inbox > button em.free,
+.dc-v3 .dc-review3-claimbar .free {
+  color: #7f9187;
+}
+
+.dc-v3 .dc-review3-pagination {
+  display: grid;
+  grid-template-columns: 42px 1fr 42px;
+  gap: 7px;
+  align-items: center;
+  padding: 10px;
+  position: sticky;
+  bottom: 0;
+  background: rgba(8, 15, 12, .97);
+  border-top: 1px solid #26382f;
+}
+
+.dc-v3 .dc-review3-pagination span {
+  text-align: center;
+  color: #718078;
+  font-size: 8px;
+}
+
+.dc-v3 .dc-review3-detail {
+  min-width: 0;
+  padding: 18px;
+  background:
+    linear-gradient(rgba(10, 17, 13, .96), rgba(6, 11, 8, .98)),
+    repeating-linear-gradient(0deg, transparent, transparent 27px, rgba(111, 165, 125, .025) 28px);
+}
+
+.dc-v3 .dc-review3-detail-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 18px;
+  align-items: start;
+  padding-bottom: 14px;
+  border-bottom: 1px solid #293b32;
+}
+
+.dc-v3 .dc-review3-detail-head h2 {
+  margin: 3px 0;
+  font: 800 27px "Barlow Condensed";
+  color: #eadcc0;
+}
+
+.dc-v3 .dc-review3-detail-head p {
+  color: #718078;
+  font-size: 9px;
+}
+
+.dc-v3 .dc-review3-head-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+  justify-content: flex-end;
+}
+
+.dc-v3 .dc-review3-claimbar {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  align-items: center;
+  padding: 10px 0;
+}
+
+.dc-v3 .dc-review3-claimbar span,
+.dc-v3 .dc-review3-claimbar b {
+  padding: 5px 8px;
+  border: 1px solid #31443a;
+  font: 700 8px "Barlow Condensed";
+  letter-spacing: .08em;
+}
+
+.dc-v3 .dc-review3-claimbar b {
+  color: #92876f;
+}
+
+.dc-v3 .dc-review3-facts,
+.dc-v3 .dc-review3-trust {
+  display: grid;
+  gap: 7px;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  margin-bottom: 8px;
+}
+
+.dc-v3 .dc-review3-trust {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.dc-v3 .dc-review3-facts > div,
+.dc-v3 .dc-review3-trust > div {
+  min-height: 62px;
+  display: grid;
+  align-content: center;
+  gap: 5px;
+  padding: 9px;
+  border: 1px solid #263a30;
+  background: rgba(11, 20, 15, .78);
+}
+
+.dc-v3 .dc-review3-facts span,
+.dc-v3 .dc-review3-trust span {
+  font: 700 7px "Barlow Condensed";
+  color: #65756b;
+  letter-spacing: .12em;
+}
+
+.dc-v3 .dc-review3-facts b,
+.dc-v3 .dc-review3-trust b {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  font: 800 13px "Barlow Condensed";
+  color: #d7ccb4;
+}
+
+.dc-v3 .dc-review3-reasons {
+  display: grid;
+  gap: 7px;
+  margin: 15px 0;
+  padding: 12px;
+  border: 1px solid #51452e;
+  background: rgba(73, 57, 30, .09);
+}
+
+.dc-v3 .dc-review3-reasons h3,
+.dc-v3 .dc-review3-decision h3,
+.dc-v3 .dc-review3-preview h3 {
+  margin: 0;
+  font: 800 15px "Barlow Condensed";
+  color: #d8ccb3;
+}
+
+.dc-v3 .dc-review3-reasons > div {
+  display: grid;
+  grid-template-columns: minmax(150px, .8fr) 2fr;
+  gap: 10px;
+}
+
+.dc-v3 .dc-review3-reasons b {
+  color: #b39b6b;
+  font: 700 9px "Barlow Condensed";
+}
+
+.dc-v3 .dc-review3-reasons span,
+.dc-v3 .dc-review3-reasons p {
+  color: #837c6d;
+  font-size: 9px;
+}
+
+.dc-v3 .dc-review3-contract-table {
+  border: 1px solid #2a3d33;
+}
+
+.dc-v3 .dc-review3-contract-head,
+.dc-v3 .dc-review3-contract-table > article {
+  display: grid;
+  grid-template-columns: minmax(180px, 1.35fr) minmax(130px, .9fr) minmax(170px, 1.15fr) minmax(220px, 1.5fr);
+}
+
+.dc-v3 .dc-review3-contract-head {
+  background: #0c1711;
+  border-bottom: 1px solid #31463a;
+}
+
+.dc-v3 .dc-review3-contract-head span {
+  padding: 8px 10px;
+  color: #738279;
+  font: 700 7px "Barlow Condensed";
+  letter-spacing: .12em;
+  text-transform: uppercase;
+}
+
+.dc-v3 .dc-review3-contract-table > article {
+  position: relative;
+  border-bottom: 1px solid #213229;
+}
+
+.dc-v3 .dc-review3-contract-table > article:last-child {
+  border-bottom: 0;
+}
+
+.dc-v3 .dc-review3-contract-table > article > div {
+  min-width: 0;
+  display: grid;
+  align-content: center;
+  gap: 4px;
+  padding: 11px 10px;
+  border-right: 1px solid #203128;
+}
+
+.dc-v3 .dc-review3-contract-table > article > div:nth-of-type(4) {
+  border-right: 0;
+}
+
+.dc-v3 .dc-review3-contract-table > article > div:first-child b {
+  font: 800 13px "Barlow Condensed";
+  color: #dbd0b9;
+}
+
+.dc-v3 .dc-review3-contract-table small {
+  font-size: 8px;
+  color: #718078;
+  overflow-wrap: anywhere;
+}
+
+.dc-v3 .dc-review3-contract-table em {
+  font: 700 8px "Barlow Condensed";
+  font-style: normal;
+  color: #78b788;
+}
+
+.dc-v3 .dc-review3-verdict > div {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+
+.dc-v3 .dc-review3-verdict button {
+  padding: 6px 8px;
+  border: 1px solid #34483d;
+  background: #09110d;
+  color: #7d8a82;
+  font: 700 8px "Barlow Condensed";
+}
+
+.dc-v3 .dc-review3-verdict button.active.completed {
+  border-color: #4b8a60;
+  background: #143220;
+  color: #a9ddb7;
+}
+
+.dc-v3 .dc-review3-verdict button.active.failed {
+  border-color: #815049;
+  background: #331b18;
+  color: #dca29a;
+}
+
+.dc-v3 .dc-review3-verdict button.active.void {
+  border-color: #776341;
+  background: #2a2215;
+  color: #cfb787;
+}
+
+.dc-v3 .dc-review3-contract-table details {
+  grid-column: 1 / -1;
+  padding: 7px 10px 10px;
+  border-top: 1px dashed #25372e;
+}
+
+.dc-v3 .dc-review3-contract-table summary,
+.dc-v3 .dc-review3-tech summary,
+.dc-v3 .dc-review3-history summary {
+  color: #708077;
+  cursor: pointer;
+  font: 700 8px "Barlow Condensed";
+  letter-spacing: .06em;
+}
+
+.dc-v3 .dc-review3-evaluations,
+.dc-v3 .dc-review3-history > div {
+  display: grid;
+  gap: 5px;
+  margin-top: 7px;
+}
+
+.dc-v3 .dc-review3-evaluations p,
+.dc-v3 .dc-review3-history p {
+  display: grid;
+  gap: 2px;
+  margin: 0;
+  padding: 7px;
+  background: #09110d;
+  border: 1px solid #22342b;
+}
+
+.dc-v3 .dc-review3-evaluations b,
+.dc-v3 .dc-review3-history b {
+  color: #aa9e86;
+  font: 700 8px "Barlow Condensed";
+}
+
+.dc-v3 .dc-review3-evaluations span,
+.dc-v3 .dc-review3-history span,
+.dc-v3 .dc-review3-evaluations small,
+.dc-v3 .dc-review3-history small {
+  color: #66756c;
+  font-size: 8px;
+  overflow-wrap: anywhere;
+}
+
+.dc-v3 .dc-review3-decision {
+  display: grid;
+  gap: 10px;
+  margin-top: 14px;
+  padding: 12px;
+  border: 1px solid #32473b;
+  background: rgba(12, 24, 17, .78);
+}
+
+.dc-v3 .dc-review3-form {
+  display: grid;
+  grid-template-columns: minmax(180px, .7fr) minmax(280px, 1.3fr);
+  gap: 10px;
+}
+
+.dc-v3 .dc-review3-form label {
+  display: grid;
+  gap: 6px;
+  color: #7d8a82;
+  font: 700 8px "Barlow Condensed";
+  letter-spacing: .06em;
+}
+
+.dc-v3 .dc-review3-decision-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 7px;
+}
+
+.dc-v3 .dc-review3-preview {
+  display: grid;
+  gap: 0;
+  margin-top: 12px;
+  border: 1px solid #4d7259;
+  background: rgba(17, 40, 25, .72);
+}
+
+.dc-v3 .dc-review3-preview > header,
+.dc-v3 .dc-review3-preview > footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 15px;
+  padding: 11px 13px;
+}
+
+.dc-v3 .dc-review3-preview > header {
+  border-bottom: 1px solid #35513f;
+}
+
+.dc-v3 .dc-review3-preview > header > b {
+  font: 800 22px "Barlow Condensed";
+  color: #91cf9e;
+}
+
+.dc-v3 .dc-review3-preview > div {
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+  gap: 12px;
+  padding: 9px 13px;
+  border-bottom: 1px solid #263c2f;
+  color: #8e998f;
+  font-size: 9px;
+}
+
+.dc-v3 .dc-review3-preview > div b {
+  color: #d3c8af;
+}
+
+.dc-v3 .dc-review3-preview > div em {
+  color: #85bd91;
+  font-style: normal;
+}
+
+.dc-v3 .dc-review3-preview > footer span {
+  color: #7a887f;
+  font-size: 8px;
+}
+
+.dc-v3 .dc-review3-tech,
+.dc-v3 .dc-review3-history {
+  margin-top: 12px;
+  padding: 10px;
+  border: 1px solid #26372f;
+  background: #080f0c;
+}
+
+.dc-v3 .dc-review3-tech pre {
+  max-height: 420px;
+  overflow: auto;
+  margin: 8px 0 0;
+  white-space: pre-wrap;
+  word-break: break-word;
+  color: #75837b;
+  font-size: 8px;
+}
+
+@media (max-width: 1450px) {
+  .dc-v3 .dc-review3-filters {
+    grid-template-columns: repeat(4, minmax(150px, 1fr));
+  }
+
+  .dc-v3 .dc-review3-facts {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 1050px) {
+  .dc-v3 .dc-review3-layout {
+    grid-template-columns: minmax(230px, 290px) minmax(0, 1fr);
+  }
+
+  .dc-v3 .dc-review3-contract-head {
+    display: none;
+  }
+
+  .dc-v3 .dc-review3-contract-table > article {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .dc-v3 .dc-review3-contract-table > article > div {
+    border-right: 0;
+    border-bottom: 1px solid #203128;
+  }
+
+  .dc-v3 .dc-review3-form {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 760px) {
+  .dc-v3 .dc-review3-head {
+    align-items: start;
+    flex-direction: column;
+  }
+
+  .dc-v3 .dc-review3-summary {
+    justify-items: start;
+    border-left: 0;
+    border-top: 1px solid #2b3e34;
+    padding: 8px 0 0;
+  }
+
+  .dc-v3 .dc-review3-filters {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .dc-v3 .dc-review3-layout,
+  .dc-v3 .dc-review3-layout.has-detail {
+    display: block;
+    min-height: 0;
+  }
+
+  .dc-v3 .dc-review3-layout.has-detail .dc-review3-inbox {
+    display: none;
+  }
+
+  .dc-v3 .dc-review3-layout:not(.has-detail) .dc-review3-detail {
+    display: none;
+  }
+
+  .dc-v3 .dc-review3-inbox {
+    border-right: 0;
+  }
+
+  .dc-v3 .dc-review3-detail {
+    padding: 12px;
+  }
+
+  .dc-v3 .dc-review3-detail-head {
+    flex-direction: column;
+  }
+
+  .dc-v3 .dc-review3-head-actions {
+    width: 100%;
+    justify-content: stretch;
+  }
+
+  .dc-v3 .dc-review3-head-actions button {
+    flex: 1 1 140px;
+  }
+
+  .dc-v3 .dc-review3-claimbar {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .dc-v3 .dc-review3-facts,
+  .dc-v3 .dc-review3-trust {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .dc-v3 .dc-review3-reasons > div {
+    grid-template-columns: 1fr;
+  }
+
+  .dc-v3 .dc-review3-contract-table > article {
+    display: block;
+  }
+
+  .dc-v3 .dc-review3-contract-table > article > div {
+    min-height: 56px;
+  }
+
+  .dc-v3 .dc-review3-decision-actions {
+    display: grid;
+    grid-template-columns: 1fr;
+  }
+
+  .dc-v3 .dc-review3-preview > header,
+  .dc-v3 .dc-review3-preview > footer {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .dc-v3 .dc-review3-preview > div {
+    grid-template-columns: 1fr;
+    gap: 4px;
+  }
+}

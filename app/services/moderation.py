@@ -24,6 +24,7 @@ from ..models import (
     User,
 )
 from .jobs import enqueue_job
+from .review_claims import assert_review_claim, clear_review_claim
 
 
 MODERATION_POLICY_VERSION = "moderation-2"
@@ -438,6 +439,7 @@ def preview_review_decision(
     reason_code: str | None,
     reviewer_note: str,
     options: Iterable[dict[str, Any]],
+    required_claim_by: str | None = None,
 ) -> ModerationResult:
     verdicts = _normalize_verdicts(options)
     source, case_status, reason_code, reviewer_note = _validate_command(
@@ -460,6 +462,8 @@ def preview_review_decision(
     item = _load_review(db, review_id, lock=False)
     if item.status not in OPEN_REVIEW_STATUSES:
         raise ModerationConflict("Заявка уже закрыта", code="REVIEW_ALREADY_DECIDED")
+    if required_claim_by is not None:
+        assert_review_claim(item, required_claim_by)
 
     board = _load_board(db, item.board_id, lock=False)
     pending = _pending_options(board)
@@ -497,6 +501,7 @@ def decide_review(
     reason_code: str | None,
     reviewer_note: str,
     options: Iterable[dict[str, Any]],
+    required_claim_by: str | None = None,
 ) -> ModerationResult:
     verdicts = _normalize_verdicts(options)
     source, case_status, reason_code, reviewer_note = _validate_command(
@@ -526,6 +531,8 @@ def decide_review(
             "Заявка уже закрыта другим или отличающимся решением",
             code="REVIEW_ALREADY_DECIDED",
         )
+    if required_claim_by is not None:
+        assert_review_claim(item, required_claim_by)
 
     board = _load_board(db, item.board_id, lock=True)
     owner = _load_owner(db, item.user_id, lock=True)
@@ -645,6 +652,7 @@ def decide_review(
         item.reviewer_id = str(actor_user_id)
         item.reviewer_note = reviewer_note or None
         item.reviewed_at = now
+        clear_review_claim(item)
 
         selected = [option for option in board.options if option.selected]
         resume_discovery = False

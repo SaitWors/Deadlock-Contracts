@@ -3,6 +3,8 @@ import logoImage from "@/imports/logo-horizontal.svg"
 import markImage from "@/imports/mark.svg"
 import curatorImage from "@/imports/curator-optimized.webp"
 import ProfileStudio from "./ProfileStudio"
+import ReviewDesk from "./admin/ReviewDesk"
+import type { AdminReview } from "./admin/admin-types"
 import {
   LanguageSwitch,
   MCGCredit,
@@ -200,39 +202,6 @@ type ReviewMine = {
   created_at: string
   reviewed_at: string | null
   reviewer_note: string | null
-}
-type AdminReview = ReviewMine & {
-  mode: Mode
-  match_id: string | null
-  player: {
-    display_name: string
-    account_id: number | null
-  }
-  match_summary: {
-    provider: string | null
-    duration_s: number | null
-    mode: string | null
-    mode_raw: string | null
-    mode_confidence: string | null
-    scoring_status: string | null
-    capabilities: string[]
-    kills: number | null
-    deaths: number | null
-    assists: number | null
-    net_worth: number | null
-    hero_damage: number | null
-    object_damage: number | null
-    healing: number | null
-  }
-  contracts: Array<{
-    id: string
-    title: string
-    status: string
-    reward_xp: number
-    metric: string
-    target: number
-    explanation: string | null
-  }>
 }
 type AdminAuthStatus = {
   configured: boolean
@@ -1216,7 +1185,9 @@ export default function Dashboard({ initialSession }: { initialSession: SessionP
   const { language, locale } = useLanguage()
   const [user, setUser] = useState(initialSession.user)
   const [csrf] = useState(initialSession.csrf_token)
-  const [tab, setTab] = useState<Tab>("home")
+  const [tab, setTab] = useState<Tab>(() =>
+    window.location.pathname.startsWith("/admin/") ? "admin" : "home",
+  )
   const [mode, setMode] = useState<Mode>("STANDARD")
   const [filter, setFilter] = useState<QuestFilter>("ALL")
   const [boardsPayload, setBoardsPayload] = useState<BoardsPayload | null>(null)
@@ -2859,7 +2830,9 @@ function AdminConsole({
 }) {
   const [auth, setAuth] = useState<AdminAuthStatus | null>(null)
   const [code, setCode] = useState("")
-  const [section, setSection] = useState<AdminSection>("overview")
+  const [section, setSection] = useState<AdminSection>(() =>
+    window.location.pathname.startsWith("/admin/reviews") ? "reviews" : "overview",
+  )
   const [overview, setOverview] = useState<AdminOverview | null>(null)
   const [users, setUsers] = useState<AdminUserSummary[]>([])
   const [userTotal, setUserTotal] = useState(0)
@@ -4033,16 +4006,12 @@ function AdminConsole({
       )}
 
       {section === "reviews" && (
-        <AdminReviewDesk
-          items={reviews}
+        <ReviewDesk
+          initialItems={reviews}
           csrf={csrf}
-          reload={async () => {
-            setReviews(
-              (await api<{ items: AdminReview[] }>("/api/admin/auto-reviews?status=OPEN", csrf))
-                .items,
-            )
-            await reloadAll()
-          }}
+          currentUserId={auth.admin.id}
+          canForceClaim={["OWNER", "ADMIN"].includes(auth.admin.access_role)}
+          reloadAll={reloadAll}
           setError={setError}
           setNotice={setNotice}
         />
@@ -5014,239 +4983,5 @@ function AdminConsole({
         </>
       )}
     </section>
-  )
-}
-
-function AdminReviewDesk({
-  items,
-  csrf,
-  reload,
-  setError,
-  setNotice,
-}: {
-  items: AdminReview[]
-  csrf: string
-  reload: () => Promise<void>
-  setError: (value: string) => void
-  setNotice: (value: string) => void
-}) {
-  const [decisions, setDecisions] = useState<
-    Record<string, Record<string, "COMPLETED" | "FAILED" | "VOID">>
-  >({})
-
-  const [manualValues, setManualValues] = useState<Record<string, Record<string, string>>>({})
-  const submit = async (review: AdminReview) => {
-    const pending = review.contracts.filter((item) => item.status === "REVIEW_REQUIRED")
-    const map = decisions[review.id] || {}
-    if (pending.some((item) => !map[item.id])) {
-      setError("Укажите решение по каждому контракту, который ждёт внутренней проверки.")
-      return
-    }
-    const statuses = pending.map((item) => map[item.id])
-    const reasonCode = statuses.includes("VOID")
-      ? "INSUFFICIENT_EVIDENCE"
-      : statuses.includes("FAILED")
-        ? "NOT_COMPLETED"
-        : null
-    try {
-      await api(`/api/admin/auto-reviews/${review.id}/decision`, csrf, {
-        method: "POST",
-        body: JSON.stringify({
-          status: "RESOLVED",
-          reason_code: reasonCode,
-          reviewer_note: "Решено через внутреннюю очередь v0.3",
-          options: pending.map((item) => {
-            const raw = (manualValues[review.id]?.[item.id] || "").trim()
-            const parsed = raw ? Number(raw.replace(",", ".")) : null
-            const fact = parsed !== null && Number.isFinite(parsed) ? parsed : null
-            const status = map[item.id]
-
-            return {
-              option_id: item.id,
-              status,
-              progress_current: status === "VOID" ? null : fact,
-              explanation:
-                status === "VOID"
-                  ? "Контракт аннулирован: достоверных данных для проверки нет."
-                  : status === "COMPLETED"
-                    ? `Выполнение подтверждено внутренней проверкой${
-                        fact !== null ? `. Факт: ${fact}.` : "."
-                      }`
-                    : `Выполнение не подтверждено внутренней проверкой${
-                        fact !== null ? `. Факт: ${fact}.` : "."
-                      }`,
-            }
-          }),
-        }),
-      })
-      setNotice("Внутренняя заявка закрыта. Результат и опыт обновлены.")
-      await reload()
-    } catch (reason) {
-      setError((reason as Error).message)
-    }
-  }
-  return (
-    <>
-      <section className="dc-work-head dc-page-head">
-        <div>
-          <p className="dc-eyebrow">INTERNAL REVIEW / STAFF ONLY</p>
-          <h1>Internal review</h1>
-          <p>
-            Сюда автоматически попадают только матчи, где провайдеру не хватило данных. Пользователь
-            ничего не загружает.
-          </p>
-        </div>
-      </section>
-      <div className="dc-v3-admin-list">
-        {items.length === 0 && (
-          <article className="dc-panel">
-            <h2>Review queue empty</h2>
-            <p>Все автоматические проверки закрыты.</p>
-          </article>
-        )}
-        {items.map((review) => (
-          <article className="dc-v3-admin-review" key={review.id}>
-            <header>
-              <div>
-                <p className="dc-eyebrow">
-                  #{review.id.slice(0, 8)} · {MODE_META[review.mode]?.short}
-                </p>
-                <h2>Матч #{review.match_id || "—"}</h2>
-                <small>
-                  {review.player.display_name} · {fmt(review.created_at)}
-                </small>
-              </div>
-              <span className={`dc-badge ${review.status.toLowerCase()}`}>
-                {statusLabel(review.status)}
-              </span>
-            </header>
-            <div className="dc-v3-review-snapshot">
-              <span>
-                PROVIDER <b>{review.match_summary.provider || "—"}</b>
-              </span>
-              <span>
-                MODE <b>{review.match_summary.mode || "—"}</b>
-              </span>
-              <span>
-                DURATION{" "}
-                <b>
-                  {review.match_summary.duration_s
-                    ? `${Math.round(review.match_summary.duration_s / 60)} мин`
-                    : "—"}
-                </b>
-              </span>
-              <span>
-                K / D / A{" "}
-                <b>
-                  {review.match_summary.kills ?? "—"} / {review.match_summary.deaths ?? "—"} /{" "}
-                  {review.match_summary.assists ?? "—"}
-                </b>
-              </span>
-              <span>
-                SOULS <b>{review.match_summary.net_worth ?? "—"}</b>
-              </span>
-              <span>
-                HERO DAMAGE <b>{review.match_summary.hero_damage ?? "—"}</b>
-              </span>
-            </div>
-            <div className="dc-v3-review-reasons">
-              {review.reasons.map((reason, index) => (
-                <p key={index}>
-                  <b>{reason.title}</b>
-                  <span>{reason.reason}</span>
-                </p>
-              ))}
-            </div>
-            <div className="dc-v3-review-contracts">
-              {review.contracts.map((contract) => (
-                <div key={contract.id}>
-                  <p>
-                    <b>{contract.title}</b>
-                    <small>{contract.explanation || contract.metric}</small>
-                  </p>
-                  {contract.status === "REVIEW_REQUIRED" ? (
-                    <span>
-                      <button
-                        className={
-                          decisions[review.id]?.[contract.id] === "COMPLETED" ? "active ok" : ""
-                        }
-                        onClick={() =>
-                          setDecisions((prev) => ({
-                            ...prev,
-                            [review.id]: {
-                              ...(prev[review.id] || {}),
-                              [contract.id]: "COMPLETED",
-                            },
-                          }))
-                        }
-                      >
-                        Выполнено
-                      </button>
-                      <button
-                        className={
-                          decisions[review.id]?.[contract.id] === "FAILED" ? "active bad" : ""
-                        }
-                        onClick={() =>
-                          setDecisions((prev) => ({
-                            ...prev,
-                            [review.id]: {
-                              ...(prev[review.id] || {}),
-                              [contract.id]: "FAILED",
-                            },
-                          }))
-                        }
-                      >
-                        Не выполнено
-                      </button>
-                      <button
-                        className={
-                          decisions[review.id]?.[contract.id] === "VOID" ? "active void" : ""
-                        }
-                        onClick={() =>
-                          setDecisions((prev) => ({
-                            ...prev,
-                            [review.id]: {
-                              ...(prev[review.id] || {}),
-                              [contract.id]: "VOID",
-                            },
-                          }))
-                        }
-                      >
-                        Аннулировать
-                      </button>
-                      <input
-                        className="dc-review-fact-input"
-                        type="text"
-                        inputMode="decimal"
-                        placeholder="Факт, если известен"
-                        value={manualValues[review.id]?.[contract.id] || ""}
-                        onChange={(event) =>
-                          setManualValues((prev) => ({
-                            ...prev,
-                            [review.id]: {
-                              ...(prev[review.id] || {}),
-                              [contract.id]: event.target.value,
-                            },
-                          }))
-                        }
-                      />
-                    </span>
-                  ) : (
-                    <em>{statusLabel(contract.status)}</em>
-                  )}
-                </div>
-              ))}
-            </div>
-            {review.status === "PENDING" && (
-              <footer>
-                <button className="dc-primary" onClick={() => submit(review)}>
-                  CLOSE REVIEW
-                </button>
-              </footer>
-            )}
-          </article>
-        ))}
-      </div>
-    </>
   )
 }
