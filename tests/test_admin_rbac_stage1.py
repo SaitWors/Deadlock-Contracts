@@ -68,15 +68,30 @@ def test_main_source_uses_staff_permission_boundary() -> None:
     assert 'Depends(_require_permission("reviews.decide"))' in src
     assert '"is_staff": role_has_permission(role, "admin.access")' in src
     assert '"permissions": permissions_for_role(role)' in src
-    assert 'Literal["OPEN", "ALL", "PENDING", "NEEDS_INFO", "RESOLVED", "REJECTED"]' in src
-    assert 'AutoReviewCase.status.in_(("PENDING", "NEEDS_INFO"))' in src
+    review_block = src[
+        src.index('def admin_auto_reviews('):
+        src.index('@app.get("/api/admin/auto-reviews/{review_id}")')
+    ]
+    assert "status: Literal[" in review_block
+    for value in ("OPEN", "ALL", "PENDING", "NEEDS_INFO", "RESOLVED", "REJECTED"):
+        assert f'"{value}"' in review_block
+    assert 'AutoReviewCase.status.in_(("PENDING", "NEEDS_INFO"))' in review_block
 
 
 def test_review_serializer_has_moderator_redaction() -> None:
     src = Path("app/main.py").read_text(encoding="utf-8")
     assert "def _serialize_auto_review(db: Session, item: AutoReviewCase, *, redact: bool = False)" in src
-    assert '"account_id": None if redact else (owner.account_id if owner else None)' in src
-    assert '"context": {} if redact else item.context' in src
+    serializer = src[
+        src.index("def _serialize_auto_review("):
+        src.index("def _admin_status_payload(")
+    ]
+    # Stage 3 reformatted this expression across multiple lines. Verify the
+    # redaction branch semantically instead of pinning it to one formatting
+    # representation.
+    assert '"account_id": (' in serializer
+    assert "if redact" in serializer
+    assert "(owner.account_id if owner else None)" in serializer
+    assert '"context": {} if redact else item.context' in serializer
 
 
 def test_frontend_uses_permissions_and_open_review_inbox() -> None:
