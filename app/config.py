@@ -104,6 +104,19 @@ class Settings:
     telegram_bot_token: str = _secret("TELEGRAM_BOT_TOKEN", "")
     telegram_review_chat_id: str = os.getenv("TELEGRAM_REVIEW_CHAT_ID", "").strip()
     telegram_webhook_secret: str = _secret("TELEGRAM_WEBHOOK_SECRET", "")
+    # Stage 4 is outbound-only. Merely providing a bot token must not enable
+    # moderation notifications until this explicit feature flag is set.
+    telegram_moderation_notifications_enabled: bool = _bool(
+        "TELEGRAM_MODERATION_NOTIFICATIONS_ENABLED",
+        False,
+    )
+    telegram_review_thread_id: int = int(
+        os.getenv("TELEGRAM_REVIEW_THREAD_ID", "0")
+    )
+    telegram_review_protect_content: bool = _bool(
+        "TELEGRAM_REVIEW_PROTECT_CONTENT",
+        True,
+    )
     discord_review_webhook_url: str = _secret("DISCORD_REVIEW_WEBHOOK_URL", "")
 
     companion_pairing_ttl_minutes: int = int(os.getenv("COMPANION_PAIRING_TTL_MINUTES", "10"))
@@ -215,6 +228,35 @@ class Settings:
                 raise RuntimeError("ADMIN_TOTP_SECRET must be valid Base32") from exc
             if len(totp_bytes) < 20:
                 raise RuntimeError("ADMIN_TOTP_SECRET must contain at least 160 bits")
+
+        if self.telegram_moderation_notifications_enabled:
+            if not re.fullmatch(
+                r"\d{5,20}:[A-Za-z0-9_-]{20,100}",
+                self.telegram_bot_token,
+            ):
+                raise RuntimeError(
+                    "TELEGRAM_BOT_TOKEN is invalid or missing while "
+                    "Telegram moderation notifications are enabled"
+                )
+            if not re.fullmatch(
+                r"(?:-?\d{1,20}|@[A-Za-z0-9_]{5,32})",
+                self.telegram_review_chat_id,
+            ):
+                raise RuntimeError(
+                    "TELEGRAM_REVIEW_CHAT_ID must be a numeric chat id "
+                    "or @channel username"
+                )
+            if not 0 <= self.telegram_review_thread_id <= 2_147_483_647:
+                raise RuntimeError(
+                    "TELEGRAM_REVIEW_THREAD_ID must be 0 or a positive "
+                    "Telegram message thread id"
+                )
+            if self.is_production and urlparse(self.app_base_url).scheme != "https":
+                raise RuntimeError(
+                    "Telegram moderation deep links require HTTPS APP_BASE_URL "
+                    "in production"
+                )
+
         if len(self.session_secret) < 32 or self.session_secret in {
             "dev-only-change-me",
             "change-me-before-sharing",

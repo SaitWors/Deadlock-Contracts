@@ -25,6 +25,7 @@ from ..models import (
 )
 from .jobs import enqueue_job
 from .review_claims import assert_review_claim, clear_review_claim
+from .telegram_moderation import queue_review_telegram_event
 
 
 MODERATION_POLICY_VERSION = "moderation-2"
@@ -715,6 +716,30 @@ def decide_review(
                     "option_count": len(actual_outcomes),
                 },
             )
+        )
+
+        actor = db.get(User, str(actor_user_id))
+        notification_match = db.get(Match, item.match_id)
+        queue_review_telegram_event(
+            db,
+            "decided",
+            review_id=item.id,
+            payload={
+                "external_match_id": (
+                    notification_match.external_match_id
+                    if notification_match is not None
+                    else None
+                ),
+                "actor_display_name": (
+                    actor.display_name if actor is not None else "Moderator"
+                ),
+                "case_status": case_status,
+                "source": source,
+                "reason_code": reason_code,
+                "reward_xp_total": reward_total,
+                "option_count": len(actual_outcomes),
+                "board_status_after": board.status,
+            },
         )
 
         if resume_discovery:

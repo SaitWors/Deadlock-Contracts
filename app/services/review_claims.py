@@ -7,6 +7,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from ..models import AuditLog, AutoReviewCase, User
+from .telegram_moderation import queue_review_telegram_event
 
 
 CLAIM_TTL_MINUTES = 10
@@ -193,6 +194,24 @@ def claim_review(
             },
         )
     )
+    if action != "auto_review.claim_renewed":
+        actor = db.get(User, str(actor_user_id))
+        queue_review_telegram_event(
+            db,
+            "claimed",
+            review_id=item.id,
+            payload={
+                "action": action,
+                "actor_display_name": (
+                    actor.display_name if actor is not None else "Moderator"
+                ),
+                "claim_expires_at": (
+                    item.claim_expires_at.isoformat()
+                    if item.claim_expires_at
+                    else None
+                ),
+            },
+        )
     db.commit()
     db.refresh(item)
     return review_claim_payload(db, item)
@@ -230,6 +249,19 @@ def release_review(
             },
         )
     )
+    if previous_owner:
+        actor = db.get(User, str(actor_user_id))
+        queue_review_telegram_event(
+            db,
+            "released",
+            review_id=item.id,
+            payload={
+                "action": "auto_review.claim_released",
+                "actor_display_name": (
+                    actor.display_name if actor is not None else "Moderator"
+                ),
+            },
+        )
     db.commit()
     db.refresh(item)
     return review_claim_payload(db, item)
@@ -275,6 +307,18 @@ def mark_review_needs_info(
             entity_id=item.id,
             data={"note": clean_note},
         )
+    )
+    actor = db.get(User, str(actor_user_id))
+    queue_review_telegram_event(
+        db,
+        "needs_info",
+        review_id=item.id,
+        payload={
+            "actor_display_name": (
+                actor.display_name if actor is not None else "Moderator"
+            ),
+            "note": clean_note[:500],
+        },
     )
     db.commit()
     db.refresh(item)

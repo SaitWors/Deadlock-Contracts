@@ -14,6 +14,7 @@ from .gep_settlement import (
     gep_settlement_managed_user,
 )
 from .match_trust import provider_has_client_source, provider_has_independent_source
+from .telegram_moderation import queue_review_telegram_event
 
 FINAL_STATUSES = {"COMPLETED", "FAILED", "EXPIRED", "VOID"}
 
@@ -336,6 +337,16 @@ def _ensure_review_case(db: Session, board: ContractBoard, match: Match, reasons
                     "reason_count": len(reasons),
                 },
             )
+        )
+        queue_review_telegram_event(
+            db,
+            "requested",
+            review_id=item.id,
+            payload={
+                "external_match_id": match.external_match_id,
+                "mode": board.game_match_mode,
+                "reason_count": len(reasons),
+            },
         )
     else:
         item.reasons = reasons

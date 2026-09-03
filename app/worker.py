@@ -54,6 +54,10 @@ from .services.match_trust import (
 )
 from .services.providers import DeadlockApiProvider, ProviderError, ProviderRateLimited
 from .services.seed import seed_missions
+from .services.telegram_moderation import (
+    TELEGRAM_REVIEW_EVENT_PREFIX,
+    send_review_notification,
+)
 
 logging.basicConfig(level=os.getenv("LOG_LEVEL", "INFO"), format="%(asctime)s %(levelname)s %(message)s")
 log = logging.getLogger("deadlock-contracts-worker")
@@ -3273,6 +3277,20 @@ def dispatch_outbox(db: Session) -> bool:
     if not settings.reward_settlement_enabled:
         filters.append(OutboxEvent.event_type != "assignment.settled")
 
+    # Emergency freeze for Telegram moderation delivery. Keep already queued
+    # events durable and unpublished rather than consuming them as "skipped".
+    # When the feature flag is turned back on, normal outbox dispatch resumes.
+    if not getattr(
+        settings,
+        "telegram_moderation_notifications_enabled",
+        False,
+    ):
+        filters.append(
+            ~OutboxEvent.event_type.startswith(
+                TELEGRAM_REVIEW_EVENT_PREFIX
+            )
+        )
+
     event = db.scalar(
         select(OutboxEvent)
         .where(*filters)
@@ -3314,6 +3332,18 @@ def dispatch_outbox(db: Session) -> bool:
                             policy_version="xp-v3",
                         )
                     )
+        elif event.event_type.startswith(TELEGRAM_REVIEW_EVENT_PREFIX):
+            result = send_review_notification(
+                event.event_type,
+                event.payload if isinstance(event.payload, dict) else {},
+            )
+            payload = (
+                dict(event.payload)
+                if isinstance(event.payload, dict)
+                else {}
+            )
+            payload["telegram_delivery"] = result.to_dict()
+            event.payload = payload
         elif event.event_type == "auto_review.requested" and settings.discord_review_webhook_url:
             payload = event.payload
             body = json.dumps({
