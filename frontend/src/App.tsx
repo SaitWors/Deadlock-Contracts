@@ -14,7 +14,7 @@ type SessionPayload = {
     status: string
     locale: "ru" | "en"
     timezone: string
-    access_role: "OWNER" | "ADMIN" | "TESTER" | "PLAYER"
+    access_role: "OWNER" | "ADMIN" | "MODERATOR" | "TESTER" | "PLAYER"
     badges: Array<
       | "CREATOR"
       | "ADMIN"
@@ -27,6 +27,8 @@ type SessionPayload = {
     >
     created_at: string | null
     is_admin: boolean
+    is_staff: boolean
+    permissions: string[]
     can_manage_roles: boolean
   }
   csrf_token: string | null
