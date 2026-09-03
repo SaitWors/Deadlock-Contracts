@@ -86,6 +86,11 @@ from .services.adaptive_profile import build_adaptive_profile
 from .services.leaderboard import TRUSTED_REWARD_SOURCES, public_leaderboard as build_public_leaderboard
 from .services.localization import error_metadata, request_language
 from .services.permissions import permissions_for_role, role_has_permission
+from .services.moderation import (
+    ModerationError,
+    decide_review,
+    preview_review_decision,
+)
 
 log = logging.getLogger(__name__)
 STATIC = Path(__file__).parent / "static"
@@ -120,6 +125,15 @@ class AutoReviewDecisionItem(StrictModel):
 
 class AutoReviewDecisionRequest(StrictModel):
     status: Literal["RESOLVED", "REJECTED"] = "RESOLVED"
+    reason_code: Literal[
+        "NOT_COMPLETED",
+        "INSUFFICIENT_EVIDENCE",
+        "INVALID_MATCH",
+        "IDENTITY_MISMATCH",
+        "DATA_CONFLICT",
+        "POLICY_VIOLATION",
+        "OTHER",
+    ] | None = None
     reviewer_note: str = Field(default="", max_length=1500)
     options: list[AutoReviewDecisionItem] = Field(default_factory=list, max_length=3)
 
@@ -3238,138 +3252,69 @@ def admin_auto_reviews(
     }
 
 
-@app.post("/api/admin/auto-reviews/{review_id}/decision", dependencies=[Depends(require_csrf)])
-def decide_auto_review(review_id: UUID, payload: AutoReviewDecisionRequest, admin: User = Depends(_require_permission("reviews.decide")), db: Session = Depends(get_db)) -> dict:
-    item = db.scalar(select(AutoReviewCase).where(AutoReviewCase.id == str(review_id)).with_for_update())
-    if not item:
-        raise HTTPException(404, "Внутренняя заявка не найдена")
-    if item.status not in {"PENDING", "NEEDS_INFO"}:
-        raise HTTPException(409, "Заявка уже закрыта")
-    board = db.scalar(select(ContractBoard).options(selectinload(ContractBoard.options)).where(ContractBoard.id == item.board_id).with_for_update())
-    if not board:
-        raise HTTPException(404, "Дело не найдено")
-    pending = {option.id: option for option in board.options if option.selected and option.status == "REVIEW_REQUIRED"}
-    verdicts = {str(verdict.option_id): verdict for verdict in payload.options}
-    if payload.status == "RESOLVED" and set(verdicts) != set(pending):
-        raise HTTPException(422, "Для закрытия нужно указать решение по каждому контракту, ожидающему внутренней проверки")
-    owner = db.scalar(select(User).where(User.id == item.user_id).with_for_update())
-    if not owner:
-        raise HTTPException(404, "Пользователь не найден")
-    now = datetime.now(timezone.utc)
-    for option_id, option in pending.items():
-        verdict = verdicts.get(option_id)
-        if payload.status == "REJECTED":
-            option.status = "FAILED"
-            option.explanation = payload.reviewer_note or "Внутренняя проверка не подтвердила выполнение контракта."
-        else:
-            option.status = verdict.status
-            option.progress_current = verdict.progress_current
-            option.progress_target = float(len(option.conditions)) if option.conditions and len(option.conditions) > 1 else option.target
-            option.explanation = verdict.explanation
-        option.settled_at = now
-        revision = (
-            db.scalar(
-                select(func.max(Evaluation.revision)).where(
-                    Evaluation.assignment_id == option.id
-                )
-            )
-            or 0
-        ) + 1
-        evaluation = Evaluation(
-            assignment_id=option.id,
-            match_id=item.match_id,
-            revision=revision,
-            status=option.status,
-            evidence_level="INTERNAL_REVIEW",
-            evaluator_version=settings.evaluator_version,
-            progress_current=option.progress_current,
-            progress_target=option.progress_target,
-            score=None,
-            explanation=option.explanation or "Internal review decision",
-            facts=[
-                {
-                    "source": "internal_review",
-                    "review_id": item.id,
-                    "decision": option.status,
-                }
-            ],
+@app.post(
+    "/api/admin/auto-reviews/{review_id}/decision-preview",
+    dependencies=[Depends(require_csrf)],
+)
+def preview_auto_review_decision(
+    review_id: UUID,
+    payload: AutoReviewDecisionRequest,
+    admin: User = Depends(_require_permission("reviews.decide")),
+    db: Session = Depends(get_db),
+) -> dict:
+    try:
+        result = preview_review_decision(
+            db,
+            review_id=str(review_id),
+            actor_user_id=admin.id,
+            source="WEB",
+            case_status=payload.status,
+            reason_code=payload.reason_code,
+            reviewer_note=payload.reviewer_note,
+            options=[entry.model_dump(mode="json") for entry in payload.options],
         )
-        db.add(evaluation)
-        db.flush()
-        option.final_evaluation_id = evaluation.id
-        db.add(
-            OutboxEvent(
-                event_type="assignment.settled",
-                aggregate_id=option.id,
-                payload={
-                    "assignment_id": option.id,
-                    "board_id": board.id,
-                    "user_id": owner.id,
-                    "status": option.status,
-                    "reward_xp": (
-                        option.reward_xp if option.status == "COMPLETED" else 0
-                    ),
-                    "evaluation_id": evaluation.id,
-                    "match_id": item.match_id,
-                    "review_id": item.id,
-                },
-            )
-        )
-    item.status = payload.status
-    item.reviewer_id = admin.id
-    item.reviewer_note = payload.reviewer_note or None
-    item.decision_payload = {"options": [entry.model_dump(mode="json") for entry in payload.options]}
-    item.reviewed_at = now
-    selected = [option for option in board.options if option.selected]
-    final_statuses = {"COMPLETED", "FAILED", "VOID", "EXPIRED"}
-    resume_discovery = False
-    if selected and all(option.status in final_statuses for option in selected):
-        board.status = "SETTLED"
-    elif any(option.status == "REVIEW_REQUIRED" for option in selected):
-        board.status = "REVIEW_REQUIRED"
-    elif (
-        int(board.attempts_used or 0) < int(board.max_attempts or 0)
-        and any(option.status == "LOCKED" for option in selected)
-    ):
-        # Internal review only settles the unverifiable contracts from this
-        # attempt. Retryable contracts must continue on the next eligible game.
-        reviewed_match = db.get(Match, item.match_id)
-        if reviewed_match:
-            board.baseline_match_id = max(
-                int(board.baseline_match_id or 0),
-                int(reviewed_match.external_match_id),
-            )
-        board.status = "LOCKED"
-        resume_discovery = True
-    else:
-        board.status = "REVIEW_REQUIRED"
+    except ModerationError as exc:
+        raise HTTPException(exc.status_code, exc.detail) from exc
 
-    db.add(AuditLog(user_id=admin.id, action="auto_review.decided", entity_type="auto_review_case", entity_id=item.id, data={"status": payload.status, "board_id": board.id}))
-    if resume_discovery:
-        active = list(
-            db.scalars(
-                select(Job).where(
-                    Job.type == "discover_match",
-                    Job.board_id == board.id,
-                    Job.status.in_(("PENDING", "RUNNING")),
-                )
-            ).all()
+    return {"decision": result.to_dict()}
+
+
+@app.post(
+    "/api/admin/auto-reviews/{review_id}/decision",
+    dependencies=[Depends(require_csrf)],
+)
+def decide_auto_review(
+    review_id: UUID,
+    payload: AutoReviewDecisionRequest,
+    admin: User = Depends(_require_permission("reviews.decide")),
+    db: Session = Depends(get_db),
+) -> dict:
+    try:
+        result = decide_review(
+            db,
+            review_id=str(review_id),
+            actor_user_id=admin.id,
+            source="WEB",
+            case_status=payload.status,
+            reason_code=payload.reason_code,
+            reviewer_note=payload.reviewer_note,
+            options=[entry.model_dump(mode="json") for entry in payload.options],
         )
-        if not active:
-            enqueue_job(
-                db,
-                "discover_match",
-                {"board_id": board.id},
-                f"discover:{board.id}:review-resume:{item.id}",
-                max_attempts=settings.max_discovery_attempts,
-                commit=False,
-            )
-    # Review decision, reward/status transitions and any resumed discovery job
-    # are committed atomically.
-    db.commit()
-    db.refresh(item)
-    redact = not role_has_permission(_effective_access_role(admin), "users.read")
-    return {"review": _serialize_auto_review(db, item, redact=redact)}
+    except ModerationError as exc:
+        raise HTTPException(exc.status_code, exc.detail) from exc
+
+    item = db.get(AutoReviewCase, result.review_id)
+    if item is None:
+        raise HTTPException(404, "Внутренняя заявка не найдена")
+
+    redact = not role_has_permission(
+        _effective_access_role(admin),
+        "users.read",
+    )
+    return {
+        "review": _serialize_auto_review(db, item, redact=redact),
+        "decision": result.to_dict(),
+    }
 
 
 @app.post("/api/matches/sync", dependencies=[Depends(require_csrf)])
