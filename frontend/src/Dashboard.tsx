@@ -5042,11 +5042,18 @@ function AdminReviewDesk({
       setError("Укажите решение по каждому контракту, который ждёт внутренней проверки.")
       return
     }
+    const statuses = pending.map((item) => map[item.id])
+    const reasonCode = statuses.includes("VOID")
+      ? "INSUFFICIENT_EVIDENCE"
+      : statuses.includes("FAILED")
+        ? "NOT_COMPLETED"
+        : null
     try {
       await api(`/api/admin/auto-reviews/${review.id}/decision`, csrf, {
         method: "POST",
         body: JSON.stringify({
           status: "RESOLVED",
+          reason_code: reasonCode,
           reviewer_note: "Решено через внутреннюю очередь v0.3",
           options: pending.map((item) => {
             const raw = (manualValues[review.id]?.[item.id] || "").trim()
