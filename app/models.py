@@ -485,7 +485,11 @@ class AutoReviewCase(Base):
     reasons: Mapped[list[dict[str, Any]]] = mapped_column(JSON, default=list)
     context: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
     claimed_by_user_id: Mapped[str | None] = mapped_column(
-        ForeignKey("users.id", ondelete="SET NULL"),
+        ForeignKey(
+            "users.id",
+            ondelete="SET NULL",
+            name="fk_auto_review_cases_claimed_by_user",
+        ),
         nullable=True,
     )
     claimed_at: Mapped[datetime | None] = mapped_column(

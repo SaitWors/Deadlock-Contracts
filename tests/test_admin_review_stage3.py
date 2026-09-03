@@ -411,6 +411,15 @@ def test_stage3_frontend_has_deep_links_claim_preview_and_mobile_css() -> None:
     assert "@media (max-width: 760px)" in css
 
 
+def test_stage3_orm_claim_fk_name_matches_alembic_downgrade() -> None:
+    from app.models import AutoReviewCase
+
+    foreign_keys = AutoReviewCase.__table__.c.claimed_by_user_id.foreign_keys
+    assert len(foreign_keys) == 1
+    foreign_key = next(iter(foreign_keys))
+    assert foreign_key.constraint.name == "fk_auto_review_cases_claimed_by_user"
+
+
 def test_stage3_migration_is_0010_to_0011_and_has_claim_indexes() -> None:
     src = Path("alembic/versions/0011_admin_review_claims.py").read_text(encoding="utf-8")
 
