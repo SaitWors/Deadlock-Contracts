@@ -99,6 +99,13 @@ from .services.review_claims import (
     release_review,
     review_claim_payload,
 )
+from .services.telegram_binding import (
+    TelegramBindingError,
+    binding_status as telegram_binding_status,
+    create_link_token as create_telegram_link_token,
+    revoke_binding_for_user as revoke_telegram_binding_for_user,
+    revoke_self_binding as revoke_telegram_self_binding,
+)
 
 log = logging.getLogger(__name__)
 STATIC = Path(__file__).parent / "static"
@@ -2534,6 +2541,33 @@ def admin_overview(admin: User = Depends(_require_admin), db: Session = Depends(
     }
 
 
+@app.get("/api/admin/telegram/status")
+def admin_telegram_status(
+    admin: User = Depends(_require_permission("telegram.bind_self")),
+    db: Session = Depends(get_db),
+) -> dict:
+    return telegram_binding_status(db, user_id=admin.id)
+
+@app.post("/api/admin/telegram/link-token", dependencies=[Depends(require_csrf)])
+def admin_telegram_link_token(
+    admin: User = Depends(_require_permission("telegram.bind_self")),
+    db: Session = Depends(get_db),
+) -> dict:
+    try:
+        link = create_telegram_link_token(db, user_id=admin.id)
+    except TelegramBindingError as exc:
+        raise HTTPException(exc.status_code, exc.detail) from exc
+    return {"link": link.to_dict()}
+
+@app.delete("/api/admin/telegram/binding", dependencies=[Depends(require_csrf)])
+def admin_telegram_binding_delete(
+    admin: User = Depends(_require_permission("telegram.bind_self")),
+    db: Session = Depends(get_db),
+) -> dict:
+    revoked = revoke_telegram_self_binding(db, user_id=admin.id)
+    return {"ok": True, "revoked": revoked, "status": telegram_binding_status(db, user_id=admin.id)}
+
+
 @app.get("/api/admin/users")
 def admin_users(
     query: str = "",
@@ -2757,6 +2791,17 @@ def admin_update_user_identity(user_id: UUID, payload: AdminIdentityUpdateReques
     old_badges = sorted({str(item).upper() for item in (getattr(target, "public_badges", None) or []) if str(item).upper() in PUBLIC_BADGES})
     target.access_role = payload.access_role
     target.public_badges = new_badges
+    if old_role in {"MODERATOR", "ADMIN"} and payload.access_role not in {
+        "MODERATOR",
+        "ADMIN",
+    }:
+        revoke_telegram_binding_for_user(
+            db,
+            user_id=target.id,
+            actor_user_id=owner.id,
+            source="ROLE_REMOVED",
+            commit=False,
+        )
     if old_role == "ADMIN" and payload.access_role != "ADMIN":
         for session in db.scalars(select(SessionToken).where(SessionToken.user_id == target.id)).all():
             session.admin_verified_at = None
@@ -2801,6 +2846,13 @@ def admin_update_user_status(user_id: UUID, payload: AdminUserStatusRequest, own
             )
         )
         now = datetime.now(timezone.utc)
+        revoke_telegram_binding_for_user(
+            db,
+            user_id=target.id,
+            actor_user_id=owner.id,
+            source="ACCOUNT_SUSPENDED",
+            commit=False,
+        )
         for device in db.scalars(select(CompanionDevice).where(CompanionDevice.user_id == target.id, CompanionDevice.revoked_at.is_(None))).all():
             device.revoked_at = now
             companions_revoked += 1
