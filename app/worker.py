@@ -54,6 +54,12 @@ from .services.match_trust import (
 )
 from .services.providers import DeadlockApiProvider, ProviderError, ProviderRateLimited
 from .services.seed import seed_missions
+from .services.telegram_moderation import (
+    TELEGRAM_REVIEW_EVENT_PREFIX,
+    TelegramDeliveryError,
+    queue_review_telegram_event,
+    send_review_notification,
+)
 
 logging.basicConfig(level=os.getenv("LOG_LEVEL", "INFO"), format="%(asctime)s %(levelname)s %(message)s")
 log = logging.getLogger("deadlock-contracts-worker")
@@ -187,6 +193,22 @@ def _resolve_settled_waiting_provider_reviews(db: Session) -> int:
             "провайдера и завершения дела."
         )
         item.reviewed_at = now
+        match = db.get(Match, item.match_id)
+        queue_review_telegram_event(
+            db,
+            "decided",
+            review_id=item.id,
+            payload={
+                "external_match_id": (
+                    match.external_match_id
+                    if match is not None
+                    else None
+                ),
+                "case_status": "RESOLVED",
+                "source": "provider_auto_settlement",
+                "board_status_after": "SETTLED",
+            },
+        )
     return len(items)
 
 
@@ -3228,6 +3250,8 @@ def _record_outbox_failure(
     db: Session,
     event_id: str,
     error: Exception,
+    *,
+    retry_after_seconds: int | None = None,
 ) -> None:
     event = db.scalar(
         select(OutboxEvent)
@@ -3249,6 +3273,11 @@ def _record_outbox_failure(
         )
     else:
         delay = _outbox_retry_delay(event.attempts)
+        if retry_after_seconds is not None:
+            delay = max(
+                delay,
+                min(24 * 60 * 60, max(0, int(retry_after_seconds))),
+            )
         event.run_after = utcnow() + timedelta(seconds=delay)
         log.warning(
             "Outbox event %s failed; retry %s/%s in %ss",
@@ -3272,6 +3301,20 @@ def dispatch_outbox(db: Session) -> bool:
     # while unrelated review notifications can continue to flow.
     if not settings.reward_settlement_enabled:
         filters.append(OutboxEvent.event_type != "assignment.settled")
+
+    # Emergency freeze for Telegram moderation delivery. Keep already queued
+    # events durable and unpublished rather than consuming them as "skipped".
+    # When the feature flag is turned back on, normal outbox dispatch resumes.
+    if not getattr(
+        settings,
+        "telegram_moderation_notifications_enabled",
+        False,
+    ):
+        filters.append(
+            ~OutboxEvent.event_type.startswith(
+                TELEGRAM_REVIEW_EVENT_PREFIX
+            )
+        )
 
     event = db.scalar(
         select(OutboxEvent)
@@ -3314,6 +3357,18 @@ def dispatch_outbox(db: Session) -> bool:
                             policy_version="xp-v3",
                         )
                     )
+        elif event.event_type.startswith(TELEGRAM_REVIEW_EVENT_PREFIX):
+            result = send_review_notification(
+                event.event_type,
+                event.payload if isinstance(event.payload, dict) else {},
+            )
+            payload = (
+                dict(event.payload)
+                if isinstance(event.payload, dict)
+                else {}
+            )
+            payload["telegram_delivery"] = result.to_dict()
+            event.payload = payload
         elif event.event_type == "auto_review.requested" and settings.discord_review_webhook_url:
             payload = event.payload
             body = json.dumps({
@@ -3349,6 +3404,16 @@ def dispatch_outbox(db: Session) -> bool:
                 db.commit()
         else:
             _record_outbox_failure(db, event_id, exc)
+    except TelegramDeliveryError as exc:
+        event_id = event.id
+        db.rollback()
+        _record_outbox_failure(
+            db,
+            event_id,
+            exc,
+            retry_after_seconds=exc.retry_after_seconds,
+        )
+        log.warning("Telegram outbox delivery failed: %s", exc)
     except Exception as exc:
         event_id = event.id
         db.rollback()
