@@ -117,6 +117,13 @@ class Settings:
         "TELEGRAM_REVIEW_PROTECT_CONTENT",
         True,
     )
+    telegram_bot_username: str = os.getenv(
+        "TELEGRAM_BOT_USERNAME",
+        "",
+    ).strip().lstrip("@")
+    telegram_link_token_ttl_minutes: int = int(
+        os.getenv("TELEGRAM_LINK_TOKEN_TTL_MINUTES", "10")
+    )
     discord_review_webhook_url: str = _secret("DISCORD_REVIEW_WEBHOOK_URL", "")
 
     companion_pairing_ttl_minutes: int = int(os.getenv("COMPANION_PAIRING_TTL_MINUTES", "10"))
@@ -228,6 +235,16 @@ class Settings:
                 raise RuntimeError("ADMIN_TOTP_SECRET must be valid Base32") from exc
             if len(totp_bytes) < 20:
                 raise RuntimeError("ADMIN_TOTP_SECRET must contain at least 160 bits")
+
+        if self.telegram_bot_username and not re.fullmatch(
+            r"[A-Za-z0-9_]{5,32}",
+            self.telegram_bot_username,
+        ):
+            raise RuntimeError("TELEGRAM_BOT_USERNAME is invalid")
+        if not 5 <= self.telegram_link_token_ttl_minutes <= 30:
+            raise RuntimeError(
+                "TELEGRAM_LINK_TOKEN_TTL_MINUTES must be between 5 and 30"
+            )
 
         if self.telegram_moderation_notifications_enabled:
             if not re.fullmatch(
