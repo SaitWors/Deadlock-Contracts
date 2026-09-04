@@ -32,16 +32,22 @@ def upgrade() -> None:
         sa.ForeignKeyConstraint(["created_by_user_id"], ["users.id"], ondelete="SET NULL"),
         sa.ForeignKeyConstraint(["user_id"], ["users.id"], ondelete="CASCADE"),
         sa.PrimaryKeyConstraint("id"),
-        sa.UniqueConstraint("telegram_user_id", name="uq_telegram_binding_telegram_user"),
     )
     op.create_index("ix_telegram_moderator_bindings_user_id", "telegram_moderator_bindings", ["user_id"])
-    op.create_index("ix_telegram_moderator_bindings_telegram_user_id", "telegram_moderator_bindings", ["telegram_user_id"], unique=True)
+    op.create_index("ix_telegram_moderator_bindings_telegram_user_id", "telegram_moderator_bindings", ["telegram_user_id"])
     op.create_index("ix_telegram_moderator_bindings_revoked_at", "telegram_moderator_bindings", ["revoked_at"])
     op.create_index("ix_telegram_moderator_bindings_user_revoked", "telegram_moderator_bindings", ["user_id", "revoked_at"])
     op.create_index(
         "uq_telegram_moderator_bindings_active_user",
         "telegram_moderator_bindings",
         ["user_id"],
+        unique=True,
+        postgresql_where=sa.text("revoked_at IS NULL"),
+    )
+    op.create_index(
+        "uq_telegram_moderator_bindings_active_telegram_user",
+        "telegram_moderator_bindings",
+        ["telegram_user_id"],
         unique=True,
         postgresql_where=sa.text("revoked_at IS NULL"),
     )
@@ -56,7 +62,6 @@ def upgrade() -> None:
         sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
         sa.ForeignKeyConstraint(["user_id"], ["users.id"], ondelete="CASCADE"),
         sa.PrimaryKeyConstraint("id"),
-        sa.UniqueConstraint("token_hash", name="uq_telegram_link_token_hash"),
     )
     op.create_index("ix_telegram_link_tokens_user_id", "telegram_link_tokens", ["user_id"])
     op.create_index("ix_telegram_link_tokens_token_hash", "telegram_link_tokens", ["token_hash"], unique=True)
@@ -141,6 +146,7 @@ def downgrade() -> None:
     op.drop_index("ix_telegram_link_tokens_token_hash", table_name="telegram_link_tokens")
     op.drop_index("ix_telegram_link_tokens_user_id", table_name="telegram_link_tokens")
     op.drop_table("telegram_link_tokens")
+    op.drop_index("uq_telegram_moderator_bindings_active_telegram_user", table_name="telegram_moderator_bindings")
     op.drop_index("uq_telegram_moderator_bindings_active_user", table_name="telegram_moderator_bindings")
     op.drop_index("ix_telegram_moderator_bindings_user_revoked", table_name="telegram_moderator_bindings")
     op.drop_index("ix_telegram_moderator_bindings_revoked_at", table_name="telegram_moderator_bindings")

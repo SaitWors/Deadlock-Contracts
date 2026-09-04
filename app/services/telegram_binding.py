@@ -12,6 +12,7 @@ from sqlalchemy.orm import Session
 
 from ..config import settings
 from ..models import AuditLog, TelegramLinkToken, TelegramModeratorBinding, User
+from .permissions import role_has_permission
 
 
 class TelegramBindingError(RuntimeError):
@@ -93,12 +94,16 @@ def binding_status(db: Session, *, user_id: str) -> dict[str, Any]:
 
 
 def _staff_binding_allowed(user: User) -> bool:
-    if str(user.steam_id64 or "") in {
-        str(value) for value in getattr(settings, "admin_steam_ids", ())
-    }:
-        return True
-    role = str(getattr(user, "access_role", "PLAYER") or "PLAYER").upper()
-    return role in {"MODERATOR", "ADMIN"}
+    owner_ids = {
+        str(value)
+        for value in getattr(settings, "admin_steam_ids", ())
+    }
+    role = (
+        "OWNER"
+        if str(user.steam_id64 or "") in owner_ids
+        else str(getattr(user, "access_role", "PLAYER") or "PLAYER").upper()
+    )
+    return role_has_permission(role, "telegram.bind_self")
 
 
 def create_link_token(db: Session, *, user_id: str) -> TelegramLink:
@@ -106,7 +111,11 @@ def create_link_token(db: Session, *, user_id: str) -> TelegramLink:
     if not bot_username:
         raise TelegramBindingError("Telegram bot username не настроен", status_code=503, code="BOT_USERNAME_NOT_CONFIGURED")
 
-    user = db.get(User, str(user_id))
+    user = db.scalar(
+        select(User)
+        .where(User.id == str(user_id))
+        .with_for_update()
+    )
     if user is None or user.status != "ACTIVE":
         raise TelegramBindingError("Привязка Telegram недоступна", status_code=403, code="BINDING_NOT_ALLOWED")
     if not _staff_binding_allowed(user):
@@ -158,21 +167,51 @@ def consume_link_token(
         raise TelegramBindingError("Недействительная ссылка привязки", status_code=400, code="INVALID_LINK_TOKEN")
 
     now = utcnow()
+    token_hash = _hash_token(raw_token)
+
+    candidate = db.scalar(
+        select(TelegramLinkToken).where(
+            TelegramLinkToken.token_hash == token_hash
+        )
+    )
+    if candidate is None:
+        raise TelegramBindingError(
+            "Недействительная ссылка привязки",
+            status_code=400,
+            code="INVALID_LINK_TOKEN",
+        )
+
+    user = db.scalar(
+        select(User)
+        .where(User.id == candidate.user_id)
+        .with_for_update()
+    )
     token = db.scalar(
         select(TelegramLinkToken)
-        .where(TelegramLinkToken.token_hash == _hash_token(raw_token))
+        .where(TelegramLinkToken.id == candidate.id)
         .with_for_update()
     )
     if token is None:
-        raise TelegramBindingError("Недействительная ссылка привязки", status_code=400, code="INVALID_LINK_TOKEN")
+        raise TelegramBindingError(
+            "Недействительная ссылка привязки",
+            status_code=400,
+            code="INVALID_LINK_TOKEN",
+        )
     if token.used_at is not None:
-        raise TelegramBindingError("Ссылка привязки уже использована", status_code=409, code="LINK_TOKEN_ALREADY_USED")
+        raise TelegramBindingError(
+            "Ссылка привязки уже использована",
+            status_code=409,
+            code="LINK_TOKEN_ALREADY_USED",
+        )
     if (_aware(token.expires_at) or now) <= now:
         token.used_at = now
         db.commit()
-        raise TelegramBindingError("Срок действия ссылки привязки истёк", status_code=410, code="LINK_TOKEN_EXPIRED")
+        raise TelegramBindingError(
+            "Срок действия ссылки привязки истёк",
+            status_code=410,
+            code="LINK_TOKEN_EXPIRED",
+        )
 
-    user = db.get(User, token.user_id)
     if user is None or user.status != "ACTIVE":
         raise TelegramBindingError("Привязка Telegram недоступна", status_code=403, code="BINDING_NOT_ALLOWED")
     if not _staff_binding_allowed(user):
@@ -188,7 +227,10 @@ def consume_link_token(
 
     by_telegram = db.scalar(
         select(TelegramModeratorBinding)
-        .where(TelegramModeratorBinding.telegram_user_id == telegram_user_id)
+        .where(
+            TelegramModeratorBinding.telegram_user_id == telegram_user_id,
+            TelegramModeratorBinding.revoked_at.is_(None),
+        )
         .with_for_update()
     )
     if by_telegram is not None and by_telegram.revoked_at is None and by_telegram.user_id != user.id:
@@ -256,18 +298,34 @@ def revoke_binding_for_user(
     commit: bool = False,
 ) -> bool:
     now = utcnow()
+
+    db.scalar(
+        select(User)
+        .where(User.id == str(user_id))
+        .with_for_update()
+    )
+
     pending_tokens = list(
         db.scalars(
-            select(TelegramLinkToken).where(
+            select(TelegramLinkToken)
+            .where(
                 TelegramLinkToken.user_id == str(user_id),
                 TelegramLinkToken.used_at.is_(None),
             )
+            .with_for_update()
         ).all()
     )
     for token in pending_tokens:
         token.used_at = now
 
-    item = active_binding(db, user_id)
+    item = db.scalar(
+        select(TelegramModeratorBinding)
+        .where(
+            TelegramModeratorBinding.user_id == str(user_id),
+            TelegramModeratorBinding.revoked_at.is_(None),
+        )
+        .with_for_update()
+    )
     revoked = item is not None
     if item is not None:
         item.revoked_at = now

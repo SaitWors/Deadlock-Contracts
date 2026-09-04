@@ -130,3 +130,51 @@ def test_migration_linear():
     ):
         assert f'"{table}"' in text
     assert '"uq_telegram_moderator_bindings_active_user"' in text
+
+
+
+def test_rebind_same_telegram_preserves_revoked_history(
+    db,
+    fake_settings,
+):
+    first = make_user(db, 76561198000000008)
+    second = make_user(db, 76561198000000009)
+
+    first_link = binding.create_link_token(db, user_id=first.id)
+    first_binding = binding.consume_link_token(
+        db,
+        raw_token=token_from_link(first_link.link_url),
+        telegram_user_id=777888999,
+        telegram_username="first_mod",
+    )
+    first_binding_id = first_binding.id
+
+    assert binding.revoke_self_binding(db, user_id=first.id) is True
+
+    second_link = binding.create_link_token(db, user_id=second.id)
+    second_binding = binding.consume_link_token(
+        db,
+        raw_token=token_from_link(second_link.link_url),
+        telegram_user_id=777888999,
+        telegram_username="second_mod",
+    )
+
+    assert second_binding.id != first_binding_id
+    rows = list(
+        db.scalars(
+            select(TelegramModeratorBinding)
+            .where(
+                TelegramModeratorBinding.telegram_user_id == 777888999
+            )
+            .order_by(TelegramModeratorBinding.created_at.asc())
+        ).all()
+    )
+    assert len(rows) == 2
+
+    historical = next(item for item in rows if item.id == first_binding_id)
+    active = next(item for item in rows if item.id == second_binding.id)
+
+    assert historical.user_id == first.id
+    assert historical.revoked_at is not None
+    assert active.user_id == second.id
+    assert active.revoked_at is None

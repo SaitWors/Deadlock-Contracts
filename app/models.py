@@ -681,11 +681,18 @@ class TelegramModeratorBinding(Base):
             postgresql_where=text("revoked_at IS NULL"),
             sqlite_where=text("revoked_at IS NULL"),
         ),
+        Index(
+            "uq_telegram_moderator_bindings_active_telegram_user",
+            "telegram_user_id",
+            unique=True,
+            postgresql_where=text("revoked_at IS NULL"),
+            sqlite_where=text("revoked_at IS NULL"),
+        ),
         Index("ix_telegram_moderator_bindings_user_revoked","user_id","revoked_at"),
     )
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uuid4)
     user_id: Mapped[str] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
-    telegram_user_id: Mapped[int] = mapped_column(BigInteger, unique=True, index=True)
+    telegram_user_id: Mapped[int] = mapped_column(BigInteger, index=True)
     telegram_username: Mapped[str | None] = mapped_column(String(64), nullable=True)
     telegram_first_name: Mapped[str | None] = mapped_column(String(128), nullable=True)
     verified_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
@@ -744,7 +751,7 @@ class ModerationDecisionDraft(Base):
     actor_user_id: Mapped[str] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
     source: Mapped[str] = mapped_column(String(16))
     decisions: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
-    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
 
