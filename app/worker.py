@@ -56,6 +56,8 @@ from .services.providers import DeadlockApiProvider, ProviderError, ProviderRate
 from .services.seed import seed_missions
 from .services.telegram_moderation import (
     TELEGRAM_REVIEW_EVENT_PREFIX,
+    TelegramDeliveryError,
+    queue_review_telegram_event,
     send_review_notification,
 )
 
@@ -191,6 +193,22 @@ def _resolve_settled_waiting_provider_reviews(db: Session) -> int:
             "провайдера и завершения дела."
         )
         item.reviewed_at = now
+        match = db.get(Match, item.match_id)
+        queue_review_telegram_event(
+            db,
+            "decided",
+            review_id=item.id,
+            payload={
+                "external_match_id": (
+                    match.external_match_id
+                    if match is not None
+                    else None
+                ),
+                "case_status": "RESOLVED",
+                "source": "provider_auto_settlement",
+                "board_status_after": "SETTLED",
+            },
+        )
     return len(items)
 
 
@@ -3232,6 +3250,8 @@ def _record_outbox_failure(
     db: Session,
     event_id: str,
     error: Exception,
+    *,
+    retry_after_seconds: int | None = None,
 ) -> None:
     event = db.scalar(
         select(OutboxEvent)
@@ -3253,6 +3273,11 @@ def _record_outbox_failure(
         )
     else:
         delay = _outbox_retry_delay(event.attempts)
+        if retry_after_seconds is not None:
+            delay = max(
+                delay,
+                min(24 * 60 * 60, max(0, int(retry_after_seconds))),
+            )
         event.run_after = utcnow() + timedelta(seconds=delay)
         log.warning(
             "Outbox event %s failed; retry %s/%s in %ss",
@@ -3379,6 +3404,16 @@ def dispatch_outbox(db: Session) -> bool:
                 db.commit()
         else:
             _record_outbox_failure(db, event_id, exc)
+    except TelegramDeliveryError as exc:
+        event_id = event.id
+        db.rollback()
+        _record_outbox_failure(
+            db,
+            event_id,
+            exc,
+            retry_after_seconds=exc.retry_after_seconds,
+        )
+        log.warning("Telegram outbox delivery failed: %s", exc)
     except Exception as exc:
         event_id = event.id
         db.rollback()

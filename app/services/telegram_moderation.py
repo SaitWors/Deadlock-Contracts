@@ -22,7 +22,7 @@ TELEGRAM_REVIEW_EVENT_KINDS = frozenset(
 _ALLOWED_PAYLOAD_FIELDS = frozenset(
     {
         "review_id", "external_match_id", "mode", "reason_count", "action",
-        "actor_display_name", "claim_expires_at", "status", "note",
+        "actor_display_name", "claim_expires_at", "status",
         "case_status", "source", "reason_code", "reward_xp_total",
         "option_count", "board_status_after",
     }
@@ -37,6 +37,33 @@ _FORBIDDEN_PAYLOAD_KEYS = frozenset(
 
 class TelegramDeliveryError(RuntimeError):
     """Sanitized delivery error that never includes the bot token."""
+
+    def __init__(
+        self,
+        message: str,
+        *,
+        retry_after_seconds: int | None = None,
+    ) -> None:
+        super().__init__(message)
+        self.retry_after_seconds = (
+            max(0, int(retry_after_seconds))
+            if retry_after_seconds is not None
+            else None
+        )
+
+
+def _telegram_retry_after(payload: Any) -> int | None:
+    if not isinstance(payload, dict):
+        return None
+    parameters = payload.get("parameters")
+    if not isinstance(parameters, dict):
+        return None
+    value = parameters.get("retry_after")
+    try:
+        parsed = int(value)
+    except (TypeError, ValueError):
+        return None
+    return max(0, parsed)
 
 
 @dataclass(frozen=True)
@@ -183,7 +210,7 @@ def render_review_notification(
     elif kind == "needs_info":
         values = (
             _line("Модератор", data.get("actor_display_name")),
-            _line("Комментарий", data.get("note")),
+            "Комментарий модератора доступен только в защищённой админ-панели.",
         )
     elif kind == "decided":
         values = (
@@ -235,14 +262,19 @@ def _telegram_api_call(method: str, payload: dict[str, Any]) -> dict[str, Any]:
             status = int(getattr(response, "status", 200))
     except urllib.error.HTTPError as exc:
         description = ""
+        retry_after_seconds: int | None = None
         try:
             parsed = json.loads(exc.read(16 * 1024).decode("utf-8"))
-            description = str(parsed.get("description") or "")
+            if isinstance(parsed, dict):
+                description = str(parsed.get("description") or "")
+                retry_after_seconds = _telegram_retry_after(parsed)
         except Exception:
             description = ""
+            retry_after_seconds = None
         suffix = f": {description[:300]}" if description else ""
         raise TelegramDeliveryError(
-            f"Telegram HTTP {int(exc.code)}{suffix}"
+            f"Telegram HTTP {int(exc.code)}{suffix}",
+            retry_after_seconds=retry_after_seconds,
         ) from None
     except urllib.error.URLError as exc:
         reason = str(getattr(exc, "reason", "network error"))
@@ -267,7 +299,10 @@ def _telegram_api_call(method: str, payload: dict[str, Any]) -> dict[str, Any]:
             else ""
         )
         suffix = f": {description}" if description else ""
-        raise TelegramDeliveryError(f"Telegram API rejected request{suffix}")
+        raise TelegramDeliveryError(
+            f"Telegram API rejected request{suffix}",
+            retry_after_seconds=_telegram_retry_after(decoded),
+        )
 
     result = decoded.get("result")
     return result if isinstance(result, dict) else {}

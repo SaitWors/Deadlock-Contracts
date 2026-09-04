@@ -526,6 +526,16 @@ def evaluate_board(
                 "загрузки итоговой статистики."
             )
             stale_review.reviewed_at = utcnow()
+            queue_review_telegram_event(
+                db,
+                "decided",
+                review_id=stale_review.id,
+                payload={
+                    "external_match_id": match.external_match_id,
+                    "case_status": "RESOLVED",
+                    "source": "provider_refresh",
+                },
+            )
 
     waiting_on_this_match = any(
         option.status == "VERIFYING" and option.bound_match_id == match.id

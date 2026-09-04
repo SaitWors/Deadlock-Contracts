@@ -25,7 +25,7 @@ from app.services.telegram_moderation import (
 def _settings(**overrides):
     values = {
         "telegram_moderation_notifications_enabled": True,
-        "telegram_bot_token": "123456789:ABCDEF_abcdefghijklmnopqrstuvwxyz",
+        "telegram_bot_token": "telegram-test-token-not-production-shaped",
         "telegram_review_chat_id": "-1001234567890",
         "telegram_review_thread_id": 0,
         "telegram_review_protect_content": True,
@@ -131,8 +131,9 @@ def test_render_escapes_dynamic_text_and_uses_admin_deep_link(
     )
 
     assert "&lt;b&gt;moderator&lt;/b&gt;" in text
-    assert "&lt;script&gt;alert(1)&lt;/script&gt;" in text
     assert "<script>" not in text
+    assert "alert(1)" not in text
+    assert "Комментарий модератора доступен только" in text
     assert silent is False
     url = keyboard["inline_keyboard"][0][0]["url"]
     assert url.startswith(
@@ -214,7 +215,7 @@ def test_send_message_uses_supported_bot_api_shape(
 def test_http_error_never_leaks_bot_token(
     monkeypatch,
 ) -> None:
-    token = "123456789:SUPER_SECRET_TOKEN_VALUE"
+    token = "telegram-test-secret-that-must-never-leak"
     monkeypatch.setattr(
         telegram,
         "settings",
@@ -232,6 +233,7 @@ def test_http_error_never_leaks_bot_token(
                     {
                         "ok": False,
                         "description": "Too Many Requests",
+                        "parameters": {"retry_after": 137},
                     }
                 ).encode("utf-8")
             ),
@@ -250,6 +252,7 @@ def test_http_error_never_leaks_bot_token(
         )
     assert token not in str(exc.value)
     assert "Telegram HTTP 429" in str(exc.value)
+    assert exc.value.retry_after_seconds == 137
 
 
 def test_worker_dispatch_marks_telegram_outbox_published(
@@ -505,3 +508,90 @@ def test_stage4_config_is_fail_closed_by_default() -> None:
     )
     assert "TELEGRAM_REVIEW_THREAD_ID" in compose
     assert "TELEGRAM_REVIEW_PROTECT_CONTENT" in compose
+
+def test_freeform_needs_info_note_never_enters_telegram_outbox(
+    db,
+    monkeypatch,
+) -> None:
+    monkeypatch.setattr(telegram, "settings", _settings())
+    event = queue_review_telegram_event(
+        db,
+        "needs_info",
+        review_id="review-private-note",
+        payload={
+            "actor_display_name": "Moderator",
+            "note": "private SteamID/token/debug details must stay on the site",
+        },
+    )
+    db.commit()
+
+    assert event is not None
+    stored = db.get(OutboxEvent, event.id)
+    assert stored is not None
+    assert "note" not in stored.payload
+    text, _keyboard, _silent = render_review_notification(
+        stored.event_type,
+        stored.payload,
+    )
+    assert "SteamID" not in text
+    assert "token" not in text
+    assert "Комментарий модератора доступен только" in text
+
+def test_worker_telegram_retry_after_extends_outbox_delay(
+    db,
+    monkeypatch,
+) -> None:
+    import app.worker as worker
+
+    monkeypatch.setattr(
+        worker,
+        "settings",
+        replace(
+            worker.settings,
+            telegram_moderation_notifications_enabled=True,
+        ),
+    )
+    fixed_now = worker.utcnow()
+    monkeypatch.setattr(worker, "utcnow", lambda: fixed_now)
+
+    event = OutboxEvent(
+        event_type="telegram.review.requested",
+        aggregate_id="review-rate-limit",
+        payload={
+            "schema_version": 1,
+            "review_id": "review-rate-limit",
+        },
+        run_after=fixed_now,
+    )
+    db.add(event)
+    db.commit()
+
+    def fail(*_args, **_kwargs):
+        raise TelegramDeliveryError(
+            "Telegram HTTP 429: Too Many Requests",
+            retry_after_seconds=137,
+        )
+
+    monkeypatch.setattr(worker, "send_review_notification", fail)
+
+    assert worker.dispatch_outbox(db) is True
+    db.expire_all()
+    stored = db.get(OutboxEvent, event.id)
+    assert stored is not None
+    assert stored.published_at is None
+    assert stored.attempts == 1
+    assert stored.run_after is not None
+    run_after = worker.aware(stored.run_after)
+    baseline = worker.aware(fixed_now)
+    assert run_after is not None
+    assert baseline is not None
+    assert (run_after - baseline).total_seconds() >= 137
+
+def test_stage4_auto_resolution_producers_emit_terminal_telegram_event() -> None:
+    evaluator = open("app/services/evaluator.py", encoding="utf-8").read()
+    worker = open("app/worker.py", encoding="utf-8").read()
+
+    assert '"source": "provider_refresh"' in evaluator
+    assert '"source": "provider_auto_settlement"' in worker
+    assert "queue_review_telegram_event(" in evaluator
+    assert "queue_review_telegram_event(" in worker
