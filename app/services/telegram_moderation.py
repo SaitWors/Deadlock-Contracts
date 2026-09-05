@@ -12,6 +12,7 @@ from sqlalchemy.orm import Session
 
 from ..config import settings
 from ..models import OutboxEvent
+from .telegram_callback_codec import encode_claim
 
 
 TELEGRAM_REVIEW_EVENT_PREFIX = "telegram.review."
@@ -229,12 +230,21 @@ def render_review_notification(
         if item:
             lines.append(item)
 
-    keyboard = {
-        "inline_keyboard": [[{
-            "text": "🌐 Открыть в админке",
-            "url": _review_url(review_id),
-        }]]
-    }
+    keyboard_rows: list[list[dict[str, Any]]] = []
+    if (
+        bool(getattr(settings, "telegram_review_callbacks_enabled", False))
+        and review_id
+        and kind in {"requested", "released"}
+    ):
+        keyboard_rows.append([{
+            "text": "🧑‍💻 Взять",
+            "callback_data": encode_claim(review_id),
+        }])
+    keyboard_rows.append([{
+        "text": "🌐 Открыть в админке",
+        "url": _review_url(review_id),
+    }])
+    keyboard = {"inline_keyboard": keyboard_rows}
     silent = kind in {"claimed", "released", "decided"}
     return "\n".join(lines), keyboard, silent
 
@@ -310,6 +320,40 @@ def _telegram_api_call(method: str, payload: dict[str, Any]) -> dict[str, Any]:
 
 def telegram_get_me() -> dict[str, Any]:
     return _telegram_api_call("getMe", {})
+
+
+def answer_callback_query(
+    callback_query_id: str,
+    text: str,
+    show_alert: bool = False,
+) -> None:
+    payload: dict[str, Any] = {
+        "callback_query_id": str(callback_query_id)[:256],
+        "show_alert": bool(show_alert),
+    }
+    clean = str(text or "").strip()
+    if clean:
+        payload["text"] = clean[:180]
+    _telegram_api_call("answerCallbackQuery", payload)
+
+
+def edit_review_callback_message(
+    chat_id: int | str,
+    message_id: int,
+    text: str,
+    reply_markup: dict[str, Any],
+) -> None:
+    _telegram_api_call(
+        "editMessageText",
+        {
+            "chat_id": chat_id,
+            "message_id": int(message_id),
+            "text": str(text),
+            "parse_mode": "HTML",
+            "link_preview_options": {"is_disabled": True},
+            "reply_markup": reply_markup,
+        },
+    )
 
 
 def send_review_notification(

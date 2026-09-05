@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 import re
 import secrets
 from datetime import datetime, timezone
@@ -13,6 +14,14 @@ from sqlalchemy.orm import Session
 from ..config import settings
 from ..models import TelegramUpdateReceipt
 from .telegram_binding import TelegramBindingError, consume_link_token
+from .telegram_callbacks import TelegramCallbackError, process_callback_query
+from .telegram_moderation import (
+    TelegramDeliveryError,
+    answer_callback_query,
+    edit_review_callback_message,
+)
+
+log = logging.getLogger(__name__)
 
 
 class TelegramWebhookError(RuntimeError):
@@ -240,6 +249,55 @@ def process_update(
             status_code=500,
             code="RECEIPT_UNAVAILABLE",
         )
+
+    if update_type == "callback_query":
+        callback_query = update.get("callback_query")
+        callback_id = str(callback_query.get("id") or "") if isinstance(callback_query, dict) else ""
+
+        if not bool(getattr(settings, "telegram_review_callbacks_enabled", False)):
+            _finish(db, receipt, state="IGNORED")
+            if callback_id:
+                try:
+                    answer_callback_query(callback_id, "Telegram review actions сейчас выключены.", True)
+                except TelegramDeliveryError:
+                    log.warning("Could not answer disabled Telegram callback")
+            return {"ok": True, "processed": False, "state": "IGNORED"}
+
+        if not isinstance(callback_query, dict):
+            _finish(db, receipt, state="REJECTED", error_code="INVALID_CALLBACK_QUERY")
+            return {"ok": True, "processed": False, "state": "REJECTED"}
+
+        try:
+            callback_result = process_callback_query(db, callback_query)
+        except TelegramCallbackError as exc:
+            _finish(db, receipt, state="REJECTED", error_code=exc.code)
+            if callback_id:
+                try:
+                    answer_callback_query(callback_id, exc.user_message, exc.show_alert)
+                except TelegramDeliveryError:
+                    log.warning("Could not answer rejected Telegram callback: %s", exc.code)
+            return {"ok": True, "processed": False, "state": "REJECTED", "error_code": exc.code}
+
+        _finish(db, receipt, state="PROCESSED")
+        try:
+            answer_callback_query(callback_id, callback_result.answer_text, callback_result.show_alert)
+        except TelegramDeliveryError:
+            log.warning("Could not answer processed Telegram callback")
+        try:
+            edit_review_callback_message(
+                callback_result.chat_id,
+                callback_result.message_id,
+                callback_result.text,
+                callback_result.reply_markup,
+            )
+        except TelegramDeliveryError:
+            log.warning("Could not refresh Telegram review message")
+        return {
+            "ok": True,
+            "processed": True,
+            "state": "PROCESSED",
+            "callback_state": callback_result.state,
+        }
 
     if update_type != "message":
         _finish(db, receipt, state="IGNORED")

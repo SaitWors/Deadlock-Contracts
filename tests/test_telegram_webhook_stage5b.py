@@ -161,12 +161,13 @@ def test_bot_suffix_must_match_configured_bot(db, fake_settings):
     assert result["state"] == "IGNORED"
 
 
-def test_stage5b_route_is_present_but_callbacks_are_not_enabled():
+def test_stage5b_route_and_binding_path_remain_present_after_later_stages():
     main = open("app/main.py", encoding="utf-8").read()
-    stage4 = open("app/services/telegram_moderation.py", encoding="utf-8").read()
+    binding_source = open("app/services/telegram_binding.py", encoding="utf-8").read()
+    webhook_source = open("app/services/telegram_webhook.py", encoding="utf-8").read()
     assert '"/api/integrations/telegram/webhook"' in main
     assert "X-Telegram-Bot-Api-Secret-Token" in main
     assert "telegram_webhook_max_body_bytes" in main
-    assert "callback_data" not in stage4
-    assert "answerCallbackQuery" not in main
-    assert "editMessageReplyMarkup" not in main
+    assert "consume_link_token" in webhook_source
+    assert "callback_data" not in binding_source
+    assert "decide_review" not in binding_source
