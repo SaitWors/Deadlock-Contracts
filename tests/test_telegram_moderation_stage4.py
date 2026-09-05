@@ -466,11 +466,12 @@ def test_stage4_producers_emit_only_outbound_telegram_events() -> None:
         ")" in worker
     )
 
-    # Stage 4 remains outbound-only at its own producer/service boundary.
-    # Stage 5B may expose a separate inbound integration endpoint in app/main.py.
+    # Stage 4 event producer remains data-minimal even when a later stage
+    # adds callback buttons to rendered Telegram messages.
     assert "/api/telegram" not in telegram_source
     assert "X-Telegram-Bot-Api-Secret-Token" not in telegram_source
-    assert "callback_data" not in telegram_source
+    assert "RewardLedgerEntry" not in telegram_source
+    assert "decide_review" not in telegram_source
 
 
 def test_stage4_config_is_fail_closed_by_default() -> None:

@@ -112,6 +112,11 @@ class Settings:
     telegram_webhook_max_body_bytes: int = int(
         os.getenv("TELEGRAM_WEBHOOK_MAX_BODY_BYTES", str(32 * 1024))
     )
+    # Stage 5C interactive moderation remains fail-closed until explicitly enabled.
+    telegram_review_callbacks_enabled: bool = _bool(
+        "TELEGRAM_REVIEW_CALLBACKS_ENABLED",
+        False,
+    )
     # Stage 4 is outbound-only. Merely providing a bot token must not enable
     # moderation notifications until this explicit feature flag is set.
     telegram_moderation_notifications_enabled: bool = _bool(
@@ -274,6 +279,16 @@ class Settings:
             if self.is_production and urlparse(self.app_base_url).scheme != "https":
                 raise RuntimeError(
                     "Telegram webhook requires HTTPS APP_BASE_URL in production"
+                )
+
+        if self.telegram_review_callbacks_enabled:
+            if not self.telegram_webhook_enabled:
+                raise RuntimeError(
+                    "TELEGRAM_REVIEW_CALLBACKS_ENABLED requires TELEGRAM_WEBHOOK_ENABLED=true"
+                )
+            if not self.telegram_moderation_notifications_enabled:
+                raise RuntimeError(
+                    "TELEGRAM_REVIEW_CALLBACKS_ENABLED requires TELEGRAM_MODERATION_NOTIFICATIONS_ENABLED=true"
                 )
 
         if self.telegram_moderation_notifications_enabled:

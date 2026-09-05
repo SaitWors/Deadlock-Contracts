@@ -144,6 +144,8 @@ def claim_review(
     review_id: str,
     actor_user_id: str,
     force: bool = False,
+    commit: bool = True,
+    emit_telegram: bool = True,
 ) -> dict[str, Any]:
     item = _load_review(db, review_id, lock=True)
     if item.status not in OPEN_REVIEW_STATUSES:
@@ -194,7 +196,7 @@ def claim_review(
             },
         )
     )
-    if action != "auto_review.claim_renewed":
+    if emit_telegram and action != "auto_review.claim_renewed":
         actor = db.get(User, str(actor_user_id))
         queue_review_telegram_event(
             db,
@@ -212,7 +214,10 @@ def claim_review(
                 ),
             },
         )
-    db.commit()
+    if commit:
+        db.commit()
+    else:
+        db.flush()
     db.refresh(item)
     return review_claim_payload(db, item)
 
