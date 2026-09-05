@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 from pathlib import Path
+from types import SimpleNamespace
 
+from app.main import ACCESS_ROLES, _display_badges
 from app.services.permissions import (
     ALL_PERMISSIONS,
     ROLE_PERMISSIONS,
@@ -43,6 +45,34 @@ def test_admin_does_not_gain_owner_only_mutations() -> None:
     assert not role_has_permission("ADMIN", "missions.edit")
     assert not role_has_permission("ADMIN", "missions.publish")
     assert not role_has_permission("ADMIN", "telegram.bindings.manage")
+
+
+def test_display_badges_covers_every_stored_access_role() -> None:
+    expected = {
+        "PLAYER": ["PLAYER"],
+        "TESTER": ["TESTER"],
+        "MODERATOR": ["PLAYER"],
+        "ADMIN": ["ADMIN"],
+    }
+    assert ACCESS_ROLES == set(expected)
+
+    for role, badges in expected.items():
+        user = SimpleNamespace(
+            steam_id64=None,
+            access_role=role,
+            public_badges=[],
+        )
+        assert _display_badges(user) == badges
+
+
+def test_moderator_access_role_survives_public_badge_serialization() -> None:
+    user = SimpleNamespace(
+        steam_id64=None,
+        access_role="MODERATOR",
+        public_badges=["CONTRIBUTOR"],
+    )
+    assert user.access_role == "MODERATOR"
+    assert _display_badges(user) == ["CONTRIBUTOR", "PLAYER"]
 
 
 def test_player_and_tester_are_not_staff() -> None:

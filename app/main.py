@@ -733,6 +733,10 @@ def _display_badges(user: User) -> list[str]:
     automatic = {
         "OWNER": "CREATOR",
         "ADMIN": "ADMIN",
+        # MODERATOR is an authorization role, not a public presentation
+        # badge. Keep the current BadgeId contract while access_role still
+        # reports MODERATOR in the admin UI and permission checks.
+        "MODERATOR": "PLAYER",
         "TESTER": "TESTER",
         "PLAYER": "PLAYER",
     }[role]
