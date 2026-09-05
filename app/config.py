@@ -104,6 +104,14 @@ class Settings:
     telegram_bot_token: str = _secret("TELEGRAM_BOT_TOKEN", "")
     telegram_review_chat_id: str = os.getenv("TELEGRAM_REVIEW_CHAT_ID", "").strip()
     telegram_webhook_secret: str = _secret("TELEGRAM_WEBHOOK_SECRET", "")
+    # Stage 5B inbound webhook remains fail-closed until explicitly enabled.
+    telegram_webhook_enabled: bool = _bool(
+        "TELEGRAM_WEBHOOK_ENABLED",
+        False,
+    )
+    telegram_webhook_max_body_bytes: int = int(
+        os.getenv("TELEGRAM_WEBHOOK_MAX_BODY_BYTES", str(32 * 1024))
+    )
     # Stage 4 is outbound-only. Merely providing a bot token must not enable
     # moderation notifications until this explicit feature flag is set.
     telegram_moderation_notifications_enabled: bool = _bool(
@@ -245,6 +253,28 @@ class Settings:
             raise RuntimeError(
                 "TELEGRAM_LINK_TOKEN_TTL_MINUTES must be between 5 and 30"
             )
+
+        if not 4096 <= self.telegram_webhook_max_body_bytes <= 131072:
+            raise RuntimeError(
+                "TELEGRAM_WEBHOOK_MAX_BODY_BYTES must be between 4096 and 131072"
+            )
+        if self.telegram_webhook_enabled:
+            if not re.fullmatch(
+                r"[A-Za-z0-9_-]{32,256}",
+                self.telegram_webhook_secret,
+            ):
+                raise RuntimeError(
+                    "TELEGRAM_WEBHOOK_SECRET must contain 32-256 safe characters "
+                    "when Telegram webhook is enabled"
+                )
+            if not self.telegram_bot_username:
+                raise RuntimeError(
+                    "TELEGRAM_BOT_USERNAME is required when Telegram webhook is enabled"
+                )
+            if self.is_production and urlparse(self.app_base_url).scheme != "https":
+                raise RuntimeError(
+                    "Telegram webhook requires HTTPS APP_BASE_URL in production"
+                )
 
         if self.telegram_moderation_notifications_enabled:
             if not re.fullmatch(

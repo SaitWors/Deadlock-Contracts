@@ -108,14 +108,17 @@ def test_status_never_exposes_token(db,fake_settings):
     payload=binding.binding_status(db,user_id=user.id)
     assert "token" not in repr(payload).lower()
 
-def test_stage5a_inbound_disabled():
+def test_stage5a_binding_layer_stays_permission_guarded_and_callback_free():
     main=open("app/main.py",encoding="utf-8").read()
     stage4=open("app/services/telegram_moderation.py",encoding="utf-8").read()
+    binding_source=open("app/services/telegram_binding.py",encoding="utf-8").read()
     assert main.count('_require_permission("telegram.bind_self")')>=3
     assert "ROLE_REMOVED" in main
     assert "ACCOUNT_SUSPENDED" in main
-    assert "/api/integrations/telegram/webhook" not in main
+    # Later stages may add a separate inbound webhook, but the Stage5A
+    # binding layer itself must stay free of interactive moderation callbacks.
     assert "callback_data" not in stage4
+    assert "callback_data" not in binding_source
 
 def test_migration_linear():
     text=open("alembic/versions/0012_telegram_binding_foundation.py",encoding="utf-8").read()
