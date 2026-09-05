@@ -14,6 +14,8 @@ from app.models import (
     ModerationDecisionDraft, RewardLedgerEntry, TelegramModeratorBinding,
     TelegramUpdateReceipt, User,
 )
+from app import worker as worker_service
+from app.services import evaluator as evaluator_service
 from app.services import telegram_callbacks as callbacks
 from app.services import telegram_moderation as moderation
 from app.services import telegram_webhook as webhook
@@ -225,3 +227,193 @@ def test_stage5c_source_has_no_final_moderation_or_reward_mutation():
     assert "reward_ledger" not in source
     assert "ModerationDecisionDraft" in source
     assert "assert_review_claim" in source
+
+
+
+def test_active_review_claim_blocks_provider_refresh_state_mutation(
+    db,
+    fake_settings,
+):
+    _, moderator, _, board, match, options, review = seed_review(db)
+    now = datetime.now(timezone.utc)
+
+    review.claimed_by_user_id = moderator.id
+    review.claimed_at = now
+    review.claim_expires_at = now + timedelta(minutes=5)
+    db.commit()
+
+    before = [
+        db.get(BoardOption, item.id).status
+        for item in options
+    ]
+
+    with pytest.raises(
+        evaluator_service.ActiveReviewClaim
+    ) as exc:
+        evaluator_service.evaluate_board(
+            db,
+            board.id,
+            match.id,
+        )
+
+    assert exc.value.review_id == review.id
+    assert exc.value.actor_user_id == moderator.id
+    assert exc.value.delay_seconds > 0
+
+    db.rollback()
+    db.expire_all()
+
+    assert db.get(
+        AutoReviewCase,
+        review.id,
+    ).status == "PENDING"
+    assert db.get(
+        ContractBoard,
+        board.id,
+    ).status == "REVIEW_REQUIRED"
+    assert [
+        db.get(BoardOption, item.id).status
+        for item in options
+    ] == before
+
+
+def test_active_review_claim_blocks_waiting_provider_transition(
+    db,
+    fake_settings,
+):
+    _, moderator, _, board, _, options, review = seed_review(db)
+    now = datetime.now(timezone.utc)
+
+    review.claimed_by_user_id = moderator.id
+    review.claimed_at = now
+    review.claim_expires_at = now + timedelta(minutes=5)
+    db.commit()
+
+    with pytest.raises(
+        evaluator_service.ActiveReviewClaim
+    ):
+        worker_service._mark_board_verifying_for_facts(
+            db,
+            board,
+            ["summary.object_damage"],
+            option_ids={options[0].id},
+        )
+
+    db.rollback()
+    db.expire_all()
+
+    assert db.get(
+        AutoReviewCase,
+        review.id,
+    ).status == "PENDING"
+    assert db.get(
+        ContractBoard,
+        board.id,
+    ).status == "REVIEW_REQUIRED"
+    assert db.get(
+        BoardOption,
+        options[0].id,
+    ).status == "REVIEW_REQUIRED"
+
+
+def test_active_review_claim_blocks_repair_evaluation_transition(
+    db,
+    fake_settings,
+):
+    _, moderator, _, board, match, options, review = seed_review(db)
+    now = datetime.now(timezone.utc)
+
+    review.claimed_by_user_id = moderator.id
+    review.claimed_at = now
+    review.claim_expires_at = now + timedelta(minutes=5)
+    db.commit()
+
+    with pytest.raises(
+        evaluator_service.ActiveReviewClaim
+    ):
+        worker_service._queue_repair_evaluation(
+            db,
+            board,
+            match,
+        )
+
+    db.rollback()
+    db.expire_all()
+
+    assert db.get(
+        AutoReviewCase,
+        review.id,
+    ).status == "PENDING"
+    assert db.get(
+        ContractBoard,
+        board.id,
+    ).status == "REVIEW_REQUIRED"
+    assert all(
+        db.get(BoardOption, item.id).status
+        == "REVIEW_REQUIRED"
+        for item in options
+    )
+
+
+def test_expired_review_claim_allows_automation_guard_to_pass(
+    db,
+    fake_settings,
+):
+    _, moderator, _, board, match, _, review = seed_review(db)
+    now = datetime.now(timezone.utc)
+
+    review.claimed_by_user_id = moderator.id
+    review.claimed_at = now - timedelta(minutes=11)
+    review.claim_expires_at = now - timedelta(seconds=1)
+    db.commit()
+
+    item = evaluator_service.guard_active_review_claim(
+        db,
+        board_id=board.id,
+        match_id=match.id,
+        lock=True,
+    )
+
+    assert item is not None
+    assert item.id == review.id
+
+
+def test_provider_guard_locks_open_review_before_inspecting_claim():
+    source = Path(
+        "app/services/evaluator.py"
+    ).read_text(encoding="utf-8")
+    start = source.index(
+        "def guard_active_review_claim("
+    )
+    end = source.index(
+        "def _metric_value(",
+        start,
+    )
+    guard = source[start:end]
+
+    assert ".with_for_update()" in guard
+    where_part = guard.split(
+        "item = db.scalar(stmt)",
+        1,
+    )[0]
+    assert (
+        "claimed_by_user_id.is_not"
+        not in where_part
+    )
+    assert (
+        "claim_expires_at.is_not"
+        not in where_part
+    )
+
+
+def test_worker_has_dedicated_active_claim_retry_path():
+    source = Path(
+        "app/worker.py"
+    ).read_text(encoding="utf-8")
+
+    assert "except ActiveReviewClaim as exc:" in source
+    assert "retry_job(" in source
+    assert "exc.delay_seconds" in source
+    assert source.count(
+        "guard_active_review_claim("
+    ) >= 2
