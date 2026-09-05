@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import datetime, timezone
 
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
@@ -27,6 +28,96 @@ class EvaluationResult:
     score: float | None
     explanation: str
     facts: list[dict]
+
+
+
+class ActiveReviewClaim(RuntimeError):
+    """Automatic settlement must wait for a live moderator lease."""
+
+    def __init__(
+        self,
+        *,
+        review_id: str,
+        actor_user_id: str,
+        delay_seconds: int,
+    ) -> None:
+        self.review_id = str(review_id)
+        self.actor_user_id = str(actor_user_id)
+        self.delay_seconds = max(
+            5,
+            min(int(delay_seconds), 10 * 60),
+        )
+        super().__init__(
+            "Review "
+            f"{self.review_id} is actively claimed by moderator "
+            f"{self.actor_user_id}"
+        )
+
+
+def _aware_claim_time(
+    value: datetime | None,
+) -> datetime | None:
+    if value is None:
+        return None
+    if value.tzinfo is None:
+        return value.replace(tzinfo=timezone.utc)
+    return value.astimezone(timezone.utc)
+
+
+def guard_active_review_claim(
+    db: Session,
+    *,
+    board_id: str,
+    match_id: str | None = None,
+    lock: bool = True,
+) -> AutoReviewCase | None:
+    """Serialize automatic review mutation against human moderation.
+
+    The query intentionally does NOT filter on claimed_by_user_id before
+    acquiring the row lock. A concurrent, uncommitted claim must still make
+    this SELECT FOR UPDATE wait for the same open review row.
+    """
+
+    stmt = select(AutoReviewCase).where(
+        AutoReviewCase.board_id == str(board_id),
+        AutoReviewCase.status.in_(
+            ("PENDING", "NEEDS_INFO", "WAITING_PROVIDER")
+        ),
+    )
+    if match_id is not None:
+        stmt = stmt.where(
+            AutoReviewCase.match_id == str(match_id)
+        )
+    stmt = stmt.order_by(
+        AutoReviewCase.created_at.desc()
+    )
+    if lock:
+        stmt = stmt.with_for_update()
+
+    item = db.scalar(stmt)
+    if item is None:
+        return None
+
+    claimed_by = str(
+        item.claimed_by_user_id or ""
+    )
+    expires = _aware_claim_time(
+        item.claim_expires_at
+    )
+    now = utcnow()
+
+    if not claimed_by or expires is None or expires <= now:
+        return item
+
+    remaining = int(
+        (expires - now).total_seconds()
+    ) + 2
+
+    raise ActiveReviewClaim(
+        review_id=item.id,
+        actor_user_id=claimed_by,
+        delay_seconds=max(5, remaining),
+    )
 
 
 def _metric_value(metric: str, match: Match, participant: MatchParticipant) -> float | None:
@@ -363,6 +454,16 @@ def evaluate_board(
     *,
     option_ids: set[str] | None = None,
 ) -> int:
+    # Review row first, then Board, then BoardOption. This matches the
+    # moderator path and prevents provider refresh from settling a review
+    # underneath an active Telegram/Admin draft.
+    guard_active_review_claim(
+        db,
+        board_id=board_id,
+        match_id=match_id,
+        lock=True,
+    )
+
     board = db.scalar(
         select(ContractBoard)
         .where(ContractBoard.id == board_id)

@@ -32,7 +32,12 @@ from .models import (
     User,
 )
 from .services.boards import expire_stale_boards
-from .services.evaluator import capability_available, evaluate_board
+from .services.evaluator import (
+    ActiveReviewClaim,
+    capability_available,
+    evaluate_board,
+    guard_active_review_claim,
+)
 from .services.gep_settlement import (
     GEP_INTEGRITY_CLIENT_ATTESTED,
     GEP_SETTLEMENT_SOURCE,
@@ -1858,6 +1863,12 @@ def _mark_board_verifying_for_facts(
     *,
     option_ids: set[str] | None = None,
 ) -> None:
+    guard_active_review_claim(
+        db,
+        board_id=board.id,
+        lock=True,
+    )
+
     labels = {
         "participant": "состав матча",
         "summary.result": "результат матча",
@@ -2003,6 +2014,13 @@ def _queue_repair_evaluation(
     board: ContractBoard,
     match: Match,
 ) -> None:
+    guard_active_review_claim(
+        db,
+        board_id=board.id,
+        match_id=match.id,
+        lock=True,
+    )
+
     options = list(
         db.scalars(
             select(BoardOption).where(
@@ -3527,6 +3545,19 @@ def run() -> None:
                 except ProviderRateLimited as exc:
                     retry_job(db, job, exc, max(exc.retry_after, 30))
                     log.warning("Provider rate limited; retry in %ss", exc.retry_after)
+                except ActiveReviewClaim as exc:
+                    retry_job(
+                        db,
+                        job,
+                        exc,
+                        exc.delay_seconds,
+                    )
+                    log.info(
+                        "Human review claim active for job %s; "
+                        "retry in %ss",
+                        job_id,
+                        exc.delay_seconds,
+                    )
                 except FinalFactsPending as exc:
                     retry_job(db, job, exc, exc.delay_seconds)
                     log.info("Final provider facts pending for job %s; retry in %ss", job_id, exc.delay_seconds)
