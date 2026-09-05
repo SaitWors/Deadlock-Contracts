@@ -37,6 +37,33 @@ button:disabled { cursor: not-allowed; opacity: .44; }
 
 .system-bar { position: absolute; z-index: 30; top: 62px; left: 0; right: 0; min-height: 36px; padding: 0 18px; display: flex; align-items: center; gap: 12px; border-bottom: 1px solid var(--warning); background: #2b2116; font-size: 11px; }
 .system-bar b { color: var(--warning); font: 800 11px/1 var(--font-display); letter-spacing: .13em; }
+.desktop-announcements { position: absolute; z-index: 48; top: 72px; right: 14px; width: min(560px, calc(100% - 248px)); display: grid; gap: 7px; pointer-events: none; }
+.desktop-announcement-slot { pointer-events: auto; }
+.desktop-announcement { --announcement-accent: #75a9b8; position: relative; display: grid; grid-template-columns: 30px minmax(0,1fr) auto; gap: 10px; overflow: hidden; padding: 12px 13px; border: 1px solid color-mix(in srgb, var(--announcement-accent) 55%, var(--border-soft)); border-left: 3px solid var(--announcement-accent); border-radius: 3px; background: linear-gradient(115deg, rgba(13,24,19,.98), rgba(7,14,10,.98)); color: var(--text-primary); box-shadow: 0 12px 34px rgba(0,0,0,.38); pointer-events: auto; }
+.desktop-announcement.severity-success { --announcement-accent: var(--success); }
+.desktop-announcement.severity-warning,
+.desktop-announcement.severity-maintenance { --announcement-accent: var(--warning); }
+.desktop-announcement.severity-critical { --announcement-accent: var(--danger); }
+.desktop-announcement.severity-event { --announcement-accent: #aa8bc5; }
+.desktop-announcement-icon { display: grid; place-items: center; width: 28px; height: 28px; border: 1px solid color-mix(in srgb, var(--announcement-accent) 58%, transparent); color: var(--announcement-accent); font: 800 14px/1 var(--font-display); }
+.desktop-announcement-meta { display: flex; justify-content: space-between; gap: 12px; color: var(--announcement-accent); font: 800 10px/1 var(--font-display); letter-spacing: .11em; }
+.desktop-announcement-meta time { color: var(--text-muted); }
+.desktop-announcement h2 { margin: 5px 0 3px; font: 800 18px/1.05 var(--font-display); text-transform: uppercase; }
+.desktop-announcement p { margin: 0; color: var(--text-secondary); font-size: 11px; line-height: 1.45; white-space: pre-line; overflow-wrap: anywhere; }
+.desktop-announcement-actions { display: flex; gap: 7px; margin-top: 8px; }
+.desktop-announcement-actions:empty { display: none; }
+.desktop-announcement-actions button { min-height: 28px; padding: 0 9px; border: 1px solid var(--announcement-accent); background: rgba(17,32,23,.92); color: var(--text-primary); font: 800 10px/1 var(--font-display); cursor: pointer; }
+.desktop-announcement-close { align-self: start; width: 27px; height: 27px; border: 0; background: transparent; color: var(--text-muted); font-size: 20px; cursor: pointer; }
+.desktop-announcement-modal-backdrop { position: fixed; z-index: 60; inset: 62px 0 0; display: grid; place-items: center; padding: 22px; background: rgba(2,6,4,.76); pointer-events: auto; }
+.desktop-announcement-modal-backdrop .desktop-announcement { width: min(600px,100%); padding: 18px; }
+@keyframes desktop-announcement-enter { from { opacity: 0; transform: translateY(-6px); } to { opacity: 1; transform: none; } }
+@keyframes desktop-announcement-stamp { from { opacity: 0; transform: scale(1.025); } to { opacity: 1; transform: none; } }
+@keyframes desktop-announcement-glow { 50% { box-shadow: 0 10px 38px color-mix(in srgb, var(--announcement-accent) 22%, transparent); } }
+.desktop-announcement.effect-fade_slide { animation: desktop-announcement-enter .22s ease-out both; }
+.desktop-announcement.effect-stamp_in { animation: desktop-announcement-stamp .33s ease-out both; }
+.desktop-announcement.effect-soft_glow { animation: desktop-announcement-glow .6s ease-in-out 2; }
+.desktop-announcement.effect-scanline_once::after { content: ""; position: absolute; inset: 0; background: linear-gradient(90deg,transparent 30%,rgba(255,255,255,.06) 50%,transparent 70%); transform: translateX(110%); animation: desktop-announcement-scan .65s ease-out both; pointer-events: none; }
+@keyframes desktop-announcement-scan { from { transform: translateX(-110%); } to { transform: translateX(110%); } }
 .app-body { height: calc(100% - 62px); position: relative; z-index: 2; display: grid; grid-template-columns: 220px minmax(0,1fr); }
 .sidebar { min-height: 0; padding: 18px 12px 14px; display: flex; flex-direction: column; border-right: 1px solid var(--border-soft); background: linear-gradient(180deg, rgba(14,21,18,.98), rgba(5,7,14,.98)); }
 .side-nav { display: flex; flex-direction: column; gap: 3px; }

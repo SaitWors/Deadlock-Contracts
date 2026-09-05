@@ -56,7 +56,7 @@ const STORAGE = Object.freeze({
   queueLegacy: 'dc.queue.v2',
   lifecycleSecure: 'dc.lifecycle.v3.secure',
   gepSettlementSecure: 'dc.gep.settlement.v1.secure',
-  product: 'dc.product.v3',
+  product: 'dc.product.v4',
   overlayScale: 'dc.overlay.scale.v2',
   overlayAutoHide: 'dc.overlay.autohide.v2',
   overlayPosition: 'dc.overlay.position.v3',
@@ -2008,6 +2008,11 @@ function buildOverlayDto() {
   const session = lifecycle.currentSession()
   const active = Product.activeCaseFor(state.product, state.mode.value)
   const selected = Product.selectedContracts(active)
+  const announcement = Product.activeAnnouncements(state.product?.overlay_announcements, {
+    now: Product.serverNowMs(state.product),
+    overlay: true,
+    limit: 1,
+  })[0] || null
 
   const candidates = []
   for (const option of selected) {
@@ -2061,6 +2066,7 @@ function buildOverlayDto() {
     match_clock_s: state.matchClockS,
     hotkey: state.hotkeyBinding,
     auto: overlayAutoHideMs(),
+    announcement: announcement ? [announcement.id, announcement.revision] : null,
   })
   if (signature !== overlayLastSignature) {
     overlayLastSignature = signature
@@ -2113,6 +2119,7 @@ function buildOverlayDto() {
       assigned: !!state.hotkeyBinding && state.hotkeyBinding !== 'UNASSIGNED',
     },
     auto_hide_ms: overlayAutoHideMs(),
+    announcement: clone(announcement),
   }
 
   try {

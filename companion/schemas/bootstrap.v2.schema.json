@@ -21,9 +21,53 @@
       "required": ["items"],
       "properties": {"items": {"type": "array"}},
       "additionalProperties": true
+    },
+    "announcements": {
+      "type": "array",
+      "maxItems": 5,
+      "items": {"$ref": "#/$defs/announcement"}
+    },
+    "overlay_announcements": {
+      "type": "array",
+      "maxItems": 5,
+      "items": {"$ref": "#/$defs/announcement"}
     }
   },
   "$defs": {
+    "announcement": {
+      "type": "object",
+      "required": ["id", "revision", "severity", "presentation", "effect", "dismiss_policy", "priority", "title", "body", "starts_at", "ends_at"],
+      "properties": {
+        "id": {"type": "string", "minLength": 1, "maxLength": 64},
+        "revision": {"type": "integer", "minimum": 1},
+        "phase": {"const": "ACTIVE"},
+        "severity": {"enum": ["INFO", "SUCCESS", "WARNING", "MAINTENANCE", "CRITICAL", "EVENT"]},
+        "presentation": {"enum": ["BANNER", "TOAST", "MODAL"]},
+        "effect": {"enum": ["NONE", "FADE_SLIDE", "STAMP_IN", "SOFT_GLOW", "SCANLINE_ONCE", "CONFETTI_ONCE"]},
+        "dismiss_policy": {"enum": ["DISMISSIBLE", "ACK_REQUIRED", "NON_DISMISSIBLE"]},
+        "priority": {"type": "integer", "minimum": 0, "maximum": 100},
+        "title": {"type": "string", "minLength": 1, "maxLength": 160},
+        "body": {"type": "string", "minLength": 1, "maxLength": 2000},
+        "cta": {
+          "oneOf": [
+            {"type": "null"},
+            {
+              "type": "object",
+              "required": ["label", "url"],
+              "properties": {
+                "label": {"type": "string", "minLength": 1, "maxLength": 64},
+                "url": {"type": "string", "minLength": 1, "maxLength": 500}
+              },
+              "additionalProperties": false
+            }
+          ]
+        },
+        "starts_at": {"type": "string", "minLength": 1},
+        "ends_at": {"type": "string", "minLength": 1},
+        "show_countdown": {"type": "boolean"}
+      },
+      "additionalProperties": false
+    },
     "condition": {
       "type": "object",
       "required": ["metric", "operator", "target"],

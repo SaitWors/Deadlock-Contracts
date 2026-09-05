@@ -3,6 +3,7 @@ import logoImage from "@/imports/logo-horizontal.svg"
 import markImage from "@/imports/mark.svg"
 import curatorImage from "@/imports/curator-optimized.webp"
 import ProfileStudio from "./ProfileStudio"
+import AnnouncementCenter from "./admin/AnnouncementCenter"
 import ReviewDesk from "./admin/ReviewDesk"
 import type { AdminReview } from "./admin/admin-types"
 import {
@@ -568,6 +569,7 @@ type AdminSection =
   | "overview"
   | "users"
   | "reviews"
+  | "announcements"
   | "matches"
   | "boards"
   | "companions"
@@ -582,6 +584,7 @@ const ADMIN_SECTION_PERMISSIONS: Record<AdminSection, string> = {
   overview: "admin.overview.read",
   users: "users.read",
   reviews: "reviews.read",
+  announcements: "announcements.read",
   matches: "matches.read",
   boards: "boards.read",
   companions: "companions.read",
@@ -597,6 +600,7 @@ const ADMIN_SECTION_ORDER: Array<[AdminSection, string]> = [
   ["overview", "Обзор"],
   ["users", "Игроки"],
   ["reviews", "Проверки"],
+  ["announcements", "Уведомления"],
   ["matches", "Матчи"],
   ["boards", "Дела"],
   ["companions", "Companion"],
@@ -2831,7 +2835,11 @@ function AdminConsole({
   const [auth, setAuth] = useState<AdminAuthStatus | null>(null)
   const [code, setCode] = useState("")
   const [section, setSection] = useState<AdminSection>(() =>
-    window.location.pathname.startsWith("/admin/reviews") ? "reviews" : "overview",
+    window.location.pathname.startsWith("/admin/announcements")
+      ? "announcements"
+      : window.location.pathname.startsWith("/admin/reviews")
+        ? "reviews"
+        : "overview",
   )
   const [overview, setOverview] = useState<AdminOverview | null>(null)
   const [users, setUsers] = useState<AdminUserSummary[]>([])
@@ -4012,6 +4020,15 @@ function AdminConsole({
           currentUserId={auth.admin.id}
           canForceClaim={["OWNER", "ADMIN"].includes(auth.admin.access_role)}
           reloadAll={reloadAll}
+          setError={setError}
+          setNotice={setNotice}
+        />
+      )}
+
+      {section === "announcements" && (
+        <AnnouncementCenter
+          csrf={csrf}
+          permissions={auth.permissions}
           setError={setError}
           setNotice={setNotice}
         />

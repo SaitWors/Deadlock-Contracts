@@ -3,6 +3,8 @@ import Landing from "./Landing"
 import Dashboard from "./Dashboard"
 import PublicDossier from "./PublicDossier"
 import { apiLanguage, LanguageProvider, useLanguage } from "./i18n"
+import AnnouncementLayer from "./announcements/AnnouncementLayer"
+import { AnnouncementProvider, useAnnouncements } from "./announcements/AnnouncementProvider"
 
 type SessionPayload = {
   authenticated: boolean
@@ -43,6 +45,7 @@ type SessionPayload = {
 
 function SessionApp() {
   const { language, setServerDefault } = useLanguage()
+  const { configureSession, setSurface } = useAnnouncements()
   const [session, setSession] = useState<SessionPayload | null>(null)
   const [failed, setFailed] = useState(false)
   const [attempt, setAttempt] = useState(0)
@@ -87,6 +90,16 @@ function SessionApp() {
       controller.abort()
     }
   }, [attempt, setServerDefault])
+
+  useEffect(() => {
+    const authenticated = Boolean(session?.authenticated && session.user && session.csrf_token)
+    configureSession(
+      authenticated,
+      authenticated ? session?.csrf_token || null : null,
+      authenticated ? session?.user?.id || null : null,
+    )
+    setSurface(authenticated ? "SITE_DASHBOARD" : "SITE_PUBLIC")
+  }, [configureSession, session, setSurface])
 
   if (failed) {
     return (
@@ -167,7 +180,10 @@ function AppRoutes() {
 export default function App() {
   return (
     <LanguageProvider>
-      <AppRoutes />
+      <AnnouncementProvider>
+        <AnnouncementLayer />
+        <AppRoutes />
+      </AnnouncementProvider>
     </LanguageProvider>
   )
 }

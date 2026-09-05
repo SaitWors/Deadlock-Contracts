@@ -160,6 +160,46 @@ footer b { flex: 0 0 auto; padding: 4px 7px; border: 1px solid rgba(161,140,103,
   gap: 10px;
   min-width: 0;
 }
+
+/* System announcements never open the overlay; this compact banner is only
+   rendered when the player opens an already-visible overlay. */
+.overlay-announcement {
+  --announcement-accent: #75a9b8;
+  position: absolute;
+  z-index: 12;
+  top: 6px;
+  left: 6px;
+  right: 6px;
+  min-width: 0;
+  min-height: 43px;
+  display: grid;
+  grid-template-columns: auto minmax(0,1fr);
+  align-items: center;
+  gap: 8px;
+  padding: 7px 9px;
+  overflow: hidden;
+  border: 1px solid color-mix(in srgb, var(--announcement-accent) 55%, rgba(161,140,103,.42));
+  border-left: 3px solid var(--announcement-accent);
+  border-radius: 9px;
+  background: rgba(7,14,11,.97);
+  box-shadow: 0 7px 18px rgba(0,0,0,.3);
+  pointer-events: none;
+}
+.overlay-announcement.severity-success { --announcement-accent: var(--success); }
+.overlay-announcement.severity-warning,
+.overlay-announcement.severity-maintenance { --announcement-accent: var(--warning); }
+.overlay-announcement.severity-critical { --announcement-accent: var(--danger); }
+.overlay-announcement.severity-event { --announcement-accent: #aa8bc5; }
+.overlay-announcement > span { color: var(--announcement-accent); font: 800 8px/1 var(--font-display); letter-spacing: .09em; }
+.overlay-announcement > div { min-width: 0; }
+.overlay-announcement b,
+.overlay-announcement p { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.overlay-announcement b { color: var(--text-primary); font: 800 11px/1.1 var(--font-display); }
+.overlay-announcement p { margin: 3px 0 0; color: var(--text-muted); font-size: 8px; line-height: 1.1; }
+.overlay-shell.has-announcement > section { padding-top: 56px; }
+.overlay-announcement.effect-soft-glow { animation: overlay-announcement-glow .6s ease-in-out 2; }
+@keyframes overlay-announcement-glow { 50% { box-shadow: 0 0 22px color-mix(in srgb, var(--announcement-accent) 22%, transparent); } }
+@media (prefers-reduced-motion: reduce) { .overlay-announcement { animation: none !important; } }
 .overlay-stats-head b {
   overflow: hidden;
   color: #f0e8d4;

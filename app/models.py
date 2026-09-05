@@ -756,6 +756,144 @@ class ModerationDecisionDraft(Base):
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
 
 
+class SystemAnnouncement(Base):
+    """Immutable-after-publication system message managed by staff."""
+
+    __tablename__ = "system_announcements"
+    __table_args__ = (
+        Index(
+            "ix_system_announcements_public_window",
+            "status",
+            "starts_at",
+            "ends_at",
+            "priority",
+        ),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uuid4)
+    status: Mapped[str] = mapped_column(String(24), default="DRAFT", index=True)
+    severity: Mapped[str] = mapped_column(String(24), index=True)
+    presentation: Mapped[str] = mapped_column(String(24))
+    effect: Mapped[str] = mapped_column(String(32), default="NONE")
+    dismiss_policy: Mapped[str] = mapped_column(
+        String(24),
+        default="DISMISSIBLE",
+    )
+
+    title_ru: Mapped[str] = mapped_column(String(160))
+    body_ru: Mapped[str] = mapped_column(Text)
+    title_en: Mapped[str | None] = mapped_column(String(160), nullable=True)
+    body_en: Mapped[str | None] = mapped_column(Text, nullable=True)
+    cta_label_ru: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    cta_label_en: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    cta_url: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+    surfaces: Mapped[list[str]] = mapped_column(JSON, default=list)
+    audiences: Mapped[list[str]] = mapped_column(JSON, default=list)
+    priority: Mapped[int] = mapped_column(Integer, default=50, index=True)
+    show_countdown: Mapped[bool] = mapped_column(Boolean, default=False)
+
+    starts_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+        index=True,
+    )
+    ends_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+        index=True,
+    )
+
+    revision: Mapped[int] = mapped_column(Integer, default=1)
+    supersedes_id: Mapped[str | None] = mapped_column(
+        ForeignKey("system_announcements.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
+
+    created_by_user_id: Mapped[str] = mapped_column(
+        ForeignKey("users.id", ondelete="RESTRICT"),
+        index=True,
+    )
+    updated_by_user_id: Mapped[str] = mapped_column(
+        ForeignKey("users.id", ondelete="RESTRICT"),
+        index=True,
+    )
+    published_by_user_id: Mapped[str | None] = mapped_column(
+        ForeignKey("users.id", ondelete="RESTRICT"),
+        nullable=True,
+    )
+    cancelled_by_user_id: Mapped[str | None] = mapped_column(
+        ForeignKey("users.id", ondelete="RESTRICT"),
+        nullable=True,
+    )
+
+    published_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+    )
+    cancelled_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+    )
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=utcnow,
+        onupdate=utcnow,
+    )
+
+
+class SystemAnnouncementReceipt(Base):
+    """Per-user state for one published announcement revision and surface."""
+
+    __tablename__ = "system_announcement_receipts"
+    __table_args__ = (
+        UniqueConstraint(
+            "announcement_id",
+            "revision",
+            "user_id",
+            "surface",
+            name="uq_announcement_receipt_subject",
+        ),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uuid4)
+    announcement_id: Mapped[str] = mapped_column(
+        ForeignKey("system_announcements.id", ondelete="CASCADE"),
+        index=True,
+    )
+    revision: Mapped[int] = mapped_column(Integer)
+    user_id: Mapped[str] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"),
+        index=True,
+    )
+    surface: Mapped[str] = mapped_column(String(32))
+    first_seen_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+    )
+    last_seen_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+    )
+    dismissed_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+    )
+    acknowledged_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+    )
+    impression_count: Mapped[int] = mapped_column(Integer, default=0)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=utcnow,
+        onupdate=utcnow,
+    )
+
+
 class AuditLog(Base):
     __tablename__ = "audit_logs"
 

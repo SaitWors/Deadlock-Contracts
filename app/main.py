@@ -47,6 +47,7 @@ from .models import (
     PublicProfile,
     RewardLedgerEntry,
     SessionToken,
+    SystemAnnouncement,
     User,
     OutboxEvent,
 )
@@ -110,6 +111,23 @@ from .services.telegram_webhook import (
     TelegramWebhookError,
     process_update as process_telegram_update,
     verify_webhook_secret as verify_telegram_webhook_secret,
+)
+from .services.announcements import (
+    AnnouncementError,
+    active_announcements,
+    announcement_metrics,
+    cancel as cancel_announcement,
+    change_end_time as change_announcement_end_time,
+    create_draft as create_announcement_draft,
+    duplicate_draft as duplicate_announcement_draft,
+    list_admin_announcements,
+    publish as publish_announcement,
+    record_receipt as record_announcement_receipt,
+    replace as replace_announcement,
+    serialize_admin_announcement,
+    serialize_announcement,
+    serialize_receipt as serialize_announcement_receipt,
+    update_draft as update_announcement_draft,
 )
 
 log = logging.getLogger(__name__)
@@ -176,6 +194,86 @@ class AdminJobRetryRequest(StrictModel):
 
 class AdminOutboxReplayRequest(StrictModel):
     reason: str = Field(min_length=3, max_length=300)
+
+
+class AdminAnnouncementDraftRequest(StrictModel):
+    expected_revision: int | None = Field(default=None, ge=1)
+    severity: Literal[
+        "INFO", "SUCCESS", "WARNING", "MAINTENANCE", "CRITICAL", "EVENT"
+    ]
+    presentation: Literal["BANNER", "TOAST", "MODAL"]
+    effect: Literal[
+        "NONE",
+        "FADE_SLIDE",
+        "STAMP_IN",
+        "SOFT_GLOW",
+        "SCANLINE_ONCE",
+        "CONFETTI_ONCE",
+    ] = "NONE"
+    dismiss_policy: Literal[
+        "DISMISSIBLE", "ACK_REQUIRED", "NON_DISMISSIBLE"
+    ] = "DISMISSIBLE"
+    title_ru: str = Field(min_length=3, max_length=160)
+    body_ru: str = Field(min_length=3, max_length=2000)
+    title_en: str | None = Field(default=None, max_length=160)
+    body_en: str | None = Field(default=None, max_length=2000)
+    cta_label_ru: str | None = Field(default=None, max_length=64)
+    cta_label_en: str | None = Field(default=None, max_length=64)
+    cta_url: str | None = Field(default=None, max_length=500)
+    surfaces: list[
+        Literal[
+            "SITE_PUBLIC",
+            "SITE_DASHBOARD",
+            "COMPANION_DESKTOP",
+            "COMPANION_OVERLAY",
+        ]
+    ] = Field(min_length=1, max_length=4)
+    audiences: list[
+        Literal[
+            "ALL", "ANONYMOUS", "AUTHENTICATED", "PLAYERS", "TESTERS", "STAFF"
+        ]
+    ] = Field(min_length=1, max_length=6)
+    priority: int = Field(default=50, ge=0, le=100)
+    show_countdown: bool = False
+
+
+class AdminAnnouncementPublishRequest(StrictModel):
+    expected_revision: int = Field(ge=1)
+    starts_at: datetime
+    ends_at: datetime
+    reason: str = Field(min_length=3, max_length=300)
+    confirm_text: Literal["PUBLISH"]
+
+
+class AdminAnnouncementCancelRequest(StrictModel):
+    expected_revision: int = Field(ge=1)
+    reason: str = Field(min_length=3, max_length=300)
+
+
+class AdminAnnouncementReplaceRequest(AdminAnnouncementPublishRequest):
+    replacement_id: UUID
+    replacement_expected_revision: int = Field(ge=1)
+
+
+class AdminAnnouncementEndTimeRequest(StrictModel):
+    expected_revision: int = Field(ge=1)
+    ends_at: datetime
+    reason: str = Field(min_length=3, max_length=300)
+
+
+class AdminAnnouncementPreviewRequest(StrictModel):
+    locale: Literal["ru", "en"] = "ru"
+
+
+class AnnouncementReceiptRequest(StrictModel):
+    revision: int = Field(ge=1)
+    surface: Literal[
+        "SITE_PUBLIC",
+        "SITE_DASHBOARD",
+        "COMPANION_DESKTOP",
+        "COMPANION_OVERLAY",
+    ]
+    action: Literal["SEEN", "DISMISSED", "ACKNOWLEDGED"]
 
 
 class AdminIdentityUpdateRequest(StrictModel):
@@ -820,6 +918,73 @@ def me(request: Request, user: User | None = Depends(current_user_optional)) -> 
     }
 
 
+def _raise_announcement_error(exc: AnnouncementError) -> None:
+    raise HTTPException(
+        status_code=exc.status_code,
+        detail=exc.response_detail(),
+    ) from exc
+
+
+@app.get("/api/announcements/active")
+def public_active_announcements(
+    request: Request,
+    response: Response,
+    surface: Literal["SITE_PUBLIC", "SITE_DASHBOARD"] = "SITE_PUBLIC",
+    user: User | None = Depends(current_user_optional),
+    db: Session = Depends(get_db),
+) -> dict:
+    response.headers["Cache-Control"] = "no-store"
+    response.headers["Vary"] = "Cookie, Accept-Language"
+    now = datetime.now(timezone.utc)
+    accept_language = request.headers.get("accept-language")
+    locale = (
+        request_language(accept_language)
+        if accept_language
+        else (user.locale if user else "ru")
+    )
+    try:
+        items = active_announcements(
+            db,
+            user=user,
+            surface=surface,
+            locale=locale,
+            now=now,
+            effective_role=_effective_access_role(user) if user else None,
+        )
+    except AnnouncementError as exc:
+        _raise_announcement_error(exc)
+    return {
+        "server_time": now.isoformat(),
+        "poll_after_seconds": settings.announcements_poll_seconds,
+        "items": items,
+    }
+
+
+@app.post(
+    "/api/announcements/{announcement_id}/receipt",
+    dependencies=[Depends(require_csrf)],
+)
+def public_announcement_receipt(
+    announcement_id: UUID,
+    payload: AnnouncementReceiptRequest,
+    user: User = Depends(require_user),
+    db: Session = Depends(get_db),
+) -> dict:
+    try:
+        receipt = record_announcement_receipt(
+            db,
+            user=user,
+            announcement_id=str(announcement_id),
+            revision=payload.revision,
+            surface=payload.surface,
+            action=payload.action,
+            effective_role=_effective_access_role(user),
+        )
+    except AnnouncementError as exc:
+        _raise_announcement_error(exc)
+    return {"ok": True, "receipt": serialize_announcement_receipt(receipt)}
+
+
 def _provider_status(db: Session, board_id: str) -> dict | None:
     board = db.get(ContractBoard, board_id)
 
@@ -1408,6 +1573,7 @@ def _history_cases(
 
 
 def _desktop_bootstrap_payload(db: Session, owner: User, device: CompanionDevice, history_limit: int = 60) -> dict[str, Any]:
+    now = datetime.now(timezone.utc)
     board_models = ensure_daily_boards(db, owner)
     boards = []
     for model in board_models:
@@ -1438,11 +1604,11 @@ def _desktop_bootstrap_payload(db: Session, owner: User, device: CompanionDevice
     desktop_features = ["adaptive_profiles_v1", "debrief_v1"]
     if settings.companion_ads_enabled:
         desktop_features.append("desktop_ads_v1")
-    return {
+    payload = {
         "api_version": DESKTOP_API_VERSION,
         "schema_version": DESKTOP_SCHEMA_VERSION,
         "desktop_features": desktop_features,
-        "server_time": datetime.now(timezone.utc).isoformat(),
+        "server_time": now.isoformat(),
         "account": account,
         "device": serialize_device(device),
         "refresh": refresh_summary(db, owner.id),
@@ -1464,6 +1630,28 @@ def _desktop_bootstrap_payload(db: Session, owner: User, device: CompanionDevice
             "minimum_companion_version": settings.companion_minimum_version or None,
         },
     }
+    if (
+        settings.announcements_enabled
+        and settings.announcements_companion_enabled
+    ):
+        desktop_features.append("announcements_v1")
+        payload["announcements"] = active_announcements(
+            db,
+            user=owner,
+            surface="COMPANION_DESKTOP",
+            locale=owner.locale,
+            now=now,
+            effective_role=_effective_access_role(owner),
+        )
+        payload["overlay_announcements"] = active_announcements(
+            db,
+            user=owner,
+            surface="COMPANION_OVERLAY",
+            locale=owner.locale,
+            now=now,
+            effective_role=_effective_access_role(owner),
+        )
+    return payload
 
 
 @app.post("/api/companion/pairing/start", dependencies=[Depends(require_csrf)])
@@ -2620,6 +2808,262 @@ def admin_telegram_binding_delete(
     return {"ok": True, "revoked": revoked, "status": telegram_binding_status(db, user_id=admin.id)}
 
 
+@app.get("/api/admin/announcements")
+def admin_announcements(
+    phase: str = "ALL",
+    severity: str = "ALL",
+    surface: str = "ALL",
+    author: str = "",
+    query: str = "",
+    offset: int = 0,
+    limit: int = 100,
+    admin: User = Depends(_require_permission("announcements.read")),
+    db: Session = Depends(get_db),
+) -> dict:
+    del admin
+    try:
+        result = list_admin_announcements(
+            db,
+            phase=phase,
+            severity=severity,
+            surface=surface,
+            author=author,
+            query=query,
+            offset=offset,
+            limit=limit,
+        )
+    except AnnouncementError as exc:
+        _raise_announcement_error(exc)
+    result["feature_flags"] = {
+        "enabled": settings.announcements_enabled,
+        "site": settings.announcements_site_enabled,
+        "companion": settings.announcements_companion_enabled,
+        "telegram_mirror": settings.announcements_telegram_mirror_enabled,
+    }
+    return result
+
+
+@app.get("/api/admin/announcements/{announcement_id}")
+def admin_announcement_detail(
+    announcement_id: UUID,
+    admin: User = Depends(_require_permission("announcements.read")),
+    db: Session = Depends(get_db),
+) -> dict:
+    del admin
+    item = db.get(SystemAnnouncement, str(announcement_id))
+    if item is None:
+        raise HTTPException(404, "Объявление не найдено")
+    return {"item": serialize_admin_announcement(db, item)}
+
+
+@app.post(
+    "/api/admin/announcements",
+    dependencies=[Depends(require_csrf)],
+)
+def admin_announcement_create(
+    payload: AdminAnnouncementDraftRequest,
+    admin: User = Depends(_require_permission("announcements.drafts.manage")),
+    db: Session = Depends(get_db),
+) -> dict:
+    try:
+        item = create_announcement_draft(
+            db,
+            actor=admin,
+            payload=payload.model_dump(exclude={"expected_revision"}),
+        )
+    except AnnouncementError as exc:
+        _raise_announcement_error(exc)
+    return {"ok": True, "item": serialize_admin_announcement(db, item)}
+
+
+@app.patch(
+    "/api/admin/announcements/{announcement_id}",
+    dependencies=[Depends(require_csrf)],
+)
+def admin_announcement_update(
+    announcement_id: UUID,
+    payload: AdminAnnouncementDraftRequest,
+    admin: User = Depends(_require_permission("announcements.drafts.manage")),
+    db: Session = Depends(get_db),
+) -> dict:
+    if payload.expected_revision is None:
+        raise HTTPException(
+            422,
+            {
+                "code": "ANNOUNCEMENT_REVISION_REQUIRED",
+                "message": "expected_revision обязателен для изменения",
+            },
+        )
+    try:
+        item = update_announcement_draft(
+            db,
+            actor=admin,
+            announcement_id=str(announcement_id),
+            expected_revision=payload.expected_revision,
+            payload=payload.model_dump(exclude={"expected_revision"}),
+        )
+    except AnnouncementError as exc:
+        _raise_announcement_error(exc)
+    return {"ok": True, "item": serialize_admin_announcement(db, item)}
+
+
+@app.post(
+    "/api/admin/announcements/{announcement_id}/preview",
+    dependencies=[Depends(require_csrf)],
+)
+def admin_announcement_preview(
+    announcement_id: UUID,
+    payload: AdminAnnouncementPreviewRequest,
+    admin: User = Depends(_require_permission("announcements.drafts.manage")),
+    db: Session = Depends(get_db),
+) -> dict:
+    del admin
+    item = db.get(SystemAnnouncement, str(announcement_id))
+    if item is None:
+        raise HTTPException(404, "Объявление не найдено")
+    return {
+        "item": serialize_announcement(item, locale=payload.locale),
+        "surfaces": list(item.surfaces or []),
+        "audiences": list(item.audiences or []),
+    }
+
+
+@app.post(
+    "/api/admin/announcements/{announcement_id}/publish",
+    dependencies=[Depends(require_csrf)],
+)
+def admin_announcement_publish(
+    announcement_id: UUID,
+    payload: AdminAnnouncementPublishRequest,
+    admin: User = Depends(_require_permission("announcements.publish")),
+    db: Session = Depends(get_db),
+) -> dict:
+    try:
+        item = publish_announcement(
+            db,
+            actor=admin,
+            announcement_id=str(announcement_id),
+            expected_revision=payload.expected_revision,
+            starts_at=payload.starts_at,
+            ends_at=payload.ends_at,
+            reason=payload.reason,
+        )
+    except AnnouncementError as exc:
+        _raise_announcement_error(exc)
+    return {"ok": True, "item": serialize_admin_announcement(db, item)}
+
+
+@app.post(
+    "/api/admin/announcements/{announcement_id}/cancel",
+    dependencies=[Depends(require_csrf)],
+)
+def admin_announcement_cancel(
+    announcement_id: UUID,
+    payload: AdminAnnouncementCancelRequest,
+    admin: User = Depends(_require_permission("announcements.cancel")),
+    db: Session = Depends(get_db),
+) -> dict:
+    try:
+        item = cancel_announcement(
+            db,
+            actor=admin,
+            announcement_id=str(announcement_id),
+            expected_revision=payload.expected_revision,
+            reason=payload.reason,
+        )
+    except AnnouncementError as exc:
+        _raise_announcement_error(exc)
+    return {"ok": True, "item": serialize_admin_announcement(db, item)}
+
+
+@app.post(
+    "/api/admin/announcements/{announcement_id}/duplicate",
+    dependencies=[Depends(require_csrf)],
+)
+def admin_announcement_duplicate(
+    announcement_id: UUID,
+    admin: User = Depends(_require_permission("announcements.drafts.manage")),
+    db: Session = Depends(get_db),
+) -> dict:
+    try:
+        item = duplicate_announcement_draft(
+            db,
+            actor=admin,
+            announcement_id=str(announcement_id),
+        )
+    except AnnouncementError as exc:
+        _raise_announcement_error(exc)
+    return {"ok": True, "item": serialize_admin_announcement(db, item)}
+
+
+@app.post(
+    "/api/admin/announcements/{announcement_id}/replace",
+    dependencies=[Depends(require_csrf)],
+)
+def admin_announcement_replace(
+    announcement_id: UUID,
+    payload: AdminAnnouncementReplaceRequest,
+    admin: User = Depends(_require_permission("announcements.publish")),
+    db: Session = Depends(get_db),
+) -> dict:
+    try:
+        previous, replacement = replace_announcement(
+            db,
+            actor=admin,
+            announcement_id=str(announcement_id),
+            expected_revision=payload.expected_revision,
+            replacement_id=str(payload.replacement_id),
+            replacement_expected_revision=payload.replacement_expected_revision,
+            starts_at=payload.starts_at,
+            ends_at=payload.ends_at,
+            reason=payload.reason,
+        )
+    except AnnouncementError as exc:
+        _raise_announcement_error(exc)
+    return {
+        "ok": True,
+        "previous": serialize_admin_announcement(db, previous),
+        "replacement": serialize_admin_announcement(db, replacement),
+    }
+
+
+@app.post(
+    "/api/admin/announcements/{announcement_id}/end-time",
+    dependencies=[Depends(require_csrf)],
+)
+def admin_announcement_end_time(
+    announcement_id: UUID,
+    payload: AdminAnnouncementEndTimeRequest,
+    admin: User = Depends(_require_permission("announcements.cancel")),
+    db: Session = Depends(get_db),
+) -> dict:
+    try:
+        item = change_announcement_end_time(
+            db,
+            actor=admin,
+            announcement_id=str(announcement_id),
+            expected_revision=payload.expected_revision,
+            ends_at=payload.ends_at,
+            reason=payload.reason,
+        )
+    except AnnouncementError as exc:
+        _raise_announcement_error(exc)
+    return {"ok": True, "item": serialize_admin_announcement(db, item)}
+
+
+@app.get("/api/admin/announcements/{announcement_id}/metrics")
+def admin_announcement_metrics(
+    announcement_id: UUID,
+    admin: User = Depends(_require_permission("announcements.metrics.read")),
+    db: Session = Depends(get_db),
+) -> dict:
+    del admin
+    try:
+        return announcement_metrics(db, str(announcement_id))
+    except AnnouncementError as exc:
+        _raise_announcement_error(exc)
+
+
 @app.get("/api/admin/users")
 def admin_users(
     query: str = "",
@@ -3507,10 +3951,10 @@ def admin_system(admin: User = Depends(_require_admin), db: Session = Depends(ge
         "provider": {"name": settings.provider, "base_url": settings.deadlock_api_base_url, "force_refetch": settings.deadlock_force_refetch, "adapter_version": settings.adapter_version, "mode_classifier_version": settings.mode_classifier_version, "evaluator_version": settings.evaluator_version},
         "contracts": {"board_reset_hour_utc": settings.board_reset_hour_utc, "case_max_attempts": settings.case_max_attempts, "case_ttl_hours": settings.case_ttl_hours, "discovery_retry_seconds": settings.discovery_retry_seconds, "max_discovery_attempts": settings.max_discovery_attempts},
         "companion": {"online_seconds": settings.companion_online_seconds, "pairing_ttl_minutes": settings.companion_pairing_ttl_minutes, "event_retention_days": settings.companion_event_retention_days, "download_configured": bool(settings.companion_download_url), "ingest_enabled": settings.companion_ingest_enabled, "ads_enabled": settings.companion_ads_enabled},
-        "kill_switches": {"reward_settlement_enabled": settings.reward_settlement_enabled, "companion_ingest_enabled": settings.companion_ingest_enabled, "companion_ads_enabled": settings.companion_ads_enabled},
+        "kill_switches": {"reward_settlement_enabled": settings.reward_settlement_enabled, "companion_ingest_enabled": settings.companion_ingest_enabled, "companion_ads_enabled": settings.companion_ads_enabled, "announcements_enabled": settings.announcements_enabled, "announcements_site_enabled": settings.announcements_site_enabled, "announcements_companion_enabled": settings.announcements_companion_enabled, "announcements_telegram_mirror_enabled": settings.announcements_telegram_mirror_enabled},
         "security": {"totp_configured": bool(settings.admin_totp_secret), "owner_allowlist_count": len(settings.admin_steam_ids), "admin_session_ttl_minutes": settings.admin_session_ttl_minutes, "docs_enabled": settings.docs_enabled, "demo_auth": settings.allow_demo_auth, "dev_endpoints": settings.allow_dev_endpoints, "cookie_secure": settings.cookie_secure, "trusted_hosts": list(settings.trusted_hosts)},
         "limits": {"global_rate_limit_per_minute": settings.global_rate_limit_per_minute, "auth_rate_limit_per_10_minutes": settings.auth_rate_limit_per_10_minutes, "sync_rate_limit_per_hour": settings.sync_rate_limit_per_hour, "max_request_body_bytes": settings.max_request_body_bytes, "max_provider_response_bytes": settings.max_provider_response_bytes},
-        "counts": {"users": int(db.scalar(select(func.count()).select_from(User)) or 0), "missions": int(db.scalar(select(func.count()).select_from(MissionDefinition)) or 0), "matches": int(db.scalar(select(func.count()).select_from(Match)) or 0), "boards": int(db.scalar(select(func.count()).select_from(ContractBoard)) or 0), "jobs": int(db.scalar(select(func.count()).select_from(Job)) or 0), "audit": int(db.scalar(select(func.count()).select_from(AuditLog)) or 0)},
+        "counts": {"users": int(db.scalar(select(func.count()).select_from(User)) or 0), "missions": int(db.scalar(select(func.count()).select_from(MissionDefinition)) or 0), "matches": int(db.scalar(select(func.count()).select_from(Match)) or 0), "boards": int(db.scalar(select(func.count()).select_from(ContractBoard)) or 0), "jobs": int(db.scalar(select(func.count()).select_from(Job)) or 0), "audit": int(db.scalar(select(func.count()).select_from(AuditLog)) or 0), "announcements": int(db.scalar(select(func.count()).select_from(SystemAnnouncement)) or 0)},
         "outbox": _outbox_health(db, now),
         "server_time": now.isoformat(),
     }
