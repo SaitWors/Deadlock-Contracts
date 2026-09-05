@@ -65,6 +65,10 @@ from .services.telegram_moderation import (
     queue_review_telegram_event,
     send_review_notification,
 )
+from .services.telegram_announcements import (
+    TELEGRAM_ANNOUNCEMENT_EVENT_PREFIX,
+    send_announcement_notification,
+)
 
 logging.basicConfig(level=os.getenv("LOG_LEVEL", "INFO"), format="%(asctime)s %(levelname)s %(message)s")
 log = logging.getLogger("deadlock-contracts-worker")
@@ -3334,6 +3338,17 @@ def dispatch_outbox(db: Session) -> bool:
             )
         )
 
+    if not getattr(
+        settings,
+        "announcements_telegram_mirror_enabled",
+        False,
+    ):
+        filters.append(
+            ~OutboxEvent.event_type.startswith(
+                TELEGRAM_ANNOUNCEMENT_EVENT_PREFIX
+            )
+        )
+
     event = db.scalar(
         select(OutboxEvent)
         .where(*filters)
@@ -3377,6 +3392,20 @@ def dispatch_outbox(db: Session) -> bool:
                     )
         elif event.event_type.startswith(TELEGRAM_REVIEW_EVENT_PREFIX):
             result = send_review_notification(
+                event.event_type,
+                event.payload if isinstance(event.payload, dict) else {},
+            )
+            payload = (
+                dict(event.payload)
+                if isinstance(event.payload, dict)
+                else {}
+            )
+            payload["telegram_delivery"] = result.to_dict()
+            event.payload = payload
+        elif event.event_type.startswith(
+            TELEGRAM_ANNOUNCEMENT_EVENT_PREFIX
+        ):
+            result = send_announcement_notification(
                 event.event_type,
                 event.payload if isinstance(event.payload, dict) else {},
             )

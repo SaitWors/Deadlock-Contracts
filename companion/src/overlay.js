@@ -24,6 +24,21 @@
     return backgroundWindow?.dcCompanion || null
   }
   function setVisible(element, visible) { if (element) element.hidden = !visible }
+  function announcementDismissed(item) {
+    try { return Boolean(localStorage.getItem(`dc.announcement.dismissed.${item.id}.${item.revision}`)) } catch (_) { return false }
+  }
+  function renderOverlayAnnouncement(item) {
+    const container = $('overlayAnnouncement')
+    const visible = Boolean(item && item.presentation === 'BANNER' && !announcementDismissed(item))
+    setVisible(container, visible)
+    $('overlayShell')?.classList.toggle('has-announcement', visible)
+    if (!visible) return
+    container.className = `overlay-announcement severity-${String(item.severity || 'INFO').toLowerCase()} effect-${item.effect === 'SOFT_GLOW' ? 'soft-glow' : 'none'}`
+    container.setAttribute('role', ['WARNING','MAINTENANCE','CRITICAL'].includes(item.severity) ? 'alert' : 'status')
+    $('overlayAnnouncementSeverity').textContent = String(item.severity || 'INFO')
+    $('overlayAnnouncementTitle').textContent = String(item.title || '')
+    $('overlayAnnouncementBody').textContent = String(item.body || '')
+  }
   function number(value, digits = 1) {
     if (value === null || value === undefined || value === '') return '—'
     const n = Number(value)
@@ -138,6 +153,7 @@
       return
     }
     lastRevision = Number(dto.revision)
+    renderOverlayAnnouncement(dto.announcement)
     document.documentElement.lang = dto.language || language()
     const hotkey = dto.hotkey?.assigned ? dto.hotkey.binding : 'UNASSIGNED'
     $('overlayHotkey').textContent = String(hotkey || 'UNASSIGNED').toUpperCase()

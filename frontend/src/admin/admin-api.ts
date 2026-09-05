@@ -25,7 +25,16 @@ export async function adminApi<T>(url: string, csrf: string, init: RequestInit =
   })
   const data = await response.json().catch(() => ({ detail: `HTTP ${response.status}` }))
   if (!response.ok) {
-    throw new AdminApiError(data.detail || `HTTP ${response.status}`, response.status)
+    const detail = data?.detail
+    const message =
+      typeof detail === "string"
+        ? detail
+        : typeof detail?.message === "string"
+          ? detail.message
+          : typeof data?.message === "string"
+            ? data.message
+            : `HTTP ${response.status}`
+    throw new AdminApiError(message, response.status)
   }
   return data as T
 }

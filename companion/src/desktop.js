@@ -30,6 +30,8 @@
   let previewPromise = null
   let productSignature = ''
   let liveSignature = ''
+  let announcementSignature = ''
+  let announcementReturnFocus = null
   let modalResolve = null
   let modalReturnFocus = null
   function readSeenDebriefId() {
@@ -60,6 +62,116 @@
     return String(value ?? '').replace(/[&<>'"]/g, character => ({
       '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;',
     })[character])
+  }
+
+  function announcementDismissKey(item) {
+    return `dc.announcement.dismissed.${String(item?.id || '')}.${Number(item?.revision || 1)}`
+  }
+
+  function announcementDismissed(item) {
+    const stored = Storage?.readJson?.(announcementDismissKey(item), { schemaVersion: 1 })
+    return Boolean(stored?.ok && !stored.missing && stored.value)
+  }
+
+  function dismissAnnouncement(item) {
+    Storage?.writeJson?.(announcementDismissKey(item), new Date().toISOString(), { schemaVersion: 1 })
+    announcementSignature = ''
+    renderDesktopAnnouncements()
+  }
+
+  function announcementCountdown(item, now) {
+    if (!item.show_countdown) return ''
+    const remaining = Math.max(0, Date.parse(item.ends_at) - now)
+    const seconds = Math.floor(remaining / 1000)
+    const hours = Math.floor(seconds / 3600)
+    const minutes = Math.floor((seconds % 3600) / 60)
+    const tail = seconds % 60
+    return `${ui('REMAINING', 'ОСТАЛОСЬ')} ${[hours, minutes, tail].map(value => String(value).padStart(2, '0')).join(':')}`
+  }
+
+  function renderDesktopAnnouncements() {
+    const container = $('desktopAnnouncements')
+    if (!container) return
+    const product = snapshot.product || Product.emptyProductState()
+    const now = Product.serverNowMs(product)
+    const active = Product.activeAnnouncements(product.announcements, { now, limit: 5 })
+      .filter(item => !announcementDismissed(item))
+    const modal = active.find(item => item.presentation === 'MODAL')
+    const cards = active.filter(item => item.presentation !== 'MODAL').slice(0, 2)
+    const items = modal ? [...cards, modal] : cards
+    const signature = JSON.stringify(items.map(item => [item.id, item.revision, item.presentation, language()]))
+    if (signature === announcementSignature) {
+      for (const item of items) {
+        const countdown = container.querySelector(`[data-announcement-countdown="${item.id}"]`)
+        if (countdown) countdown.textContent = announcementCountdown(item, now)
+      }
+      return
+    }
+    const hadModal = Boolean(container.querySelector('.desktop-announcement-modal-backdrop'))
+    if (!hadModal && modal) {
+      announcementReturnFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null
+    }
+    const restoreFocus = hadModal && !modal ? announcementReturnFocus : null
+    announcementSignature = signature
+    container.replaceChildren()
+    container.hidden = !items.length
+    if (restoreFocus) {
+      restoreFocus.focus?.()
+      announcementReturnFocus = null
+    }
+    if (!items.length) return
+
+    for (const item of items) {
+      const wrapper = document.createElement('div')
+      wrapper.className = item.presentation === 'MODAL' ? 'desktop-announcement-modal-backdrop' : 'desktop-announcement-slot'
+      const card = document.createElement('article')
+      card.className = `desktop-announcement severity-${item.severity.toLowerCase()} effect-${item.effect.toLowerCase()} presentation-${item.presentation.toLowerCase()}`
+      card.dataset.announcement = `${item.id}:${item.revision}`
+      card.tabIndex = -1
+      card.setAttribute('role', item.presentation === 'MODAL' ? 'alertdialog' : ['WARNING','MAINTENANCE','CRITICAL'].includes(item.severity) ? 'alert' : 'status')
+      if (item.presentation === 'MODAL') {
+        card.setAttribute('aria-modal', 'true')
+        card.setAttribute('aria-label', item.title)
+      }
+
+      const icon = document.createElement('span')
+      icon.className = 'desktop-announcement-icon'
+      icon.setAttribute('aria-hidden', 'true')
+      icon.textContent = item.severity === 'SUCCESS' ? '✓' : item.severity === 'EVENT' ? '★' : item.severity === 'MAINTENANCE' ? '⚙' : item.severity === 'INFO' ? 'i' : '!'
+      const copy = document.createElement('div')
+      const meta = document.createElement('div')
+      meta.className = 'desktop-announcement-meta'
+      const kind = document.createElement('span'); kind.textContent = item.severity
+      const countdown = document.createElement('time'); countdown.dataset.announcementCountdown = item.id; countdown.dateTime = item.ends_at; countdown.textContent = announcementCountdown(item, now)
+      meta.append(kind, countdown)
+      const title = document.createElement('h2'); title.textContent = item.title
+      const body = document.createElement('p'); body.textContent = item.body
+      const actions = document.createElement('div'); actions.className = 'desktop-announcement-actions'
+      if (item.cta) {
+        const link = document.createElement('button')
+        link.type = 'button'; link.textContent = item.cta.label
+        link.addEventListener('click', () => openExternal(item.cta.url.startsWith('/') ? `${OFFICIAL_SITE}${item.cta.url}` : item.cta.url))
+        actions.appendChild(link)
+      }
+      if (item.dismiss_policy === 'ACK_REQUIRED') {
+        const acknowledge = document.createElement('button')
+        acknowledge.type = 'button'; acknowledge.textContent = ui('GOT IT', 'ПОНЯТНО')
+        acknowledge.addEventListener('click', () => dismissAnnouncement(item))
+        actions.appendChild(acknowledge)
+      }
+      copy.append(meta, title, body, actions)
+      card.append(icon, copy)
+      if (item.dismiss_policy === 'DISMISSIBLE') {
+        const close = document.createElement('button')
+        close.type = 'button'; close.className = 'desktop-announcement-close'; close.textContent = '×'
+        close.setAttribute('aria-label', ui('Dismiss notification', 'Закрыть уведомление'))
+        close.addEventListener('click', () => dismissAnnouncement(item))
+        card.appendChild(close)
+      }
+      wrapper.appendChild(card)
+      container.appendChild(wrapper)
+      if (item.presentation === 'MODAL') (card.querySelector('button') || card).focus?.()
+    }
   }
 
   function controller() {
@@ -776,6 +888,7 @@
       toast(t('newVerdict'), `${Product.modeLabel(latest.game_match_mode)} · MATCH #${latest.match_id}`)
     }
     renderTelemetry()
+    renderDesktopAnnouncements()
     const signature = JSON.stringify({ product: snapshot.product, paired: snapshot.paired, account: snapshot.account, lang: language(), game_running: snapshot.game_running, mode: Product.normalizeMode(snapshot.mode_display) })
     const nextLiveSignature = JSON.stringify({
       evidence_revision: Number(snapshot.evidence_revision || 0),
@@ -826,6 +939,7 @@
     all('[data-language]').forEach(button => button.classList.toggle('active', button.dataset.language === preference()))
     productSignature = ''
     liveSignature = ''
+    announcementSignature = ''
     render(snapshot, true)
   }
 
@@ -1089,11 +1203,27 @@
     $('modalConfirm').addEventListener('click', () => closeModal(true))
     $('confirmModal').addEventListener('click', event => { if (event.target === $('confirmModal')) closeModal(false) })
     window.addEventListener('keydown', event => {
-      if ($('confirmModal').hidden) return
-      if (event.key === 'Escape') { event.preventDefault(); closeModal(false); return }
+      const confirmModal = $('confirmModal')
+      if (!confirmModal.hidden) {
+        if (event.key === 'Escape') { event.preventDefault(); closeModal(false); return }
+        if (event.key !== 'Tab') return
+        const focusable = [...confirmModal.querySelectorAll('button:not([disabled]), [href], input:not([disabled])')].filter(node => !node.hidden)
+        if (!focusable.length) return
+        const first = focusable[0], last = focusable[focusable.length - 1]
+        if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus() }
+        else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus() }
+        return
+      }
+      const announcementModal = document.querySelector('#desktopAnnouncements .presentation-modal')
+      if (!announcementModal) return
+      if (event.key === 'Escape') {
+        const close = announcementModal.querySelector('.desktop-announcement-close')
+        if (close) { event.preventDefault(); close.click() }
+        return
+      }
       if (event.key !== 'Tab') return
-      const focusable = [...$('confirmModal').querySelectorAll('button:not([disabled]), [href], input:not([disabled])')].filter(node => !node.hidden)
-      if (!focusable.length) return
+      const focusable = [...announcementModal.querySelectorAll('button:not([disabled]), [href]')].filter(node => !node.hidden)
+      if (!focusable.length) { event.preventDefault(); announcementModal.focus(); return }
       const first = focusable[0], last = focusable[focusable.length - 1]
       if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus() }
       else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus() }

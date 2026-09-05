@@ -5,7 +5,7 @@ import ipaddress
 import os
 import re
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import datetime
 from pathlib import Path
 from urllib.parse import urlparse
 
@@ -101,6 +101,32 @@ class Settings:
     admin_steam_ids: tuple[str, ...] = _csv("ADMIN_STEAM_IDS", "")
     admin_totp_secret: str = _secret("ADMIN_TOTP_SECRET", "")
     admin_session_ttl_minutes: int = int(os.getenv("ADMIN_SESSION_TTL_MINUTES", "30"))
+
+    # System announcements are deployed fail-closed. Admin draft/history APIs
+    # remain available while these delivery switches are disabled.
+    announcements_enabled: bool = _bool("ANNOUNCEMENTS_ENABLED", False)
+    announcements_site_enabled: bool = _bool(
+        "ANNOUNCEMENTS_SITE_ENABLED",
+        False,
+    )
+    announcements_companion_enabled: bool = _bool(
+        "ANNOUNCEMENTS_COMPANION_ENABLED",
+        False,
+    )
+    announcements_telegram_mirror_enabled: bool = _bool(
+        "ANNOUNCEMENTS_TELEGRAM_MIRROR_ENABLED",
+        False,
+    )
+    announcements_poll_seconds: int = int(
+        os.getenv("ANNOUNCEMENTS_POLL_SECONDS", "60")
+    )
+    announcements_max_active: int = int(
+        os.getenv("ANNOUNCEMENTS_MAX_ACTIVE", "5")
+    )
+    announcements_max_duration_days: int = int(
+        os.getenv("ANNOUNCEMENTS_MAX_DURATION_DAYS", "30")
+    )
+
     telegram_bot_token: str = _secret("TELEGRAM_BOT_TOKEN", "")
     telegram_review_chat_id: str = os.getenv("TELEGRAM_REVIEW_CHAT_ID", "").strip()
     telegram_webhook_secret: str = _secret("TELEGRAM_WEBHOOK_SECRET", "")
@@ -125,6 +151,9 @@ class Settings:
     )
     telegram_review_thread_id: int = int(
         os.getenv("TELEGRAM_REVIEW_THREAD_ID", "0")
+    )
+    telegram_system_thread_id: int = int(
+        os.getenv("TELEGRAM_SYSTEM_THREAD_ID", "0")
     )
     telegram_review_protect_content: bool = _bool(
         "TELEGRAM_REVIEW_PROTECT_CONTENT",
@@ -237,6 +266,19 @@ class Settings:
                 raise RuntimeError("ADMIN_STEAM_IDS contains an invalid SteamID64")
         if not 5 <= self.admin_session_ttl_minutes <= 120:
             raise RuntimeError("ADMIN_SESSION_TTL_MINUTES must be between 5 and 120")
+
+        if not 15 <= self.announcements_poll_seconds <= 3600:
+            raise RuntimeError(
+                "ANNOUNCEMENTS_POLL_SECONDS must be between 15 and 3600"
+            )
+        if not 1 <= self.announcements_max_active <= 10:
+            raise RuntimeError(
+                "ANNOUNCEMENTS_MAX_ACTIVE must be between 1 and 10"
+            )
+        if not 1 <= self.announcements_max_duration_days <= 365:
+            raise RuntimeError(
+                "ANNOUNCEMENTS_MAX_DURATION_DAYS must be between 1 and 365"
+            )
         if self.admin_totp_secret:
             normalized_totp = self.admin_totp_secret.upper()
             if not re.fullmatch(r"[A-Z2-7]{16,128}", normalized_totp):
@@ -316,6 +358,34 @@ class Settings:
             if self.is_production and urlparse(self.app_base_url).scheme != "https":
                 raise RuntimeError(
                     "Telegram moderation deep links require HTTPS APP_BASE_URL "
+                    "in production"
+                )
+
+        if self.announcements_telegram_mirror_enabled:
+            if not re.fullmatch(
+                r"\d{5,20}:[A-Za-z0-9_-]{20,100}",
+                self.telegram_bot_token,
+            ):
+                raise RuntimeError(
+                    "TELEGRAM_BOT_TOKEN is invalid or missing while "
+                    "announcement mirroring is enabled"
+                )
+            if not re.fullmatch(
+                r"(?:-?\d{1,20}|@[A-Za-z0-9_]{5,32})",
+                self.telegram_review_chat_id,
+            ):
+                raise RuntimeError(
+                    "TELEGRAM_REVIEW_CHAT_ID must be configured while "
+                    "announcement mirroring is enabled"
+                )
+            if not 0 <= self.telegram_system_thread_id <= 2_147_483_647:
+                raise RuntimeError(
+                    "TELEGRAM_SYSTEM_THREAD_ID must be 0 or a positive "
+                    "Telegram message thread id"
+                )
+            if self.is_production and urlparse(self.app_base_url).scheme != "https":
+                raise RuntimeError(
+                    "Telegram announcement deep links require HTTPS APP_BASE_URL "
                     "in production"
                 )
 
