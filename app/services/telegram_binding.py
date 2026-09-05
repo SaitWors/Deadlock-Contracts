@@ -161,6 +161,7 @@ def consume_link_token(
     telegram_user_id: int,
     telegram_username: str | None = None,
     telegram_first_name: str | None = None,
+    commit: bool = True,
 ) -> TelegramModeratorBinding:
     raw_token = str(raw_token or "").strip()
     if not 32 <= len(raw_token) <= 128:
@@ -205,7 +206,10 @@ def consume_link_token(
         )
     if (_aware(token.expires_at) or now) <= now:
         token.used_at = now
-        db.commit()
+        if commit:
+            db.commit()
+        else:
+            db.flush()
         raise TelegramBindingError(
             "Срок действия ссылки привязки истёк",
             status_code=410,
@@ -284,7 +288,10 @@ def consume_link_token(
         entity_id=item.id,
         data={"telegram_user_id": telegram_user_id},
     ))
-    db.commit()
+    if commit:
+        db.commit()
+    else:
+        db.flush()
     db.refresh(item)
     return item
 

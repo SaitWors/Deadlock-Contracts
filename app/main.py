@@ -106,6 +106,11 @@ from .services.telegram_binding import (
     revoke_binding_for_user as revoke_telegram_binding_for_user,
     revoke_self_binding as revoke_telegram_self_binding,
 )
+from .services.telegram_webhook import (
+    TelegramWebhookError,
+    process_update as process_telegram_update,
+    verify_webhook_secret as verify_telegram_webhook_secret,
+)
 
 log = logging.getLogger(__name__)
 STATIC = Path(__file__).parent / "static"
@@ -2539,6 +2544,53 @@ def admin_overview(admin: User = Depends(_require_admin), db: Session = Depends(
         },
         "timeline": timeline,
     }
+
+
+@app.post(
+    "/api/integrations/telegram/webhook",
+    include_in_schema=False,
+)
+async def telegram_integration_webhook(
+    request: Request,
+    db: Session = Depends(get_db),
+) -> dict:
+    if not settings.telegram_webhook_enabled:
+        raise HTTPException(404, "Not found")
+
+    supplied_secret = request.headers.get(
+        "X-Telegram-Bot-Api-Secret-Token",
+        "",
+    )
+    if not verify_telegram_webhook_secret(supplied_secret):
+        raise HTTPException(401, "Unauthorized")
+
+    content_length = request.headers.get("content-length")
+    if content_length:
+        try:
+            declared_size = int(content_length)
+        except ValueError as exc:
+            raise HTTPException(400, "Invalid Content-Length") from exc
+        if declared_size < 0:
+            raise HTTPException(400, "Invalid Content-Length")
+        if declared_size > settings.telegram_webhook_max_body_bytes:
+            raise HTTPException(413, "Telegram update is too large")
+
+    body = await request.body()
+    if len(body) > settings.telegram_webhook_max_body_bytes:
+        raise HTTPException(413, "Telegram update is too large")
+
+    try:
+        update = json.loads(body)
+    except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+        raise HTTPException(400, "Invalid Telegram JSON") from exc
+
+    if not isinstance(update, dict):
+        raise HTTPException(400, "Telegram update must be an object")
+
+    try:
+        return process_telegram_update(db, update)
+    except TelegramWebhookError as exc:
+        raise HTTPException(exc.status_code, exc.detail) from exc
 
 
 @app.get("/api/admin/telegram/status")

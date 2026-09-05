@@ -449,7 +449,6 @@ def test_stage4_producers_emit_only_outbound_telegram_events() -> None:
         encoding="utf-8",
     ).read()
     worker = open("app/worker.py", encoding="utf-8").read()
-    main = open("app/main.py", encoding="utf-8").read()
     telegram_source = open(
         "app/services/telegram_moderation.py",
         encoding="utf-8",
@@ -467,9 +466,10 @@ def test_stage4_producers_emit_only_outbound_telegram_events() -> None:
         ")" in worker
     )
 
-    # Stage 4 is deliberately outbound only.
-    assert "/api/telegram" not in main
-    assert "X-Telegram-Bot-Api-Secret-Token" not in main
+    # Stage 4 remains outbound-only at its own producer/service boundary.
+    # Stage 5B may expose a separate inbound integration endpoint in app/main.py.
+    assert "/api/telegram" not in telegram_source
+    assert "X-Telegram-Bot-Api-Secret-Token" not in telegram_source
     assert "callback_data" not in telegram_source
 
 
