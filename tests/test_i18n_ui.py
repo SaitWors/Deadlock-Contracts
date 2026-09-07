@@ -8,6 +8,7 @@ DASHBOARD = (ROOT / 'frontend/src/Dashboard.tsx').read_text(encoding='utf-8')
 PROFILE = (ROOT / 'frontend/src/ProfileStudio.tsx').read_text(encoding='utf-8')
 PUBLIC = (ROOT / 'frontend/src/PublicDossier.tsx').read_text(encoding='utf-8')
 CSS = (ROOT / 'frontend/src/index.css').read_text(encoding='utf-8')
+HEADER = (ROOT / 'frontend/src/BureauHeader.tsx').read_text(encoding='utf-8')
 
 
 def test_auto_language_and_manual_override_are_present() -> None:
@@ -34,8 +35,9 @@ def test_mcg_credit_is_global_and_uses_official_link() -> None:
 
 
 def test_language_switch_is_available_on_public_and_authenticated_surfaces() -> None:
-    assert '<LanguageSwitch' in LANDING
-    assert '<LanguageSwitch' in DASHBOARD
+    assert '<BureauHeader' in LANDING
+    assert '<BureauHeader' in DASHBOARD
+    assert '<LanguageSwitch' in HEADER
     assert '<LanguageSwitch' in PUBLIC
     assert '.dc-language-switch' in CSS
 
@@ -90,3 +92,4 @@ def test_public_profile_numbers_follow_active_locale() -> None:
     assert not hardcoded_ru_locale.search(PUBLIC)
     assert "toLocaleString(locale)" in PROFILE
     assert "toLocaleString(locale)" in PUBLIC
+

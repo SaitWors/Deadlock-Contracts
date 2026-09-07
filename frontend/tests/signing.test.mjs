@@ -404,6 +404,14 @@ test("shared navigation reports the active page and closes its mobile menu on Es
   await api.act(async () => toggle.click())
   assert.equal(toggle.getAttribute("aria-expanded"), "true")
   assert.ok(document.getElementById(toggle.getAttribute("aria-controls")))
+  const english = [...document.querySelectorAll(".bureau-mobile-preferences button")].find(
+    (button) => button.textContent === "EN",
+  )
+  await api.act(async () => english.click())
+  assert.equal(document.documentElement.lang, "en")
+  assert.equal(w.localStorage.getItem("dc.ui.language"), "en")
+  assert.equal(toggle.getAttribute("aria-label"), "Close menu")
+
   await api.act(async () =>
     document.dispatchEvent(new w.KeyboardEvent("keydown", { key: "Escape" })),
   )
