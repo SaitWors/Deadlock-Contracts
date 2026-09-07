@@ -10,7 +10,7 @@ from sqlalchemy import delete, func, or_, select
 from sqlalchemy.orm import Session
 
 from .db import get_db
-from .models import BureauApplication, BureauMembership, PlayerBureau, User
+from .models import BureauApplication, BureauBan, BureauMembership, PlayerBureau, User, utcnow
 from .services import bureaus
 from .services.achievements import achievement_collection
 from .services.auth import require_csrf, require_user
@@ -47,7 +47,7 @@ class ApplicationDecision(Strict):
 
 
 class MemberAction(Strict):
-    action: Literal["PROMOTE", "DEMOTE", "REMOVE", "TRANSFER"]
+    action: Literal["PROMOTE", "DEMOTE", "REMOVE", "BAN", "TRANSFER"]
     reason: str = Field(default="", max_length=300)
 
 
@@ -76,7 +76,7 @@ def my_leaderboard(response: Response, scope: Literal["all_time", "today", "rare
 def directory(response: Response, q: str = Query(default="", max_length=64), offset: int = Query(default=0, ge=0, le=10000),
               user: User = Depends(require_user), db: Session = Depends(get_db)) -> dict:
     no_store(response)
-    statement = select(PlayerBureau)
+    statement = select(PlayerBureau).where(PlayerBureau.status == "ACTIVE")
     if q.strip():
         search = q.strip().replace("\\", "\\\\").replace("%", r"\%").replace("_", r"\_")
         statement = statement.where(or_(PlayerBureau.name.ilike(f"%{search}%", escape="\\"), PlayerBureau.slug.ilike(f"%{search}%", escape="\\")))
@@ -84,7 +84,7 @@ def directory(response: Response, q: str = Query(default="", max_length=64), off
     entries = db.scalars(statement.order_by(PlayerBureau.created_at.desc(), PlayerBureau.id).offset(offset).limit(24)).all()
     counts = dict(db.execute(select(BureauMembership.bureau_id, func.count()).where(BureauMembership.bureau_id.in_([item.id for item in entries]))
                              .group_by(BureauMembership.bureau_id)).all()) if entries else {}
-    own = bureaus.profile_bureau(db, user.id)
+    own = bureaus.profile_bureau(db, user.id, include_frozen=True)
     pending = db.scalars(select(PlayerBureau.slug).join(BureauApplication, BureauApplication.bureau_id == PlayerBureau.id)
                         .where(BureauApplication.user_id == user.id)).all()
     return {"items": [bureaus.summary(db, item, counts.get(item.id, 0)) for item in entries],
@@ -115,7 +115,7 @@ def create(payload: CreateBureau, user: User = Depends(require_user), db: Sessio
     except IntegrityError as exc:
         db.rollback()
         raise HTTPException(409, "Этот адрес бюро уже занят") from exc
-    db.add(BureauMembership(bureau_id=bureau.id, user_id=user.id, role="DIRECTOR"))
+    bureaus.record_member(db, bureau, user.id, role="DIRECTOR")
     db.execute(delete(BureauApplication).where(BureauApplication.user_id == user.id))
     bureaus.audit(db, bureau, user.id, "created")
     bureaus.commit(db)
@@ -150,6 +150,7 @@ def join(slug: str, payload: JoinBureau, user: User = Depends(require_user), db:
         if own.bureau_id == bureau.id:
             return {"bureau": bureaus.detail(db, bureau, user)}
         raise HTTPException(409, "Можно состоять только в одном бюро")
+    bureaus.require_admission(db, bureau, user.id)
     if bureau.recruitment == "CLOSED":
         raise HTTPException(409, "Набор в бюро закрыт")
     if bureau.recruitment == "OPEN":
@@ -194,15 +195,22 @@ def decide(slug: str, application_id: UUID, payload: ApplicationDecision, user: 
 @router.post("/bureaus/{slug}/members/{member_id}", dependencies=[Depends(require_csrf)])
 def member_action(slug: str, member_id: UUID, payload: MemberAction, user: User = Depends(require_user), db: Session = Depends(get_db)) -> dict:
     bureau = bureaus.lock_bureau(db, slug)
-    actor = bureaus.require_manager(db, bureau, user.id, director=payload.action != "REMOVE")
+    actor = bureaus.require_manager(db, bureau, user.id, director=payload.action not in {"REMOVE", "BAN"})
     target = db.scalar(select(BureauMembership).where(BureauMembership.id == str(member_id), BureauMembership.bureau_id == bureau.id))
     if not target:
         raise HTTPException(404, "Участник не найден")
     if target.user_id == user.id or target.role == "DIRECTOR" or (actor.role != "DIRECTOR" and target.role != "OPERATIVE"):
         raise HTTPException(403, "Недостаточно прав в этом бюро")
-    if payload.action == "REMOVE":
+    if payload.action in {"REMOVE", "BAN"}:
         if len(payload.reason) < 3:
             raise HTTPException(422, "Укажите причину исключения")
+        bureaus.operations.close_period(db, target.user_id, bureau.id)
+        if payload.action == "BAN":
+            ban = db.scalar(select(BureauBan).where(BureauBan.bureau_id == bureau.id, BureauBan.user_id == target.user_id))
+            if ban is None:
+                ban = BureauBan(bureau_id=bureau.id, user_id=target.user_id)
+                db.add(ban)
+            ban.active, ban.reason, ban.created_at = True, payload.reason, utcnow()
         db.delete(target)
     elif payload.action == "TRANSFER":
         bureaus.lock_player(db, target.user_id)
@@ -223,9 +231,12 @@ def leave(slug: str, user: User = Depends(require_user), db: Session = Depends(g
     if member and member.bureau_id == bureau.id:
         if member.role == "DIRECTOR":
             raise HTTPException(409, "Сначала передайте руководство или распустите бюро")
+        bureaus.operations.close_period(db, member.user_id, bureau.id)
         db.delete(member)
         bureaus.audit(db, bureau, user.id, "left")
     bureaus.commit(db)
+    if bureau.status == "FROZEN":
+        return {"left": True}
     return {"bureau": bureaus.detail(db, bureau, user)}
 
 
@@ -236,6 +247,7 @@ def disband(slug: str, payload: DisbandBureau, user: User = Depends(require_user
     if payload.confirmation != bureau.slug:
         raise HTTPException(422, "Для удаления введите адрес бюро")
     bureaus.audit(db, bureau, user.id, "disbanded")
+    bureaus.end_bureau(db, bureau)
     db.execute(delete(BureauApplication).where(BureauApplication.bureau_id == bureau.id))
     db.execute(delete(BureauMembership).where(BureauMembership.bureau_id == bureau.id))
     db.delete(bureau)

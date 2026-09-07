@@ -275,3 +275,185 @@ test("bureau creation keeps errors in the form and can retry without losing ente
   assert.equal(posts, 2)
   await api.act(async () => root.unmount())
 })
+
+test("operation creation sends fixed choices with CSRF and guards repeated submission", async () => {
+  const posts = []
+  let release
+  const { doc, w, api } = runtime((url, init) => {
+    if (init.method === "POST") {
+      posts.push({ url, init })
+      return new Promise((resolve) => {
+        release = resolve
+      })
+    }
+    return Promise.resolve(
+      response({
+        items: [],
+        templates: {
+          city_cases: {
+            title: { ru: "Городское расследование", en: "City investigation" },
+            target: 20,
+            min_contributors: 3,
+            category: null,
+            metric: "contracts",
+          },
+        },
+      }),
+    )
+  }, "en")
+  let root
+  await api.act(async () => {
+    root = api.mount(doc.getElementById("mount"), "operations", {
+      slug: "night",
+      csrf: "real-csrf",
+      manager: true,
+      director: true,
+      frozen: false,
+    })
+  })
+  const form = doc.querySelector("form")
+  await api.act(async () => {
+    form.dispatchEvent(new w.Event("submit", { bubbles: true, cancelable: true }))
+    form.dispatchEvent(new w.Event("submit", { bubbles: true, cancelable: true }))
+  })
+  assert.equal(posts.length, 1)
+  assert.deepEqual(JSON.parse(posts[0].init.body), { template: "city_cases", days: 7 })
+  assert.equal(posts[0].init.headers.get("X-CSRF-Token"), "real-csrf")
+  assert.equal(posts[0].url, "/api/bureaus/night/operations")
+  await api.act(async () =>
+    release({
+      ok: false,
+      status: 409,
+      json: async () => ({ detail: "Another operation has started" }),
+    }),
+  )
+  assert.match(doc.querySelector('[role="alert"]').textContent, /Another operation/)
+  assert.ok(doc.querySelector("form"))
+  await api.act(async () => root.unmount())
+})
+
+test("members see aggregate progress and their own journal without manager controls", async () => {
+  const { doc, api } = runtime(
+    async () =>
+      response({
+        templates: {},
+        items: [
+          {
+            id: "op",
+            template: "city_cases",
+            title: { ru: "Городское расследование", en: "City investigation" },
+            target: 20,
+            min_contributors: 3,
+            progress: 23,
+            contributors: 4,
+            my_contribution: 2,
+            status: "COMPLETED",
+            ends_at: "2026-09-09T00:00:00Z",
+            checked_at: "2026-09-07T10:00:00Z",
+            cancel_reason: "",
+            journal: [
+              { action: "REVOKE", at: "2026-09-07T09:00:00Z", contract_id: "private-case" },
+            ],
+          },
+        ],
+      }),
+    "en",
+  )
+  let root
+  await api.act(async () => {
+    root = api.mount(doc.getElementById("mount"), "operations", {
+      slug: "night",
+      csrf: "csrf",
+      manager: false,
+      director: false,
+      frozen: false,
+    })
+  })
+  assert.equal(doc.querySelector("progress").value, 20)
+  assert.match(doc.body.textContent, /23 \/ 20/)
+  assert.match(doc.body.textContent, /Your contracts: 2/)
+  assert.match(doc.body.textContent, /Credit revoked after review/)
+  assert.match(doc.body.textContent, /team seal is available/)
+  assert.equal(doc.querySelector("form"), null)
+  await api.act(async () => root.unmount())
+})
+
+test("appeals expose eligible form choices and render private responses as text", async () => {
+  const { doc, api } = runtime(
+    async () =>
+      response({
+        items: [
+          {
+            id: "report",
+            bureau_name: "Deadlock Night",
+            bureau_slug: "night",
+            kind: "BAN_APPEAL",
+            status: "RESOLVED",
+            message: "<img src=x onerror=alert(1)>",
+            decision_note: "Your ban has been lifted",
+          },
+        ],
+      }),
+    "en",
+  )
+  let root
+  await api.act(async () => {
+    root = api.mount(doc.getElementById("mount"), "safety", {
+      slug: "night",
+      csrf: "csrf",
+      banned: true,
+      appeal: false,
+    })
+  })
+  assert.ok(doc.querySelector('option[value="BAN_APPEAL"]'))
+  assert.equal(doc.querySelector('option[value="BUREAU_APPEAL"]'), null)
+  assert.match(doc.body.textContent, /Your ban has been lifted/)
+  assert.match(doc.body.textContent, /<img src=x/)
+  assert.equal(doc.querySelector("img"), null)
+  await api.act(async () => root.unmount())
+})
+
+test("staff queue sends the report revision and preserves a stale decision for review", async () => {
+  const posts = []
+  const { doc, w, api } = runtime(async (url, init) => {
+    if (init.method === "POST") {
+      posts.push(JSON.parse(init.body))
+      return {
+        ok: false,
+        status: 409,
+        json: async () => ({ detail: "Обращение уже изменилось. Обновите очередь." }),
+      }
+    }
+    return response({
+      total: 1,
+      items: [
+        {
+          id: "report",
+          bureau_name: "Deadlock Night",
+          kind: "CONTENT",
+          message: "Review these rules",
+          status: "OPEN",
+          bureau_status: "ACTIVE",
+          revision: 7,
+          snapshot: { rules: "<script>secret()</script>" },
+        },
+      ],
+    })
+  })
+  let root
+  await api.act(async () => {
+    root = api.mount(doc.getElementById("mount"), "moderation", { csrf: "staff-csrf" })
+  })
+  await api.act(async () => button(doc, "Рассмотреть").click())
+  await api.act(async () =>
+    doc
+      .querySelector("form")
+      .dispatchEvent(new w.Event("submit", { bubbles: true, cancelable: true })),
+  )
+  assert.equal(posts[0].revision, 7)
+  assert.equal(posts[0].action, "DISMISS")
+  assert.match(doc.querySelector('[role="alert"]').textContent, /Обновите очередь/)
+  assert.ok(doc.querySelector("form"))
+  assert.equal(doc.querySelector("script"), null)
+  await api.act(async () => root.unmount())
+})

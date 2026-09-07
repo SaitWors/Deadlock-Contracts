@@ -38,6 +38,10 @@ export function LoadState({ error, retry }: { error?: string; retry?: () => void
   )
 }
 const GLYPHS: Record<string, string> = {
+  team_city_cases: "M14 48V28h12V18h12v10h12v20H14 M20 34v6m12-14v8m12 0v6",
+  team_field_hospital: "M26 14h12v12h12v12H38v12H26V38H14V26h12z",
+  team_five_witnesses:
+    "M24 20a8 8 0 1 0 16 0a8 8 0 1 0-16 0 M18 48v-5a14 14 0 0 1 28 0v5 M12 24v12m40-12v12",
   first_case: "M22 14h20v36H22z M28 24h8m-8 8h8m-8 8h5",
   ten_cases: "M18 26h28v24H18z M24 26V16h16v10 M26 34v8m12-8v8",
   fifty_cases: "M16 18h32v32H16z M22 25h20m-20 9h20m-20 9h20",

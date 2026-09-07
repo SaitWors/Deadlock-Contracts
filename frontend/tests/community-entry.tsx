@@ -5,6 +5,9 @@ import Leaderboard from "../src/community/Leaderboard"
 import Achievements from "../src/community/Achievements"
 import ProfileStudio from "../src/ProfileStudio"
 import Bureaus from "../src/community/Bureaus"
+import Operations from "../src/community/Operations"
+import BureauSafety from "../src/community/BureauSafety"
+import BureauModerationDesk from "../src/admin/BureauModerationDesk"
 export { act }
 export function mount(element: HTMLElement, page: string, props: Record<string, unknown>) {
   const Component = {
@@ -12,6 +15,9 @@ export function mount(element: HTMLElement, page: string, props: Record<string, 
     achievements: Achievements,
     profile: ProfileStudio,
     bureaus: Bureaus,
+    operations: Operations,
+    safety: BureauSafety,
+    moderation: BureauModerationDesk,
   }[page] as React.ComponentType<Record<string, unknown>>
   const root = createRoot(element)
   root.render(

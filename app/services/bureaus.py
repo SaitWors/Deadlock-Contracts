@@ -11,7 +11,9 @@ from sqlalchemy import delete, func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from ..models import AuditLog, BureauApplication, BureauMembership, PlayerBureau, PublicProfile, User
+from ..models import AuditLog, BureauApplication, BureauBan, BureauMembership, BureauMembershipPeriod, PlayerBureau, PublicProfile, User
+
+from . import bureau_operations as operations
 
 CAPACITY = 25
 MANAGERS = {"DIRECTOR", "MODERATOR"}
@@ -61,18 +63,20 @@ def summary(db: Session, bureau: PlayerBureau, count: int | None = None) -> dict
         count = db.scalar(select(func.count()).select_from(BureauMembership).where(BureauMembership.bureau_id == bureau.id)) or 0
     return {"slug": bureau.slug, "name": bureau.name, "tagline": bureau.tagline,
             "theme": bureau.theme, "language": bureau.language, "recruitment": bureau.recruitment,
-            "member_count": count, "capacity": CAPACITY}
+            "member_count": count, "capacity": CAPACITY, "status": bureau.status, "moderation_note": bureau.moderation_note}
 
 
-def profile_bureau(db: Session, user_id: str) -> dict | None:
+def profile_bureau(db: Session, user_id: str, *, include_frozen=False) -> dict | None:
     bureau = db.scalar(select(PlayerBureau).join(BureauMembership, BureauMembership.bureau_id == PlayerBureau.id).where(BureauMembership.user_id == user_id))
-    return summary(db, bureau) if bureau else None
+    return summary(db, bureau) if bureau and (include_frozen or bureau.status == "ACTIVE") else None
 
 
 def detail(db: Session, bureau: PlayerBureau, viewer: User) -> dict:
     own = membership(db, viewer.id)
     inside = own is not None and own.bureau_id == bureau.id
     manager = inside and own.role in MANAGERS
+    if bureau.status == "FROZEN" and not inside:
+        raise HTTPException(404, "Бюро не найдено")
     rows = db.execute(select(BureauMembership, User, PublicProfile)
         .join(User, User.id == BureauMembership.user_id)
         .outerjoin(PublicProfile, PublicProfile.user_id == User.id)
@@ -103,20 +107,53 @@ def detail(db: Session, bureau: PlayerBureau, viewer: User) -> dict:
                        .outerjoin(User, User.id == AuditLog.user_id)
                        .where(AuditLog.entity_type == "player_bureau", AuditLog.entity_id == bureau.id)
                        .order_by(AuditLog.created_at.desc()).limit(20)).all()]
-    return {**summary(db, bureau, len(rows)), "description": bureau.description, "rules": bureau.rules,
+    ban = active_ban(db, bureau.id, viewer.id)
+    bans = [{"id": b.id, "display_name": name, "reason": b.reason} for b, name in db.execute(
+        select(BureauBan, User.display_name).join(User, User.id == BureauBan.user_id)
+        .where(BureauBan.bureau_id == bureau.id, BureauBan.active.is_(True))).all()] if manager else []
+    return {"bans": bans, "my_ban": {"reason": ban.reason} if ban else None, **summary(db, bureau, len(rows)), "description": bureau.description, "rules": bureau.rules,
             "members": members, "my_role": own.role if inside else None, "can_manage": bool(manager),
             "can_edit": bool(inside and own.role == "DIRECTOR" and bureau.owner_user_id == viewer.id),
             "application_pending": pending is not None, "applications": applications, "journal": journal}
 
 
+def require_active(bureau: PlayerBureau) -> None:
+    if bureau.status != "ACTIVE":
+        raise HTTPException(409, "Работа бюро приостановлена модератором")
+
+
+def active_ban(db: Session, bureau_id: str, user_id: str) -> BureauBan | None:
+    return db.scalar(select(BureauBan).where(BureauBan.bureau_id == bureau_id,
+        BureauBan.user_id == user_id, BureauBan.active.is_(True)))
+
+
+def require_admission(db: Session, bureau: PlayerBureau, user_id: str) -> None:
+    require_active(bureau)
+    if active_ban(db, bureau.id, user_id):
+        raise HTTPException(403, "Повторное вступление в это бюро заблокировано")
+
+
+def record_member(db: Session, bureau: PlayerBureau, user_id: str, role="OPERATIVE") -> None:
+    item = BureauMembership(bureau_id=bureau.id, user_id=user_id, role=role)
+    db.add(item); db.flush()
+    db.add(BureauMembershipPeriod(id=item.id, bureau_id=bureau.id, user_id=user_id, joined_at=item.joined_at))
+
+
+def end_bureau(db: Session, bureau: PlayerBureau) -> None:
+    for member in db.scalars(select(BureauMembership).where(BureauMembership.bureau_id == bureau.id)):
+        operations.close_period(db, member.user_id, bureau.id)
+    operations.cancel_open(db, bureau.id, "Бюро распущено / Bureau disbanded")
+
+
 def add_member(db: Session, bureau: PlayerBureau, user_id: str) -> None:
     lock_player(db, user_id)
+    require_admission(db, bureau, user_id)
     if membership(db, user_id):
         raise HTTPException(409, "Можно состоять только в одном бюро")
     count = db.scalar(select(func.count()).select_from(BureauMembership).where(BureauMembership.bureau_id == bureau.id)) or 0
     if count >= CAPACITY:
         raise HTTPException(409, "В бюро закончились места")
-    db.add(BureauMembership(bureau_id=bureau.id, user_id=user_id, role="OPERATIVE"))
+    record_member(db, bureau, user_id)
     db.execute(delete(BureauApplication).where(BureauApplication.user_id == user_id))
 
 
@@ -145,9 +182,11 @@ def leave_for_account_deletion(db: Session, user_id: str) -> None:
                 bureau.owner_user_id = successor.user_id
                 audit(db, bureau, None, "director_departed", successor=successor.id)
             else:
+                end_bureau(db, bureau)
                 db.execute(delete(BureauApplication).where(BureauApplication.bureau_id == bureau.id))
                 db.execute(delete(BureauMembership).where(BureauMembership.bureau_id == bureau.id))
                 db.delete(bureau)
+        operations.close_period(db, user_id, bureau.id)
         db.execute(delete(BureauMembership).where(BureauMembership.user_id == user_id))
     else:
         lock_player(db, user_id)

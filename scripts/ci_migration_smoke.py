@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from datetime import timezone
+
 from alembic import command
 from alembic.config import Config
 from alembic.script import ScriptDirectory
@@ -7,7 +9,7 @@ from sqlalchemy import delete, text
 from uuid import uuid4
 
 from app.db import engine, SessionLocal
-from app.models import PublicProfile, User
+from app.models import BureauMembership, BureauMembershipPeriod, PlayerBureau, PublicProfile, User
 
 
 def current_revision() -> str:
@@ -47,8 +49,7 @@ def main() -> None:
             f"Database must begin at head {head}, got {before}"
         )
 
-    # An existing private profile must survive the upgrade and must not silently
-    # opt into a bureau roster. The 0014 additions need to backfill real rows.
+    # Preserve the existing profile and backfill membership history from 0014.
     token = uuid4().hex[:12]
     with SessionLocal() as db:
         player = User(display_name="Migration preservation check")
@@ -56,6 +57,12 @@ def main() -> None:
         db.flush()
         player_id = player.id
         db.add(PublicProfile(user_id=player.id, slug=f"migration-{token}", headline="Preserved headline", is_public=False, show_stats=False, theme="NOIR"))
+        bureau = PlayerBureau(slug=f"migration-bureau-{token}", name="Deadlock Migration", owner_user_id=player.id)
+        db.add(bureau); db.flush()
+        bureau_id = bureau.id
+        member = BureauMembership(bureau_id=bureau.id, user_id=player.id, role="DIRECTOR")
+        db.add(member); db.flush()
+        member_id, joined_at = member.id, member.joined_at
         db.commit()
 
     print(f"Downgrade smoke: {head} -> {parent}")
@@ -84,9 +91,16 @@ def main() -> None:
         assert profile.show_bureau is False
         assert profile.showcase_order == ["contracts", "achievements", "bureau"]
         assert profile.pinned_contract_ids == []
+        bureau = db.get(PlayerBureau, bureau_id)
+        assert bureau.status == "ACTIVE" and bureau.moderation_note == ""
+        period = db.get(BureauMembershipPeriod, member_id)
+        assert period.user_id == player_id and period.bureau_id == bureau_id
+        assert period.joined_at.replace(tzinfo=timezone.utc) == joined_at and period.left_at is None
+        db.execute(delete(BureauMembershipPeriod).where(BureauMembershipPeriod.id == member_id))
+        db.execute(delete(PlayerBureau).where(PlayerBureau.id == bureau_id))
         db.execute(delete(User).where(User.id == player_id))
         db.commit()
-    print("Existing profile preserved; community defaults remain private")
+    print("Existing profile preserved; bureau remains active; membership history backfilled")
 
     print(
         f"Migration smoke OK: "

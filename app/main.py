@@ -1328,6 +1328,10 @@ def _require_permission(permission: str):
     return dependency
 
 
+from .community_operations import build_router as build_community_operations_router
+
+app.include_router(build_community_operations_router(_require_permission))
+
 def _require_owner(admin: User = Depends(_require_admin)) -> User:
     if _effective_access_role(admin) != "OWNER":
         raise HTTPException(403, "Требуется доступ владельца проекта")

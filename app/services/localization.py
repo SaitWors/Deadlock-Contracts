@@ -5,6 +5,22 @@ from typing import Any
 
 
 RU_TO_EN = {
+    'Доступно только участникам бюро': 'Only bureau members can access this',
+    'Работа бюро приостановлена модератором': 'This bureau has been paused by site staff',
+    'Повторное вступление в это бюро заблокировано': 'Rejoining this bureau is prohibited',
+    'Активная блокировка не найдена': 'No active membership ban found',
+    'Бюро не приостановлено': 'This bureau is not paused',
+    'Можно отправить не более пяти обращений за сутки': 'You can send up to five reports per day',
+    'Обращение не найдено': 'Report not found',
+    'Обращение уже изменилось. Обновите очередь.': 'This report has changed. Refresh the queue.',
+    'Своё обращение или бюро должен проверить другой сотрудник': 'Another staff member must review your own report or bureau',
+    'Бюро уже удалено': 'This bureau has been deleted',
+    'Сначала дождитесь завершения срока текущей операции': 'Wait until the current operation window closes',
+    'Можно начать не более трёх операций за сутки': 'You can start up to three operations per day',
+    'Операция не найдена': 'Operation not found',
+    'Завершённую операцию нельзя отменить': 'A completed operation cannot be cancelled',
+    'Блокировка изменилась после обращения. Отклоните старую апелляцию.': 'The ban changed after this report. Dismiss the outdated appeal.',
+
     "Бюро не найдено": "Bureau not found",
     "Недостаточно прав в этом бюро": "You do not have permission in this bureau",
     "Действие доступно только директору бюро": "Only the bureau director can do this",

@@ -18,13 +18,16 @@ from app.services.bureaus import CAPACITY
 
 
 @pytest.fixture()
-def community():
+def community(monkeypatch):
+    # Real request throttling, isolated from unrelated tests sharing testclient IP.
+    from app import security
+    monkeypatch.setattr(security, "_local_limiter", security.SlidingWindowLimiter())
     engine = create_engine("sqlite+pysqlite://", connect_args={"check_same_thread": False}, poolclass=StaticPool)
     @event.listens_for(engine, "connect")
     def foreign_keys(connection, _):
         connection.execute("PRAGMA foreign_keys=ON")
     Base.metadata.create_all(engine)
-    factory = sessionmaker(bind=engine, expire_on_commit=False)
+    factory = sessionmaker(bind=engine, autoflush=False, expire_on_commit=False)
     def database():
         with factory() as db:
             yield db
