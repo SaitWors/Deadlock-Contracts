@@ -74,4 +74,6 @@ def achievement_collection(db: Session, user_id: str) -> dict:
             "current": min(len(dates[metric]), target), "target": target,
             "earned": earned, "earned_at": dates[metric][target - 1].isoformat() if earned else None,
         })
+    from .bureau_operations import collection
+    items.extend(collection(db, user_id))
     return {"items": items, "earned": sum(item["earned"] for item in items), "total": len(items)}

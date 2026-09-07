@@ -17,6 +17,7 @@ ALL_PERMISSIONS = frozenset(
         "reviews.read",
         "reviews.claim",
         "reviews.decide",
+        "bureaus.moderate",
         "matches.read",
         "boards.read",
         "companions.read",
@@ -52,6 +53,7 @@ ROLE_PERMISSIONS: dict[str, frozenset[str]] = {
             "reviews.read",
             "reviews.claim",
             "reviews.decide",
+            "bureaus.moderate",
             "matches.read",
             "boards.read",
             "companions.read",
@@ -77,6 +79,7 @@ ROLE_PERMISSIONS: dict[str, frozenset[str]] = {
             "reviews.read",
             "reviews.claim",
             "reviews.decide",
+            "bureaus.moderate",
             "telegram.bind_self",
         }
     ),

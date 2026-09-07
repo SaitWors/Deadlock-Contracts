@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react"
 import markImage from "@/imports/mark.svg"
 import curatorImage from "@/imports/curator-optimized.webp"
 import ProfileStudio from "./ProfileStudio"
@@ -23,6 +23,8 @@ import {
   useLanguage,
   type Language,
 } from "./i18n"
+
+const BureauModerationDesk = lazy(() => import("./admin/BureauModerationDesk"))
 
 type Mode = "STANDARD" | "RANKED" | "STREET_BRAWL"
 type AccessRole = "OWNER" | "ADMIN" | "MODERATOR" | "TESTER" | "PLAYER"
@@ -574,6 +576,7 @@ type AdminSection =
   | "overview"
   | "users"
   | "reviews"
+  | "bureau_reports"
   | "announcements"
   | "matches"
   | "boards"
@@ -589,6 +592,7 @@ const ADMIN_SECTION_PERMISSIONS: Record<AdminSection, string> = {
   overview: "admin.overview.read",
   users: "users.read",
   reviews: "reviews.read",
+  bureau_reports: "bureaus.moderate",
   announcements: "announcements.read",
   matches: "matches.read",
   boards: "boards.read",
@@ -605,6 +609,7 @@ const ADMIN_SECTION_ORDER: Array<[AdminSection, string]> = [
   ["overview", "Обзор"],
   ["users", "Игроки"],
   ["reviews", "Проверки"],
+  ["bureau_reports", "Бюро игроков"],
   ["announcements", "Уведомления"],
   ["matches", "Матчи"],
   ["boards", "Дела"],
@@ -3792,6 +3797,12 @@ function AdminConsole({
           setError={setError}
           setNotice={setNotice}
         />
+      )}
+
+      {section === "bureau_reports" && (
+        <Suspense fallback={<p role="status">Открываем обращения…</p>}>
+          <BureauModerationDesk csrf={csrf} />
+        </Suspense>
       )}
 
       {section === "announcements" && (

@@ -17,8 +17,8 @@ export default function Achievements({ onProfile }: { onProfile: () => void }) {
         title={ru ? "Каждое дело оставляет след." : "Every case leaves a mark."}
         text={
           ru
-            ? "Ваши достижения — печати за выполненные контракты. Соберите коллекцию и выберите главную для профиля."
-            : "Your achievements are seals earned through contracts. Build a collection and feature your favorite on your profile."
+            ? "Ваши достижения — печати за личные контракты и совместные операции. Соберите коллекцию и выберите главную для профиля."
+            : "Your achievements are seals earned through contracts and joint operations. Build a collection and feature your favorite on your profile."
         }
       />
       {resource.loading || resource.error || !data ? (

@@ -8,10 +8,9 @@ from urllib.parse import urlsplit
 
 
 LIMITS = {
-    # Stage 2 adds achievements, player bureaus and configurable showcases.
-    # Lazy account/profile routes cut the public entry from 448 KB to 292 KB;
-    # all route chunks together measure 477 KB. Enforce both budgets.
-    "javascript_total": 490_000,
+    # Stage 3 adds operations, private appeals and a lazy staff queue (+19 KB).
+    # Measured total: 497 KB; public entry remains 292 KB. Both budgets apply.
+    "javascript_total": 510_000,
     "initial_javascript": 310_000,
     # PR #29 adds the system-announcement UI across the public app and admin center.
     # Keep the CSS budget enforced, but rebaseline it above the measured 248,851-byte

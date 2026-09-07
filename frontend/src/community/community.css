@@ -33,3 +33,35 @@
 @media(max-width:720px){.community-page{padding-top:20px;padding-bottom:40px}.community-dashboard.dc-v3 .dc-app-shell-topnav{padding:12px 16px 90px}.community-head{margin:12px 0 24px;padding-bottom:24px;gap:16px}.community-head h1{font-size:38px}.community-head p:not(.community-eyebrow){font-size:14px}.community-head>button{width:100%}.community-tabs{gap:0}.community-tabs button{padding:12px;font-size:14px}.achievement-grid{gap:12px}.achievement-card{padding:20px 16px}.achievement-card h2{font-size:22px}.achievement-card p:not(.community-eyebrow){font-size:13px}.community-collection-summary{padding:20px}.community-big-number{font-size:56px}.community-collection-summary>div{min-width:150px}.community-collection-summary>button{width:100%}.leaderboard-mine{padding:20px;flex-wrap:wrap}.leaderboard-mine h2{font-size:26px}.leaderboard-table td,.leaderboard-table th{padding:12px}.leaderboard-table th:first-child{width:42px}.leaderboard-table th:last-child{width:86px}.leaderboard-extra{display:none}.leaderboard-player{gap:10px}.leaderboard-player b{font-size:13px}.leaderboard-table td:last-child{font-size:20px}.leaderboard-player img,.leaderboard-player .community-avatar{width:32px;height:32px}.public-leaderboard{padding:76px 16px 0}.public-dossier-shell>.community-page{padding:20px 12px 48px}.dossier-cover{height:150px;padding:20px}.dossier-cover-id{font-size:10px}.dossier-cover>p{font-size:12px}.dossier-identity{padding:0 18px 20px;grid-template-columns:82px minmax(0,1fr);gap:16px;margin-top:-20px}.dossier-avatar{width:82px;height:82px;border-width:3px}.dossier-identity>div:not(.dossier-avatar){padding-top:32px}.dossier-identity h1{font-size:27px}.dossier-identity p:not(.community-eyebrow){font-size:12px}.dossier-identity .dossier-level{grid-column:1/-1;display:flex;justify-content:flex-start;padding-top:0;gap:12px}.dossier-level>b{width:32px;height:32px;font-size:18px;border-width:1px}.dossier-level small{margin-left:auto}.dossier-columns{grid-template-columns:1fr;padding:20px 16px;gap:24px}.dossier-sidebar{display:grid;grid-template-columns:1fr 1fr;gap:12px;align-items:start}.dossier-sidebar>section{padding:16px;margin-bottom:0}.dossier-sidebar>.community-footnote{grid-column:1/-1}.dossier-toolbar{padding:0 16px 20px;gap:8px}.dossier-toolbar .dc-ghost,.dossier-toolbar .dc-primary{font-size:13px;padding:10px 12px}.dossier-toolbar .dc-primary{width:100%}.dossier-module>header{padding:14px}.dossier-cases{padding:12px}.dossier-cases article{padding:18px}.dossier-cases h3{font-size:22px}.dossier-seals{gap:18px;padding:18px}.dossier-seals>div{width:70px}.dossier-bureau{padding:18px;gap:14px}.dossier-bureau>img{width:40px}.profile-studio-heading{align-items:flex-start}.profile-editor,.bureau-editor{padding:20px 16px}.community-form-grid{grid-template-columns:1fr;gap:16px}.community-section-title{align-items:flex-start;flex-direction:column}.profile-theme-options{gap:8px}.profile-theme-options button{font-size:11px}.profile-account-settings{padding:18px}.bureau-directory{grid-template-columns:1fr}.bureau-detail-cover{padding:28px 20px;gap:20px;align-items:flex-start}.bureau-detail-cover>img{width:56px;height:56px}.bureau-detail-cover h1{font-size:32px}.bureau-detail-cover p{font-size:14px}.bureau-content-grid{grid-template-columns:1fr}.bureau-content-grid>aside{grid-row:1}.community-panel{padding:20px}.bureau-members li{flex-wrap:wrap}.bureau-members select{max-width:100%}.community-dashboard .dc-command-copy{padding:28px 22px}.community-dashboard .dc-command-copy h1{font-size:48px}.community-dashboard .dc-command-copy .dc-lead{font-size:14px}}
 @media(max-width:380px){.achievement-grid{grid-template-columns:1fr}.dossier-sidebar{grid-template-columns:1fr}.dossier-identity{gap:12px;grid-template-columns:64px minmax(0,1fr)}.dossier-avatar{width:64px;height:64px}.dossier-identity h1{font-size:24px}.dossier-cover-id{display:none}.leaderboard-player img,.leaderboard-player .community-avatar{display:none}.bureau-detail-cover>img{display:none}}
 @media(prefers-reduced-motion:reduce){.community-page *{scroll-behavior:auto!important;transition:none!important;animation:none!important}.bureau-directory-card:hover{transform:none}}
+
+/* Operations use the same paper, ink and brass as the bureau dossier. */
+.bureau-operations {
+  margin-block: 24px;
+}
+.operation-card {
+  padding-block: 22px;
+  border-top: 1px solid #a5906233;
+  overflow-wrap: anywhere;
+}
+.operation-card h3 {
+  font-family: Georgia, serif;
+  font-size: clamp(22px, 3vw, 30px);
+  margin: 8px 0;
+}
+.operation-card progress {
+  display: block;
+  width: 100%;
+  height: 10px;
+  margin-top: 10px;
+  accent-color: #b49a61;
+}
+.bureau-safety > summary {
+  cursor: pointer;
+}
+.operation-card time {
+  font-variant-numeric: tabular-nums;
+}
+.bureau-operations details,
+.bureau-safety details {
+  margin-block: 12px;
+}

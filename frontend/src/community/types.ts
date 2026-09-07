@@ -17,6 +17,8 @@ export type BureauSummary = {
   language: "ru" | "en" | "any"
   recruitment: "OPEN" | "APPLICATION" | "CLOSED"
   member_count: number
+  status?: "ACTIVE" | "FROZEN"
+  moderation_note?: string
   capacity: number
 }
 export type Showcase = {

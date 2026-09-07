@@ -3,6 +3,8 @@ import mark from "@/imports/mark.svg"
 import { useLanguage } from "../i18n"
 import { request, useResource } from "./api"
 import { LoadState, PageHead } from "./Shared"
+import Operations from "./Operations"
+import BureauSafety from "./BureauSafety"
 import type { BureauSummary, Theme } from "./types"
 
 type Settings = Pick<BureauSummary, "name" | "tagline" | "language" | "theme" | "recruitment"> & {
@@ -19,6 +21,8 @@ type Member = {
 }
 type Bureau = BureauSummary &
   Settings & {
+    my_ban?: { reason: string } | null
+    bans?: { id: string; display_name: string; reason: string }[]
     members: Member[]
     my_role: string | null
     can_manage: boolean
@@ -278,6 +282,7 @@ export default function Bureaus({
           </button>
         )}
       </PageHead>
+      <BureauSafety />
       {error && (
         <p role="alert" className="community-error">
           {error}
@@ -440,6 +445,7 @@ function BureauDetail({
   const [message, setMessage] = useState("")
   const [reason, setReason] = useState("")
   const [confirmation, setConfirmation] = useState("")
+  const [liftBan, setLiftBan] = useState("")
   const [memberAction, setMemberAction] = useState<{ member: Member; action: string } | null>(null)
   const roles: Record<string, string> = {
     DIRECTOR: ru ? "Директор" : "Director",
@@ -449,6 +455,7 @@ function BureauDetail({
   const actionNames: Record<string, string> = {
     PROMOTE: ru ? "Назначить модератором" : "Make moderator",
     DEMOTE: ru ? "Снять полномочия" : "Remove moderator role",
+    BAN: ru ? "Исключить и запретить вступление" : "Remove and ban rejoining",
     REMOVE: ru ? "Исключить" : "Remove member",
     TRANSFER: ru ? "Передать руководство" : "Transfer leadership",
   }
@@ -459,18 +466,19 @@ function BureauDetail({
     setError("")
     setNotice("")
     try {
-      const result = await request<{ bureau?: Bureau; deleted?: boolean }>(
+      const result = await request<{ bureau?: Bureau; deleted?: boolean; left?: boolean }>(
         `/api/bureaus/${encodeURIComponent(slug)}${path}`,
         csrf,
         { method, body: JSON.stringify(body) },
       )
-      if (result.deleted) {
+      if (result.deleted || result.left) {
         onBack()
         return
       }
       if (result.bureau) resource.setData({ bureau: result.bureau })
       setEditing(false)
       setMemberAction(null)
+      setLiftBan("")
       setReason("")
       setNotice(ru ? "Изменения сохранены" : "Changes saved")
       onChanged()
@@ -522,10 +530,32 @@ function BureauDetail({
                 {ru ? "Настроить бюро" : "Bureau settings"}
               </button>
             )}
-            <a className="community-report" href="/support">
-              {ru ? "Пожаловаться / помощь" : "Report / support"}
-            </a>
           </div>
+          {bureau.moderation_note && (
+            <p role="status" className="community-error">
+              {bureau.status === "FROZEN"
+                ? ru
+                  ? "Работа бюро приостановлена. "
+                  : "Bureau paused. "
+                : ""}
+              {bureau.moderation_note}
+            </p>
+          )}
+          <BureauSafety
+            slug={slug}
+            csrf={csrf}
+            banned={!!bureau.my_ban}
+            appeal={bureau.can_edit && bureau.status === "FROZEN"}
+          />
+          {bureau.my_role && (
+            <Operations
+              slug={slug}
+              csrf={csrf}
+              manager={bureau.can_manage}
+              director={bureau.can_edit}
+              frozen={bureau.status === "FROZEN"}
+            />
+          )}
           {editing && (
             <BureauEditor
               initial={{
@@ -607,6 +637,7 @@ function BureauDetail({
                               </>
                             )}
                             <option value="REMOVE">{actionNames.REMOVE}</option>
+                            <option value="BAN">{actionNames.BAN}</option>
                           </select>
                         )}
                     </li>
@@ -641,11 +672,11 @@ function BureauDetail({
                         : "This player will take over the bureau. You will become an operative."}
                     </p>
                   )}
-                  {memberAction.action === "REMOVE" && (
+                  {["REMOVE", "BAN"].includes(memberAction.action) && (
                     <label>
                       {ru
-                        ? "Причина исключения · видна руководству"
-                        : "Reason for removal · visible to management"}
+                        ? "Причина · при блокировке также видна игроку"
+                        : "Reason · also visible to the player when banned"}
                       <textarea
                         required
                         minLength={3}
@@ -685,7 +716,11 @@ function BureauDetail({
                         </p>
                         <div className="community-actions">
                           <button
-                            disabled={busy || bureau.member_count >= bureau.capacity}
+                            disabled={
+                              busy ||
+                              bureau.status === "FROZEN" ||
+                              bureau.member_count >= bureau.capacity
+                            }
                             className="dc-primary"
                             onClick={() =>
                               void mutate(`/applications/${item.id}`, { decision: "ACCEPT" })
@@ -734,6 +769,14 @@ function BureauDetail({
                     {ru
                       ? "Ваши контракты и достижения остаются вашими. Бюро не меняет награды и результаты."
                       : "Your contracts and achievements stay yours. The bureau cannot change rewards or results."}
+                  </p>
+                ) : bureau.my_ban ? (
+                  <p className="community-error">
+                    {ru ? "Вступление заблокировано: " : "Membership banned: "}
+                    {bureau.my_ban.reason}{" "}
+                    {ru
+                      ? "Апелляцию можно отправить через форму выше."
+                      : "You can appeal using the form above."}
                   </p>
                 ) : bureau.application_pending ? (
                   <>
@@ -853,6 +896,61 @@ function BureauDetail({
                       {ru ? "Распустить окончательно" : "Disband permanently"}
                     </button>
                   </form>
+                </details>
+              )}
+              {bureau.can_manage && !!bureau.bans?.length && (
+                <details className="community-panel">
+                  <summary>{ru ? "Запреты вступления" : "Membership bans"}</summary>
+                  {bureau.bans.map((ban) => (
+                    <article className="bureau-application" key={ban.id}>
+                      <b>{ban.display_name}</b>
+                      <p className="community-prose">{ban.reason}</p>
+                      {bureau.can_edit && (
+                        <button
+                          className="dc-ghost"
+                          disabled={busy}
+                          onClick={() => {
+                            setLiftBan(ban.id)
+                            setReason("")
+                          }}
+                        >
+                          {ru ? "Снять блокировку…" : "Lift ban…"}
+                        </button>
+                      )}
+                    </article>
+                  ))}
+                  {liftBan && (
+                    <form
+                      onSubmit={(event) => {
+                        event.preventDefault()
+                        void mutate(`/bans/${liftBan}/lift`, { reason })
+                      }}
+                    >
+                      <label>
+                        {ru ? "Причина снятия" : "Reason for lifting"}
+                        <textarea
+                          required
+                          minLength={3}
+                          maxLength={300}
+                          value={reason}
+                          onChange={(event) => setReason(event.target.value)}
+                        />
+                      </label>
+                      <div className="community-actions">
+                        <button className="dc-primary" disabled={busy}>
+                          {ru ? "Подтвердить снятие" : "Confirm lifting"}
+                        </button>
+                        <button
+                          type="button"
+                          className="dc-ghost"
+                          disabled={busy}
+                          onClick={() => setLiftBan("")}
+                        >
+                          {ru ? "Отмена" : "Cancel"}
+                        </button>
+                      </div>
+                    </form>
+                  )}
                 </details>
               )}
               {bureau.can_manage && (

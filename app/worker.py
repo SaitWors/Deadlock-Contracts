@@ -3541,6 +3541,11 @@ def run() -> None:
                         )
             except Exception:
                 log.exception("Lifecycle reconciliation failed")
+            try:
+                from .services.bureau_operations import maintenance as bureau_maintenance
+                bureau_maintenance(SessionLocal)
+            except Exception:
+                log.exception("Bureau operation reconciliation failed")
             next_maintenance_at = time.monotonic() + 60
         with SessionLocal() as db:
             if dispatch_outbox(db):

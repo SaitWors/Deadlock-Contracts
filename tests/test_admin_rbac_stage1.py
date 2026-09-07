@@ -17,12 +17,13 @@ def test_owner_has_every_known_permission() -> None:
     assert permissions_for_role("OWNER") == sorted(ALL_PERMISSIONS)
 
 
-def test_moderator_is_review_only_staff() -> None:
+def test_moderator_can_review_contracts_and_bureaus_only() -> None:
     expected = {
         "admin.access",
         "reviews.read",
         "reviews.claim",
         "reviews.decide",
+        "bureaus.moderate",
         "telegram.bind_self",
     }
     assert set(permissions_for_role("MODERATOR")) == expected

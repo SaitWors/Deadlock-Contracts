@@ -337,6 +337,8 @@ class PlayerBureau(Base):
     language: Mapped[str] = mapped_column(String(8), default="ru")
     theme: Mapped[str] = mapped_column(String(24), default="DOSSIER")
     recruitment: Mapped[str] = mapped_column(String(24), default="APPLICATION")
+    status: Mapped[str] = mapped_column(String(24), default="ACTIVE", index=True)
+    moderation_note: Mapped[str] = mapped_column(String(1000), default="")
     owner_user_id: Mapped[str | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
@@ -360,6 +362,97 @@ class BureauApplication(Base):
     bureau_id: Mapped[str] = mapped_column(ForeignKey("player_bureaus.id", ondelete="CASCADE"), index=True)
     user_id: Mapped[str] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
     message: Mapped[str] = mapped_column(String(500), default="")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class BureauMembershipPeriod(Base):
+    """Historical spells survive leaving; deleted accounts are anonymized."""
+    __tablename__ = "bureau_membership_periods"
+    __table_args__ = (Index("uq_bureau_open_period", "user_id", unique=True,
+                           postgresql_where=text("left_at IS NULL"), sqlite_where=text("left_at IS NULL")),)
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uuid4)
+    bureau_id: Mapped[str | None] = mapped_column(ForeignKey("player_bureaus.id", ondelete="SET NULL"), index=True)
+    user_id: Mapped[str | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"), index=True)
+    joined_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    left_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+class BureauBan(Base):
+    __tablename__ = "bureau_bans"
+    __table_args__ = (UniqueConstraint("bureau_id", "user_id", name="uq_bureau_ban"),)
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uuid4)
+    bureau_id: Mapped[str] = mapped_column(ForeignKey("player_bureaus.id", ondelete="CASCADE"), index=True)
+    user_id: Mapped[str] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    reason: Mapped[str] = mapped_column(String(300))
+    active: Mapped[bool] = mapped_column(Boolean, default=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class BureauReport(Base):
+    __tablename__ = "bureau_reports"
+    __table_args__ = (Index("uq_bureau_open_report", "bureau_id", "reporter_id", "kind", unique=True,
+                           postgresql_where=text("status = 'OPEN'"), sqlite_where=text("status = 'OPEN'")),)
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uuid4)
+    bureau_id: Mapped[str | None] = mapped_column(ForeignKey("player_bureaus.id", ondelete="SET NULL"), index=True)
+    reporter_id: Mapped[str | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"), index=True)
+    bureau_name: Mapped[str] = mapped_column(String(64))
+    kind: Mapped[str] = mapped_column(String(24))
+    message: Mapped[str] = mapped_column(String(1000))
+    snapshot: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
+    status: Mapped[str] = mapped_column(String(24), default="OPEN", index=True)
+    revision: Mapped[int] = mapped_column(Integer, default=1)
+    decision: Mapped[str] = mapped_column(String(24), default="")
+    decision_note: Mapped[str] = mapped_column(String(1000), default="")
+    decided_by: Mapped[str | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    decided_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+class BureauOperation(Base):
+    __tablename__ = "bureau_operations"
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uuid4)
+    bureau_id: Mapped[str | None] = mapped_column(ForeignKey("player_bureaus.id", ondelete="SET NULL"), index=True)
+    template: Mapped[str] = mapped_column(String(24))
+    target: Mapped[int] = mapped_column(Integer)
+    min_contributors: Mapped[int] = mapped_column(Integer)
+    started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    ends_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    status: Mapped[str] = mapped_column(String(24), default="ACTIVE")
+    progress: Mapped[int] = mapped_column(Integer, default=0)
+    contributors: Mapped[int] = mapped_column(Integer, default=0)
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    checked_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, index=True)
+    cancel_reason: Mapped[str] = mapped_column(String(1000), default="")
+
+
+class BureauOperationParticipant(Base):
+    __tablename__ = "bureau_operation_participants"
+    __table_args__ = (UniqueConstraint("operation_id", "user_id", name="uq_bureau_operation_player"),)
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uuid4)
+    operation_id: Mapped[str] = mapped_column(ForeignKey("bureau_operations.id", ondelete="CASCADE"), index=True)
+    user_id: Mapped[str | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"), index=True)
+    earned_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+class BureauContribution(Base):
+    __tablename__ = "bureau_contributions"
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uuid4)
+    operation_id: Mapped[str] = mapped_column(ForeignKey("bureau_operations.id", ondelete="CASCADE"), index=True)
+    participant_id: Mapped[str] = mapped_column(ForeignKey("bureau_operation_participants.id", ondelete="CASCADE"), index=True)
+    source_key: Mapped[str] = mapped_column(String(36), unique=True)
+    source_option_id: Mapped[str | None] = mapped_column(ForeignKey("board_options.id", ondelete="SET NULL"))
+    credited: Mapped[bool] = mapped_column(Boolean, default=True)
+    revision: Mapped[int] = mapped_column(Integer, default=1)
+    played_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+
+
+class BureauContributionEvent(Base):
+    __tablename__ = "bureau_contribution_events"
+    __table_args__ = (UniqueConstraint("contribution_id", "revision", name="uq_bureau_contribution_revision"),)
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uuid4)
+    contribution_id: Mapped[str] = mapped_column(ForeignKey("bureau_contributions.id", ondelete="CASCADE"), index=True)
+    revision: Mapped[int] = mapped_column(Integer)
+    action: Mapped[str] = mapped_column(String(24))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
 
