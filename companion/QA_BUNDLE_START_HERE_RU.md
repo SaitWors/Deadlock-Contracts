@@ -1,29 +1,55 @@
-# Deadlock Contracts Companion — QA candidate 0.5.2-alpha.7
+# Deadlock Contracts Companion — QA-комплект
 
-Это собранный QA комплект: внутри лежат правильный OPK, CycloneDX SBOM, checksums, QA-документы и отдельный source ZIP. Это **не** заявление, что Overwolf уже одобрил продукт.
+Точную версию, имя OPK и SHA-256 смотри в `CANDIDATE.json` в корне
+распакованного комплекта. Этот файл генерируется из `companion/release.json`
+и реально упакованных файлов. Название старого отчёта или ZIP не определяет
+версию отправленного приложения.
 
-## Быстрый порядок
+## Проверка комплекта
 
-1. Убедиться, что Web/Backend `0.10.1-alpha.9` доступен, health/ready зелёные и pairing работает.
-2. Сверить SHA-256 OPK и `.cdx.json` с `OPK/SHA256SUMS.txt`.
-3. Установить `OPK/Deadlock-Contracts-Companion-0.5.2-alpha.7.opk` через Overwolf Developer Options / testing channel.
-4. Выполнить ручный чеклист из `QA_DOCS/OVERWOLF_QA_HANDOFF_RU.md` на Windows + актуальный Overwolf + Deadlock.
-5. Не отправлять в review, пока не выполнены проверки hotkey, auto-hide, process-wide Deadlock ad shutdown, GEP, fullscreen/windowed/Alt+Tab и resolution/DPI matrix.
+1. В каталоге с внешним архивом выполнить `sha256sum -c *-BUNDLE.sha256`.
+2. Распаковать архив. В его корне выполнить
+   `sha256sum -c BUNDLE_CONTENT_SHA256SUMS.txt`.
+3. Сверить `CANDIDATE.json`: версию продукта, `manifest_version`, имя OPK,
+   его SHA-256 и целевую версию backend. Целевая версия не подтверждает,
+   что именно она сейчас работает на сервере.
+4. Установить файл из поля `opk.path` через доступные Overwolf Developer
+   Options / testing channel. Исходный ZIP из `SOURCE/` предназначен для
+   разработки и воспроизведения сборки.
+5. Выполнить `QA_DOCS/OVERWOLF_QA_HANDOFF_RU.md` и заполнить матрицу
+   `QA_DOCS/OVERWOLF_RELEASE_MATRIX_RU.md` для этого OPK.
+6. Сохранить исходный OPK и его SHA-256 вместе с датой отправки, номером
+   заявки, результатами ручной проверки и ответами Overwolf. При замене
+   кандидата создать отдельную запись с новым хешем.
 
-## Что проверяет автоматическая сборка
+Сборщик проверяет идентичность release metadata и структуру OPK. Результаты
+автотестов берутся из CI именно той ревизии, из которой получен комплект.
+`not_recorded` означает отсутствие результата проверки или отправки;
+сборщик не объявляет Windows QA, submission или approval завершёнными.
 
-- unit/release/session/product tests;
-- JavaScript syntax;
-- manifest/version/icon/permission/CSP gates;
-- запрет на server secrets и client-side settlement;
-- correct OPK root structure и normal compression;
-- static checks для transient overlay и desktop-only OwAd `400×60` slot;
-- checksum итоговых архивов.
+## Воспроизведение OPK из исходников
 
-## Что automation не доказывает
+Распаковать `SOURCE/*-source.zip`, перейти во вложенный каталог `companion`
+и выполнить на Linux / CI с Node.js 22, `zip` и `unzip`:
 
-- Windows/Overwolf runtime;
-- реальный Deadlock GEP именно для frozen OPK;
-- корректную позицию Overlay поверх каждого игрового HUD и DPI;
-- фактическую подачу рекламного creative (её включает Overwolf после QA);
-- окончательное решение DevRel/QA или VirusTotal/antivirus.
+```bash
+npm run release:check
+node scripts/package-release.mjs
+sha256sum dist/*.opk
+```
+
+Полученный SHA-256 должен совпасть с `CANDIDATE.json` → `opk.sha256`.
+В исходники включены собственный `release.json`, схемы и fixtures; checkout
+backend и родительский `release.json` для сборки Companion не требуются.
+QA-комплект можно пересобрать командой `npm run build:qa-bundle`.
+
+## Что проверяется вручную
+
+Установка frozen OPK, Windows/Overwolf runtime, настоящий Deadlock GEP,
+положение overlay и DPI, горячие клавиши, offline/reconnect, завершение
+матча, фактическое поведение рекламы и финальное решение QA/DevRel.
+Исторические скриншоты и отчёты других версий не подтверждают эти проверки.
+
+Whitelist, проверка приложения и доступ к Developer Console фиксируются
+отдельно. Официальный порядок:
+https://dev.overwolf.com/ow-native/getting-started/release-your-app/

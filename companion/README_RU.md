@@ -1,4 +1,27 @@
-# Deadlock Contracts Companion 0.5.2-alpha.16
+# Deadlock Contracts Companion
+
+Текущие версии продукта, manifest, evidence и целевого backend указаны в
+`release.json`. Последние изменения — в `RELEASE_NOTES_<product_version>_RU.md`.
+
+Для подготовки QA-комплекта:
+
+```bash
+npm run release:check
+npm run test:qa-bundle
+npm run build:qa-bundle
+```
+
+На Linux / CI нужны Node.js 22, `zip` и `unzip`. Комплект появляется в
+`release/`; его `CANDIDATE.json` фиксирует версии, имена файлов и SHA-256.
+Проверка упаковки распаковывает исходники, запускает их release checks и
+собирает OPK с тем же хешем. Порядок ручной проверки и отправки описан в
+[QA_BUNDLE_START_HERE_RU.md](QA_BUNDLE_START_HERE_RU.md).
+
+Состояние отправленной сборки команды:
+[SUBMISSION_STATUS_RU.md](docs/review/SUBMISSION_STATUS_RU.md).
+Версии и результаты ниже относятся к историческим релизам.
+
+## История Alpha.16
 
 Alpha.16 — QA-кандидат поверх проверенного Alpha.15: durable queued-match UX, сохранение `hero_id`, QA-cleanup diagnostics/naming и синхронизация release metadata. Финальный verdict и XP остаются server-authoritative.
 
