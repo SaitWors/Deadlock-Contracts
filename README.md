@@ -1,4 +1,10 @@
-# Deadlock Contracts Web/Backend v0.10.1-alpha.9
+# Deadlock Contracts
+
+Актуальные версии сайта и Companion указаны в `release.json`.
+
+Для разработки и проверки PR №31 начни с [инструкции Codespaces](docs/design/CODESPACE_RU.md). Она запускает отдельный тестовый экземпляр с текущим frontend и серверным подписанием. Дизайн и ограничения проверки описаны в [плане первого этапа](docs/design/STAGE1_RU.md).
+
+## Основа alpha.9
 
 **0.10.1-alpha.9:** первый pre-public QA candidate сайта и Companion с закрытой границей доверия, case-centric History и release-aligned metadata.
 

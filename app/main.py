@@ -613,6 +613,16 @@ def status() -> dict:
     }
 
 
+@app.get("/dev/preview", include_in_schema=False)
+def development_preview() -> FileResponse:
+    if settings.app_env != "development" or not settings.allow_demo_auth:
+        raise HTTPException(404, "Not found")
+    return FileResponse(
+        Path(__file__).parent / "templates" / "preview.html",
+        headers={"Cache-Control": "no-store", "X-Robots-Tag": "noindex, nofollow"},
+    )
+
+
 @app.post("/api/auth/demo")
 def demo_login(response: Response, request: Request, db: Session = Depends(get_db)) -> dict:
     if not settings.allow_demo_auth:

@@ -2,6 +2,7 @@ import React, { act } from "react"
 import { createRoot } from "react-dom/client"
 import ContractSigning from "../src/ContractSigning"
 import BureauHeader from "../src/BureauHeader"
+import Landing from "../src/Landing"
 import { LanguageProvider } from "../src/i18n"
 export * from "../src/contract-signing"
 export { act }
@@ -46,5 +47,15 @@ function MotionProbe() {
 export function mountMotion(element: HTMLElement) {
   const root = createRoot(element)
   root.render(<MotionProbe />)
+  return { unmount: () => root.unmount() }
+}
+
+export function mountLanding(element: HTMLElement) {
+  const root = createRoot(element)
+  root.render(
+    <LanguageProvider>
+      <Landing />
+    </LanguageProvider>,
+  )
   return { unmount: () => root.unmount() }
 }

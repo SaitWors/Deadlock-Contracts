@@ -4,6 +4,7 @@ export type SigningBoard = {
   game_match_mode: string
   status: string
   expires_at: string
+  locked_at?: string | null
   server_time?: string
   options: { id: string; selected: boolean }[]
 }
@@ -35,6 +36,8 @@ export function selectionState(
   )
     return "changed"
   if (board.status !== "OFFERED") {
+    const lockedAt = Date.parse(board.locked_at || "")
+    if (!Number.isFinite(lockedAt) || !(Date.parse(board.expires_at) > lockedAt)) return "changed"
     const selected = board.options.filter((option) => option.selected)
     return ["LOCKED", "VERIFYING", "REVIEW_REQUIRED"].includes(board.status) &&
       selected.length === selection.optionIds.length &&

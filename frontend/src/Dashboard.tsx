@@ -1248,7 +1248,7 @@ export default function Dashboard({ initialSession }: { initialSession: SessionP
     })
   }
   const lock = async () => {
-    if (!signing) return
+    if (!signing) throw new Error("No signing selection")
     const { selection } = signing
     const result = await signSelection<Board>(
       selection,
@@ -1284,6 +1284,7 @@ export default function Dashboard({ initialSession }: { initialSession: SessionP
         result.options.filter((option) => option.selected).map((option) => option.id),
       ),
     }))
+    return result
   }
   const reroll = async () => {
     if (!board || board.status !== "OFFERED" || !boardsPayload?.refresh.remaining) return

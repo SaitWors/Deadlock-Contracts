@@ -34,6 +34,7 @@ export default function BureauHeader({
     setOpen(false)
   }, [active])
   const navigate = (id: string) => {
+    if (open) toggle.current?.focus()
     onNavigate(id)
     setOpen(false)
   }

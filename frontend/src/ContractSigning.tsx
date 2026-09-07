@@ -43,24 +43,33 @@ function WaxSeal() {
   )
 }
 
-export default function ContractSigning({
-  mode,
-  operator,
-  options,
-  changed,
-  onSign,
-  onClose,
-  onOpenCase,
-}: {
+type SigningReceipt = {
+  id: string
+  locked_at: string | null
+  expires_at: string
+  max_attempts: number
+}
+
+type SigningProps = {
   mode: string
   operator: string
   options: { id: string; title: string; description: string; reward: number }[]
   changed: boolean
-  onSign: () => Promise<void>
   onClose: () => void
-  onOpenCase: () => void
-}) {
-  const { language } = useLanguage()
+} & (
+  | { preview: true; onSignIn: () => void; onSign?: never; onOpenCase?: never }
+  | {
+      preview?: false
+      onSign: () => Promise<SigningReceipt>
+      onOpenCase: () => void
+      onSignIn?: never
+    }
+)
+
+export default function ContractSigning(props: SigningProps) {
+  const { mode, operator, options, changed, onClose } = props
+  const preview = props.preview === true
+  const { language, locale } = useLanguage()
   const ru = language === "ru"
   const dialog = useRef<HTMLDialogElement>(null)
   const heading = useRef<HTMLHeadingElement>(null)
@@ -68,6 +77,7 @@ export default function ContractSigning({
   const titleId = useId()
   const descriptionId = useId()
   const [state, setState] = useState<"review" | "pending" | "signed">("review")
+  const [receipt, setReceipt] = useState<SigningReceipt | null>(null)
   const [error, setError] = useState("")
   const [stale, setStale] = useState(false)
   const unavailable = changed || stale
@@ -92,11 +102,16 @@ export default function ContractSigning({
 
   const sign = async () => {
     if (inFlight.current || state === "signed" || unavailable) return
+    if (props.preview) {
+      setState("signed")
+      return
+    }
     inFlight.current = true
     setState("pending")
     setError("")
     try {
-      await onSign()
+      const confirmed = await props.onSign()
+      setReceipt(confirmed)
       setState("signed")
     } catch (reason) {
       if (reason instanceof SelectionChangedError) setStale(true)
@@ -131,13 +146,21 @@ export default function ContractSigning({
           <div>
             <p className="signing-eyebrow">DEADLOCK CONTRACTS · {ru ? "БЮРО" : "BUREAU"}</p>
             <h2 ref={heading} tabIndex={-1} id={titleId}>
-              {state === "signed"
-                ? ru
-                  ? "Условия зафиксированы"
-                  : "Terms are sealed"
-                : ru
-                  ? "Подписание контракта"
-                  : "Sign your contract"}
+              {preview
+                ? state === "signed"
+                  ? ru
+                    ? "Пробная печать поставлена"
+                    : "Sample seal placed"
+                  : ru
+                    ? "Пример подписания"
+                    : "Try signing a contract"
+                : state === "signed"
+                  ? ru
+                    ? "Условия зафиксированы"
+                    : "Terms are sealed"
+                  : ru
+                    ? "Подписание контракта"
+                    : "Sign your contract"}
             </h2>
           </div>
           <button
@@ -149,10 +172,21 @@ export default function ContractSigning({
             ×
           </button>
         </header>
+        {preview && (
+          <p className="signing-demo" role="note">
+            {ru
+              ? "Демонстрация. Контракт не сохраняется, XP не начисляется."
+              : "Demo only. No contract is saved and no XP is awarded."}
+          </p>
+        )}
         <p id={descriptionId} className="signing-intro">
-          {ru
-            ? "Проверьте условия перед тем, как поставить печать. После подписания изменить выбор нельзя."
-            : "Review the terms before placing your seal. Your selection cannot be changed after signing."}
+          {preview
+            ? ru
+              ? "Посмотрите, как выглядит договор. Настоящее дело можно открыть после входа через Steam."
+              : "Preview your contract. Sign in with Steam to open a real case."
+            : ru
+              ? "Проверьте условия перед тем, как поставить печать. После подписания изменить выбор нельзя."
+              : "Review the terms before placing your seal. Your selection cannot be changed after signing."}
         </p>
         <dl className="signing-identity">
           <div>
@@ -188,12 +222,55 @@ export default function ContractSigning({
           <div className="signing-success" role="status">
             <WaxSeal />
             <p>
-              {ru
-                ? "Бюро приняло условия. Ваше дело открыто."
-                : "The bureau accepted your terms. Your case is open."}
+              {preview
+                ? ru
+                  ? "Пример готов. После входа вы сможете выбрать условия на своей доске."
+                  : "Preview complete. Sign in to choose terms from your own board."
+                : ru
+                  ? "Бюро приняло условия. Ваше дело открыто."
+                  : "The bureau accepted your terms. Your case is open."}
             </p>
-            <button className="signing-primary" onClick={onOpenCase}>
-              {ru ? "Открыть дело" : "Open case"}
+            {!preview && receipt && (
+              <dl className="signing-receipt">
+                <div>
+                  <dt>{ru ? "Номер дела" : "Case ID"}</dt>
+                  <dd>{receipt.id}</dd>
+                </div>
+                {receipt.locked_at && (
+                  <div>
+                    <dt>{ru ? "Подписано" : "Signed"}</dt>
+                    <dd>
+                      <time dateTime={receipt.locked_at}>
+                        {new Date(receipt.locked_at).toLocaleString(locale)}
+                      </time>
+                    </dd>
+                  </div>
+                )}
+                <div>
+                  <dt>{ru ? "Срок дела" : "Case deadline"}</dt>
+                  <dd>
+                    <time dateTime={receipt.expires_at}>
+                      {new Date(receipt.expires_at).toLocaleString(locale)}
+                    </time>
+                  </dd>
+                </div>
+                <div>
+                  <dt>{ru ? "Лимит попыток" : "Attempt limit"}</dt>
+                  <dd>{receipt.max_attempts}</dd>
+                </div>
+              </dl>
+            )}
+            <button
+              className="signing-primary"
+              onClick={preview ? props.onSignIn : props.onOpenCase}
+            >
+              {preview
+                ? ru
+                  ? "Войти через Steam"
+                  : "Sign in with Steam"
+                : ru
+                  ? "Открыть дело"
+                  : "Open case"}
             </button>
           </div>
         ) : (
@@ -227,9 +304,13 @@ export default function ContractSigning({
                   ? ru
                     ? "Подтверждаем…"
                     : "Confirming…"
-                  : ru
-                    ? "Поставить печать"
-                    : "Place seal"}
+                  : preview
+                    ? ru
+                      ? "Поставить пробную печать"
+                      : "Place sample seal"
+                    : ru
+                      ? "Поставить печать"
+                      : "Place seal"}
               </button>
             </div>
             <p className="signing-progress" role="status">

@@ -68,3 +68,15 @@
 
 .bureau-mobile-preferences{display:flex;align-items:center;justify-content:space-between;gap:16px;border-top:1px solid var(--color-border);padding-top:12px}
 .bureau-app .dc-mobile-bottom-nav>button span{font:600 .75rem/1.2 var(--font-display);letter-spacing:0;white-space:normal;overflow-wrap:anywhere}
+
+.signing-demo{padding:12px 14px;border:1px solid #8f795a;background:#cdbb97;color:#493b2c;font-size:.875rem}
+.signing-receipt{margin:20px 0;text-align:left;border-block:1px solid #ad9a77;padding:12px 0;display:grid;gap:12px}
+.signing-receipt dt{font-size:.875rem;color:#62523c}
+.signing-receipt dd{margin:2px 0 0;overflow-wrap:anywhere;color:#2a2118;font-size:1rem}
+.signing-intro,.signing-terms p{font-size:1rem}
+.signing-eyebrow,.signing-identity dt,.signing-note,.signing-progress{font-size:.875rem}
+.signing-identity{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}
+.bureau-public .contract-card:disabled{cursor:default;opacity:.65;transform:none!important}
+.bureau-public .contract-card p{font-size:1rem;line-height:1.6}
+.bureau-public .contract-card :is(.text-\[10px\],.text-\[11px\],.text-xs){font-size:.875rem;text-shadow:none!important}
+@media(max-width:375px){.signing-identity{grid-template-columns:1fr}.bureau-mobile-preferences{flex-wrap:wrap}}

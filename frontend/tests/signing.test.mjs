@@ -69,6 +69,9 @@ const selection = { boardId: "board-a", generation: 1, mode: "STANDARD", optionI
 function locked(overrides = {}) {
   return board({
     status: "LOCKED",
+    locked_at: "2026-09-07T12:00:00Z",
+    expires_at: "2026-09-07T18:00:00Z",
+    max_attempts: 5,
     options: board().options.map((o) => ({ ...o, selected: selection.optionIds.includes(o.id) })),
     ...overrides,
   })
@@ -259,7 +262,7 @@ async function mount(props = {}, language = "ru") {
     operator: "Тестовый исполнитель",
     options,
     changed: false,
-    onSign: async () => {},
+    onSign: async () => locked(),
     onClose() {},
     onOpenCase() {},
     ...props,
@@ -330,8 +333,13 @@ test("double activation sends once; pending cannot close; success waits for conf
     .dispatchEvent(new env.w.Event("cancel", { cancelable: true }))
   assert.equal(closes, 0)
   assert.equal(env.document.querySelectorAll(".signing-seal").length, 0)
-  await env.api.act(async () => resolve())
+  await env.api.act(async () => resolve(locked()))
   assert.equal(env.document.querySelectorAll(".signing-seal").length, 1)
+  assert.match(env.document.querySelector(".signing-receipt").textContent, /board-a/)
+  assert.equal(
+    env.document.querySelector('time[datetime="2026-09-07T18:00:00Z"]').dateTime,
+    "2026-09-07T18:00:00Z",
+  )
   assert.equal(env.document.activeElement, env.document.querySelector(".signing-heading h2"))
   await env.api.act(async () => env.button("Открыть дело").click())
   assert.equal(opens, 1)
@@ -342,6 +350,7 @@ test("failure keeps the terms and supports a successful retry", async () => {
   const env = await mount({
     onSign: async () => {
       if (++signs === 1) throw new Error("offline")
+      return locked()
     },
   })
   await env.api.act(async () => env.button("Поставить печать").click())
@@ -425,6 +434,7 @@ test("shared navigation reports the active page and closes its mobile menu on Es
   )
   assert.deepEqual(navigated, ["history"])
   assert.equal(toggle.getAttribute("aria-expanded"), "false")
+  assert.equal(document.activeElement, toggle)
   await api.act(async () => instance.unmount())
 })
 
@@ -504,3 +514,83 @@ test("server time takes precedence over a skewed device clock", async () => {
   )
   assert.equal(result.status, "LOCKED")
 })
+
+test("a receipt without valid server timestamps cannot confirm signing", async () => {
+  const { api } = runtime()
+  for (const change of [
+    { locked_at: null },
+    { expires_at: "invalid" },
+    { expires_at: "2026-09-07T11:00:00Z" },
+  ]) {
+    await assert.rejects(
+      api.signSelection(
+        selection,
+        async () => board(),
+        async () => locked(change),
+      ),
+      api.SigningUnconfirmedError,
+    )
+  }
+})
+
+for (const language of ["ru", "en"]) {
+  test(`public ${language} preview signs only a demo, retains selection on close, and resets on mode change`, async () => {
+    const { api, w, document } = runtime(language)
+    w.history.replaceState(null, "", "/#contracts")
+    w.scrollTo = () => {}
+    w.IntersectionObserver = class {
+      constructor(callback) {
+        this.callback = callback
+      }
+      observe(target) {
+        this.callback([{ isIntersecting: true, target }])
+      }
+      disconnect() {}
+    }
+    const requests = []
+    w.fetch = async (url) => {
+      requests.push(url)
+      throw new Error("Unexpected public preview request")
+    }
+    let instance
+    await api.act(async () => {
+      instance = api.mountLanding(document.getElementById("mount"))
+    })
+    const preview = [...document.querySelectorAll("button")].find((button) =>
+      /НЕ СОХРАНЯЕТСЯ|NOT SAVED/.test(button.textContent),
+    )
+    assert.ok(preview)
+    assert.equal(preview.disabled, true)
+    const cards = [...document.querySelectorAll(".contract-card")]
+    const title = cards[0].querySelector("h3").textContent
+    await api.act(async () => cards[0].click())
+    assert.equal(preview.disabled, false)
+    preview.focus()
+    await api.act(async () => preview.click())
+    assert.equal(document.querySelectorAll(".signing-terms li").length, 1)
+    assert.equal(document.querySelector(".signing-terms h3").textContent, title)
+    const sample = [...document.querySelectorAll("dialog button")].find((button) =>
+      /Поставить пробную печать|Place sample seal/.test(button.textContent),
+    )
+    await api.act(async () => sample.click())
+    assert.ok(document.querySelector(".signing-seal"))
+    assert.ok(document.querySelector(".signing-demo"))
+    assert.equal(document.querySelector(".signing-receipt"), null)
+    assert.doesNotMatch(
+      document.querySelector(".signing-success").textContent,
+      /Ваше дело открыто|Your case is open/,
+    )
+    assert.deepEqual(requests, [])
+    await api.act(async () => document.querySelector(".signing-close").click())
+    assert.equal(document.activeElement, preview)
+    assert.equal(cards[0].getAttribute("aria-pressed"), "true")
+    await api.act(async () =>
+      [...document.querySelectorAll("button")]
+        .find((button) => button.textContent.trim() === "RANKED")
+        .click(),
+    )
+    assert.equal(document.querySelectorAll('.contract-card[aria-pressed="true"]').length, 0)
+    assert.equal(preview.disabled, true)
+    await api.act(async () => instance.unmount())
+  })
+}

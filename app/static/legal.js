@@ -40,6 +40,11 @@ if (active) {
 }
 
 const english = document.documentElement.lang === "en";
+document.querySelectorAll("[data-document-language]").forEach((link) => {
+  const language = link.dataset.documentLanguage;
+  const path = documents[normalizedPath] ? normalizedPath : "/privacy";
+  if (language === "ru" || language === "en") link.href = `/${language}${path}`;
+});
 const englishTitles = {
   "/privacy": "privacy",
   "/terms": "terms",

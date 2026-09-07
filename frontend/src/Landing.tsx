@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from "react"
 import BureauHeader from "./BureauHeader"
+import ContractSigning from "./ContractSigning"
 import { prefersReducedMotion, useRipple, useTilt } from "./motion"
 import logoImage from "@/imports/brand-hero.webp"
 import { apiLanguage, LanguageSwitch, MCGCredit, t, useLanguage } from "./i18n"
@@ -461,6 +462,7 @@ export default function Landing() {
 
   const [page, setPage] = useState<PublicPage>(pageFromHash)
   const [selected, setSelected] = useState<number[]>([])
+  const [previewOpen, setPreviewOpen] = useState(false)
   const [gameMode, setGameMode] = useState<GameMode>("STANDARD")
   const [openFaq, setOpenFaq] = useState<number | null>(null)
   const [leaderScope, setLeaderScope] = useState<LeaderScope>("all_time")
@@ -558,6 +560,24 @@ export default function Landing() {
 
   return (
     <div className="bureau-public min-h-screen">
+      {previewOpen && (
+        <ContractSigning
+          preview
+          mode={gameMode}
+          operator={language === "ru" ? "Гость бюро" : "Bureau guest"}
+          options={contracts
+            .filter((contract) => selected.includes(contract.id))
+            .map((contract) => ({
+              id: String(contract.id),
+              title: contract.title,
+              description: contract.condition,
+              reward: contract.xp,
+            }))}
+          changed={false}
+          onClose={() => setPreviewOpen(false)}
+          onSignIn={() => window.location.assign("/auth/steam")}
+        />
+      )}
       <BureauHeader
         active={page}
         items={NAV_ITEMS.map((item) => ({
@@ -636,20 +656,22 @@ export default function Landing() {
                     className="text-[11px] font-semibold tracking-[0.28em] uppercase"
                     style={{ color: "#7AB384" }}
                   >
-                    VERIFIABLE CONTRACTS FOR DEADLOCK
+                    {language === "ru"
+                      ? "ПРОВЕРЯЕМЫЕ КОНТРАКТЫ ДЛЯ DEADLOCK"
+                      : "VERIFIABLE CONTRACTS FOR DEADLOCK"}
                   </span>
                 </div>
 
                 <HeroHeading
                   lines={[
-                    { text: "CHOOSE A CONTRACT" },
-                    { text: "PLAY THE MATCH" },
-                    { text: "CLOSE THE CASE", accent: true },
+                    { text: language === "ru" ? "ВЫБЕРИТЕ КОНТРАКТ" : "CHOOSE A CONTRACT" },
+                    { text: language === "ru" ? "СЫГРАЙТЕ МАТЧ" : "PLAY THE MATCH" },
+                    { text: language === "ru" ? "ЗАКРОЙТЕ ДЕЛО" : "CLOSE THE CASE", accent: true },
                   ]}
                   className="font-extrabold leading-none mb-6"
                   style={{
                     fontFamily: "Roboto Condensed, Barlow Condensed, sans-serif",
-                    fontSize: "clamp(52px, 6.5vw, 76px)",
+                    fontSize: "clamp(36px, 6.5vw, 76px)",
                     letterSpacing: "-0.01em",
                     display: "block",
                   }}
@@ -680,11 +702,15 @@ export default function Landing() {
                       navigate("contracts")
                     }}
                   >
-                    CONTRACT PREVIEW <span className="arrow-bounce">↓</span>
+                    {language === "ru" ? "ПОПРОБОВАТЬ ПОДПИСАНИЕ" : "CONTRACT PREVIEW"}{" "}
+                    <span className="arrow-bounce" aria-hidden="true">
+                      ↓
+                    </span>
                   </button>
                 </div>
                 <p className="text-xs" style={{ color: "#7F8478" }}>
-                  STANDARD · RANKED · STREET BRAWL · AUTO VERIFY
+                  STANDARD · RANKED · STREET BRAWL ·{" "}
+                  {language === "ru" ? "АВТОПРОВЕРКА" : "AUTO VERIFY"}
                 </p>
               </div>
 
@@ -816,10 +842,24 @@ export default function Landing() {
             >
               <div className="max-w-[1320px] mx-auto px-6 lg:px-8 py-5 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                 {[
-                  { icon: "✓", text: "LOCKED BEFORE MATCH" },
-                  { icon: "◎", text: "FINAL STATS VERIFIED" },
-                  { icon: "◇", text: "MISSING DATA ≠ FAILURE" },
-                  { icon: "↻", text: "IDEMPOTENT XP REWARD" },
+                  {
+                    icon: "✓",
+                    text: language === "ru" ? "ВЫБОР ДО НАЧАЛА МАТЧА" : "LOCKED BEFORE MATCH",
+                  },
+                  {
+                    icon: "◎",
+                    text:
+                      language === "ru" ? "ПРОВЕРКА ИТОГОВОЙ СТАТИСТИКИ" : "FINAL STATS VERIFIED",
+                  },
+                  {
+                    icon: "◇",
+                    text:
+                      language === "ru" ? "НЕТ ДАННЫХ — НЕТ ПОРАЖЕНИЯ" : "MISSING DATA ≠ FAILURE",
+                  },
+                  {
+                    icon: "↻",
+                    text: language === "ru" ? "НАГРАДЫ НЕ ДУБЛИРУЮТСЯ" : "NO DUPLICATE REWARDS",
+                  },
                 ].map(({ icon, text }) => (
                   <div key={text} className="flex items-center gap-3">
                     <span
@@ -906,7 +946,11 @@ export default function Landing() {
               <Reveal>
                 <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-5 mb-10">
                   <div>
-                    <Eyebrow>INTERACTIVE PREVIEW / NOT SAVED</Eyebrow>
+                    <Eyebrow>
+                      {language === "ru"
+                        ? "ПРОБНОЕ ПОДПИСАНИЕ · НЕ СОХРАНЯЕТСЯ"
+                        : "INTERACTIVE PREVIEW / NOT SAVED"}
+                    </Eyebrow>
                     <SectionHeading>
                       {t(language, "Выберите цель на следующий матч")}
                     </SectionHeading>
@@ -933,6 +977,7 @@ export default function Landing() {
                         key={mode}
                         onClick={(e) => {
                           setGameMode(mode)
+                          setSelected([])
                           ripple(e)
                         }}
                         className={`px-5 py-2 text-sm font-semibold transition-all duration-200 ${
@@ -974,6 +1019,7 @@ export default function Landing() {
                         }}
                         onClick={() => toggleContract(c.id)}
                         aria-pressed={isSelected}
+                        disabled={!isSelected && selected.length >= 3}
                         aria-label={`${c.title}: ${c.condition}`}
                         onMouseMove={cardTilt.onMouseMove}
                         onMouseLeave={cardTilt.onMouseLeave}
@@ -1166,8 +1212,8 @@ export default function Landing() {
                         letterSpacing: "0.05em",
                         boxShadow: selected.length > 0 ? "0 0 14px rgba(122,179,132,0.3)" : "none",
                       }}
-                      disabled
-                      aria-disabled="true"
+                      disabled={selected.length === 0}
+                      onClick={() => setPreviewOpen(true)}
                     >
                       {t(language, "ПРЕДПРОСМОТР · НЕ СОХРАНЯЕТСЯ")}
                     </button>
