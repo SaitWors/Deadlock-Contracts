@@ -92,10 +92,13 @@ jobs:
       - name: Check formatting
         run: |
           pnpm exec oxfmt --check \
-            src \
+            src tests \
             vite.config.ts \
             package.json \
             index.html
+
+      - name: Test contract signing and shared header
+        run: pnpm test
 
       - name: Type check
         run: |

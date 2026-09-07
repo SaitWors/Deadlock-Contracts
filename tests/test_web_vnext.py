@@ -17,20 +17,13 @@ def test_release_version_is_consistent() -> None:
     assert '"version": "0.10.1-alpha.12"' in (ROOT / "frontend/package.json").read_text(encoding="utf-8")
 
 
-def test_landing_is_exact_legacy_motion_restore() -> None:
-    for marker in (
-        "function CustomCursor()",
-        "function ScrambleText",
-        "function CuratorTyper",
-        "const PARTICLES = Array.from({ length: 22 }",
-        'className="hero-grid',
-        'className="radar-ring"',
-        'className="scanline-overlay"',
-        "useTilt(8)",
-        "useRipple()",
-        "AnimatedCounter",
-    ):
-        assert marker in LANDING
+def test_public_and_authenticated_screens_share_the_bureau_header() -> None:
+    assert "<BureauHeader" in LANDING and "<BureauHeader" in DASHBOARD
+    assert "<CustomCursor" not in LANDING + DASHBOARD
+    assert "innerHTML =" not in LANDING
+    assert "prefers-reduced-motion:reduce" in (
+        ROOT / "frontend/src/bureau.css"
+    ).read_text(encoding="utf-8")
 
 
 def test_active_case_is_server_state_only() -> None:
@@ -140,8 +133,7 @@ def test_public_shell_does_not_mask_backend_outages_as_a_signed_out_session() ->
 
 
 def test_landing_reveal_and_contract_preview_are_keyboard_accessible() -> None:
-    assert "return [setRef, visible]" in LANDING
-    assert "ref={revealRef}" in LANDING
+    assert "IntersectionObserver" in LANDING
     assert "aria-pressed={isSelected}" in LANDING
     assert "aria-expanded={openFaq === i}" in LANDING
 

@@ -1,4 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from "react"
+import BureauHeader from "./BureauHeader"
+import { prefersReducedMotion, useRipple, useTilt } from "./motion"
 import logoImage from "@/imports/brand-hero.webp"
 import { apiLanguage, LanguageSwitch, MCGCredit, t, useLanguage } from "./i18n"
 
@@ -194,220 +196,23 @@ const CURATOR_MESSAGES = [
   "Условия зафиксированы. Ждём матч.",
 ]
 
-const PARTICLES = Array.from({ length: 22 }, (_, i) => ({
-  id: i,
-  left: `${4 + ((i * 4.3) % 92)}%`,
-  bottom: `${(i * 6) % 38}%`,
-  delay: `${(i * 0.37) % 6}s`,
-  dur: `${3.2 + ((i * 0.28) % 3.5)}s`,
-  drift: `${-18 + (i % 7) * 7}px`,
-  opacity: 0.25 + (i % 5) * 0.14,
-  size: 2 + (i % 3),
-  type: i % 5 === 0 ? "ember" : i % 7 === 0 ? "spark" : "",
-}))
-
-// ─── Custom cursor ─────────────────────────────────────────────────
-function CustomCursor() {
-  const dotRef = useRef<HTMLDivElement>(null)
-  const ringRef = useRef<HTMLDivElement>(null)
-  const active = useRef(false)
-
-  useEffect(() => {
-    if (!window.matchMedia("(pointer: fine)").matches) return
-    active.current = true
-    document.body.classList.add("custom-cursor")
-
-    let mx = -200,
-      my = -200,
-      rx = -200,
-      ry = -200
-    let rafId: number
-    let isDown = false
-    let isHover = false
-
-    const setDot = () => {
-      if (!dotRef.current) return
-      dotRef.current.style.left = `${mx}px`
-      dotRef.current.style.top = `${my}px`
-      dotRef.current.style.transform = `translate(-50%,-50%) scale(${
-        isDown ? 0.5 : isHover ? 1.8 : 1
-      })`
-      dotRef.current.style.boxShadow = isHover
-        ? "0 0 16px #7AB384, 0 0 32px rgba(122,179,132,0.7)"
-        : "0 0 8px #7AB384, 0 0 16px rgba(122,179,132,0.4)"
-    }
-
-    const move = (e: MouseEvent) => {
-      mx = e.clientX
-      my = e.clientY
-      setDot()
-      const el = e.target as HTMLElement
-      isHover = !!(
-        el.closest("button") ||
-        el.closest("a") ||
-        el.closest(".contract-card") ||
-        el.closest(".result-card")
-      )
-      if (ringRef.current) {
-        ringRef.current.style.width = isHover ? "44px" : "28px"
-        ringRef.current.style.height = isHover ? "44px" : "28px"
-        ringRef.current.style.borderColor = isHover
-          ? "rgba(122,179,132,0.8)"
-          : "rgba(122,179,132,0.45)"
-        ringRef.current.style.boxShadow = isHover
-          ? "0 0 12px rgba(122,179,132,0.3)"
-          : "0 0 6px rgba(122,179,132,0.12)"
-      }
-    }
-    const down = () => {
-      isDown = true
-      setDot()
-    }
-    const up = () => {
-      isDown = false
-      setDot()
-    }
-
-    const animate = () => {
-      const speed = isHover ? 0.14 : 0.1
-      rx += (mx - rx) * speed
-      ry += (my - ry) * speed
-      if (ringRef.current) {
-        ringRef.current.style.left = `${rx}px`
-        ringRef.current.style.top = `${ry}px`
-      }
-      rafId = requestAnimationFrame(animate)
-    }
-
-    document.addEventListener("mousemove", move, { passive: true })
-    document.addEventListener("mousedown", down)
-    document.addEventListener("mouseup", up)
-    rafId = requestAnimationFrame(animate)
-
-    return () => {
-      document.body.classList.remove("custom-cursor")
-      document.removeEventListener("mousemove", move)
-      document.removeEventListener("mousedown", down)
-      document.removeEventListener("mouseup", up)
-      cancelAnimationFrame(rafId)
-    }
-  }, [])
-
-  return (
-    <>
-      <div
-        ref={dotRef}
-        style={{
-          position: "fixed",
-          width: "10px",
-          height: "10px",
-          borderRadius: "50%",
-          backgroundColor: "#7AB384",
-          pointerEvents: "none",
-          zIndex: 99999,
-          boxShadow: "0 0 8px #7AB384, 0 0 16px rgba(122,179,132,0.4)",
-          transition: "transform 0.12s ease, box-shadow 0.2s ease",
-        }}
-      />
-      <div
-        ref={ringRef}
-        style={{
-          position: "fixed",
-          width: "28px",
-          height: "28px",
-          border: "1px solid rgba(122,179,132,0.45)",
-          borderRadius: "50%",
-          pointerEvents: "none",
-          zIndex: 99998,
-          transform: "translate(-50%,-50%)",
-          boxShadow: "0 0 6px rgba(122,179,132,0.12)",
-          transition: "width 0.2s ease, height 0.2s ease, border-color 0.2s, box-shadow 0.2s",
-        }}
-      />
-    </>
-  )
-}
-
-// ─── Scramble text ─────────────────────────────────────────────────
-const SCRAMBLE_CHARS = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%^"
-
-function ScrambleText({
+// A stable headline keeps the promise readable while the artwork carries motion.
+function HeroHeading({
   lines,
   className = "",
   style = {},
 }: {
-  lines: Array<{
-    text: string
-    accent?: boolean
-  }>
+  lines: { text: string; accent?: boolean }[]
   className?: string
   style?: React.CSSProperties
 }) {
-  const ref = useRef<HTMLHeadingElement>(null)
-  const started = useRef(false)
-
-  useEffect(() => {
-    if (!ref.current || started.current) return
-    started.current = true
-    const el = ref.current
-    const fullText = lines.map((l) => l.text).join("\n")
-    let frame = 0
-    const FRAMES = 55
-
-    const interval = setInterval(() => {
-      frame++
-      const progress = frame / FRAMES
-      let charIdx = 0
-      const html = lines
-        .map((line, li) => {
-          const chars = line.text
-            .split("")
-            .map((ch) => {
-              charIdx++
-              const reveal = charIdx / fullText.length
-              if (ch === " ") return " "
-              if (reveal < progress) return ch
-              return SCRAMBLE_CHARS[Math.floor(Math.random() * SCRAMBLE_CHARS.length)]
-            })
-            .join("")
-          const color = line.accent ? "#7AB384" : "#F1E4C8"
-          const shadow = line.accent
-            ? "0 0 16px rgba(122,179,132,1), 0 0 40px rgba(122,179,132,0.6)"
-            : "none"
-          return `<span style="color:${color};text-shadow:${shadow}">${chars}</span>${
-            li < lines.length - 1 ? "<br/>" : ""
-          }`
-        })
-        .join("")
-      el.innerHTML = html
-      if (frame >= FRAMES) {
-        clearInterval(interval)
-        el.innerHTML = lines
-          .map((line, li) => {
-            const color = line.accent ? "#7AB384" : "#F1E4C8"
-            const shadow = line.accent
-              ? "0 0 16px rgba(122,179,132,1), 0 0 40px rgba(122,179,132,0.6)"
-              : "none"
-            return `<span class="${
-              line.accent ? "neon-text" : ""
-            }" style="color:${color};text-shadow:${shadow}">${line.text}</span>${
-              li < lines.length - 1 ? "<br/>" : ""
-            }`
-          })
-          .join("")
-      }
-    }, 28)
-
-    return () => clearInterval(interval)
-  }, [])
-
   return (
-    <h1 ref={ref} className={className} style={style}>
-      {lines.map((line, i) => (
-        <span key={i} style={{ color: line.accent ? "#7AB384" : "#F1E4C8" }}>
-          {line.text}
-          {i < lines.length - 1 && <br />}
-        </span>
+    <h1 className={className} style={style}>
+      {lines.map((line, index) => (
+        <React.Fragment key={index}>
+          <span className={line.accent ? "bureau-accent" : undefined}>{line.text}</span>
+          {index < lines.length - 1 && <br />}
+        </React.Fragment>
       ))}
     </h1>
   )
@@ -418,7 +223,7 @@ function AnimatedCounter({
   target,
   prefix = "",
   suffix = "",
-  duration = 2200,
+  duration = 800,
 }: {
   target: number
   prefix?: string
@@ -432,6 +237,11 @@ function AnimatedCounter({
   useEffect(() => {
     const el = ref.current
     if (!el) return
+    let frame = 0
+    if (prefersReducedMotion()) {
+      setCount(target)
+      return
+    }
     const obs = new IntersectionObserver(
       ([entry]) => {
         if (entry.isIntersecting && !started.current) {
@@ -443,16 +253,19 @@ function AnimatedCounter({
             const p = Math.min((ts - startTime) / duration, 1)
             const ease = 1 - Math.pow(1 - p, 3)
             setCount(Math.floor(ease * target))
-            if (p < 1) requestAnimationFrame(animate)
+            if (p < 1) frame = requestAnimationFrame(animate)
             else setCount(target)
           }
-          requestAnimationFrame(animate)
+          frame = requestAnimationFrame(animate)
         }
       },
       { threshold: 0.5 },
     )
     obs.observe(el)
-    return () => obs.disconnect()
+    return () => {
+      obs.disconnect()
+      cancelAnimationFrame(frame)
+    }
   }, [target, duration])
 
   return (
@@ -467,79 +280,7 @@ function AnimatedCounter({
 // ─── Curator typer ─────────────────────────────────────────────────
 function CuratorTyper() {
   const { language } = useLanguage()
-  const messages = CURATOR_MESSAGES.map((message) => t(language, message))
-  const [text, setText] = useState("")
-  const [msgIdx, setMsgIdx] = useState(0)
-  const [phase, setPhase] = useState<"typing" | "waiting" | "erasing">("typing")
-  const [revealRef, visible] = useReveal<HTMLSpanElement>()
-
-  useEffect(() => {
-    if (!visible) return
-    const msg = messages[msgIdx]
-
-    if (phase === "typing") {
-      let i = 0
-      const t = setInterval(() => {
-        i++
-        setText(msg.slice(0, i))
-        if (i >= msg.length) {
-          clearInterval(t)
-          setTimeout(() => setPhase("waiting"), 2200)
-        }
-      }, 45)
-      return () => clearInterval(t)
-    }
-    if (phase === "waiting") {
-      const t = setTimeout(() => setPhase("erasing"), 100)
-      return () => clearTimeout(t)
-    }
-    if (phase === "erasing") {
-      const msg2 = messages[msgIdx]
-      let len = msg2.length
-      const t = setInterval(() => {
-        len--
-        setText(msg2.slice(0, len))
-        if (len <= 0) {
-          clearInterval(t)
-          setMsgIdx((p) => (p + 1) % messages.length)
-          setPhase("typing")
-        }
-      }, 28)
-      return () => clearInterval(t)
-    }
-  }, [phase, msgIdx, visible, language])
-
-  return (
-    <span
-      ref={revealRef}
-      style={{ color: "#7AB384", textShadow: "0 0 10px rgba(122,179,132,0.5)" }}
-    >
-      {text}
-      <span className="typer-cursor" />
-    </span>
-  )
-}
-
-// ─── Section reveal hook ───────────────────────────────────────────
-function useReveal<T extends Element>(threshold = 0.12): [(el: T | null) => void, boolean] {
-  const [visible, setVisible] = useState(false)
-  const [element, setElement] = useState<T | null>(null)
-
-  const setRef = useCallback((el: T | null) => setElement(el), [])
-
-  useEffect(() => {
-    if (!element || visible) return
-    const observer = new IntersectionObserver(
-      ([entry]) => {
-        if (entry.isIntersecting) setVisible(true)
-      },
-      { threshold },
-    )
-    observer.observe(element)
-    return () => observer.disconnect()
-  }, [element, threshold, visible])
-
-  return [setRef, visible]
+  return <span style={{ color: "#94C28F" }}>{t(language, "Выберите цель до матча.")}</span>
 }
 
 // ─── Reveal wrapper ────────────────────────────────────────────────
@@ -584,42 +325,6 @@ function Reveal({
       {children}
     </div>
   )
-}
-
-// ─── Ripple button handler ─────────────────────────────────────────
-function useRipple() {
-  return useCallback((e: React.MouseEvent<HTMLButtonElement>) => {
-    const btn = e.currentTarget
-    const rect = btn.getBoundingClientRect()
-    const span = document.createElement("span")
-    span.className = "ripple-span"
-    span.style.left = `${e.clientX - rect.left}px`
-    span.style.top = `${e.clientY - rect.top}px`
-    btn.appendChild(span)
-    setTimeout(() => span.remove(), 700)
-  }, [])
-}
-
-// ─── 3D tilt ───────────────────────────────────────────────────────
-function useTilt(intensity = 10) {
-  const onMouseMove = useCallback(
-    (e: React.MouseEvent<HTMLElement>) => {
-      const el = e.currentTarget
-      const rect = el.getBoundingClientRect()
-      const x = ((e.clientX - rect.left) / rect.width - 0.5) * 2
-      const y = ((e.clientY - rect.top) / rect.height - 0.5) * 2
-      el.style.transform = `perspective(700px) rotateY(${x * intensity}deg) rotateX(${-y * intensity}deg) translateZ(8px) scale(1.02)`
-      el.style.transition = "transform 0.1s ease"
-    },
-    [intensity],
-  )
-
-  const onMouseLeave = useCallback((e: React.MouseEvent<HTMLElement>) => {
-    e.currentTarget.style.transform = ""
-    e.currentTarget.style.transition = "transform 0.45s cubic-bezier(0.34,1.2,0.64,1)"
-  }, [])
-
-  return { onMouseMove, onMouseLeave }
 }
 
 // ─── Atoms ─────────────────────────────────────────────────────────
@@ -667,9 +372,11 @@ function AnimatedEyeLogo() {
 
 function SteamButton({
   large = false,
+  compact = false,
   onClick,
 }: {
   large?: boolean
+  compact?: boolean
   onClick?: (e: React.MouseEvent<HTMLButtonElement>) => void
 }) {
   const ripple = useRipple()
@@ -678,16 +385,13 @@ function SteamButton({
     <button
       className="btn-primary inline-flex items-center gap-2.5 font-bold"
       style={{
-        padding: large ? "14px 32px" : "10px 20px",
+        padding: compact ? "10px 12px" : large ? "14px 32px" : "10px 20px",
         fontSize: large ? "16px" : "14px",
-        backgroundColor: "#457F5B",
-        color: "#F1E4C8",
-        border: "1px solid #7AB384",
-        borderRadius: "5px",
-        fontFamily: large ? "Roboto Condensed, Barlow Condensed, sans-serif" : "Inter, sans-serif",
-        letterSpacing: large ? "0.07em" : "0",
-        boxShadow: "0 0 14px rgba(122,179,132,0.3)",
+        border: "1px solid var(--color-mint)",
+        borderRadius: "4px",
+        fontFamily: "var(--font-display)",
       }}
+      aria-label={language === "ru" ? "Войти через Steam" : "Sign in with Steam"}
       type="button"
       onClick={(e) => {
         ripple(e)
@@ -701,7 +405,13 @@ function SteamButton({
       }}
     >
       <SteamIcon />
-      {language === "ru" ? "ВОЙТИ ЧЕРЕЗ STEAM" : "SIGN IN WITH STEAM"}
+      {compact
+        ? language === "ru"
+          ? "ВОЙТИ"
+          : "SIGN IN"
+        : language === "ru"
+          ? "ВОЙТИ ЧЕРЕЗ STEAM"
+          : "SIGN IN WITH STEAM"}
     </button>
   )
 }
@@ -750,8 +460,6 @@ export default function Landing() {
   }
 
   const [page, setPage] = useState<PublicPage>(pageFromHash)
-  const [scrolled, setScrolled] = useState(false)
-  const [mobileOpen, setMobileOpen] = useState(false)
   const [selected, setSelected] = useState<number[]>([])
   const [gameMode, setGameMode] = useState<GameMode>("STANDARD")
   const [openFaq, setOpenFaq] = useState<number | null>(null)
@@ -763,19 +471,12 @@ export default function Landing() {
   const boardRef = useRef<HTMLDivElement>(null)
   const [spotlight, setSpotlight] = useState({ x: 50, y: 50 })
   const ripple = useRipple()
-  const tilt = useTilt(8)
-  const cardTilt = useTilt(10)
-
-  useEffect(() => {
-    const handler = () => setScrolled(window.scrollY > 32)
-    window.addEventListener("scroll", handler, { passive: true })
-    return () => window.removeEventListener("scroll", handler)
-  }, [])
+  const tilt = useTilt(2)
+  const cardTilt = useTilt(2)
 
   useEffect(() => {
     const handler = () => {
       setPage(pageFromHash())
-      setMobileOpen(false)
       window.scrollTo({ top: 0 })
     }
     window.addEventListener("hashchange", handler)
@@ -810,8 +511,7 @@ export default function Landing() {
     if (window.location.hash !== `#${next}`) window.location.hash = next
     else {
       setPage(next)
-      setMobileOpen(false)
-      window.scrollTo({ top: 0, behavior: "smooth" })
+      window.scrollTo({ top: 0, behavior: prefersReducedMotion() ? "instant" : "smooth" })
     }
   }
 
@@ -857,145 +557,30 @@ export default function Landing() {
   }
 
   return (
-    <div className="min-h-screen" style={{ backgroundColor: "#080C0B", color: "#F1E4C8" }}>
-      <CustomCursor />
-
-      {/* ── HEADER ── */}
-      <header
-        className="fixed top-0 left-0 right-0 z-50 transition-all duration-300"
-        style={{
-          height: "72px",
-          backgroundColor: scrolled ? "rgba(8,12,11,0.92)" : "transparent",
-          borderBottom: scrolled ? "1px solid #26352E" : "1px solid transparent",
-          backdropFilter: scrolled ? "blur(18px)" : "none",
-          boxShadow: scrolled
-            ? "0 4px 40px rgba(0,0,0,0.6), 0 0 40px rgba(122,179,132,0.04)"
-            : "none",
-        }}
-      >
-        <div className="max-w-[1320px] mx-auto px-6 lg:px-8 h-full flex items-center justify-between gap-6">
-          <a
-            href="#home"
-            onClick={(event) => {
-              event.preventDefault()
-              navigate("home")
-            }}
-            className="flex items-center gap-3 shrink-0"
-          >
-            <img
-              src={logoImage}
-              alt="Deadlock Contracts"
-              className="header-logo"
-              style={{ height: "42px", width: "auto" }}
-            />
-            <span
-              className="hidden sm:block text-[10px] font-semibold tracking-[0.22em] uppercase"
-              style={{ color: "#7F8478" }}
-            >
-              COMMUNITY PROJECT
-            </span>
-          </a>
-
-          <nav className="hidden lg:flex items-center gap-7">
-            {NAV_ITEMS.map((item) => (
-              <a
-                key={item.id}
-                href={`#${item.id}`}
-                onClick={(event) => {
-                  event.preventDefault()
-                  navigate(item.id)
-                }}
-                aria-current={page === item.id ? "page" : undefined}
-                className={`nav-link text-sm font-medium transition-colors hover:text-[#7AB384] ${
-                  page === item.id ? "is-active" : ""
-                }`}
-                style={{ color: page === item.id ? "#7AB384" : "#B6AC94" }}
-              >
-                {item.label}
-              </a>
-            ))}
-          </nav>
-
-          <div className="flex items-center gap-3">
-            <LanguageSwitch compact />
-            <div className="hidden sm:block">
-              <SteamButton />
-            </div>
-            <button
-              className="lg:hidden p-2"
-              type="button"
-              onClick={() => setMobileOpen((v) => !v)}
-              aria-label={t(language, "Открыть меню")}
-              aria-expanded={mobileOpen}
-              aria-controls="mobile-navigation"
-              style={{ color: "#B6AC94", transition: "color 0.2s" }}
-              onMouseEnter={(e) => (e.currentTarget.style.color = "#7AB384")}
-              onMouseLeave={(e) => (e.currentTarget.style.color = "#B6AC94")}
-            >
-              <svg
-                width="20"
-                height="20"
-                viewBox="0 0 20 20"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="1.5"
-              >
-                {mobileOpen ? (
-                  <>
-                    <line x1="4" y1="4" x2="16" y2="16" />
-                    <line x1="16" y1="4" x2="4" y2="16" />
-                  </>
-                ) : (
-                  <>
-                    <line x1="3" y1="6" x2="17" y2="6" />
-                    <line x1="3" y1="10" x2="17" y2="10" />
-                    <line x1="3" y1="14" x2="17" y2="14" />
-                  </>
-                )}
-              </svg>
-            </button>
-          </div>
-        </div>
-        {mobileOpen && (
-          <div
-            id="mobile-navigation"
-            className="lg:hidden px-6 py-4 flex flex-col gap-2"
-            style={{
-              backgroundColor: "rgba(8,12,11,0.98)",
-              borderBottom: "1px solid #26352E",
-            }}
-          >
-            {NAV_ITEMS.map((item) => (
-              <a
-                key={item.id}
-                href={`#${item.id}`}
-                onClick={(event) => {
-                  event.preventDefault()
-                  navigate(item.id)
-                }}
-                aria-current={page === item.id ? "page" : undefined}
-                className="py-2.5 text-sm border-b"
-                style={{
-                  color: page === item.id ? "#7AB384" : "#B6AC94",
-                  borderColor: "#1A2520",
-                }}
-              >
-                {item.label}
-              </a>
-            ))}
-            <div className="pt-3 flex items-center gap-3">
-              <LanguageSwitch />
-              <SteamButton />
-            </div>
-          </div>
-        )}
-      </header>
+    <div className="bureau-public min-h-screen">
+      <BureauHeader
+        active={page}
+        items={NAV_ITEMS.map((item) => ({
+          id: item.id,
+          label:
+            language === "ru"
+              ? {
+                  contracts: "КОНТРАКТЫ",
+                  how: "КАК ЭТО РАБОТАЕТ",
+                  campaigns: "КАМПАНИИ · СКОРО",
+                  leaderboards: "РЕЙТИНГ",
+                }[item.id]
+              : item.label,
+        }))}
+        onNavigate={(id) => navigate(id as PublicPage)}
+        actions={<SteamButton compact />}
+      />
       {page === "home" && (
         <>
           {/* ── HERO ── */}
           <section
             className="relative pt-[72px] overflow-hidden"
-            style={{ minHeight: "800px", backgroundColor: "#05070E" }}
+            style={{ minHeight: "min(800px, 100svh)", backgroundColor: "var(--color-page)" }}
           >
             <div
               className="hero-grid absolute inset-0 pointer-events-none opacity-[0.038]"
@@ -1005,22 +590,6 @@ export default function Landing() {
                 backgroundSize: "52px 52px",
               }}
             />
-
-            {/* Radar pings */}
-            {[0, 1.5, 3].map((delay, i) => (
-              <div
-                key={i}
-                className="radar-ring"
-                style={{
-                  width: "400px",
-                  height: "400px",
-                  top: "50%",
-                  left: "68%",
-                  transform: "translate(-50%,-50%)",
-                  animationDelay: `${delay}s`,
-                }}
-              />
-            ))}
 
             {/* Atmosphere */}
             <div
@@ -1033,47 +602,6 @@ export default function Landing() {
                 left: "44%",
               }}
             />
-            <div
-              className="orb orb-2"
-              style={{
-                width: "320px",
-                height: "320px",
-                background: "radial-gradient(circle, rgba(38,84,61,0.28) 0%, transparent 70%)",
-                bottom: "8%",
-                left: "6%",
-              }}
-            />
-            <div
-              className="orb orb-3"
-              style={{
-                width: "220px",
-                height: "220px",
-                background: "radial-gradient(circle, rgba(148,194,143,0.1) 0%, transparent 70%)",
-                top: "18%",
-                right: "4%",
-              }}
-            />
-
-            {/* Particles */}
-            {PARTICLES.map((p) => (
-              <div
-                key={p.id}
-                className={`particle ${p.type}`}
-                style={
-                  {
-                    left: p.left,
-                    bottom: p.bottom,
-                    opacity: p.opacity,
-                    width: `${p.size}px`,
-                    height: `${p.size}px`,
-                    animationDelay: p.delay,
-                    animationDuration: p.dur,
-                    "--drift": p.drift,
-                  } as React.CSSProperties
-                }
-              />
-            ))}
-            <div className="scanline-overlay" />
             <div
               className="absolute inset-0 pointer-events-none"
               style={{
@@ -1112,7 +640,7 @@ export default function Landing() {
                   </span>
                 </div>
 
-                <ScrambleText
+                <HeroHeading
                   lines={[
                     { text: "CHOOSE A CONTRACT" },
                     { text: "PLAY THE MATCH" },

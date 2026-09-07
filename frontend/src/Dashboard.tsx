@@ -1,13 +1,15 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
-import logoImage from "@/imports/logo-horizontal.svg"
 import markImage from "@/imports/mark.svg"
 import curatorImage from "@/imports/curator-optimized.webp"
 import ProfileStudio from "./ProfileStudio"
+import BureauHeader from "./BureauHeader"
+import ContractSigning from "./ContractSigning"
+import { signSelection, selectionState, type SigningSelection } from "./contract-signing"
+import { prefersReducedMotion, useRipple, useTilt } from "./motion"
 import AnnouncementCenter from "./admin/AnnouncementCenter"
 import ReviewDesk from "./admin/ReviewDesk"
 import type { AdminReview } from "./admin/admin-types"
 import {
-  LanguageSwitch,
   MCGCredit,
   apiLanguage,
   conditionText,
@@ -1012,145 +1014,6 @@ function Icon({ name }: { name: "hq" | "contract" | "case" | "profile" | "admin"
   )
 }
 
-const AUTH_PARTICLES = Array.from({ length: 22 }, (_, i) => ({
-  id: i,
-  left: `${4 + ((i * 4.3) % 92)}%`,
-  bottom: `${(i * 6) % 38}%`,
-  delay: `${(i * 0.37) % 6}s`,
-  dur: `${3.2 + ((i * 0.28) % 3.5)}s`,
-  drift: `${-18 + (i % 7) * 7}px`,
-  opacity: 0.18 + (i % 5) * 0.11,
-  size: 2 + (i % 3),
-  type: i % 5 === 0 ? "ember" : i % 7 === 0 ? "spark" : "",
-}))
-
-function CustomCursor() {
-  const dotRef = useRef<HTMLDivElement>(null)
-  const ringRef = useRef<HTMLDivElement>(null)
-
-  useEffect(() => {
-    if (!window.matchMedia("(pointer: fine)").matches) return
-    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return
-    document.body.classList.add("custom-cursor")
-
-    let mx = -200,
-      my = -200,
-      rx = -200,
-      ry = -200
-    let rafId = 0
-    let isDown = false
-    let isHover = false
-
-    const setDot = () => {
-      if (!dotRef.current) return
-      dotRef.current.style.left = `${mx}px`
-      dotRef.current.style.top = `${my}px`
-      dotRef.current.style.transform = `translate(-50%,-50%) scale(${
-        isDown ? 0.5 : isHover ? 1.8 : 1
-      })`
-      dotRef.current.style.boxShadow = isHover
-        ? "0 0 16px #7AB384, 0 0 32px rgba(122,179,132,0.7)"
-        : "0 0 8px #7AB384, 0 0 16px rgba(122,179,132,0.4)"
-    }
-
-    const move = (e: MouseEvent) => {
-      mx = e.clientX
-      my = e.clientY
-      const el = e.target as HTMLElement
-      isHover = !!(
-        el.closest("button") ||
-        el.closest("a") ||
-        el.closest(".contract-card") ||
-        el.closest(".result-card")
-      )
-      setDot()
-      if (ringRef.current) {
-        ringRef.current.style.width = isHover ? "44px" : "28px"
-        ringRef.current.style.height = isHover ? "44px" : "28px"
-        ringRef.current.style.borderColor = isHover
-          ? "rgba(122,179,132,0.8)"
-          : "rgba(122,179,132,0.45)"
-        ringRef.current.style.boxShadow = isHover
-          ? "0 0 12px rgba(122,179,132,0.3)"
-          : "0 0 6px rgba(122,179,132,0.12)"
-      }
-    }
-    const down = () => {
-      isDown = true
-      setDot()
-    }
-    const up = () => {
-      isDown = false
-      setDot()
-    }
-    const animate = () => {
-      const speed = isHover ? 0.14 : 0.1
-      rx += (mx - rx) * speed
-      ry += (my - ry) * speed
-      if (ringRef.current) {
-        ringRef.current.style.left = `${rx}px`
-        ringRef.current.style.top = `${ry}px`
-      }
-      rafId = requestAnimationFrame(animate)
-    }
-
-    document.addEventListener("mousemove", move, { passive: true })
-    document.addEventListener("mousedown", down)
-    document.addEventListener("mouseup", up)
-    rafId = requestAnimationFrame(animate)
-    return () => {
-      document.body.classList.remove("custom-cursor")
-      document.removeEventListener("mousemove", move)
-      document.removeEventListener("mousedown", down)
-      document.removeEventListener("mouseup", up)
-      cancelAnimationFrame(rafId)
-    }
-  }, [])
-
-  return (
-    <>
-      <div ref={dotRef} className="dc-motion-cursor-dot" />
-      <div ref={ringRef} className="dc-motion-cursor-ring" />
-    </>
-  )
-}
-
-function useRipple() {
-  return useCallback((e: React.MouseEvent<HTMLButtonElement>) => {
-    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return
-    const btn = e.currentTarget
-    const rect = btn.getBoundingClientRect()
-    const span = document.createElement("span")
-    span.className = "ripple-span"
-    span.style.left = `${e.clientX - rect.left}px`
-    span.style.top = `${e.clientY - rect.top}px`
-    btn.appendChild(span)
-    window.setTimeout(() => span.remove(), 700)
-  }, [])
-}
-
-function useTilt(intensity = 10) {
-  const onMouseMove = useCallback(
-    (e: React.MouseEvent<HTMLElement>) => {
-      if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return
-      const el = e.currentTarget
-      const rect = el.getBoundingClientRect()
-      const x = ((e.clientX - rect.left) / rect.width - 0.5) * 2
-      const y = ((e.clientY - rect.top) / rect.height - 0.5) * 2
-      el.style.transform = `perspective(700px) rotateY(${x * intensity}deg) rotateX(${-y * intensity}deg) translateZ(8px) scale(1.02)`
-      el.style.transition = "transform 0.1s ease"
-    },
-    [intensity],
-  )
-
-  const onMouseLeave = useCallback((e: React.MouseEvent<HTMLElement>) => {
-    e.currentTarget.style.transform = ""
-    e.currentTarget.style.transition = "transform 0.45s cubic-bezier(0.34,1.2,0.64,1)"
-  }, [])
-
-  return { onMouseMove, onMouseLeave }
-}
-
 function ModeTabs({
   value,
   onChange,
@@ -1209,14 +1072,14 @@ export default function Dashboard({ initialSession }: { initialSession: SessionP
   const [notice, setNotice] = useState("")
   const [error, setError] = useState("")
   const [clock, setClock] = useState(Date.now())
-  const [authScrolled, setAuthScrolled] = useState(false)
-  const [authMobileOpen, setAuthMobileOpen] = useState(false)
+  const [signing, setSigning] = useState<{ board: Board; selection: SigningSelection } | null>(null)
   const [companion, setCompanion] = useState<CompanionDeviceStatus | null>(null)
   const [companionDevices, setCompanionDevices] = useState<CompanionAccountDevice[]>([])
   const [pairing, setPairing] = useState<CompanionPairing | null>(null)
+  const boardsRequest = useRef(0)
   const xpRef = useRef<HTMLSpanElement>(null)
   const ripple = useRipple()
-  const cardTilt = useTilt(10)
+  const cardTilt = useTilt(2)
   const history = useMemo(
     () => historyCases.flatMap((historyCase) => historyCase.items),
     [historyCases],
@@ -1234,7 +1097,9 @@ export default function Dashboard({ initialSession }: { initialSession: SessionP
   }, [csrf, language, user.locale, user.timezone])
 
   const loadBoards = useCallback(async () => {
+    const request = ++boardsRequest.current
     const data = await api<BoardsPayload>("/api/boards/today", csrf)
+    if (request !== boardsRequest.current) return
     setBoardsPayload(data)
     setSelected((previous) => {
       const next = { ...previous }
@@ -1333,12 +1198,6 @@ export default function Dashboard({ initialSession }: { initialSession: SessionP
     const timer = window.setTimeout(() => void reloadAll(), delay)
     return () => window.clearTimeout(timer)
   }, [boardsPayload?.refresh.reset_at, reloadAll])
-  useEffect(() => {
-    const onScroll = () => setAuthScrolled(window.scrollY > 12)
-    onScroll()
-    window.addEventListener("scroll", onScroll, { passive: true })
-    return () => window.removeEventListener("scroll", onScroll)
-  }, [])
 
   const boards = boardsPayload?.boards || []
   const board = boards.find((item) => item.game_match_mode === mode) || null
@@ -1364,18 +1223,6 @@ export default function Dashboard({ initialSession }: { initialSession: SessionP
     xpRef.current.classList.add("xp-pop")
   }, [totalXp, mode])
 
-  const handleContractSceneMouseMove = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
-    const rect = e.currentTarget.getBoundingClientRect()
-    e.currentTarget.style.setProperty(
-      "--spot-x",
-      `${((e.clientX - rect.left) / rect.width) * 100}%`,
-    )
-    e.currentTarget.style.setProperty(
-      "--spot-y",
-      `${((e.clientY - rect.top) / rect.height) * 100}%`,
-    )
-  }, [])
-
   const toggle = (id: string) => {
     if (!board || board.status !== "OFFERED") return
     setSelected((previous) => {
@@ -1388,27 +1235,55 @@ export default function Dashboard({ initialSession }: { initialSession: SessionP
       return { ...previous, [mode]: current }
     })
   }
+  const openSigning = () => {
+    if (!board || board.status !== "OFFERED" || selectedSet.size < 1 || busy) return
+    setSigning({
+      board,
+      selection: {
+        boardId: board.id,
+        generation: board.generation,
+        mode,
+        optionIds: [...selectedSet],
+      },
+    })
+  }
   const lock = async () => {
-    if (!board || selectedSet.size < 1) return
-    setBusy(true)
-    setError("")
-    try {
-      await api("/api/board/today/lock", csrf, {
-        method: "POST",
-        body: JSON.stringify({ option_ids: [...selectedSet], mode }),
-      })
-      setNotice(
-        language === "ru"
-          ? `${MODE_META[mode].title}: дело зафиксировано. У невыполненных контрактов будет до трёх матчей-попыток.`
-          : `${MODE_META[mode].title}: case locked. Unfinished contracts get up to three eligible match attempts.`,
-      )
-      await reloadAll()
-    } catch (reason) {
-      if (reason instanceof ApiError && reason.status === 409) await reloadAll()
-      setError((reason as Error).message)
-    } finally {
-      setBusy(false)
-    }
+    if (!signing) return
+    const { selection } = signing
+    const result = await signSelection<Board>(
+      selection,
+      async () => {
+        const data = await api<BoardsPayload>("/api/boards/today", csrf, {
+          signal: AbortSignal.timeout(15_000),
+        })
+        const current = data.boards.find((item) => item.game_match_mode === selection.mode)
+        return current && { ...current, server_time: data.server_time }
+      },
+      () =>
+        api<Board>("/api/board/today/lock", csrf, {
+          method: "POST",
+          signal: AbortSignal.timeout(15_000),
+          body: JSON.stringify({ option_ids: selection.optionIds, mode: selection.mode }),
+        }),
+    )
+    boardsRequest.current++
+    // Update directly from the authoritative response. A failed background refresh
+    // must never turn a successful signature into a failed one.
+    setBoardsPayload(
+      (current) =>
+        current && {
+          ...current,
+          boards: current.boards.map((item) =>
+            item.game_match_mode === result.game_match_mode ? result : item,
+          ),
+        },
+    )
+    setSelected((current) => ({
+      ...current,
+      [result.game_match_mode]: new Set(
+        result.options.filter((option) => option.selected).map((option) => option.id),
+      ),
+    }))
   }
   const reroll = async () => {
     if (!board || board.status !== "OFFERED" || !boardsPayload?.refresh.remaining) return
@@ -1505,87 +1380,74 @@ export default function Dashboard({ initialSession }: { initialSession: SessionP
   const level = progression?.level || 1
   const progressPct = progression?.progress_pct || 0
   const nav: Array<[Tab, string, "hq" | "contract" | "case" | "profile" | "admin"]> = [
-    ["home", "HQ", "hq"],
-    ["quests", "CONTRACTS", "contract"],
-    ["active", "ACTIVE CASE", "case"],
-    ["history", "ARCHIVE", "case"],
-    ["profile", "PROFILE", "profile"],
+    ["home", language === "ru" ? "БЮРО" : "HQ", "hq"],
+    ["quests", language === "ru" ? "КОНТРАКТЫ" : "CONTRACTS", "contract"],
+    ["active", language === "ru" ? "АКТИВНОЕ ДЕЛО" : "ACTIVE CASE", "case"],
+    ["history", language === "ru" ? "АРХИВ" : "ARCHIVE", "case"],
+    ["profile", language === "ru" ? "ПРОФИЛЬ" : "PROFILE", "profile"],
   ]
   if (user.is_staff) nav.push(["admin", "ADMIN", "admin"])
 
   return (
-    <div className="dc-dashboard dc-redesign dc-v3 dc-vnext min-h-screen">
-      <div className="dc-auth-ambient" aria-hidden="true">
-        <div className="dc-auth-grid hero-grid" />
-        <div className="orb orb-1 dc-auth-orb dc-auth-orb-1" />
-        <div className="orb orb-2 dc-auth-orb dc-auth-orb-2" />
-        <div className="orb orb-3 dc-auth-orb dc-auth-orb-3" />
-        {AUTH_PARTICLES.map((p) => (
-          <i
-            key={p.id}
-            className={`particle ${p.type}`}
-            style={
-              {
-                left: p.left,
-                bottom: p.bottom,
-                opacity: p.opacity,
-                width: `${p.size}px`,
-                height: `${p.size}px`,
-                animationDelay: p.delay,
-                animationDuration: p.dur,
-                "--drift": p.drift,
-              } as React.CSSProperties
-            }
-          />
-        ))}
-        <div className="scanline-overlay" />
-      </div>
-      <header className={`dc-topbar dc-landing-shell-header ${authScrolled ? "is-scrolled" : ""}`}>
-        <div className="dc-landing-shell-inner">
+    <div className="dc-dashboard dc-redesign dc-v3 dc-vnext bureau-app min-h-screen">
+      {signing && (
+        <ContractSigning
+          mode={MODE_META[signing.board.game_match_mode].title}
+          operator={shownName}
+          options={signing.board.options
+            .filter((option) => signing.selection.optionIds.includes(option.id))
+            .map((option) => ({
+              id: option.id,
+              title: localizedContractTitle(option, language),
+              description: localizedContractDescription(
+                option,
+                signing.board.game_match_mode,
+                language,
+              ),
+              reward: option.reward_xp,
+            }))}
+          changed={
+            selectionState(
+              signing.selection,
+              boards.find((item) => item.game_match_mode === signing.selection.mode),
+              boardsPayload?.server_time,
+            ) === "changed"
+          }
+          onSign={lock}
+          onClose={() => {
+            setSigning(null)
+            void reloadAll()
+          }}
+          onOpenCase={() => {
+            setSigning(null)
+            setTab("active")
+            void reloadAll()
+          }}
+        />
+      )}
+      <BureauHeader
+        active={tab}
+        items={nav.map(([id, label]) => ({ id, label }))}
+        onNavigate={(id) => setTab(id as Tab)}
+        mobileActions={
           <button
-            className="dc-brand dc-landing-shell-brand"
             type="button"
-            onClick={() => {
-              setTab("home")
-              setAuthMobileOpen(false)
-            }}
+            onClick={() =>
+              api("/api/auth/logout", csrf, { method: "POST" }).finally(() => location.assign("/"))
+            }
           >
-            <img src={logoImage} alt="Deadlock Contracts" />
-            <span>COMMUNITY PROJECT</span>
+            {t(language, "Выйти из аккаунта")}
           </button>
-
-          <nav
-            className="dc-landing-shell-nav"
-            aria-label={language === "ru" ? "Основная навигация" : "Main navigation"}
-          >
-            {nav.map(([key, label]) => (
-              <button
-                key={key}
-                type="button"
-                aria-current={tab === key ? "page" : undefined}
-                className={`nav-link ${tab === key ? "is-active" : ""}`}
-                onClick={() => {
-                  setTab(key)
-                  setAuthMobileOpen(false)
-                }}
-              >
-                {label}
-                {key === "quests" && boards.some((item) => item.status === "OFFERED") ? (
-                  <em>{t(language, "НОВОЕ")}</em>
-                ) : null}
-              </button>
-            ))}
-          </nav>
-
-          <div className="dc-landing-shell-account">
-            <LanguageSwitch compact />
+        }
+        actions={
+          <>
             <button
               className={`dc-companion-chip ${
                 companion?.online ? "online" : companion?.paired ? "paired" : ""
               }`}
               type="button"
               onClick={() => setTab("profile")}
-              title="Companion status"
+              title={language === "ru" ? "Состояние Компаньона" : "Companion status"}
             >
               <i />
               <span>
@@ -1602,7 +1464,7 @@ export default function Dashboard({ initialSession }: { initialSession: SessionP
               className="dc-auth-account-button"
               type="button"
               onClick={() => setTab("profile")}
-              title="Open profile"
+              title={language === "ru" ? "Открыть профиль" : "Open profile"}
             >
               {user.avatar_url ? (
                 <img src={user.avatar_url} alt="" />
@@ -1628,81 +1490,9 @@ export default function Dashboard({ initialSession }: { initialSession: SessionP
             >
               {t(language, "Выйти")}
             </button>
-            <button
-              className={`dc-auth-menu-toggle ${authMobileOpen ? "active" : ""}`}
-              type="button"
-              aria-label={t(language, "Открыть меню")}
-              aria-expanded={authMobileOpen}
-              onClick={() => setAuthMobileOpen((value) => !value)}
-            >
-              <i />
-              <i />
-              <i />
-            </button>
-          </div>
-        </div>
-        <div className={`dc-auth-mobile-menu ${authMobileOpen ? "open" : ""}`}>
-          {nav.map(([key, label, icon]) => (
-            <button
-              key={key}
-              type="button"
-              className={tab === key ? "active" : ""}
-              onClick={() => {
-                setTab(key)
-                setAuthMobileOpen(false)
-              }}
-            >
-              <Icon name={icon} />
-              <span>{label}</span>
-              {key === "quests" && boards.some((item) => item.status === "OFFERED") ? (
-                <em>{t(language, "НОВОЕ")}</em>
-              ) : null}
-            </button>
-          ))}
-          <div className="dc-auth-mobile-language">
-            <span>{language === "ru" ? "ЯЗЫК ИНТЕРФЕЙСА" : "INTERFACE LANGUAGE"}</span>
-            <LanguageSwitch />
-          </div>
-          <div className="dc-auth-mobile-status">
-            <span className={`dc-status-dot ${companion?.online ? "online" : ""}`} />
-            <p>
-              <b>
-                {companion?.online ? t(language, "КОМПАНЬОН В СЕТИ") : t(language, "АВТОПРОВЕРКА")}
-              </b>
-              <small>
-                {companion?.online
-                  ? companion.game_running
-                    ? language === "ru"
-                      ? `Deadlock · ${
-                          companion.current_match_id
-                            ? `матч #${companion.current_match_id}`
-                            : companion.phase || "запущен"
-                        }`
-                      : `Deadlock · ${
-                          companion.current_match_id
-                            ? `match #${companion.current_match_id}`
-                            : companion.phase || "running"
-                        }`
-                    : t(language, "Связь с приложением установлена")
-                  : progression?.review_pending
-                    ? language === "ru"
-                      ? `${progression.review_pending} контракт(а) уточняются`
-                      : `${progression.review_pending} contract(s) verifying`
-                    : t(language, "Система готова")}
-              </small>
-            </p>
-          </div>
-          <button
-            className="dc-auth-mobile-logout"
-            type="button"
-            onClick={() =>
-              api("/api/auth/logout", csrf, { method: "POST" }).finally(() => location.assign("/"))
-            }
-          >
-            {t(language, "Выйти из аккаунта")}
-          </button>
-        </div>
-      </header>
+          </>
+        }
+      />
 
       <nav
         className="dc-mobile-bottom-nav"
@@ -1716,12 +1506,11 @@ export default function Dashboard({ initialSession }: { initialSession: SessionP
             className={tab === key ? "active" : ""}
             onClick={() => {
               setTab(key)
-              setAuthMobileOpen(false)
-              window.scrollTo({ top: 0, behavior: "smooth" })
+              window.scrollTo({ top: 0, behavior: prefersReducedMotion() ? "instant" : "smooth" })
             }}
           >
             <Icon name={icon} />
-            <span>{label}</span>
+            <span>{key === "active" ? (language === "ru" ? "ДЕЛО" : "CASE") : label}</span>
             {key === "quests" && boards.some((item) => item.status === "OFFERED") ? <i /> : null}
           </button>
         ))}
@@ -1872,7 +1661,7 @@ export default function Dashboard({ initialSession }: { initialSession: SessionP
           )}
 
           {tab === "quests" && (
-            <div className="dc-motion-contract-scene" onMouseMove={handleContractSceneMouseMove}>
+            <div className="dc-motion-contract-scene">
               <div className="dc-motion-spotlight" aria-hidden="true" />
               <section className="dc-work-head dc-page-head dc-v3-quest-head dc-motion-contract-head">
                 <div>
@@ -2019,7 +1808,8 @@ export default function Dashboard({ initialSession }: { initialSession: SessionP
                             chosen ? "selected" : ""
                           } rarity-${option.rarity.toLowerCase()} diff-${option.difficulty.toLowerCase()} cat-${option.category.toLowerCase()}`}
                           style={{ "--card-index": index } as React.CSSProperties}
-                          disabled={board.status !== "OFFERED"}
+                          aria-pressed={chosen}
+                          disabled={board.status !== "OFFERED" || busy}
                           onClick={(e) => {
                             ripple(e)
                             toggle(option.id)
@@ -2123,21 +1913,23 @@ export default function Dashboard({ initialSession }: { initialSession: SessionP
                               }))
                             }}
                           >
-                            RESET
+                            {language === "ru" ? "Сбросить" : "Reset"}
                           </button>
                           <button
                             className="dc-primary btn-primary dc-motion-lock"
                             disabled={!selectedSet.size || busy}
                             onClick={(e) => {
                               ripple(e)
-                              void lock()
+                              openSigning()
                             }}
                           >
-                            {busy
-                              ? "LOCKING…"
-                              : selectedSet.size
-                                ? "LOCK CONTRACTS →"
-                                : "SELECT CONTRACTS"}
+                            {selectedSet.size
+                              ? language === "ru"
+                                ? "Подписать контракт"
+                                : "Sign contract"
+                              : language === "ru"
+                                ? "Выберите контракты"
+                                : "Select contracts"}
                           </button>
                         </>
                       ) : (
