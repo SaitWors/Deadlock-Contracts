@@ -2,11 +2,17 @@
 from __future__ import annotations
 
 import sys
+from html.parser import HTMLParser
 from pathlib import Path
+from urllib.parse import urlsplit
 
 
 LIMITS = {
-    "javascript_total": 450_000,
+    # Stage 2 adds achievements, player bureaus and configurable showcases.
+    # Lazy account/profile routes cut the public entry from 448 KB to 292 KB;
+    # all route chunks together measure 477 KB. Enforce both budgets.
+    "javascript_total": 490_000,
+    "initial_javascript": 310_000,
     # PR #29 adds the system-announcement UI across the public app and admin center.
     # Keep the CSS budget enforced, but rebaseline it above the measured 248,851-byte
     # production bundle instead of disabling or bypassing the asset-budget gate.
@@ -15,6 +21,18 @@ LIMITS = {
     "assets_total": 2_300_000,
 }
 IMAGE_SUFFIXES = {".avif", ".gif", ".jpg", ".jpeg", ".png", ".webp"}
+
+
+class EntryScripts(HTMLParser):
+    def __init__(self):
+        super().__init__()
+        self.paths: set[str] = set()
+
+    def handle_starttag(self, tag, attrs):
+        values = dict(attrs)
+        source = values.get("src") if tag == "script" else values.get("href") if tag == "link" and values.get("rel") == "modulepreload" else None
+        if source and urlsplit(source).path.endswith(".js"):
+            self.paths.add(Path(urlsplit(source).path).name)
 
 
 def main() -> int:
@@ -26,12 +44,19 @@ def main() -> int:
 
     files = [path for path in assets.rglob("*") if path.is_file()]
     javascript_total = sum(path.stat().st_size for path in files if path.suffix == ".js")
+    entry = EntryScripts()
+    entry.feed((dist / "index.html").read_text())
+    if not entry.paths:
+        print("[frontend-budget] no initial JavaScript found", file=sys.stderr)
+        return 2
+    initial_javascript = sum((assets / name).stat().st_size for name in entry.paths)
     css_total = sum(path.stat().st_size for path in files if path.suffix == ".css")
     images = [path for path in files if path.suffix.lower() in IMAGE_SUFFIXES]
     largest_image = max((path.stat().st_size for path in images), default=0)
     assets_total = sum(path.stat().st_size for path in files)
     observed = {
         "javascript_total": javascript_total,
+        "initial_javascript": initial_javascript,
         "css_total": css_total,
         "largest_image": largest_image,
         "assets_total": assets_total,

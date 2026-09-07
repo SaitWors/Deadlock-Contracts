@@ -47,6 +47,11 @@ class PublicProfile(Base):
     headline: Mapped[str] = mapped_column(String(96), default="")
     bio: Mapped[str] = mapped_column(String(360), default="")
     theme: Mapped[str] = mapped_column(String(24), default="DOSSIER")
+    showcase_order: Mapped[list[str]] = mapped_column(JSON, default=lambda: ["contracts", "achievements", "bureau"])
+    pinned_contract_ids: Mapped[list[str]] = mapped_column(JSON, default=list)
+    featured_achievement: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    show_achievements: Mapped[bool] = mapped_column(Boolean, default=True)
+    show_bureau: Mapped[bool] = mapped_column(Boolean, default=False)
     is_public: Mapped[bool] = mapped_column(Boolean, default=False, index=True)
     show_stats: Mapped[bool] = mapped_column(Boolean, default=True)
     show_showcase: Mapped[bool] = mapped_column(Boolean, default=True)
@@ -318,6 +323,44 @@ class MissionDefinition(Base):
     safety_classification: Mapped[str] = mapped_column(String(32), default="WIN_ALIGNED")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
     published_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class PlayerBureau(Base):
+    __tablename__ = "player_bureaus"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uuid4)
+    slug: Mapped[str] = mapped_column(String(40), unique=True, index=True)
+    name: Mapped[str] = mapped_column(String(64))
+    tagline: Mapped[str] = mapped_column(String(120), default="")
+    description: Mapped[str] = mapped_column(String(1200), default="")
+    rules: Mapped[str] = mapped_column(String(1200), default="")
+    language: Mapped[str] = mapped_column(String(8), default="ru")
+    theme: Mapped[str] = mapped_column(String(24), default="DOSSIER")
+    recruitment: Mapped[str] = mapped_column(String(24), default="APPLICATION")
+    owner_user_id: Mapped[str | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
+
+
+class BureauMembership(Base):
+    __tablename__ = "bureau_memberships"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uuid4)
+    bureau_id: Mapped[str] = mapped_column(ForeignKey("player_bureaus.id", ondelete="CASCADE"), index=True)
+    user_id: Mapped[str] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), unique=True, index=True)
+    role: Mapped[str] = mapped_column(String(24), default="OPERATIVE")
+    joined_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class BureauApplication(Base):
+    __tablename__ = "bureau_applications"
+    __table_args__ = (UniqueConstraint("bureau_id", "user_id", name="uq_bureau_application"),)
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uuid4)
+    bureau_id: Mapped[str] = mapped_column(ForeignKey("player_bureaus.id", ondelete="CASCADE"), index=True)
+    user_id: Mapped[str] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    message: Mapped[str] = mapped_column(String(500), default="")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
 
 class ContractBoard(Base):

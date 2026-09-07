@@ -210,6 +210,7 @@ def public_leaderboard(
     *,
     limit: int = 50,
     now: datetime | None = None,
+    viewer: User | None = None,
 ) -> dict:
     now = now or datetime.now(timezone.utc)
     players = _eligible_players(db)
@@ -301,12 +302,12 @@ def public_leaderboard(
         )
     )
 
-    rows = rows[: max(1, min(int(limit), 100))]
-
     for index, row in enumerate(rows, start=1):
         row["rank"] = index
 
-    return {
+    viewer_profile = next((profile for user, profile in players if viewer and user.id == viewer.id), None)
+    mine = next((row for row in rows if viewer_profile and row["slug"] == viewer_profile.slug), None)
+    result = {
         "scope": scope,
         "generated_at": now.isoformat(),
         "reset_at": (
@@ -319,5 +320,9 @@ def public_leaderboard(
             "Public profile + public stats enabled + "
             "at least one scoring result for this board."
         ),
-        "rows": rows,
+        "rows": rows[: max(1, min(int(limit), 100))],
+        "total": len(rows),
     }
+    if viewer:
+        result["me"] = {"row": mine, "reason": None if mine else "NO_SCORE" if viewer_profile else "PRIVATE_PROFILE"}
+    return result

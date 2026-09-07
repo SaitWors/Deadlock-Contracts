@@ -81,10 +81,7 @@ def test_public_navigation_and_verified_leaderboard_are_restored() -> None:
         in normalized_landing
     )
 
-    assert (
-        "fetch(`/api/public/leaderboard?scope=${leaderScope}&limit=50`"
-        in LANDING
-    )
+    assert "<Leaderboard" in LANDING and "<Leaderboard authenticated" in DASHBOARD
     assert '@app.get("/api/public/leaderboard")' in MAIN
 
     leaderboard_service = (

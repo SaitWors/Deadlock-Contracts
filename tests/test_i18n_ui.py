@@ -38,7 +38,7 @@ def test_language_switch_is_available_on_public_and_authenticated_surfaces() -> 
     assert '<BureauHeader' in LANDING
     assert '<BureauHeader' in DASHBOARD
     assert '<LanguageSwitch' in HEADER
-    assert '<LanguageSwitch' in PUBLIC
+    assert '<BureauHeader' in PUBLIC
     assert '.dc-language-switch' in CSS
 
 
@@ -90,6 +90,7 @@ def test_public_profile_numbers_follow_active_locale() -> None:
 
     assert not hardcoded_ru_locale.search(PROFILE)
     assert not hardcoded_ru_locale.search(PUBLIC)
-    assert "toLocaleString(locale)" in PROFILE
-    assert "toLocaleString(locale)" in PUBLIC
+    dossier = (ROOT / "frontend/src/community/DossierView.tsx").read_text(encoding="utf-8")
+    assert "<DossierView" in PROFILE and "<DossierView" in PUBLIC
+    assert "toLocaleString(locale)" in dossier
 

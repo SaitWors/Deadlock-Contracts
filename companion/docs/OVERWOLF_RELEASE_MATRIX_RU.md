@@ -1,29 +1,34 @@
-# Overwolf release matrix — 0.5.2-alpha.7
+# Overwolf — матрица проверки кандидата
 
-Сверено с официальной документацией Overwolf 2026-08-25. Статус `static PASS` означает проверку исходника/архива, а не проход QA на реальном клиенте.
+Шаблон для нового OPK. Версия и SHA-256 берутся из `CANDIDATE.json`,
+созданного вместе с QA-комплектом. В исходниках источник версий —
+`companion/release.json`. Старые результаты не переносятся автоматически.
 
-| Требование | Реализация alpha.7 | Статус |
-|---|---|---:|
-| Видимое Desktop окно | native, desktop-only, 1200×700, min 900×620 | static PASS |
-| Background + GameLaunch | `background`, `start_minimized=true`, Deadlock `24482` | static PASS |
-| Контракты | server boards → lock `option_ids` → Active Case → server Debrief/XP | automated/static PASS |
-| Горячая клавиша | default + `get/onChanged/onPressed` Overwolf API | automated/static PASS; runtime OPEN |
-| Overlay | in-game only, input pass-through, resize/bounds, manual + 6.5-sec auto-hide | static PASS; placement/runtime OPEN |
-| Overlay motion | progress/switch/completion animation + reduced-motion fallback | static PASS; visual OPEN |
-| Реклама | один OwAd `400×60`, Desktop HQ only, transparent parent, server kill switch default OFF | static PASS; ad QA/serving OPEN |
-| Ads timing | не создаётся, пока процесс Deadlock запущен; также отсутствует в FTUE, pairing, dialogs, overlay | automated/static PASS; runtime OPEN |
-| Ads permissions | Extensions, Streaming, Profile, GameInfo, Hotkeys | static PASS |
-| CSP | self-hosted UI; exact official `content.overwolf.com` allowlist для SDK | static PASS |
-| No client settlement | Companion не создаёт completion / reward / XP | automated/static PASS |
-| OPK | manifest в root, normal compression, SHA-256 | packaging gate |
-| Icons | PNG 256×256 / size gates; ICO 16/32/48/256 | static PASS |
-| Manifest schema | local fields checked | official schema validation OPEN |
-| DPI/resolution matrix | 1366×720, 1366×768, 1080p@125, 4K@150 | Windows OPEN |
-| Gameplay focus | fullscreen/windowed/Alt+Tab/mid-game install | Windows OPEN |
-| Real GEP | Standard, Ranked, Street Brawl with frozen OPK | Deadlock OPEN |
-| Security/performance | offline/reconnect, CPU/RAM/network, AV | Windows OPEN |
-| Store / DevRel | listing, policy review, ad enablement | Overwolf OPEN |
+Перед проверкой записать: OPK и SHA-256, ревизию исходников, версию backend,
+флаги сервера, дату, проверяющего, Windows, Overwolf, GEP и Deadlock.
+Для каждого PASS приложить наблюдение, лог или снимок экрана.
 
-## Нельзя честно отметить PASS до ручного QA
+| Проверка | Что подтвердить | Начальный статус |
+|---|---|---|
+| Release metadata и OPK | Поля версии, структура архива, контрольные суммы | Результат сборки в CANDIDATE.json |
+| Автотесты и воспроизведение исходников | CI нужной ревизии; повторный OPK с тем же SHA-256 | NOT RECORDED |
+| Установка и Desktop | Устанавливается frozen OPK, видимое окно, FTUE | NOT RUN |
+| Pairing | Вход, истёкший/неверный код, revoke, восстановление | NOT RUN |
+| Контракты | Выбор 1–3 условий, серверная подпись, сохранение дела | NOT RUN |
+| Overlay и горячая клавиша | Фокус, HUD, rebind, unassigned, auto-hide | NOT RUN |
+| Реальный GEP | Поддержанные режимы, точный Match ID, отсутствие выдуманных значений | NOT RUN |
+| Конец матча и очередь | Exit/restart/grace, offline/reconnect, две игры подряд | NOT RUN |
+| Серверный результат | Верный матч и фактически начисленный XP без повторов | NOT RUN |
+| Реклама | Флаг, отсутствие в gameplay/overlay/FTUE, отдельный serving test | NOT RUN |
+| Разрешения и DPI | 1366×720, 1366×768, 1080p@125%, 4K@150% | NOT RUN |
+| Окна и нагрузка | Fullscreen/borderless/windowed, Alt+Tab, CPU/RAM/network | NOT RUN |
+| RU/EN и доступность | Длинные строки, контраст, reduced motion, ошибки сети | NOT RUN |
+| Manifest и антивирус | Актуальные требования Overwolf и проверка frozen OPK | NOT RUN |
+| Whitelist | Письмо/подтверждение для нужного аккаунта | NOT RECORDED |
+| Отправка приложения | Дата, канал/номер заявки, отправленный OPK и SHA-256 | NOT RECORDED |
+| QA и Developer Console | Ответ DevRel/QA и фактический доступ | NOT RECORDED |
 
-Наличие whitelist и успешная OPK install-проверка не означают, что приложение уже approved. Перед submit обязательно выполнить manual items. Реальная выдача рекламы ожидается только после того, как Overwolf завершит свои ad tests и включит serving.
+Эта таблица — шаблон комплекта, а не статус аккаунта команды. Наличие
+whitelist не заполняет строку прохождения QA. По официальной документации
+доступ к Developer Console предоставляют после одобрения приложения QA:
+https://dev.overwolf.com/ow-native/developers-console/the-developers-console/

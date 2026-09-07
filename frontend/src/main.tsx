@@ -4,6 +4,7 @@ import App from "./App"
 import "./index.css"
 import "./vnext.css"
 import "./bureau.css"
+import "./community/community.css"
 import "./announcements/announcements.css"
 
 ReactDOM.createRoot(document.getElementById("root")!).render(

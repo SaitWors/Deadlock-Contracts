@@ -167,6 +167,10 @@ jobs:
         run: |
           python scripts/ci_migration_smoke.py
 
+      - name: Verify bureau membership concurrency
+        run: |
+          python scripts/ci_community_smoke.py
+
       - name: Verify final head
         run: |
           python -m alembic current --check-heads
@@ -277,6 +281,22 @@ jobs:
             companion/dist/SHA256SUMS.txt
           if-no-files-found: error
           retention-days: 14
+
+      - name: Verify QA bundle and rebuild extracted sources
+        run: npm run test:qa-bundle
+
+      - name: Build Companion QA bundle
+        run: npm run build:qa-bundle
+
+      - name: Upload Companion QA bundle
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: Deadlock-Contracts-Companion-${{ steps.companion-release.outputs.version }}-QA
+          path: |
+            companion/release/Deadlock-Contracts-Companion-${{ steps.companion-release.outputs.version }}-QA-BUNDLE.zip
+            companion/release/Deadlock-Contracts-Companion-${{ steps.companion-release.outputs.version }}-QA-BUNDLE.sha256
+          if-no-files-found: error
+          retention-days: 90
 
   container:
     name: Docker / release image
