@@ -3,9 +3,11 @@ from __future__ import annotations
 from alembic import command
 from alembic.config import Config
 from alembic.script import ScriptDirectory
-from sqlalchemy import text
+from sqlalchemy import delete, text
+from uuid import uuid4
 
-from app.db import engine
+from app.db import engine, SessionLocal
+from app.models import PublicProfile, User
 
 
 def current_revision() -> str:
@@ -45,6 +47,17 @@ def main() -> None:
             f"Database must begin at head {head}, got {before}"
         )
 
+    # An existing private profile must survive the upgrade and must not silently
+    # opt into a bureau roster. The 0014 additions need to backfill real rows.
+    token = uuid4().hex[:12]
+    with SessionLocal() as db:
+        player = User(display_name="Migration preservation check")
+        db.add(player)
+        db.flush()
+        player_id = player.id
+        db.add(PublicProfile(user_id=player.id, slug=f"migration-{token}", headline="Preserved headline", is_public=False, show_stats=False, theme="NOIR"))
+        db.commit()
+
     print(f"Downgrade smoke: {head} -> {parent}")
     command.downgrade(config, parent)
 
@@ -64,6 +77,16 @@ def main() -> None:
         )
 
     command.check(config)
+    with SessionLocal() as db:
+        profile = db.query(PublicProfile).filter_by(user_id=player_id).one()
+        assert profile.headline == "Preserved headline" and profile.theme == "NOIR"
+        assert profile.is_public is False and profile.show_stats is False
+        assert profile.show_bureau is False
+        assert profile.showcase_order == ["contracts", "achievements", "bureau"]
+        assert profile.pinned_contract_ids == []
+        db.execute(delete(User).where(User.id == player_id))
+        db.commit()
+    print("Existing profile preserved; community defaults remain private")
 
     print(
         f"Migration smoke OK: "

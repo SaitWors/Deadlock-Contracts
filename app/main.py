@@ -26,6 +26,9 @@ from starlette.middleware.trustedhost import TrustedHostMiddleware
 
 from .config import settings
 from .db import Base, SessionLocal, engine, get_db
+from .community import router as community_router
+from .services.achievements import achievement_collection, awarded_contract_filter
+from .services.bureaus import leave_for_account_deletion, profile_bureau
 from .models import (
     AuditLog,
     AutoReviewCase,
@@ -317,6 +320,11 @@ class PublicProfileUpdateRequest(StrictModel):
     show_showcase: bool = True
     show_links: bool = True
     links: dict[str, str] = Field(default_factory=dict)
+    showcase_order: list[Literal["contracts", "achievements", "bureau"]] = Field(default_factory=lambda: ["contracts", "achievements", "bureau"], min_length=3, max_length=3)
+    pinned_contract_ids: list[UUID] = Field(default_factory=list, max_length=3)
+    featured_achievement: str | None = Field(default=None, max_length=32)
+    show_achievements: bool = True
+    show_bureau: bool = False
 
 
 class PreferenceUpdateRequest(StrictModel):
@@ -524,6 +532,7 @@ app.add_middleware(
 app.add_middleware(TrustedHostMiddleware, allowed_hosts=list(settings.trusted_hosts))
 app.add_middleware(RequestSecurityMiddleware)
 app.add_middleware(SecurityHeadersMiddleware)
+app.include_router(community_router)
 
 
 @app.exception_handler(Exception)
@@ -786,8 +795,8 @@ def _clean_profile_links(values: dict[str, str] | None) -> dict[str, str]:
     return result
 
 
-def _profile_showcase(db: Session, user: User, limit: int = 3) -> list[dict]:
-    rows = db.execute(
+def _profile_showcase(db: Session, user: User, limit: int = 3, pinned_ids: list[str] | None = None) -> list[dict]:
+    statement = (
         select(BoardOption, ContractBoard, Match)
         .options(selectinload(BoardOption.mission))
         .join(ContractBoard, ContractBoard.id == BoardOption.board_id)
@@ -796,10 +805,15 @@ def _profile_showcase(db: Session, user: User, limit: int = 3) -> list[dict]:
             ContractBoard.user_id == user.id,
             BoardOption.selected.is_(True),
             BoardOption.status == "COMPLETED",
+            awarded_contract_filter(user.id),
         )
         .order_by(BoardOption.reward_xp.desc(), BoardOption.settled_at.desc())
-        .limit(limit)
-    ).all()
+    )
+    if pinned_ids:
+        statement = statement.where(BoardOption.id.in_(pinned_ids))
+    rows = db.execute(statement.limit(limit)).all()
+    if pinned_ids:
+        rows.sort(key=lambda row: pinned_ids.index(row[0].id))
     return [
         {
             "id": option.id,
@@ -827,6 +841,9 @@ def _profile_showcase(db: Session, user: User, limit: int = 3) -> list[dict]:
 
 def _public_profile_payload(db: Session, user: User, profile: PublicProfile, *, private: bool = False) -> dict:
     progression = user_progression(db, user)
+    collection = achievement_collection(db, user.id) if private or (profile.show_achievements and profile.show_stats) else None
+    achievements = collection["items"] if collection else []
+    featured = next((item for item in achievements if item["id"] == profile.featured_achievement and item["earned"]), None)
     payload = {
         "slug": profile.slug,
         "headline": profile.headline,
@@ -836,6 +853,12 @@ def _public_profile_payload(db: Session, user: User, profile: PublicProfile, *, 
         "show_stats": bool(profile.show_stats),
         "show_showcase": bool(profile.show_showcase),
         "show_links": bool(profile.show_links),
+        "show_achievements": bool(profile.show_achievements),
+        "show_bureau": bool(profile.show_bureau),
+        "showcase_order": profile.showcase_order or ["contracts", "achievements", "bureau"],
+        "featured_achievement": featured["id"] if featured else None,
+        "achievements": achievements if private else [item for item in achievements if item["earned"]],
+        "bureau": profile_bureau(db, user.id) if private or profile.show_bureau else None,
         "links": dict(profile.links or {}) if (private or profile.show_links) else {},
         "player": {
             "display_name": user.display_name,
@@ -854,10 +877,13 @@ def _public_profile_payload(db: Session, user: User, profile: PublicProfile, *, 
             "mode_stats": progression["mode_stats"],
             "hardest_completed": progression["hardest_completed"],
         } if (private or profile.show_stats) else None,
-        "showcase": _profile_showcase(db, user) if (private or profile.show_showcase) else [],
+        "showcase": _profile_showcase(db, user, pinned_ids=profile.pinned_contract_ids) if (private or profile.show_showcase) else [],
         "public_url": f"/u/{profile.slug}" if profile.is_public else None,
         "updated_at": profile.updated_at.isoformat() if profile.updated_at else None,
     }
+    if private:
+        payload["pinned_contract_ids"] = list(profile.pinned_contract_ids or [])
+        payload["available_contracts"] = _profile_showcase(db, user, limit=100)
     return payload
 
 
@@ -1992,6 +2018,11 @@ def my_public_profile(user: User = Depends(require_user), db: Session = Depends(
     if profile is None:
         return {
             "profile": None,
+            "draft": _public_profile_payload(db, user, PublicProfile(
+                user_id=user.id, slug=_suggest_profile_slug(user), headline="", bio="", theme="DOSSIER",
+                is_public=False, show_stats=True, show_showcase=True, show_links=True,
+                show_achievements=True, show_bureau=False, links={},
+            ), private=True),
             "suggested_slug": _suggest_profile_slug(user),
             "defaults": {
                 "headline": "Deadlock Contract Runner",
@@ -2010,6 +2041,15 @@ def my_public_profile(user: User = Depends(require_user), db: Session = Depends(
 @app.put("/api/profile/public", dependencies=[Depends(require_csrf)])
 def update_public_profile(payload: PublicProfileUpdateRequest, user: User = Depends(require_user), db: Session = Depends(get_db)) -> dict:
     links = _clean_profile_links(payload.links)
+    if len(set(payload.showcase_order)) != 3:
+        raise HTTPException(422, "Витрины не должны повторяться")
+    pins = [str(item) for item in payload.pinned_contract_ids]
+    if len(set(pins)) != len(pins) or (pins and len(_profile_showcase(db, user, pinned_ids=pins)) != len(pins)):
+        raise HTTPException(422, "Закрепить можно только свои завершённые контракты с наградой")
+    if payload.featured_achievement and payload.featured_achievement not in {
+        item["id"] for item in achievement_collection(db, user.id)["items"] if item["earned"]
+    }:
+        raise HTTPException(422, "Сначала получите эту печать")
     collision = db.scalar(select(PublicProfile).where(PublicProfile.slug == payload.slug, PublicProfile.user_id != user.id))
     if collision is not None:
         raise HTTPException(409, "Этот public handle уже занят")
@@ -2025,6 +2065,16 @@ def update_public_profile(payload: PublicProfileUpdateRequest, user: User = Depe
     profile.show_showcase = payload.show_showcase
     profile.show_links = payload.show_links
     profile.links = links
+    # Older clients may omit the new fields; preserve saved showcases in that case.
+    for key, value in {
+        "showcase_order": payload.showcase_order,
+        "pinned_contract_ids": pins,
+        "featured_achievement": payload.featured_achievement,
+        "show_achievements": payload.show_achievements,
+        "show_bureau": payload.show_bureau,
+    }.items():
+        if key in payload.model_fields_set:
+            setattr(profile, key, value)
     db.add(profile)
     try:
         db.flush()
@@ -4704,6 +4754,7 @@ def delete_account(
     user: User = Depends(require_user),
     db: Session = Depends(get_db),
 ) -> dict:
+    leave_for_account_deletion(db, user.id)
     account_id = user.account_id
     submissions = list(db.scalars(select(EvidenceSubmission).where(EvidenceSubmission.user_id == user.id)).all())
     if submissions:

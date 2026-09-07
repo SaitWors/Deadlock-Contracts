@@ -1,13 +1,13 @@
 import React, { useState, useEffect, useRef, useCallback } from "react"
 import BureauHeader from "./BureauHeader"
+import Leaderboard from "./community/Leaderboard"
 import ContractSigning from "./ContractSigning"
 import { prefersReducedMotion, useRipple, useTilt } from "./motion"
 import logoImage from "@/imports/brand-hero.webp"
-import { apiLanguage, LanguageSwitch, MCGCredit, t, useLanguage } from "./i18n"
+import { LanguageSwitch, MCGCredit, t, useLanguage } from "./i18n"
 
 type ContractCategory = "COMFORT" | "GROWTH" | "HERO" | "VARIETY" | "EVENT"
 type GameMode = "STANDARD" | "RANKED" | "STREET BRAWL"
-type LeaderScope = "all_time" | "today" | "rare" | "mastery"
 type PublicPage = "home" | "contracts" | "how" | "campaigns" | "leaderboards"
 
 const NAV_ITEMS: Array<{
@@ -19,29 +19,6 @@ const NAV_ITEMS: Array<{
   { id: "campaigns", label: "CAMPAIGNS · SOON" },
   { id: "leaderboards", label: "LEADERBOARD" },
 ]
-
-interface LeaderboardRow {
-  rank: number
-  slug: string
-  display_name: string
-  avatar_url: string | null
-  level: number
-  score: number
-  verified_xp: number
-  contracts_completed: number
-}
-
-interface LeaderboardPayload {
-  scope: LeaderScope
-  generated_at: string
-  reset_at: string | null
-  scoring: {
-    label: string
-    description: string
-  }
-  eligibility: string
-  rows: LeaderboardRow[]
-}
 
 interface Contract {
   id: number
@@ -465,10 +442,6 @@ export default function Landing() {
   const [previewOpen, setPreviewOpen] = useState(false)
   const [gameMode, setGameMode] = useState<GameMode>("STANDARD")
   const [openFaq, setOpenFaq] = useState<number | null>(null)
-  const [leaderScope, setLeaderScope] = useState<LeaderScope>("all_time")
-  const [leaderboard, setLeaderboard] = useState<LeaderboardPayload | null>(null)
-  const [leaderLoading, setLeaderLoading] = useState(false)
-  const [leaderError, setLeaderError] = useState<string | null>(null)
   const xpRef = useRef<HTMLSpanElement>(null)
   const boardRef = useRef<HTMLDivElement>(null)
   const [spotlight, setSpotlight] = useState({ x: 50, y: 50 })
@@ -484,30 +457,6 @@ export default function Landing() {
     window.addEventListener("hashchange", handler)
     return () => window.removeEventListener("hashchange", handler)
   }, [])
-
-  useEffect(() => {
-    if (page !== "leaderboards") return
-    const controller = new AbortController()
-    setLeaderLoading(true)
-    setLeaderError(null)
-    fetch(`/api/public/leaderboard?scope=${leaderScope}&limit=50`, {
-      headers: { Accept: "application/json", "Accept-Language": apiLanguage() },
-      signal: controller.signal,
-    })
-      .then(async (response) => {
-        if (!response.ok) throw new Error(`HTTP ${response.status}`)
-        return response.json() as Promise<LeaderboardPayload>
-      })
-      .then((payload) => setLeaderboard(payload))
-      .catch((error) => {
-        if (error?.name !== "AbortError")
-          setLeaderError(t(language, "Не удалось загрузить таблицу лидеров."))
-      })
-      .finally(() => {
-        if (!controller.signal.aborted) setLeaderLoading(false)
-      })
-    return () => controller.abort()
-  }, [page, leaderScope, language])
 
   const navigate = (next: PublicPage) => {
     if (window.location.hash !== `#${next}`) window.location.hash = next
@@ -1554,230 +1503,9 @@ export default function Landing() {
         </section>
       )}
       {page === "leaderboards" && (
-        <section
-          className="pt-32 pb-28 px-6 lg:px-8 relative overflow-hidden"
-          style={{ minHeight: "760px", backgroundColor: "#060A08" }}
-        >
-          <div
-            className="absolute inset-0 pointer-events-none opacity-[0.025]"
-            style={{
-              backgroundImage:
-                "linear-gradient(rgba(122,179,132,1) 1px, transparent 1px), linear-gradient(90deg, rgba(122,179,132,1) 1px, transparent 1px)",
-              backgroundSize: "44px 44px",
-            }}
-          />
-          <div className="max-w-[1080px] mx-auto relative">
-            <Reveal>
-              <div className="text-center mb-8">
-                <Eyebrow>VERIFIED LEADERBOARD</Eyebrow>
-                <SectionHeading>{t(language, "Лучшие агенты бюро")}</SectionHeading>
-                <p
-                  className="text-sm leading-relaxed mt-4 mx-auto max-w-[720px]"
-                  style={{ color: "#B6AC94" }}
-                >
-                  {t(
-                    language,
-                    "Только серверно подтверждённые результаты Deadlock Contracts. Официальный рейтинг Deadlock сюда не входит.",
-                  )}
-                </p>
-              </div>
-            </Reveal>
-
-            <Reveal delay={80}>
-              <div className="flex flex-wrap justify-center gap-2 mb-7">
-                {(
-                  [
-                    ["all_time", "ALL TIME"],
-                    ["today", "TODAY"],
-                    ["rare", "RARE"],
-                    ["mastery", "MASTERY"],
-                  ] as Array<[LeaderScope, string]>
-                ).map(([scope, label]) => (
-                  <button
-                    type="button"
-                    key={scope}
-                    onClick={() => setLeaderScope(scope)}
-                    aria-pressed={leaderScope === scope}
-                    className="px-4 py-2 text-xs font-bold tracking-[0.14em] border transition-all"
-                    style={{
-                      color: leaderScope === scope ? "#F1E4C8" : "#7F8478",
-                      borderColor: leaderScope === scope ? "#457F5B" : "#26352E",
-                      backgroundColor: leaderScope === scope ? "#0A1510" : "#0A0F0D",
-                      boxShadow: leaderScope === scope ? "0 0 16px rgba(122,179,132,0.12)" : "none",
-                      borderRadius: "4px",
-                    }}
-                  >
-                    {label}
-                  </button>
-                ))}
-              </div>
-            </Reveal>
-
-            <Reveal delay={120}>
-              <div
-                className="border overflow-hidden"
-                style={{
-                  backgroundColor: "#0A100D",
-                  borderColor: "#26352E",
-                  borderRadius: "6px",
-                  boxShadow: "0 24px 60px rgba(0,0,0,0.28)",
-                }}
-              >
-                <div
-                  className="px-5 py-4 flex flex-col md:flex-row md:items-center justify-between gap-2"
-                  style={{
-                    borderBottom: "1px solid #26352E",
-                    backgroundColor: "#0D1511",
-                  }}
-                >
-                  <div>
-                    <div
-                      className="text-[10px] font-bold tracking-[0.2em]"
-                      style={{ color: "#7AB384" }}
-                    >
-                      {leaderboard?.scoring.label || "VERIFIED XP"}
-                    </div>
-                    <div className="text-xs mt-1" style={{ color: "#7F8478" }}>
-                      {leaderboard?.scoring.description ||
-                        t(language, "Загружаем правила подсчёта…")}
-                    </div>
-                  </div>
-                  <div className="text-[10px] tracking-[0.14em]" style={{ color: "#5F685F" }}>
-                    {t(language, "Публичный профиль и статистика должны быть включены")}
-                  </div>
-                </div>
-
-                {leaderLoading && (
-                  <div className="px-5 py-16 text-center text-sm" style={{ color: "#7F8478" }}>
-                    {t(language, "Загружаем таблицу лидеров…")}
-                  </div>
-                )}
-                {!leaderLoading && leaderError && (
-                  <div className="px-5 py-16 text-center text-sm" style={{ color: "#B65E58" }}>
-                    {leaderError}
-                  </div>
-                )}
-                {!leaderLoading && !leaderError && leaderboard?.rows.length === 0 && (
-                  <div className="px-5 py-16 text-center">
-                    <div className="text-sm font-semibold mb-2" style={{ color: "#F1E4C8" }}>
-                      {t(language, "Пока никто не квалифицировался")}
-                    </div>
-                    <div className="text-xs" style={{ color: "#7F8478" }}>
-                      {t(
-                        language,
-                        "Нужен публичный профиль с открытой статистикой и хотя бы один результат для выбранной таблицы.",
-                      )}
-                    </div>
-                  </div>
-                )}
-                {!leaderLoading && !leaderError && leaderboard && leaderboard.rows.length > 0 && (
-                  <div>
-                    <div
-                      className="grid grid-cols-[54px_1fr_90px_100px] md:grid-cols-[64px_1fr_90px_120px_120px] gap-3 px-4 md:px-5 py-3 text-[9px] font-bold tracking-[0.18em] uppercase"
-                      style={{
-                        color: "#5F685F",
-                        borderBottom: "1px solid #1A2520",
-                      }}
-                    >
-                      <span>#</span>
-                      <span>PLAYER</span>
-                      <span>LEVEL</span>
-                      <span className="hidden md:block">CASES</span>
-                      <span className="text-right">SCORE</span>
-                    </div>
-                    {leaderboard.rows.map((row) => (
-                      <a
-                        key={row.slug}
-                        href={`/u/${row.slug}`}
-                        className="grid grid-cols-[54px_1fr_90px_100px] md:grid-cols-[64px_1fr_90px_120px_120px] gap-3 px-4 md:px-5 py-3.5 items-center transition-colors"
-                        style={{
-                          borderBottom: "1px solid #152019",
-                          color: "#F1E4C8",
-                        }}
-                        onMouseEnter={(event) =>
-                          (event.currentTarget.style.backgroundColor = "#0D1712")
-                        }
-                        onMouseLeave={(event) =>
-                          (event.currentTarget.style.backgroundColor = "transparent")
-                        }
-                      >
-                        <span
-                          className="font-bold text-sm"
-                          style={{
-                            color: row.rank <= 3 ? "#C9AE72" : "#7F8478",
-                            fontFamily: "Roboto Condensed, Barlow Condensed, sans-serif",
-                          }}
-                        >
-                          {String(row.rank).padStart(2, "0")}
-                        </span>
-                        <span className="flex items-center gap-3 min-w-0">
-                          {row.avatar_url ? (
-                            <img
-                              src={row.avatar_url}
-                              alt=""
-                              className="w-8 h-8 rounded-sm object-cover border"
-                              style={{ borderColor: "#26352E" }}
-                              loading="lazy"
-                              referrerPolicy="no-referrer"
-                            />
-                          ) : (
-                            <span
-                              className="w-8 h-8 border grid place-items-center text-[10px]"
-                              style={{
-                                borderColor: "#26352E",
-                                color: "#7AB384",
-                                backgroundColor: "#0E1512",
-                              }}
-                            >
-                              DC
-                            </span>
-                          )}
-                          <span className="min-w-0">
-                            <span className="block text-sm font-semibold truncate">
-                              {row.display_name}
-                            </span>
-                            <span
-                              className="block text-[10px] truncate"
-                              style={{ color: "#5F685F" }}
-                            >
-                              @{row.slug}
-                            </span>
-                          </span>
-                        </span>
-                        <span className="text-sm font-bold" style={{ color: "#B6AC94" }}>
-                          LVL {row.level}
-                        </span>
-                        <span className="hidden md:block text-sm" style={{ color: "#7F8478" }}>
-                          {row.contracts_completed}
-                        </span>
-                        <span
-                          className="text-right text-base font-bold"
-                          style={{
-                            color: "#7AB384",
-                            fontFamily: "Roboto Condensed, Barlow Condensed, sans-serif",
-                            textShadow: "0 0 10px rgba(122,179,132,0.18)",
-                          }}
-                        >
-                          {row.score.toLocaleString(language === "ru" ? "ru-RU" : "en-US")}
-                        </span>
-                      </a>
-                    ))}
-                  </div>
-                )}
-              </div>
-            </Reveal>
-
-            <p
-              className="text-[10px] leading-relaxed text-center mt-5 mx-auto max-w-[760px]"
-              style={{ color: "#5F685F" }}
-            >
-              {t(
-                language,
-                "Leaderboard использует только награды за подтверждённые контракты. Административные корректировки XP не влияют на позицию.",
-              )}
-            </p>
-          </div>
-        </section>
+        <div className="public-leaderboard">
+          <Leaderboard />
+        </div>
       )}
       {/* ── FOOTER ── */}
       <footer

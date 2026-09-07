@@ -5,6 +5,25 @@ from typing import Any
 
 
 RU_TO_EN = {
+    "Бюро не найдено": "Bureau not found",
+    "Недостаточно прав в этом бюро": "You do not have permission in this bureau",
+    "Действие доступно только директору бюро": "Only the bureau director can do this",
+    "Данные бюро изменились. Обновите страницу и повторите действие.": "Bureau data changed. Refresh and try again.",
+    "Можно состоять только в одном бюро": "You can belong to only one bureau",
+    "В бюро закончились места": "This bureau is full",
+    "Название бюро должно содержать слово Deadlock": "The bureau name must contain the word Deadlock",
+    "Этот адрес бюро уже занят": "This bureau address is already taken",
+    "Набор в бюро закрыт": "Recruitment is closed",
+    "Можно отправить не более пяти заявок одновременно": "You can have at most five pending applications",
+    "Заявка уже обработана или не найдена": "Application already processed or not found",
+    "Участник не найден": "Member not found",
+    "Укажите причину исключения": "Enter a reason for removing this member",
+    "Сначала передайте руководство или распустите бюро": "Transfer leadership or disband the bureau first",
+    "Для удаления введите адрес бюро": "Type the bureau address to disband it",
+    "Витрины не должны повторяться": "Each showcase must appear once",
+    "Закрепить можно только свои завершённые контракты с наградой": "You can pin only your own completed, awarded contracts",
+    "Сначала получите эту печать": "Earn this seal before featuring it",
+
     "Внутренняя ошибка сервиса": "Internal service error",
     "Некорректные параметры запроса": "Invalid request parameters",
     "Неизвестный часовой пояс": "Unknown time zone",

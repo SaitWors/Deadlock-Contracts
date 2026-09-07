@@ -1,412 +1,424 @@
-import { useEffect, useMemo, useState } from "react"
-import { apiLanguage, contractTitle, localizeServerText, t, useLanguage } from "./i18n"
-
-type Mode = "STANDARD" | "RANKED" | "STREET_BRAWL"
-type BadgeId =
-  | "CREATOR"
-  | "ADMIN"
-  | "DEVELOPER"
-  | "STREAMER"
-  | "EARLY_TESTER"
-  | "TESTER"
-  | "CONTRIBUTOR"
-  | "PLAYER"
-type User = {
-  display_name: string
-  avatar_url: string | null
-  xp: number
-  badges: BadgeId[]
-}
-type Progression = {
-  level: number
-  contracts_completed: number
-  mode_stats: Record<
-    Mode,
-    {
-      completed: number
-      failed: number
-      attempted: number
-      xp: number
-    }
-  >
-}
-type ShowcaseItem = {
-  id: string
-  title: string
-  title_i18n?: Partial<Record<"ru" | "en", string>>
-  mode: Mode
-  difficulty: string
-  rarity: string
-  reward_xp: number
-  explanation: string | null
-  match_id: string | null
-}
-type PublicProfile = {
-  slug: string
-  headline: string
-  bio: string
-  theme: "DOSSIER" | "NOIR" | "SIGNAL"
-  is_public: boolean
-  show_stats: boolean
-  show_showcase: boolean
-  show_links: boolean
-  links: Record<string, string>
-  public_url: string | null
-  showcase: ShowcaseItem[]
-}
-type LoadPayload = {
-  profile: PublicProfile | null
-  suggested_slug: string
-  defaults?: Omit<PublicProfile, "slug" | "public_url" | "showcase">
-}
+import { useEffect, useRef, useState } from "react"
+import { useLanguage } from "./i18n"
+import DossierView, { visibleProfile } from "./community/DossierView"
+import { request, useResource } from "./community/api"
+import { LoadState } from "./community/Shared"
+import type { Module, Profile, Theme } from "./community/types"
 
 type Props = {
   csrf: string
-  user: User
-  progression: Progression | null
   onNotice: (value: string) => void
   onError: (value: string) => void
+  onRefresh: () => Promise<void>
+  onBureau: (slug: string) => void
 }
-
-const MODE_NAME: Record<Mode, string> = {
-  STANDARD: "Standard",
-  RANKED: "Ranked",
-  STREET_BRAWL: "Street Brawl",
-}
-const THEME_LABEL: Record<
-  PublicProfile["theme"],
-  {
-    title: string
-    caption: string
-  }
-> = {
-  DOSSIER: { title: "DOSSIER", caption: "Основной стиль" },
-  NOIR: { title: "NOIR", caption: "Сдержанный архив" },
-  SIGNAL: { title: "SIGNAL", caption: "Больше tech-акцента" },
-}
-
-async function request<T>(url: string, csrf: string, init: RequestInit = {}): Promise<T> {
-  const headers = new Headers(init.headers)
-  headers.set("Accept", "application/json")
-  headers.set("Accept-Language", apiLanguage())
-  if (init.body) headers.set("Content-Type", "application/json")
-  if (!["GET", "HEAD"].includes((init.method || "GET").toUpperCase()))
-    headers.set("X-CSRF-Token", csrf)
-  const response = await fetch(url, {
-    ...init,
-    headers,
-    credentials: "same-origin",
-  })
-  const data = await response.json().catch(() => ({ detail: `HTTP ${response.status}` }))
-  if (!response.ok) throw new Error(data.detail || `HTTP ${response.status}`)
-  return data as T
-}
-
-function emptyProfile(slug: string, defaults?: LoadPayload["defaults"]): PublicProfile {
-  return {
-    slug,
-    headline: defaults?.headline || "Deadlock Contract Runner",
-    bio: defaults?.bio || "",
-    theme: defaults?.theme || "DOSSIER",
-    is_public: defaults?.is_public || false,
-    show_stats: defaults?.show_stats ?? true,
-    show_showcase: defaults?.show_showcase ?? true,
-    show_links: defaults?.show_links ?? true,
-    links: defaults?.links || {},
-    public_url: null,
-    showcase: [],
-  }
-}
-
-export default function ProfileStudio({ csrf, user, progression, onNotice, onError }: Props) {
-  const { language, locale } = useLanguage()
-  const [profile, setProfile] = useState<PublicProfile | null>(null)
-  const [draft, setDraft] = useState<PublicProfile | null>(null)
-  const [loading, setLoading] = useState(true)
+export default function ProfileStudio({ csrf, onNotice, onError, onRefresh, onBureau }: Props) {
+  const { language } = useLanguage()
+  const ru = language === "ru"
+  const resource = useResource<{ profile: Profile | null; draft?: Profile }>("/api/profile/public")
+  const [draft, setDraft] = useState<Profile | null>(null)
+  const [editing, setEditing] = useState(false)
+  const [guest, setGuest] = useState(false)
   const [saving, setSaving] = useState(false)
-
+  const savingRef = useRef(false)
+  const editor = useRef<HTMLDivElement>(null)
   useEffect(() => {
-    let alive = true
-    setLoading(true)
-    request<LoadPayload>("/api/profile/public", csrf)
-      .then((data) => {
-        if (!alive) return
-        const value = data.profile || emptyProfile(data.suggested_slug, data.defaults)
-        setProfile(value)
-        setDraft(value)
-      })
-      .catch((reason) => alive && onError(localizeServerText((reason as Error).message, language)))
-      .finally(() => alive && setLoading(false))
-    return () => {
-      alive = false
-    }
-  }, [csrf, onError, language])
-
-  const dirty = useMemo(() => JSON.stringify(profile) !== JSON.stringify(draft), [profile, draft])
-  if (loading || !draft)
-    return (
-      <article className="dc-public-studio dc-system-card">
-        <p className="dc-eyebrow">PUBLIC DOSSIER</p>
-        <h2>Profile Studio</h2>
-        <p className="dc-public-studio-muted">
-          {t(language, "Загружаем настройки публичного профиля…")}
-        </p>
-      </article>
-    )
-
-  const patch = <K extends keyof PublicProfile>(key: K, value: PublicProfile[K]) =>
-    setDraft((current) => (current ? { ...current, [key]: value } : current))
-  const patchLink = (key: string, value: string) => patch("links", { ...draft.links, [key]: value })
-  const save = async () => {
+    if (resource.data) setDraft(resource.data.profile || resource.data.draft || null)
+  }, [resource.data])
+  if (resource.loading || resource.error || !draft)
+    return <LoadState error={resource.error} retry={resource.reload} />
+  const patch = <K extends keyof Profile>(key: K, value: Profile[K]) =>
+    setDraft((previous) => (previous ? { ...previous, [key]: value } : previous))
+  const names: Record<Module, string> = {
+    contracts: ru ? "Дела" : "Cases",
+    achievements: ru ? "Печати" : "Seals",
+    bureau: ru ? "Бюро" : "Bureau",
+  }
+  const save = async (event: React.FormEvent) => {
+    event.preventDefault()
+    if (savingRef.current) return
+    savingRef.current = true
     setSaving(true)
     try {
-      const payload = {
-        slug: draft.slug.trim().toLowerCase(),
-        headline: draft.headline.trim(),
-        bio: draft.bio.trim(),
-        theme: draft.theme,
-        is_public: draft.is_public,
-        show_stats: draft.show_stats,
-        show_showcase: draft.show_showcase,
-        show_links: draft.show_links,
-        links: Object.fromEntries(
-          Object.entries(draft.links)
-            .map(([key, value]) => [key, value.trim()])
-            .filter(([, value]) => value),
-        ),
-      }
-      const data = await request<{ profile: PublicProfile }>("/api/profile/public", csrf, {
+      const {
+        slug,
+        headline,
+        bio,
+        theme,
+        is_public,
+        show_stats,
+        show_showcase,
+        show_links,
+        show_achievements,
+        show_bureau,
+        showcase_order,
+        featured_achievement,
+      } = draft
+      const result = await request<{ profile: Profile }>("/api/profile/public", csrf, {
         method: "PUT",
-        body: JSON.stringify(payload),
+        body: JSON.stringify({
+          slug,
+          headline,
+          bio,
+          theme,
+          is_public,
+          show_stats,
+          show_showcase,
+          show_links,
+          show_achievements,
+          show_bureau,
+          showcase_order,
+          featured_achievement,
+          pinned_contract_ids: draft.pinned_contract_ids || [],
+          links: Object.fromEntries(
+            Object.entries(draft.links).filter(([, value]) => value.trim()),
+          ),
+        }),
       })
-      setProfile(data.profile)
-      setDraft(data.profile)
-      onNotice(
-        t(
-          language,
-          data.profile.is_public
-            ? "Public dossier сохранён и опубликован"
-            : "Public dossier сохранён как private",
-        ),
-      )
-    } catch (reason) {
-      onError(localizeServerText((reason as Error).message, language))
+      setDraft(result.profile)
+      setEditing(false)
+      onNotice(ru ? "Профиль сохранён" : "Profile saved")
+    } catch (error) {
+      onError((error as Error).message)
     } finally {
+      savingRef.current = false
       setSaving(false)
     }
   }
-
+  const selected = draft.pinned_contract_ids || []
+  const preview = {
+    ...draft,
+    showcase: selected.length
+      ? selected
+          .map(
+            (id) =>
+              (draft.available_contracts || []).find((item) => item.id === id) ||
+              draft.showcase.find((item) => item.id === id),
+          )
+          .filter((item) => item !== undefined)
+      : (draft.available_contracts || draft.showcase).slice(0, 3),
+  }
   return (
-    <article className={`dc-public-studio theme-${draft.theme.toLowerCase()}`}>
-      <div className="dc-public-studio-head">
-        <div>
-          <p className="dc-eyebrow">PUBLIC PROFILE / ESSENTIALS</p>
-          <h2>Public dossier</h2>
-          <p>
-            {t(
-              language,
-              "Минимальный public profile: handle, bio, social links и showcase реальных контрактов. Без custom HTML, лишних widgets и отдельного визуального языка.",
-            )}
-          </p>
-        </div>
-        <label className="dc-profile-publish">
-          <input
-            type="checkbox"
-            checked={draft.is_public}
-            onChange={(event) => patch("is_public", event.target.checked)}
-          />
-          <span>{draft.is_public ? "PUBLIC" : "PRIVATE"}</span>
-        </label>
+    <section className="community-page profile-studio">
+      <div className="profile-studio-heading">
+        <p className="community-eyebrow">{ru ? "ВАШЕ ЛИЧНОЕ ДЕЛО" : "YOUR PERSONAL FILE"}</p>
+        <span>
+          {draft.is_public
+            ? ru
+              ? "Публичный профиль"
+              : "Public profile"
+            : ru
+              ? "Профиль скрыт"
+              : "Private profile"}
+        </span>
       </div>
-
-      <div className="dc-public-studio-grid">
-        <div className="dc-public-editor">
-          <label>
-            <span>PUBLIC HANDLE</span>
-            <input
-              value={draft.slug}
-              maxLength={32}
-              onChange={(event) =>
-                patch(
-                  "slug",
-                  event.target.value
-                    .toLowerCase()
-                    .replace(/[^a-z0-9-]/g, "")
-                    .replace(/--+/g, "-"),
-                )
-              }
-            />
-            <small>deadlock-contracts.online/u/{draft.slug || "handle"}</small>
-          </label>
-          <label>
-            <span>HEADLINE</span>
-            <input
-              value={draft.headline}
-              maxLength={96}
-              placeholder="Support main · Contract runner"
-              onChange={(event) => patch("headline", event.target.value)}
-            />
-          </label>
-          <label>
-            <span>BIO</span>
-            <textarea
-              value={draft.bio}
-              maxLength={360}
-              rows={4}
-              placeholder={t(language, "Пара строк о стиле игры, героях или целях")}
-              onChange={(event) => patch("bio", event.target.value)}
-            />
-            <small>{draft.bio.length}/360</small>
-          </label>
-
-          <div className="dc-profile-theme-picker">
-            <span>THEME</span>
-            <div>
-              {(Object.keys(THEME_LABEL) as PublicProfile["theme"][]).map((theme) => (
-                <button
-                  type="button"
-                  key={theme}
-                  className={draft.theme === theme ? "active" : ""}
-                  onClick={() => patch("theme", theme)}
-                >
-                  <b>{THEME_LABEL[theme].title}</b>
-                  <small>{t(language, THEME_LABEL[theme].caption)}</small>
-                </button>
-              ))}
+      {editing && (
+        <div className="profile-editor" ref={editor}>
+          <form onSubmit={(event) => void save(event)}>
+            <div className="community-section-title">
+              <h2>{ru ? "Оформление профиля" : "Profile settings"}</h2>
+              <button
+                type="button"
+                className="dc-ghost"
+                disabled={saving}
+                onClick={() => {
+                  setEditing(false)
+                  resource.reload()
+                }}
+              >
+                {ru ? "Отменить изменения" : "Discard changes"}
+              </button>
             </div>
-          </div>
-
-          <div className="dc-profile-links">
-            <span>SOCIAL LINKS</span>
-            {(
-              [
-                ["twitch", "Twitch", "https://twitch.tv/username"],
-                ["youtube", "YouTube", "https://youtube.com/@channel"],
-                ["telegram", "Telegram", "https://t.me/username"],
-                ["discord", "Discord", "https://discord.gg/invite"],
-              ] as const
-            ).map(([key, label, placeholder]) => (
-              <label key={key}>
-                <span>{label}</span>
-                <input
-                  value={draft.links[key] || ""}
-                  placeholder={placeholder}
-                  onChange={(event) => patchLink(key, event.target.value)}
-                />
-              </label>
-            ))}
-          </div>
-
-          <div className="dc-profile-visibility">
-            <span>VISIBLE BLOCKS</span>
-            <label>
-              <input
-                type="checkbox"
-                checked={draft.show_stats}
-                onChange={(event) => patch("show_stats", event.target.checked)}
-              />
-              {language === "ru" ? "Stats / статистика" : "Stats"}
-            </label>
-            <label>
-              <input
-                type="checkbox"
-                checked={draft.show_showcase}
-                onChange={(event) => patch("show_showcase", event.target.checked)}
-              />
-              {language === "ru" ? "Contract showcase / витрина" : "Contract showcase"}
-            </label>
-            <label>
-              <input
-                type="checkbox"
-                checked={draft.show_links}
-                onChange={(event) => patch("show_links", event.target.checked)}
-              />
-              {language === "ru" ? "Social links / ссылки" : "Social links"}
-            </label>
-          </div>
-
-          <div className="dc-profile-editor-actions">
+            <fieldset disabled={saving}>
+              <div className="community-form-grid">
+                <label>
+                  {ru ? "Адрес профиля" : "Profile address"}
+                  <input
+                    required
+                    minLength={3}
+                    maxLength={32}
+                    pattern="[a-z0-9]+(-[a-z0-9]+)*"
+                    value={draft.slug}
+                    onChange={(event) => patch("slug", event.target.value.toLowerCase())}
+                  />
+                  <small>/u/{draft.slug}</small>
+                </label>
+                <label>
+                  {ru ? "Коротко о себе" : "Headline"}
+                  <input
+                    maxLength={96}
+                    value={draft.headline}
+                    onChange={(event) => patch("headline", event.target.value)}
+                  />
+                </label>
+                <label className="span-two">
+                  {ru ? "О себе" : "About me"}
+                  <textarea
+                    maxLength={360}
+                    rows={3}
+                    value={draft.bio}
+                    onChange={(event) => patch("bio", event.target.value)}
+                  />
+                </label>
+              </div>
+              <div
+                className="profile-theme-options"
+                role="group"
+                aria-label={ru ? "Обложка профиля" : "Profile cover"}
+              >
+                {(["DOSSIER", "NOIR", "SIGNAL"] as Theme[]).map((theme) => (
+                  <button
+                    type="button"
+                    key={theme}
+                    className={`theme-${theme.toLowerCase()}`}
+                    aria-pressed={draft.theme === theme}
+                    onClick={() => patch("theme", theme)}
+                  >
+                    <i />
+                    {theme === "DOSSIER"
+                      ? ru
+                        ? "Зелёный архив"
+                        : "Green archive"
+                      : theme === "NOIR"
+                        ? ru
+                          ? "Ночной город"
+                          : "Night city"
+                        : ru
+                          ? "Сапфировый сигнал"
+                          : "Sapphire signal"}
+                  </button>
+                ))}
+              </div>
+              <div className="community-form-grid">
+                <section>
+                  <h3>{ru ? "Витрины и главная печать" : "Showcases and featured seal"}</h3>
+                  <ol className="profile-module-order">
+                    {draft.showcase_order.map((key, index) => (
+                      <li key={key}>
+                        <span>
+                          {index + 1}. {names[key]}
+                        </span>
+                        <button
+                          type="button"
+                          disabled={index === 0}
+                          aria-label={`${ru ? "Поднять" : "Move up"}: ${names[key]}`}
+                          onClick={() => {
+                            const order = [...draft.showcase_order]
+                            ;[order[index - 1], order[index]] = [order[index], order[index - 1]]
+                            patch("showcase_order", order)
+                          }}
+                        >
+                          ↑
+                        </button>
+                      </li>
+                    ))}
+                  </ol>
+                  <label>
+                    {ru ? "Главная печать" : "Featured seal"}
+                    <select
+                      value={draft.featured_achievement || ""}
+                      onChange={(event) =>
+                        patch("featured_achievement", event.target.value || null)
+                      }
+                    >
+                      <option value="">{ru ? "Без главной печати" : "No featured seal"}</option>
+                      {draft.achievements
+                        .filter((item) => item.earned)
+                        .map((item) => (
+                          <option key={item.id} value={item.id}>
+                            {item.title[language]}
+                          </option>
+                        ))}
+                    </select>
+                  </label>
+                </section>
+                <section>
+                  <h3>{ru ? "Кто видит мой профиль" : "Profile visibility"}</h3>
+                  {(
+                    [
+                      ["is_public", ru ? "Опубликовать профиль" : "Publish profile"],
+                      [
+                        "show_stats",
+                        ru
+                          ? "Статистика и участие в рейтинге"
+                          : "Stats and leaderboard participation",
+                      ],
+                      ["show_showcase", ru ? "Витрина контрактов" : "Contract showcase"],
+                      [
+                        "show_achievements",
+                        ru ? "Печати (при открытой статистике)" : "Seals (with public stats)",
+                      ],
+                      [
+                        "show_bureau",
+                        ru
+                          ? "Моё бюро и имя в его открытом составе"
+                          : "My bureau and my name on its public roster",
+                      ],
+                      ["show_links", ru ? "Ссылки" : "Social links"],
+                    ] as const
+                  ).map(([key, label]) => (
+                    <label className="community-check" key={key}>
+                      <input
+                        type="checkbox"
+                        checked={draft[key]}
+                        onChange={(event) => patch(key, event.target.checked)}
+                      />
+                      {label}
+                    </label>
+                  ))}
+                </section>
+              </div>
+              <details>
+                <summary>
+                  {ru
+                    ? `Закреплённые дела · ${selected.length}/3`
+                    : `Pinned cases · ${selected.length}/3`}
+                </summary>
+                <p className="community-muted">
+                  {ru
+                    ? "Выберите до трёх. Без выбора показываем лучшие дела автоматически."
+                    : "Choose up to three. Leave empty to feature your best cases automatically."}
+                </p>
+                <div className="profile-pin-list">
+                  {(draft.available_contracts || []).map((item) => (
+                    <label key={item.id} className="community-check">
+                      <input
+                        type="checkbox"
+                        checked={selected.includes(item.id)}
+                        disabled={!selected.includes(item.id) && selected.length === 3}
+                        onChange={() =>
+                          patch(
+                            "pinned_contract_ids",
+                            selected.includes(item.id)
+                              ? selected.filter((id) => id !== item.id)
+                              : [...selected, item.id],
+                          )
+                        }
+                      />
+                      <span>
+                        {item.title_i18n?.[language] || item.title}
+                        <small>
+                          {item.mode} · +{item.reward_xp} XP
+                        </small>
+                      </span>
+                    </label>
+                  ))}
+                  {!draft.available_contracts?.length && (
+                    <p>
+                      {ru
+                        ? "Здесь появятся ваши завершённые контракты с наградой."
+                        : "Your completed, awarded contracts will appear here."}
+                    </p>
+                  )}
+                </div>
+              </details>
+              <details>
+                <summary>{ru ? "Ссылки на мои страницы" : "My social links"}</summary>
+                <div className="community-form-grid">
+                  {["twitch", "youtube", "telegram", "discord"].map((key) => (
+                    <label key={key}>
+                      {key}
+                      <input
+                        type="url"
+                        maxLength={240}
+                        placeholder={
+                          key === "telegram"
+                            ? "https://t.me/username"
+                            : key === "discord"
+                              ? "https://discord.gg/invite"
+                              : `https://${key}.com/username`
+                        }
+                        value={draft.links[key] || ""}
+                        onChange={(event) =>
+                          patch("links", { ...draft.links, [key]: event.target.value })
+                        }
+                      />
+                    </label>
+                  ))}
+                </div>
+              </details>
+              <div className="community-actions">
+                <button type="submit" className="dc-primary">
+                  {saving
+                    ? ru
+                      ? "Сохраняем…"
+                      : "Saving…"
+                    : ru
+                      ? "Сохранить профиль"
+                      : "Save profile"}
+                </button>
+                <span className="community-muted">
+                  {ru ? "Ниже — предпросмотр оформления." : "Your design preview is below."}
+                </span>
+              </div>
+            </fieldset>
+          </form>
+        </div>
+      )}
+      {guest && (
+        <p className="profile-preview-note" role="status">
+          {ru
+            ? "Вид для посетителя после публикации. Несохранённые изменения видите только вы."
+            : "Visitor preview after publishing. Only you can see unsaved changes."}
+        </p>
+      )}
+      <DossierView
+        profile={guest ? visibleProfile(preview) : preview}
+        onBureau={onBureau}
+        toolbar={
+          <>
             <button
               className="dc-primary"
-              type="button"
-              disabled={saving || !dirty || draft.slug.length < 3}
-              onClick={() => void save()}
+              onClick={() => {
+                setEditing(!editing)
+                window.scrollTo({ top: 0, behavior: "instant" })
+              }}
             >
-              {saving ? (language === "ru" ? "СОХРАНЯЕМ…" : "SAVING…") : "SAVE DOSSIER"}
+              {editing
+                ? ru
+                  ? "Закрыть редактор"
+                  : "Close editor"
+                : ru
+                  ? "Редактировать профиль"
+                  : "Edit profile"}
             </button>
-            {profile?.public_url ? (
-              <a className="dc-ghost" href={profile.public_url} target="_blank" rel="noreferrer">
-                {language === "ru" ? "ОТКРЫТЬ PUBLIC PAGE ↗" : "OPEN PUBLIC PAGE ↗"}
+            <button className="dc-ghost" aria-pressed={guest} onClick={() => setGuest(!guest)}>
+              {guest
+                ? ru
+                  ? "Вернуться к своему виду"
+                  : "Back to owner view"
+                : ru
+                  ? "Посмотреть глазами гостя"
+                  : "Preview as visitor"}
+            </button>
+            <button
+              className="dc-ghost"
+              disabled={saving || editing}
+              onClick={async () => {
+                if (savingRef.current) return
+                savingRef.current = true
+                setSaving(true)
+                try {
+                  await onRefresh()
+                  resource.reload()
+                } catch (error) {
+                  onError((error as Error).message)
+                } finally {
+                  setSaving(false)
+                  savingRef.current = false
+                }
+              }}
+            >
+              {ru ? "Обновить из Steam" : "Refresh from Steam"}
+            </button>
+            {!editing && draft.public_url && (
+              <a className="dc-ghost" href={draft.public_url}>
+                {ru ? "Открыть публичный профиль ↗" : "Open public profile ↗"}
               </a>
-            ) : null}
-          </div>
-        </div>
-
-        <div className="dc-profile-live-preview">
-          <div className="dc-profile-preview-stamp">LIVE PREVIEW / {draft.theme}</div>
-          <div className="dc-profile-preview-identity">
-            {user.avatar_url ? <img src={user.avatar_url} alt="" /> : <div>DC</div>}
-            <div>
-              <p>LEVEL {progression?.level || 1}</p>
-              <h3>{user.display_name}</h3>
-              <span>{draft.headline || "Deadlock Contract Runner"}</span>
-            </div>
-          </div>
-          {draft.bio ? (
-            <p className="dc-profile-preview-bio">{draft.bio}</p>
-          ) : (
-            <p className="dc-profile-preview-bio muted">
-              {language === "ru" ? "Предпросмотр bio" : "Bio preview"}
-            </p>
-          )}
-          {draft.show_stats && (
-            <div className="dc-profile-preview-stats">
-              <div>
-                <span>XP</span>
-                <b>{user.xp.toLocaleString(locale)}</b>
-              </div>
-              <div>
-                <span>COMPLETED</span>
-                <b>{progression?.contracts_completed || 0}</b>
-              </div>
-              <div>
-                <span>MODES</span>
-                <b>3</b>
-              </div>
-            </div>
-          )}
-          {draft.show_showcase && (
-            <div className="dc-profile-preview-showcase">
-              <span>CONTRACT SHOWCASE</span>
-              {(draft.showcase || []).slice(0, 3).map((item) => (
-                <div key={item.id}>
-                  <p>
-                    <b>{item.title_i18n?.[language] || contractTitle(item.title, language)}</b>
-                    <small>
-                      {MODE_NAME[item.mode]} · {item.rarity}
-                    </small>
-                  </p>
-                  <em>+{item.reward_xp} XP</em>
-                </div>
-              ))}
-              {!draft.showcase?.length && (
-                <small>
-                  {t(language, "Лучшие completed contracts появятся после первого сохранения")}
-                </small>
-              )}
-            </div>
-          )}
-          {draft.show_links && Object.values(draft.links).some(Boolean) ? (
-            <div className="dc-profile-preview-links">
-              {Object.entries(draft.links)
-                .filter(([, value]) => value)
-                .map(([key]) => (
-                  <span key={key}>{key.toUpperCase()}</span>
-                ))}
-            </div>
-          ) : null}
-        </div>
-      </div>
-    </article>
+            )}
+          </>
+        }
+      />
+    </section>
   )
 }

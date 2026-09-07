@@ -3,6 +3,9 @@ import markImage from "@/imports/mark.svg"
 import curatorImage from "@/imports/curator-optimized.webp"
 import ProfileStudio from "./ProfileStudio"
 import BureauHeader from "./BureauHeader"
+import Leaderboard from "./community/Leaderboard"
+import Achievements from "./community/Achievements"
+import Bureaus from "./community/Bureaus"
 import ContractSigning from "./ContractSigning"
 import { signSelection, selectionState, type SigningSelection } from "./contract-signing"
 import { prefersReducedMotion, useRipple, useTilt } from "./motion"
@@ -653,7 +656,16 @@ type CompanionPairing = {
   expires_at: string
   server_url: string
 }
-type Tab = "home" | "quests" | "active" | "history" | "profile" | "admin"
+type Tab =
+  | "home"
+  | "quests"
+  | "active"
+  | "history"
+  | "profile"
+  | "admin"
+  | "leaderboard"
+  | "achievements"
+  | "bureaus"
 type QuestFilter = "ALL" | "COMBAT" | "SUPPORT" | "ECONOMY" | "SURVIVAL"
 
 class ApiError extends Error {
@@ -1052,9 +1064,48 @@ export default function Dashboard({ initialSession }: { initialSession: SessionP
   const { language, locale } = useLanguage()
   const [user, setUser] = useState(initialSession.user)
   const [csrf] = useState(initialSession.csrf_token)
-  const [tab, setTab] = useState<Tab>(() =>
-    window.location.pathname.startsWith("/admin/") ? "admin" : "home",
+  const tabFromLocation = (): Tab => {
+    const hash = window.location.hash.slice(1).split("/")[0]
+    if (hash === "leaderboards") return "leaderboard"
+    if (
+      [
+        "home",
+        "quests",
+        "active",
+        "history",
+        "profile",
+        "achievements",
+        "bureaus",
+        "leaderboard",
+      ].includes(hash)
+    )
+      return hash as Tab
+    return window.location.pathname.startsWith("/admin/") ? "admin" : "home"
+  }
+  const [tab, setTabState] = useState<Tab>(tabFromLocation)
+  const [bureauSlug, setBureauSlug] = useState(
+    () => window.location.hash.match(/^#bureaus\/([a-z0-9-]{3,32})$/)?.[1] || "",
   )
+  const setTab = useCallback((next: Tab) => {
+    setTabState(next)
+    window.location.hash = next === "leaderboard" ? "leaderboards" : next
+    window.scrollTo({ top: 0, behavior: "instant" })
+  }, [])
+  const openBureau = (slug: string) => {
+    setTabState("bureaus")
+    setBureauSlug(slug)
+    window.location.hash = slug ? `bureaus/${slug}` : "bureaus"
+    window.scrollTo({ top: 0, behavior: "instant" })
+  }
+  useEffect(() => {
+    const apply = () => {
+      setTabState(tabFromLocation())
+      setBureauSlug(window.location.hash.match(/^#bureaus\/([a-z0-9-]{3,32})$/)?.[1] || "")
+      window.scrollTo({ top: 0, behavior: "instant" })
+    }
+    window.addEventListener("hashchange", apply)
+    return () => window.removeEventListener("hashchange", apply)
+  }, [])
   const [mode, setMode] = useState<Mode>("STANDARD")
   const [filter, setFilter] = useState<QuestFilter>("ALL")
   const [boardsPayload, setBoardsPayload] = useState<BoardsPayload | null>(null)
@@ -1381,16 +1432,19 @@ export default function Dashboard({ initialSession }: { initialSession: SessionP
   const level = progression?.level || 1
   const progressPct = progression?.progress_pct || 0
   const nav: Array<[Tab, string, "hq" | "contract" | "case" | "profile" | "admin"]> = [
-    ["home", language === "ru" ? "БЮРО" : "HQ", "hq"],
+    ["home", language === "ru" ? "ГЛАВНАЯ" : "HOME", "hq"],
     ["quests", language === "ru" ? "КОНТРАКТЫ" : "CONTRACTS", "contract"],
     ["active", language === "ru" ? "АКТИВНОЕ ДЕЛО" : "ACTIVE CASE", "case"],
     ["history", language === "ru" ? "АРХИВ" : "ARCHIVE", "case"],
+    ["achievements", language === "ru" ? "ДОСТИЖЕНИЯ" : "ACHIEVEMENTS", "case"],
+    ["bureaus", language === "ru" ? "БЮРО ИГРОКОВ" : "PLAYER BUREAUS", "hq"],
+    ["leaderboard", language === "ru" ? "РЕЙТИНГ" : "LEADERBOARD", "case"],
     ["profile", language === "ru" ? "ПРОФИЛЬ" : "PROFILE", "profile"],
   ]
   if (user.is_staff) nav.push(["admin", "ADMIN", "admin"])
 
   return (
-    <div className="dc-dashboard dc-redesign dc-v3 dc-vnext bureau-app min-h-screen">
+    <div className="dc-dashboard dc-redesign dc-v3 dc-vnext bureau-app min-h-screen community-dashboard">
       {signing && (
         <ContractSigning
           mode={MODE_META[signing.board.game_match_mode].title}
@@ -1428,7 +1482,9 @@ export default function Dashboard({ initialSession }: { initialSession: SessionP
       )}
       <BureauHeader
         active={tab}
-        items={nav.map(([id, label]) => ({ id, label }))}
+        items={nav
+          .filter(([id]) => !["home", "profile", "active"].includes(id))
+          .map(([id, label]) => ({ id, label }))}
         onNavigate={(id) => setTab(id as Tab)}
         mobileActions={
           <button
@@ -1499,22 +1555,24 @@ export default function Dashboard({ initialSession }: { initialSession: SessionP
         className="dc-mobile-bottom-nav"
         aria-label={language === "ru" ? "Основная мобильная навигация" : "Main mobile navigation"}
       >
-        {nav.map(([key, label, icon]) => (
-          <button
-            key={key}
-            type="button"
-            aria-current={tab === key ? "page" : undefined}
-            className={tab === key ? "active" : ""}
-            onClick={() => {
-              setTab(key)
-              window.scrollTo({ top: 0, behavior: prefersReducedMotion() ? "instant" : "smooth" })
-            }}
-          >
-            <Icon name={icon} />
-            <span>{key === "active" ? (language === "ru" ? "ДЕЛО" : "CASE") : label}</span>
-            {key === "quests" && boards.some((item) => item.status === "OFFERED") ? <i /> : null}
-          </button>
-        ))}
+        {nav
+          .filter(([key]) => ["quests", "active", "leaderboard", "profile"].includes(key))
+          .map(([key, label, icon]) => (
+            <button
+              key={key}
+              type="button"
+              aria-current={tab === key ? "page" : undefined}
+              className={tab === key ? "active" : ""}
+              onClick={() => {
+                setTab(key)
+                window.scrollTo({ top: 0, behavior: prefersReducedMotion() ? "instant" : "smooth" })
+              }}
+            >
+              <Icon name={icon} />
+              <span>{key === "active" ? (language === "ru" ? "ДЕЛО" : "CASE") : label}</span>
+              {key === "quests" && boards.some((item) => item.status === "OFFERED") ? <i /> : null}
+            </button>
+          ))}
       </nav>
 
       <div className="dc-app-shell dc-app-shell-topnav">
@@ -1534,11 +1592,13 @@ export default function Dashboard({ initialSession }: { initialSession: SessionP
             <>
               <section className="dc-command-hero dc-v3-hero">
                 <div className="dc-command-copy">
-                  <p className="dc-eyebrow">HQ / THREE OPERATIONS</p>
+                  <p className="dc-eyebrow">
+                    DEADLOCK CONTRACTS / {language === "ru" ? "ВАШЕ БЮРО" : "YOUR HEADQUARTERS"}
+                  </p>
                   <h1>
-                    OPERATIONS
+                    {language === "ru" ? "НОВОЕ ДЕЛО" : "A NEW CASE"}
                     <br />
-                    <span>HQ</span>
+                    <span>{language === "ru" ? "ЖДЁТ ВАС." : "AWAITS."}</span>
                   </h1>
                   <p className="dc-lead">
                     {t(
@@ -1548,13 +1608,19 @@ export default function Dashboard({ initialSession }: { initialSession: SessionP
                   </p>
                   <div className="dc-command-actions">
                     <button className="dc-primary" onClick={() => setTab("quests")}>
-                      OPEN CONTRACTS
+                      {language === "ru" ? "ВЫБРАТЬ КОНТРАКТЫ" : "CHOOSE CONTRACTS"}
                     </button>
                     <button
                       className="dc-ghost"
                       onClick={() => setTab(activeBoards.length ? "active" : "history")}
                     >
-                      {activeBoards.length ? "ACTIVE CASE" : "CASE ARCHIVE"}
+                      {activeBoards.length
+                        ? language === "ru"
+                          ? "АКТИВНОЕ ДЕЛО"
+                          : "ACTIVE CASE"
+                        : language === "ru"
+                          ? "АРХИВ ДЕЛ"
+                          : "CASE ARCHIVE"}
                     </button>
                   </div>
                 </div>
@@ -2276,294 +2342,204 @@ export default function Dashboard({ initialSession }: { initialSession: SessionP
             </>
           )}
 
+          {tab === "leaderboard" && (
+            <Leaderboard authenticated onProfile={() => setTab("profile")} />
+          )}
+          {tab === "achievements" && <Achievements onProfile={() => setTab("profile")} />}
+          {tab === "bureaus" && <Bureaus csrf={csrf} slug={bureauSlug} onSelect={openBureau} />}
           {tab === "profile" && (
             <>
-              <section className="dc-work-head dc-page-head">
-                <div>
-                  <p className="dc-eyebrow">IDENTITY / PROGRESSION</p>
-                  <h1>{t(language, "Профиль")}</h1>
-                  <p>
-                    {t(
-                      language,
-                      "Level здесь относится только к Deadlock Contracts и не заменяет официальный rank Deadlock",
-                    )}
-                  </p>
-                </div>
-              </section>
-              <section className="dc-profile-page-grid dc-v3-profile-grid">
-                <article className="dc-identity-card">
-                  <div className="dc-identity-watermark">
-                    <img src={markImage} alt="" />
-                  </div>
-                  <div className="dc-identity-head">
-                    {user.avatar_url ? (
-                      <img src={user.avatar_url} alt="" />
-                    ) : (
-                      <div className="dc-avatar-fallback">DC</div>
-                    )}
-                    <div className="dc-identity-copy">
-                      <p className="dc-eyebrow">CONTRACT RUNNER · LEVEL {level}</p>
-                      <h2>{shownName}</h2>
-                      <RoleBadgeList badges={user.badges} />
-                      <span className="dc-steam-state">
-                        <i /> {t(language, "Steam подключён")}
+              <ProfileStudio
+                csrf={csrf}
+                onNotice={setNotice}
+                onError={setError}
+                onBureau={openBureau}
+                onRefresh={async () => {
+                  const data = await api<{ user: User }>("/api/profile/refresh", csrf, {
+                    method: "POST",
+                  })
+                  setUser(data.user)
+                  await loadProgression()
+                }}
+              />
+              <details className="profile-account-settings">
+                <summary>
+                  {language === "ru"
+                    ? "Настройки аккаунта · Компаньон и данные"
+                    : "Account settings · Companion and data"}
+                </summary>
+                <section className="dc-profile-page-grid dc-v3-profile-grid">
+                  <article className="dc-system-card dc-companion-card">
+                    <p className="dc-eyebrow">COMPANION / OVERWOLF</p>
+                    <div className="dc-companion-card-head">
+                      <div>
+                        <h2>Deadlock Contracts Companion</h2>
+                        <p>
+                          {t(
+                            language,
+                            "Основное приложение рядом с игрой. Показывает доски, активное дело и доступные игровые сигналы. Вердикт и XP всегда остаются на сервере.",
+                          )}
+                        </p>
+                      </div>
+                      <span
+                        className={`dc-companion-state ${
+                          companion?.online ? "online" : companion?.paired ? "paired" : ""
+                        }`}
+                      >
+                        <i />
+                        {companion?.online
+                          ? t(language, "В СЕТИ")
+                          : companion?.paired
+                            ? t(language, "ПРИВЯЗАН · НЕ В СЕТИ")
+                            : t(language, "НЕ ПОДКЛЮЧЕН")}
                       </span>
                     </div>
-                  </div>
-                  <div className="dc-v3-level-progress">
-                    <div>
-                      <span>LEVEL {level}</span>
-                      <b>
-                        {progression?.level_xp || 0} / {progression?.next_level_xp || 0} XP
-                      </b>
-                    </div>
-                    <i>
-                      <span style={{ width: `${progressPct}%` }} />
-                    </i>
-                  </div>
-                  <div className="dc-identity-stats">
-                    <div>
-                      <span>TOTAL XP</span>
-                      <b>{user.xp.toLocaleString(locale)}</b>
-                    </div>
-                    <div>
-                      <span>COMPLETED</span>
-                      <b>{progression?.contracts_completed || 0}</b>
-                    </div>
-                    <div>
-                      <span>FAILED</span>
-                      <b>{progression?.contracts_failed || 0}</b>
-                    </div>
-                    <div>
-                      <span>JOINED</span>
-                      <b>{joinLabel(user.created_at, language)}</b>
-                    </div>
-                  </div>
-                  <button
-                    className="dc-ghost"
-                    onClick={async () => {
-                      try {
-                        const data = await api<{ user: User }>("/api/profile/refresh", csrf, {
-                          method: "POST",
-                        })
-                        setUser(data.user)
-                        await loadProgression()
-                      } catch (reason) {
-                        setError((reason as Error).message)
-                      }
-                    }}
-                  >
-                    Refresh Steam profile
-                  </button>
-                </article>
-                <article className="dc-system-card dc-v3-mode-stats">
-                  <p className="dc-eyebrow">MODE RECORD</p>
-                  <h2>Mode record</h2>
-                  {MODES.map((item) => {
-                    const stat = progression?.mode_stats[item]
-                    return (
-                      <div className="dc-system-line" key={item}>
-                        <span className="dc-status-dot" />
-                        <p>
-                          <b>{MODE_META[item].title}</b>
-                          <small>
-                            {stat?.attempted || 0} {language === "ru" ? "контрактов" : "contracts"}{" "}
-                            · {stat?.completed || 0} {language === "ru" ? "выполнено" : "completed"}
-                          </small>
-                        </p>
-                        <em>+{stat?.xp || 0} XP</em>
-                      </div>
-                    )
-                  })}
-                  <div className="dc-v3-hardest">
-                    <span>HARDEST CASE</span>
-                    <b>
-                      {progression?.hardest_completed
-                        ? localizedContractTitle(progression.hardest_completed, language)
-                        : t(language, "Пока нет")}
-                    </b>
-                    <small>
-                      {progression?.hardest_completed
-                        ? `${DIFFICULTY_LABEL[progression.hardest_completed.difficulty]} · +${progression.hardest_completed.reward_xp} XP`
-                        : "Complete your first contract"}
-                    </small>
-                  </div>
-                </article>
-                <ProfileStudio
-                  csrf={csrf}
-                  user={user}
-                  progression={progression}
-                  onNotice={setNotice}
-                  onError={setError}
-                />
-                <article className="dc-system-card dc-companion-card">
-                  <p className="dc-eyebrow">COMPANION / OVERWOLF</p>
-                  <div className="dc-companion-card-head">
-                    <div>
-                      <h2>Deadlock Contracts Companion</h2>
-                      <p>
-                        {t(
-                          language,
-                          "Основное приложение рядом с игрой. Показывает доски, активное дело и доступные игровые сигналы. Вердикт и XP всегда остаются на сервере.",
-                        )}
-                      </p>
-                    </div>
-                    <span
-                      className={`dc-companion-state ${
-                        companion?.online ? "online" : companion?.paired ? "paired" : ""
-                      }`}
-                    >
-                      <i />
-                      {companion?.online
-                        ? t(language, "В СЕТИ")
-                        : companion?.paired
-                          ? t(language, "ПРИВЯЗАН · НЕ В СЕТИ")
-                          : t(language, "НЕ ПОДКЛЮЧЕН")}
-                    </span>
-                  </div>
 
-                  {companion?.paired ? (
-                    <div className="dc-companion-telemetry">
-                      <div>
-                        <span>DEADLOCK</span>
-                        <b>
-                          {companion.game_running
-                            ? t(language, "ЗАПУЩЕН")
-                            : t(language, "НЕ ЗАПУЩЕН")}
-                        </b>
-                      </div>
-                      <div>
-                        <span>{t(language, "ФАЗА")}</span>
-                        <b>{companion.phase || "—"}</b>
-                      </div>
-                      <div>
-                        <span>{t(language, "РЕЖИМ")}</span>
-                        <b>
-                          {companion.game_match_mode
-                            ? MODE_META[companion.game_match_mode as Mode]?.short ||
-                              companion.game_match_mode
-                            : "—"}
-                        </b>
-                      </div>
-                      <div>
-                        <span>{t(language, "ID МАТЧА")}</span>
-                        <b>{companion.current_match_id || "—"}</b>
-                      </div>
-                    </div>
-                  ) : null}
-
-                  {companionDevices.length ? (
-                    <div className="dc-companion-devices">
-                      <span>{language === "ru" ? "ПРИВЯЗАННЫЕ УСТРОЙСТВА" : "PAIRED DEVICES"}</span>
-                      {companionDevices.map((device) => (
-                        <div key={device.id}>
-                          <p>
-                            <b>{device.label || "Deadlock Contracts Companion"}</b>
-                            <small>
-                              {device.version || "—"} ·{" "}
-                              {device.last_seen_at ? fmt(device.last_seen_at, language) : "—"}
-                            </small>
-                          </p>
-                          {device.revoked_at ? (
-                            <em>{language === "ru" ? "ОТКЛЮЧЕНО" : "REVOKED"}</em>
-                          ) : (
-                            <button
-                              className="dc-ghost"
-                              onClick={() => void revokeCompanionDevice(device)}
-                            >
-                              {language === "ru" ? "Отключить" : "Disconnect"}
-                            </button>
-                          )}
+                    {companion?.paired ? (
+                      <div className="dc-companion-telemetry">
+                        <div>
+                          <span>DEADLOCK</span>
+                          <b>
+                            {companion.game_running
+                              ? t(language, "ЗАПУЩЕН")
+                              : t(language, "НЕ ЗАПУЩЕН")}
+                          </b>
                         </div>
-                      ))}
+                        <div>
+                          <span>{t(language, "ФАЗА")}</span>
+                          <b>{companion.phase || "—"}</b>
+                        </div>
+                        <div>
+                          <span>{t(language, "РЕЖИМ")}</span>
+                          <b>
+                            {companion.game_match_mode
+                              ? MODE_META[companion.game_match_mode as Mode]?.short ||
+                                companion.game_match_mode
+                              : "—"}
+                          </b>
+                        </div>
+                        <div>
+                          <span>{t(language, "ID МАТЧА")}</span>
+                          <b>{companion.current_match_id || "—"}</b>
+                        </div>
+                      </div>
+                    ) : null}
+
+                    {companionDevices.length ? (
+                      <div className="dc-companion-devices">
+                        <span>
+                          {language === "ru" ? "ПРИВЯЗАННЫЕ УСТРОЙСТВА" : "PAIRED DEVICES"}
+                        </span>
+                        {companionDevices.map((device) => (
+                          <div key={device.id}>
+                            <p>
+                              <b>{device.label || "Deadlock Contracts Companion"}</b>
+                              <small>
+                                {device.version || "—"} ·{" "}
+                                {device.last_seen_at ? fmt(device.last_seen_at, language) : "—"}
+                              </small>
+                            </p>
+                            {device.revoked_at ? (
+                              <em>{language === "ru" ? "ОТКЛЮЧЕНО" : "REVOKED"}</em>
+                            ) : (
+                              <button
+                                className="dc-ghost"
+                                onClick={() => void revokeCompanionDevice(device)}
+                              >
+                                {language === "ru" ? "Отключить" : "Disconnect"}
+                              </button>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    ) : null}
+
+                    {pairing ? (
+                      <div className="dc-pairing-code">
+                        <span>{t(language, "КОД ПРИВЯЗКИ")}</span>
+                        <strong>{pairing.code}</strong>
+                        <small>
+                          {language === "ru" ? (
+                            <>
+                              Введите этот код в установленном Компаньоне. Действует до{" "}
+                              {fmt(pairing.expires_at, language)}.
+                            </>
+                          ) : (
+                            <>
+                              Enter this code in the installed Companion. Valid until{" "}
+                              {fmt(pairing.expires_at, language)}.
+                            </>
+                          )}
+                        </small>
+                        <code>{pairing.server_url}</code>
+                      </div>
+                    ) : null}
+
+                    <div className="dc-companion-actions">
+                      {initialSession.release.companion_download_url ? (
+                        <a
+                          className="dc-primary"
+                          href={initialSession.release.companion_download_url}
+                          target="_blank"
+                          rel="noreferrer"
+                        >
+                          INSTALL COMPANION
+                        </a>
+                      ) : (
+                        <button className="dc-primary" disabled>
+                          PUBLIC BUILD SOON
+                        </button>
+                      )}
+
+                      {!companion?.online && (
+                        <button className="dc-ghost" onClick={startCompanionPairing}>
+                          {companion?.paired
+                            ? t(language, "Перепривязать")
+                            : t(language, "У меня уже установлен")}
+                        </button>
+                      )}
+
+                      {companion?.paired && (
+                        <button className="dc-ghost" onClick={revokeCompanion}>
+                          {t(language, "Отключить")}
+                        </button>
+                      )}
+
+                      <button className="dc-ghost" onClick={() => void loadCompanion()}>
+                        {t(language, "Обновить статус")}
+                      </button>
                     </div>
-                  ) : null}
 
-                  {pairing ? (
-                    <div className="dc-pairing-code">
-                      <span>{t(language, "КОД ПРИВЯЗКИ")}</span>
-                      <strong>{pairing.code}</strong>
-                      <small>
-                        {language === "ru" ? (
-                          <>
-                            Введите этот код в установленном Компаньоне. Действует до{" "}
-                            {fmt(pairing.expires_at, language)}.
-                          </>
-                        ) : (
-                          <>
-                            Enter this code in the installed Companion. Valid until{" "}
-                            {fmt(pairing.expires_at, language)}.
-                          </>
-                        )}
-                      </small>
-                      <code>{pairing.server_url}</code>
-                    </div>
-                  ) : null}
-
-                  <div className="dc-companion-actions">
-                    {initialSession.release.companion_download_url ? (
-                      <a
-                        className="dc-primary"
-                        href={initialSession.release.companion_download_url}
-                        target="_blank"
-                        rel="noreferrer"
-                      >
-                        INSTALL COMPANION
-                      </a>
-                    ) : (
-                      <button className="dc-primary" disabled>
-                        PUBLIC BUILD SOON
-                      </button>
-                    )}
-
-                    {!companion?.online && (
-                      <button className="dc-ghost" onClick={startCompanionPairing}>
-                        {companion?.paired
-                          ? t(language, "Перепривязать")
-                          : t(language, "У меня уже установлен")}
-                      </button>
-                    )}
-
-                    {companion?.paired && (
-                      <button className="dc-ghost" onClick={revokeCompanion}>
-                        {t(language, "Отключить")}
-                      </button>
-                    )}
-
-                    <button className="dc-ghost" onClick={() => void loadCompanion()}>
-                      {t(language, "Обновить статус")}
+                    <p className="dc-companion-footnote">
+                      {t(
+                        language,
+                        "Установите Компаньон, затем создайте одноразовый код привязки. Сайт сохраняет резервный доступ к доскам и архиву.",
+                      )}
+                    </p>
+                  </article>
+                  <article className="dc-danger-zone">
+                    <p className="dc-eyebrow">PRIVACY</p>
+                    <h2>Data controls</h2>
+                    <p>
+                      {t(
+                        language,
+                        "Удаление профиля уничтожит аккаунт, контрактные доски и опыт без возможности восстановления.",
+                      )}
+                    </p>
+                    <button
+                      onClick={() =>
+                        confirm(t(language, "Удалить аккаунт и все данные?")) &&
+                        api("/api/account/delete", csrf, {
+                          method: "POST",
+                          body: JSON.stringify({ confirmation: "DELETE" }),
+                        }).then(() => location.assign("/"))
+                      }
+                    >
+                      DELETE MY DATA
                     </button>
-                  </div>
-
-                  <p className="dc-companion-footnote">
-                    {t(
-                      language,
-                      "Установите Компаньон, затем создайте одноразовый код привязки. Сайт сохраняет резервный доступ к доскам и архиву.",
-                    )}
-                  </p>
-                </article>
-                <article className="dc-danger-zone">
-                  <p className="dc-eyebrow">PRIVACY</p>
-                  <h2>Data controls</h2>
-                  <p>
-                    {t(
-                      language,
-                      "Удаление профиля уничтожит аккаунт, контрактные доски и опыт без возможности восстановления.",
-                    )}
-                  </p>
-                  <button
-                    onClick={() =>
-                      confirm(t(language, "Удалить аккаунт и все данные?")) &&
-                      api("/api/account/delete", csrf, {
-                        method: "POST",
-                        body: JSON.stringify({ confirmation: "DELETE" }),
-                      }).then(() => location.assign("/"))
-                    }
-                  >
-                    DELETE MY DATA
-                  </button>
-                </article>
-              </section>
+                  </article>
+                </section>
+              </details>
             </>
           )}
 

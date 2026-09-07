@@ -1,7 +1,7 @@
-import { useEffect, useState } from "react"
+import { lazy, Suspense, useEffect, useState } from "react"
 import Landing from "./Landing"
-import Dashboard from "./Dashboard"
-import PublicDossier from "./PublicDossier"
+const Dashboard = lazy(() => import("./Dashboard"))
+const PublicDossier = lazy(() => import("./PublicDossier"))
 import { apiLanguage, LanguageProvider, useLanguage } from "./i18n"
 import AnnouncementLayer from "./announcements/AnnouncementLayer"
 import { AnnouncementProvider, useAnnouncements } from "./announcements/AnnouncementProvider"
@@ -182,7 +182,15 @@ export default function App() {
     <LanguageProvider>
       <AnnouncementProvider>
         <AnnouncementLayer />
-        <AppRoutes />
+        <Suspense
+          fallback={
+            <main className="community-page" role="status">
+              <div className="dc-loader" />
+            </main>
+          }
+        >
+          <AppRoutes />
+        </Suspense>
       </AnnouncementProvider>
     </LanguageProvider>
   )
