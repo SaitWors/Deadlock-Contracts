@@ -458,6 +458,10 @@ function BureauDetail({
     BAN: ru ? "Исключить и запретить вступление" : "Remove and ban rejoining",
     REMOVE: ru ? "Исключить" : "Remove member",
     TRANSFER: ru ? "Передать руководство" : "Transfer leadership",
+    FREEZE: ru ? "Бюро приостановлено" : "Bureau paused",
+    RESTORE: ru ? "Бюро восстановлено" : "Bureau restored",
+    WARN: ru ? "Предупреждение бюро" : "Bureau warning",
+    LIFT_BAN: ru ? "Запрет вступления снят" : "Membership ban lifted",
   }
   const mutate = async (path: string, body: unknown = {}, method = "POST") => {
     if (guard.current) return
@@ -965,6 +969,15 @@ function BureauDetail({
                             ? actionNames[item.data.action]
                             : (
                                 {
+                                  "bureau.operation_started": ru
+                                    ? "Начал совместную операцию"
+                                    : "Started a joint operation",
+                                  "bureau.operation_cancelled": ru
+                                    ? "Отменил операцию"
+                                    : "Cancelled an operation",
+                                  "bureau.ban_lifted": ru
+                                    ? "Снял запрет вступления"
+                                    : "Lifted a membership ban",
                                   "bureau.created": ru ? "Основал бюро" : "Founded bureau",
                                   "bureau.updated": ru ? "Изменил настройки" : "Updated settings",
                                   "bureau.joined": ru ? "Вступил в бюро" : "Joined bureau",
