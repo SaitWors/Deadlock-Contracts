@@ -33,6 +33,7 @@ RUN rm -rf /app/app/static/assets /app/app/static/index.html /app/app/static/app
     && chown -R app:app /app/app/static /app/runtime
 COPY --from=frontend-build --chown=app:app /frontend/dist/index.html ./app/static/index.html
 COPY --from=frontend-build --chown=app:app /frontend/dist/assets ./app/static/assets
+COPY --chown=app:app app/static/assets/logo-horizontal.svg ./app/static/assets/logo-horizontal.svg
 
 USER 10001:10001
 EXPOSE 8080

@@ -92,10 +92,13 @@ jobs:
       - name: Check formatting
         run: |
           pnpm exec oxfmt --check \
-            src \
+            src tests \
             vite.config.ts \
             package.json \
             index.html
+
+      - name: Test contract signing and shared header
+        run: pnpm test
 
       - name: Type check
         run: |
@@ -288,6 +291,11 @@ jobs:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
+      - name: Validate development preview
+        run: |
+          bash -n scripts/preview-codespace.sh
+          docker compose --env-file /dev/null -f compose.yaml config --quiet
+
       - name: Validate production Compose
         env:
           DOMAIN: example.invalid
@@ -330,6 +338,9 @@ jobs:
               test -f /app/alembic.ini
               test -f /app/app/migrate.py
               test -f /app/app/maintenance.py
+              test -f /app/app/static/assets/logo-horizontal.svg
+              test -f /app/app/static/preview.js
+              test -f /app/app/templates/preview.html
               test -f /app/alembic/versions/0007_mission_localization.py
           test -f /app/alembic/versions/0008_board_match_candidate_queue.py
               echo "release image OK"

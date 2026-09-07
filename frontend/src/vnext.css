@@ -23,7 +23,7 @@
 @font-face{font-family:'Cormorant Garamond';src:url('./imports/fonts/cormorant-garamond-latin-400-italic.woff2') format('woff2');font-weight:400;font-style:italic;font-display:swap}
 @font-face{font-family:'Cormorant Garamond';src:url('./imports/fonts/cormorant-garamond-cyrillic-400-italic.woff2') format('woff2');font-weight:400;font-style:italic;font-display:swap;unicode-range:U+0400-052F,U+2DE0-2DFF,U+A640-A69F}
 
-:root{--dc-bg:#070a09;--dc-panel:#0d1210;--dc-panel-2:#111814;--dc-paper:#ede5d1;--dc-paper-muted:#aaa491;--dc-mint:#8fd5a6;--dc-mint-dark:#396c4b;--dc-line:#29332d;--dc-warm:#b99c72;--dc-danger:#cb746a}
+:root{--dc-bg:var(--color-page);--dc-panel:var(--color-panel);--dc-panel-2:var(--color-elevated);--dc-paper:var(--color-cream);--dc-paper-muted:var(--color-cream-dim);--dc-mint:var(--color-mint);--dc-mint-dark:var(--color-mint-dim);--dc-line:var(--color-border);--dc-warm:var(--color-brass);--dc-danger:var(--color-danger)}
 html{scroll-behavior:smooth}
 body{background:var(--dc-bg);color:var(--dc-paper);font-family:Inter,system-ui,sans-serif}
 .dc-site{min-height:100vh;overflow:hidden;background:var(--dc-bg);color:var(--dc-paper)}
