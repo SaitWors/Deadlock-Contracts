@@ -1,6 +1,7 @@
 import base64
 import io
 from datetime import timedelta
+from random import Random
 
 import pytest
 from PIL import Image
@@ -132,6 +133,12 @@ def test_image_validation_credit_and_metadata_normalization(community):
     for changes in ({"rank": "X"}, {"hero": "unknown"}, {"source_url": "javascript:alert(1)"},
                     {"image": base64.b64encode(b"<svg></svg>").decode()}, {"image": "!invalid"}, {"crop_x": 101}):
         assert client.post("/api/archive/cards", json=design(**changes)).status_code == 422
+    # A detailed illustration must pass the HTTP guard, not just a tiny solid-colour fixture.
+    output = io.BytesIO()
+    Image.frombytes("RGB", (400, 600), Random(34).randbytes(400 * 600 * 3)).save(output, "JPEG", quality=80)
+    assert 64 * 1024 < len(output.getvalue()) < 300_000
+    detailed = create(client, image=base64.b64encode(output.getvalue()).decode())
+    assert client.get(detailed["image_url"]).status_code == 200
 
 
 def test_removing_draft_does_not_reset_daily_creation_limit(community):
