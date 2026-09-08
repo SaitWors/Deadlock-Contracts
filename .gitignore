@@ -10,6 +10,7 @@ __pycache__/
 *.py[cod]
 *.db
 .DS_Store
+.qa/
 
 # Companion build output
 companion/dist/

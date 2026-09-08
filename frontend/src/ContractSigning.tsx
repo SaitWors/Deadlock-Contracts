@@ -2,46 +2,7 @@ import { useEffect, useId, useRef, useState } from "react"
 import { useLanguage } from "./i18n"
 import { SelectionChangedError, SigningUnconfirmedError } from "./contract-signing"
 
-// Seal supplied in the user's Figma Make reference. The animation is decorative;
-// the signed state is entered only after the caller confirms the server lock.
-function WaxSeal() {
-  return (
-    <svg
-      className="signing-seal"
-      width="88"
-      height="88"
-      viewBox="0 0 96 96"
-      fill="none"
-      aria-hidden="true"
-    >
-      <circle cx="48" cy="48" r="44" fill="#61382C" stroke="#8F795A" strokeWidth="2" />
-      <circle
-        cx="48"
-        cy="48"
-        r="36"
-        fill="#7a4638"
-        stroke="#A08060"
-        strokeWidth="1"
-        strokeDasharray="4 3"
-      />
-      <circle cx="48" cy="48" r="20" fill="#61382C" stroke="#DDCDAD" strokeWidth="1.5" />
-      {[0, 60, 120, 180, 240, 300].map((angle) => (
-        <line
-          key={angle}
-          x1="48"
-          y1="28"
-          x2="48"
-          y2="24"
-          stroke="#DDCDAD"
-          strokeWidth="1.5"
-          transform={`rotate(${angle} 48 48)`}
-        />
-      ))}
-      <circle cx="48" cy="48" r="6" fill="#DDCDAD" opacity=".9" />
-      <circle cx="46" cy="46" r="2" fill="#8F795A" />
-    </svg>
-  )
-}
+import Regalia from "./regalia/Regalia"
 
 type SigningReceipt = {
   id: string
@@ -141,6 +102,19 @@ export default function ContractSigning(props: SigningProps) {
         if (!inFlight.current) onClose()
       }}
     >
+      <div className="signing-folder-bar">
+        <span>
+          {ru ? "БЮРО / КОНТРАКТ" : "BUREAU / CONTRACT"} · {mode}
+        </span>
+        <button
+          className="signing-close"
+          disabled={state === "pending"}
+          onClick={onClose}
+          aria-label={ru ? "Закрыть договор" : "Close contract"}
+        >
+          ×
+        </button>
+      </div>
       <div className="signing-document">
         <header className="signing-heading">
           <div>
@@ -163,14 +137,6 @@ export default function ContractSigning(props: SigningProps) {
                     : "Sign your contract"}
             </h2>
           </div>
-          <button
-            className="signing-close"
-            disabled={state === "pending"}
-            onClick={onClose}
-            aria-label={ru ? "Закрыть договор" : "Close contract"}
-          >
-            ×
-          </button>
         </header>
         {preview && (
           <p className="signing-demo" role="note">
@@ -220,7 +186,7 @@ export default function ContractSigning(props: SigningProps) {
         </p>
         {state === "signed" ? (
           <div className="signing-success" role="status">
-            <WaxSeal />
+            <Regalia id="seal-team" className="signing-seal" />
             <p>
               {preview
                 ? ru

@@ -4,6 +4,10 @@ import curatorImage from "@/imports/curator-optimized.webp"
 import ProfileStudio from "./ProfileStudio"
 import BureauHeader from "./BureauHeader"
 import AccountMenu from "./AccountMenu"
+import BureauBottomNav from "./BureauBottomNav"
+import BureauGuide, { hasSeenGuide, rememberGuide } from "./BureauGuide"
+import ModeSelector from "./ModeSelector"
+import { useAnnouncements } from "./announcements/AnnouncementProvider"
 import Leaderboard from "./community/Leaderboard"
 import Achievements from "./community/Achievements"
 import Bureaus from "./community/Bureaus"
@@ -1056,28 +1060,18 @@ function ModeTabs({
   onChange: (mode: Mode) => void
   boards: Board[]
 }) {
-  const ripple = useRipple()
   const { language } = useLanguage()
   return (
-    <div className="dc-v3-mode-tabs">
-      {MODES.map((mode) => {
-        const board = boards.find((item) => item.game_match_mode === mode)
-        return (
-          <button
-            key={mode}
-            type="button"
-            className={value === mode ? "active" : ""}
-            onClick={(e) => {
-              ripple(e)
-              onChange(mode)
-            }}
-          >
-            <span>{MODE_META[mode].short}</span>
-            <small>{board ? statusLabel(board.status, language) : t(language, "ЗАГРУЗКА")}</small>
-          </button>
-        )
-      })}
-    </div>
+    <ModeSelector
+      value={value}
+      onChange={onChange}
+      statuses={Object.fromEntries(
+        MODES.map((mode) => {
+          const board = boards.find((item) => item.game_match_mode === mode)
+          return [mode, board ? statusLabel(board.status, language) : t(language, "ЗАГРУЗКА")]
+        }),
+      )}
+    />
   )
 }
 
@@ -1111,6 +1105,14 @@ export default function Dashboard({ initialSession }: { initialSession: SessionP
     return window.location.pathname.startsWith("/admin/") ? "admin" : "home"
   }
   const [tab, setTabState] = useState<Tab>(tabFromLocation)
+  const { items: announcements } = useAnnouncements()
+  const [guideOpen, setGuideOpen] = useState(
+    () => tabFromLocation() === "home" && !hasSeenGuide(initialSession.user.id),
+  )
+  const closeGuide = () => {
+    rememberGuide(user.id)
+    setGuideOpen(false)
+  }
   const [bureauSlug, setBureauSlug] = useState(
     () => window.location.hash.match(/^#bureaus\/([a-z0-9-]{3,32})$/)?.[1] || "",
   )
@@ -1474,6 +1476,15 @@ export default function Dashboard({ initialSession }: { initialSession: SessionP
 
   return (
     <div className="dc-dashboard dc-redesign dc-v3 dc-vnext bureau-app min-h-screen community-dashboard">
+      {guideOpen && !signing && !announcements.some((item) => item.presentation === "MODAL") && (
+        <BureauGuide
+          onClose={closeGuide}
+          onNavigate={(next) => {
+            closeGuide()
+            setTab(next)
+          }}
+        />
+      )}
       {signing && (
         <ContractSigning
           mode={MODE_META[signing.board.game_match_mode].title}
@@ -1510,9 +1521,10 @@ export default function Dashboard({ initialSession }: { initialSession: SessionP
         />
       )}
       <BureauHeader
-        active={tab}
+        active={["studio", "wallet", "packs", "collection"].includes(tab) ? "archive" : tab}
+        mobileItems={nav.map(([id, label]) => ({ id, label }))}
         items={nav
-          .filter(([id]) => !["home", "profile", "active", "history", "achievements"].includes(id))
+          .filter(([id]) => !["profile", "active", "history", "achievements"].includes(id))
           .map(([id, label]) => ({ id, label }))}
         onNavigate={(id) => setTab(id as Tab)}
         mobileActions={
@@ -1551,38 +1563,29 @@ export default function Dashboard({ initialSession }: { initialSession: SessionP
               level={level}
               csrf={csrf}
               revision={archiveRevision}
+              onOpenGuide={() => setGuideOpen(true)}
               onNavigate={(next) => setTab(next as Tab)}
             />
           </>
         }
       />
 
-      <nav
-        className="dc-mobile-bottom-nav"
-        aria-label={language === "ru" ? "Основная мобильная навигация" : "Main mobile navigation"}
-      >
-        {nav
-          .filter(([key]) => ["quests", "active", "leaderboard", "profile"].includes(key))
-          .map(([key, label, icon]) => (
-            <button
-              key={key}
-              type="button"
-              aria-current={tab === key ? "page" : undefined}
-              className={tab === key ? "active" : ""}
-              onClick={() => {
-                setTab(key)
-                window.scrollTo({ top: 0, behavior: prefersReducedMotion() ? "instant" : "smooth" })
-              }}
-            >
-              <Icon name={icon} />
-              <span>{key === "active" ? (language === "ru" ? "ДЕЛО" : "CASE") : label}</span>
-              {key === "quests" && boards.some((item) => item.status === "OFFERED") ? <i /> : null}
-            </button>
-          ))}
-      </nav>
+      <BureauBottomNav active={tab} onNavigate={(next) => setTab(next as Tab)} />
 
       <div className="dc-app-shell dc-app-shell-topnav">
         <main className="dc-workspace">
+          <div className="bureau-location">
+            <span>
+              {language === "ru" ? "ВЫ В БЮРО" : "AT THE BUREAU"} /{" "}
+              <b>
+                {nav.find(([id]) => id === tab)?.[1] ||
+                  (language === "ru" ? "АРХИВ КАРТОЧЕК" : "CARD ARCHIVE")}
+              </b>
+            </span>
+            <button type="button" onClick={() => setGuideOpen(true)}>
+              {language === "ru" ? "Как это работает?" : "How does it work?"}
+            </button>
+          </div>
           {notice && (
             <button type="button" className="dc-toast" onClick={() => setNotice("")}>
               {notice}
@@ -1598,19 +1601,30 @@ export default function Dashboard({ initialSession }: { initialSession: SessionP
             <>
               <div className="dc-home-archive-callout">
                 <div>
+                  <span className="bureau-callout-label">
+                    {language === "ru" ? "ДОСТУПНО БЕЗ КОМПАНЬОНА" : "AVAILABLE IN YOUR BROWSER"}
+                  </span>
                   <strong>{language === "ru" ? "Сегодня в бюро" : "Today at the bureau"}</strong>
                   <p>
                     {language === "ru"
-                      ? "Шифры и мастерская карточек доступны прямо в браузере."
-                      : "Ciphers and the card studio work in your browser."}
+                      ? "Разберите шифр, заработайте жетоны и начните коллекцию карточек героев."
+                      : "Solve a cipher, earn tokens and start your hero card collection."}
                   </p>
                 </div>
-                <button className="dc-primary" onClick={() => setTab("archive")}>
-                  {language === "ru" ? "Разобрать шифр" : "Decode a cipher"}
-                </button>
-                <button className="dc-auth-account-button" onClick={() => setTab("studio")}>
-                  {language === "ru" ? "Создать карточку" : "Create a card"}
-                </button>
+                <div className="bureau-callout-actions">
+                  <button className="bureau-action" onClick={() => setTab("archive")}>
+                    {language === "ru" ? "Разобрать шифр" : "Decode a cipher"}
+                  </button>
+                  <button
+                    className="bureau-action bureau-action-secondary"
+                    onClick={() => setTab("studio")}
+                  >
+                    {language === "ru" ? "Создать карточку" : "Create a card"}
+                  </button>
+                  <button className="bureau-callout-link" onClick={() => setTab("packs")}>
+                    {language === "ru" ? "Посмотреть конверты ↗" : "Explore envelopes ↗"}
+                  </button>
+                </div>
               </div>
               <section className="dc-command-hero dc-v3-hero">
                 <div className="dc-command-copy">
@@ -1625,7 +1639,9 @@ export default function Dashboard({ initialSession }: { initialSession: SessionP
                   <p className="dc-lead">
                     {t(
                       language,
-                      "До 9 контрактов в день · Standard, Ranked, Street Brawl. Для каждого режима — отдельное дело",
+                      language === "ru"
+                        ? "Выберите цель для следующего матча в Deadlock. Подпишите контракт до игры, выполните условия и получите XP после проверки результата."
+                        : "Choose an objective for your next Deadlock match. Sign before playing, meet the terms and earn XP after verification.",
                     )}
                   </p>
                   <div className="dc-command-actions">
@@ -1669,8 +1685,8 @@ export default function Dashboard({ initialSession }: { initialSession: SessionP
                             ? "Компаньон привязан, но сейчас не в сети. Сайт продолжит искать матч автоматически."
                             : "Companion is paired but currently offline. The site will keep looking for the match automatically."
                           : language === "ru"
-                            ? "Подключи Компаньон в профиле — он ускорит обнаружение матча."
-                            : "Pair the Companion from your profile to speed up match discovery."}
+                            ? "Компаньон пока проходит QA. Шифры, жетоны, карточки и бюро уже доступны на сайте. Матчевые награды зависят от проверки результата."
+                            : "The Companion is in QA. Ciphers, tokens, cards and bureaus are already available here. Match rewards depend on verification."}
                     </p>
                   </div>
                   <img className="dc-curator-mark" src={markImage} alt="" />

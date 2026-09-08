@@ -191,7 +191,7 @@ export default function ProfileStudio({ csrf, onNotice, onError, onRefresh, onBu
               </div>
               <div className="community-form-grid">
                 <section>
-                  <h3>{ru ? "Витрины и главная печать" : "Showcases and featured seal"}</h3>
+                  <h3>{ru ? "Витрины и главная награда" : "Showcases and featured award"}</h3>
                   <ol className="profile-module-order">
                     {draft.showcase_order.map((key, index) => (
                       <li key={key}>
@@ -214,14 +214,14 @@ export default function ProfileStudio({ csrf, onNotice, onError, onRefresh, onBu
                     ))}
                   </ol>
                   <label>
-                    {ru ? "Главная печать" : "Featured seal"}
+                    {ru ? "Главная награда" : "Featured award"}
                     <select
                       value={draft.featured_achievement || ""}
                       onChange={(event) =>
                         patch("featured_achievement", event.target.value || null)
                       }
                     >
-                      <option value="">{ru ? "Без главной печати" : "No featured seal"}</option>
+                      <option value="">{ru ? "Без главной награды" : "No featured award"}</option>
                       {draft.achievements
                         .filter((item) => item.earned)
                         .map((item) => (

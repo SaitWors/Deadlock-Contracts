@@ -1,0 +1,106 @@
+.bureau-regalia {
+  display: block;
+  flex-shrink: 0;
+  width: 96px;
+  height: 96px;
+  max-width: 100%;
+  overflow: hidden;
+  pointer-events: none;
+  user-select: none;
+}
+.regalia-plate {
+  background: #080c0a;
+  border-radius: 8px;
+}
+.regalia-cutout {
+  filter: drop-shadow(0 5px 5px #0005);
+}
+.community-seal.bureau-regalia {
+  width: 128px;
+  height: 140px;
+  margin-inline: auto;
+}
+.community-seal.bureau-regalia.locked {
+  filter: grayscale(1);
+  opacity: 0.45;
+}
+.achievement-card .community-seal.bureau-regalia {
+  width: 128px;
+  height: 140px;
+  margin: 0 auto 22px;
+}
+.dossier-seals .community-seal.bureau-regalia {
+  width: 88px;
+  height: 96px;
+}
+.dossier-featured-seal .community-seal.bureau-regalia {
+  width: 96px;
+  height: 104px;
+}
+.signing-seal.bureau-regalia {
+  width: 104px;
+  height: 104px;
+}
+.bureau-regalia-heading {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  margin-bottom: 16px;
+}
+.bureau-regalia-heading > div {
+  min-width: 0;
+}
+.bureau-regalia-heading h2 {
+  margin: 0;
+}
+.bureau-regalia-heading > .bureau-regalia {
+  width: 72px;
+  height: 76px;
+}
+.dossier-bureau .bureau-regalia,
+.bureau-directory .bureau-regalia,
+.bureau-detail-cover > .bureau-regalia {
+  width: 64px;
+  height: 64px;
+}
+.archive-symbol-picker .bureau-regalia {
+  width: 56px;
+  height: 56px;
+  margin: 0 auto 7px;
+}
+.archive-cipher-symbols {
+  display: flex;
+  justify-content: center;
+  gap: 6px;
+}
+.archive-cipher-symbols .bureau-regalia {
+  width: 64px;
+  height: 64px;
+}
+.archive-guesses .cipher-guess-art {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+.cipher-guess-art .bureau-regalia {
+  width: 32px;
+  height: 32px;
+}
+.archive-envelope-reveal > .bureau-regalia {
+  width: 112px;
+  height: 112px;
+  margin: 0 auto 16px;
+}
+@media (max-width: 400px) {
+  .archive-cipher-symbols .bureau-regalia {
+    width: 48px;
+    height: 48px;
+  }
+  .bureau-regalia-heading {
+    gap: 12px;
+  }
+  .bureau-regalia-heading > .bureau-regalia {
+    width: 56px;
+    height: 60px;
+  }
+}

@@ -12,10 +12,12 @@ LIMITS = {
     # The public entry stays 292 KB; preserve its separate 310 KB ceiling.
     "javascript_total": 580_000,
     "initial_javascript": 310_000,
-    # Nine reusable vector frames and the account menu: measured CSS 272 KB.
-    "css_total": 280_000,
+    # Stage 6: accessible briefing, folder document and mobile controls, 288 KB.
+    "css_total": 295_000,
     "largest_image": 600_000,
-    "assets_total": 2_300_000,
+    # Five supplied regalia sheets + two validated cutouts, 1.37 MB of artwork.
+    # Actual build: 3.26 MB; the initial JS and per-image caps remain unchanged.
+    "assets_total": 3_350_000,
 }
 IMAGE_SUFFIXES = {".avif", ".gif", ".jpg", ".jpeg", ".png", ".webp"}
 

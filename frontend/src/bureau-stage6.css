@@ -1,0 +1,97 @@
+/* Player feedback, stage 6: a readable bureau and a document inside its folder. */
+.bureau-action{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-width:0;min-height:48px;height:auto;padding:12px 18px;border:1px solid #91bd95;border-radius:4px;background:#7ab384;color:#09120d;font:700 1rem/1.4 var(--font-body);text-align:center;white-space:normal;overflow-wrap:anywhere;cursor:pointer}
+.bureau-action:hover{background:#94c59c}
+.bureau-action-secondary{border-color:#596951;background:#152119;color:#ece1c7}
+.bureau-action-secondary:hover{background:#243429}
+.bureau-action:focus-visible,.bureau-guide button:focus-visible{outline:2px solid #ebcd8c;outline-offset:3px}
+.bureau-location{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:0 0 22px;color:#a8b0a0;font:600 .75rem/1.5 var(--font-display);letter-spacing:.07em}
+.bureau-location b{color:#dfd5bd}
+.bureau-location button{min-height:44px;padding:8px 0 8px 10px;color:#c9d9bd;background:none;border:0;font:500 .875rem/1.4 var(--font-body);text-decoration:underline;text-underline-offset:4px;cursor:pointer}
+.bureau-app .dc-home-archive-callout{display:grid;grid-template-columns:minmax(0,1fr) minmax(220px,320px);gap:24px;padding:clamp(20px,3vw,32px);border:1px solid #46563f;border-top:2px solid #a3925b;border-radius:5px 18px 5px 5px;background:radial-gradient(ellipse at 0 0,#303b25,transparent 70%),#142019}
+.bureau-app .dc-home-archive-callout>div{min-width:0}
+.bureau-callout-label{display:block;color:#bba779;font:600 .75rem var(--font-display);letter-spacing:.1em;margin-bottom:9px}
+.bureau-app .dc-home-archive-callout strong{display:block;font-size:clamp(26px,3vw,34px)}
+.bureau-app .dc-home-archive-callout p{font-size:1rem;line-height:1.65;margin:8px 0 0;max-width:52ch}
+.bureau-callout-actions{display:grid;gap:10px}
+.bureau-callout-link{border:0;background:none;color:#c5cbb7;font:500 .875rem/1.4 var(--font-body);min-height:44px;cursor:pointer}
+.bureau-app .bureau-action{width:100%;height:auto;min-width:0}
+.bureau-app :is(.archive-filters,.community-form-grid)>*{min-width:0}
+.bureau-app :is(select,input,textarea){max-width:100%;color-scheme:dark}
+.bureau-app select{cursor:pointer}
+.bureau-app select:disabled{cursor:default}
+.bureau-app select option{color:#eee4cd;background:#111b15}
+.bureau-mode-selector{min-width:0;border:0;padding:0;margin:0}
+.bureau-mode-selector legend{color:#c2cab9;font:600 .875rem var(--font-body);margin-bottom:10px}
+.bureau-mode-mobile{display:none}
+.bureau-app .bureau-mode-desktop button[aria-pressed=true]{border-color:#9bc99d!important;box-shadow:inset 0 -3px #9bc99d!important}
+.bureau-guide{position:fixed;inset:0;margin:auto;width:min(640px,calc(100% - 24px));max-height:calc(100dvh - 32px);overflow:auto;overscroll-behavior:contain;border:1px solid #697154;border-top:3px solid #b4a16f;border-radius:8px 20px 8px 8px;background:radial-gradient(ellipse at top,#263529,transparent 75%),#101a14;color:#f1e4c8;box-shadow:0 24px 90px #000a;padding:0;font:400 1rem/1.6 var(--font-body);color-scheme:dark}
+.bureau-guide::backdrop{background:#030907df}
+.bureau-guide-top{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:16px 24px 0}
+.bureau-guide-top>span{font:600 .75rem var(--font-display);letter-spacing:.13em;color:#b9ab84}
+.bureau-guide-top>button{width:44px;height:44px;flex-shrink:0;background:none;border:1px solid #435240;border-radius:4px;color:#e1d5b9;font-size:24px;cursor:pointer}
+.bureau-guide-pages{display:flex;gap:8px;padding:0 24px}
+.bureau-guide-pages button{flex:1;min-width:0;min-height:36px;padding:14px 0;border:0;background:none;cursor:pointer}
+.bureau-guide-pages span{display:block;height:4px;background:#354635;border-radius:2px}
+.bureau-guide-pages button[aria-current] span{background:#a3c59a}
+.bureau-guide-content{padding:0 32px 24px}
+.bureau-guide-content>.bureau-regalia{float:right;margin:4px 0 16px 20px;width:96px;height:108px}
+.bureau-guide-index{font:600 .75rem var(--font-display);letter-spacing:.13em;color:#a5b8a0}
+.bureau-guide h2{font:700 clamp(30px,5vw,42px)/1.12 var(--font-display);margin:12px 0 18px;color:#eee1c2}
+.bureau-guide h2:focus{outline:none}
+.bureau-guide p{margin:12px 0;color:#c9cebc}
+.bureau-guide-note{clear:both;position:relative;padding:16px 20px;margin:22px 0;background:linear-gradient(100deg,#e2d2b0,#d6c6a7);border-left:3px solid #a38d63;border-radius:2px 8px 3px 2px;box-shadow:3px 4px 0 #080d0990;transform:rotate(-.3deg)}
+.bureau-guide-note p{color:#302e24;margin:0 0 10px}
+.bureau-guide-note small{display:block;font-size:.875rem;line-height:1.6;color:#514a37}
+.bureau-guide-content>.bureau-action{width:100%}
+.bureau-guide-footer{display:grid;grid-template-columns:1fr 1fr;gap:12px;padding:18px 32px 24px;border-top:1px solid #3e4a36;background:#101a14}
+.bureau-guide-footer .bureau-action{font-size:.875rem}
+@media(max-width:767px){
+  .bureau-app .dc-home-archive-callout{grid-template-columns:1fr;gap:20px}
+  .bureau-location{align-items:start;margin-bottom:14px;letter-spacing:.03em}
+  .bureau-location>span{padding-top:12px}
+  .bureau-location button{max-width:150px}
+  .bureau-app .dc-mobile-bottom-nav{z-index:55;border-top:1px solid #617257;background:#101a14}
+  .bureau-app .dc-mobile-bottom-nav>button{border-radius:6px;color:#afb9ab;gap:5px;padding:6px 2px}
+  .bureau-app .dc-mobile-bottom-nav>button.active{color:#f2e8cc;background:#314d36;box-shadow:inset 0 0 0 1px #6c926a}
+  .bureau-app .dc-mobile-bottom-nav>button.active:before{display:none}
+  .bureau-app .dc-mobile-bottom-nav>button .dc-icon{color:inherit;filter:none}
+  .bureau-app .dc-mobile-bottom-nav>button span{font-size:clamp(10px,2.6vw,12px);line-height:1.25;letter-spacing:0;text-transform:none}
+  .bureau-app .bureau-mode-desktop{display:none!important}
+  .bureau-mode-mobile{display:grid;gap:8px}
+  .bureau-mode-mobile>span{font-size:.875rem;color:#bac5b2}
+  .bureau-mode-mobile select{appearance:auto;width:100%;min-height:48px;border:1px solid #8aae81;border-radius:4px;background:#172b1d;color:#f1e4c8;font:600 1rem var(--font-body);padding:10px 12px}
+  .bureau-mode-mobile small{color:#a9b89c;font-size:.875rem}
+  .bureau-app .dc-motion-head-controls,.bureau-mode-selector{width:100%}
+  .bureau-guide-content{padding:0 22px 20px}
+  .bureau-guide-top,.bureau-guide-pages{padding-inline:22px}
+  .bureau-guide-footer{padding:16px 22px 20px;gap:8px}
+  .bureau-guide-content>.bureau-regalia{width:72px;height:80px;margin-left:12px}
+}
+@media(max-width:359px){.bureau-guide-footer{grid-template-columns:1fr}.bureau-guide-footer>.bureau-action:last-child{grid-row:1}.bureau-location button{font-size:.8rem}.bureau-guide-content>.bureau-regalia{float:none;width:64px;height:70px;margin:0}}
+
+/* Keep the common dark chrome. Only the document itself is paper. */
+.signing-dialog{width:min(700px,calc(100% - 24px));background:#142119;border:1px solid #657454;border-radius:6px 18px 6px 6px;padding:0 12px 14px;color-scheme:dark}
+.signing-folder-bar{display:flex;justify-content:space-between;align-items:center;gap:12px;position:sticky;top:0;z-index:2;background:#142119;color:#d1cfb3;padding:12px 4px;font:600 .75rem var(--font-display);letter-spacing:.1em}
+.signing-folder-bar .signing-close{margin:0;flex-shrink:0;background:#1f3225;border:1px solid #53684c;color:#ecdfc0}
+.signing-folder-bar .signing-close:hover:not(:disabled){background:#344936}
+.signing-document{position:relative;padding:clamp(22px,4vw,38px);border:0;border-radius:2px 8px 3px 2px;box-shadow:4px 5px 0 #08130ca0,inset -7px 0 12px #8e77432b;color-scheme:light;color:#302819;background:radial-gradient(ellipse at 2% 20%,#b4996660,transparent 46%),radial-gradient(ellipse at 100% 90%,#c1a36d5c,transparent 40%),linear-gradient(96deg,transparent 49.6%,#9e865e18 50%,#fff5d321 50.3%,transparent 51%),#ddcdad}
+.signing-document:after{content:"";display:block;height:8px;margin:24px -6px -12px;background:repeating-linear-gradient(114deg,transparent 0 6px,#92795126 7px 9px,transparent 10px 16px);border-bottom:1px solid #9c86604d;pointer-events:none}
+.signing-document .signing-eyebrow{letter-spacing:.08em;font-size:.75rem}
+.signing-document .signing-heading h2{font-size:clamp(28px,5vw,36px);line-height:1.1}
+.signing-document .signing-identity{border-top:1px dashed #9f8b65;border-bottom:1px solid #9f8b6566;padding:12px 0;gap:12px}
+.signing-document .signing-intro{line-height:1.6}
+.signing-document .signing-terms{margin-top:4px}
+.signing-document .signing-terms li{border-bottom:1px dashed #aa947159;padding-block:12px}
+.signing-document .signing-terms h3{font-size:1.2rem}
+.signing-document .signing-terms p{font-size:.9375rem}
+.signing-document .signing-reward{flex-wrap:wrap;gap:8px}
+.signing-dialog .signing-folder-bar button:focus-visible{outline-color:#d7e4b7}
+@media(max-width:600px){.signing-dialog{width:calc(100% - 16px);padding:0 8px 10px;max-height:calc(100dvh - 16px)}.signing-document{padding:20px}.signing-folder-bar{padding:8px 2px}.signing-document .signing-note{margin-bottom:16px}}
+@media(prefers-reduced-motion:reduce){.bureau-guide *,.signing-dialog *{animation:none!important;transition:none!important;scroll-behavior:auto!important}}
+@media (min-width:1200px) and (max-width:1399px) {
+  .bureau-app .bureau-nav{display:none}
+  .bureau-app .bureau-menu-toggle{display:block}
+  .bureau-app .bureau-mobile-nav{display:grid;gap:4px}
+  .bureau-app .bureau-mobile-nav button{text-align:left;padding:8px 12px;border-radius:4px}
+  .bureau-app .bureau-mobile-nav button[aria-current]{background:var(--color-elevated)}
+}

@@ -17,8 +17,8 @@ export default function Achievements({ onProfile }: { onProfile: () => void }) {
         title={ru ? "Каждое дело оставляет след." : "Every case leaves a mark."}
         text={
           ru
-            ? "Ваши достижения — печати за личные контракты и совместные операции. Соберите коллекцию и выберите главную для профиля."
-            : "Your achievements are seals earned through contracts and joint operations. Build a collection and feature your favorite on your profile."
+            ? "Ваши награды за личные контракты и совместные операции. Соберите коллекцию и выберите главную награду для профиля."
+            : "Your rewards for contracts and joint operations. Build a collection and feature your favorite on your profile."
         }
       />
       {resource.loading || resource.error || !data ? (
@@ -31,14 +31,14 @@ export default function Achievements({ onProfile }: { onProfile: () => void }) {
               <small> / {data.total}</small>
             </span>
             <div>
-              <h2>{ru ? "Коллекция печатей" : "Seal collection"}</h2>
+              <h2>{ru ? "Медали и печати" : "Medals & seals"}</h2>
               <p>
                 {ru
-                  ? "Полученные печати доступны для витрины."
-                  : "Earned seals are available for your showcase."}
+                  ? "Полученные награды доступны для витрины."
+                  : "Earned awards are available for your showcase."}
               </p>
               <progress
-                aria-label={ru ? "Печати получены" : "Seals earned"}
+                aria-label={ru ? "Награды получены" : "Awards earned"}
                 value={data.earned}
                 max={data.total}
               />
@@ -53,7 +53,7 @@ export default function Achievements({ onProfile }: { onProfile: () => void }) {
             aria-label={ru ? "Фильтр достижений" : "Achievement filter"}
           >
             {[
-              ["all", ru ? "Все печати" : "All seals"],
+              ["all", ru ? "Все награды" : "All awards"],
               ["earned", ru ? "Получены" : "Earned"],
               ["locked", ru ? "В процессе" : "In progress"],
             ].map(([value, label]) => (
@@ -76,11 +76,11 @@ export default function Achievements({ onProfile }: { onProfile: () => void }) {
                   <p className="community-eyebrow">
                     {item.earned
                       ? ru
-                        ? "ПЕЧАТЬ ПОЛУЧЕНА"
-                        : "SEAL EARNED"
+                        ? "НАГРАДА ПОЛУЧЕНА"
+                        : "AWARD EARNED"
                       : ru
-                        ? "ЕЩЁ ВПЕРЕДИ"
-                        : "STILL AHEAD"}
+                        ? "НЕ ПОЛУЧЕНО"
+                        : "NOT EARNED"}
                   </p>
                   <h2>{item.title[language]}</h2>
                   <p>{item.description[language]}</p>
@@ -98,8 +98,8 @@ export default function Achievements({ onProfile }: { onProfile: () => void }) {
                     {item.earned_at
                       ? new Date(item.earned_at).toLocaleDateString(locale)
                       : ru
-                        ? "Учитываются контракты с выданной наградой"
-                        : "Awarded contracts count toward this seal"}
+                        ? "Прогресс обновляется после проверки результата"
+                        : "Progress updates after result verification"}
                   </small>
                 </article>
               ))}
@@ -109,8 +109,8 @@ export default function Achievements({ onProfile }: { onProfile: () => void }) {
           ) && (
             <p className="community-empty">
               {ru
-                ? "Здесь пока нет печатей. Первое дело — хорошее начало."
-                : "No seals here yet. Your first case is a good start."}
+                ? "Здесь пока нет наград. Первое дело — хорошее начало."
+                : "No awards here yet. Your first case is a good start."}
             </p>
           )}
         </>

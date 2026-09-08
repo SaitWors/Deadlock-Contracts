@@ -1,5 +1,5 @@
 import { useRef, useState } from "react"
-import mark from "@/imports/mark.svg"
+import Regalia from "../regalia/Regalia"
 import { useLanguage } from "../i18n"
 import { request, useResource } from "./api"
 import { LoadState, PageHead } from "./Shared"
@@ -331,7 +331,7 @@ export default function Bureaus({
                 onClick={() => onSelect(item.slug)}
               >
                 <div className="bureau-card-cover">
-                  <img src={mark} alt="" />
+                  <Regalia id="seal-witness" />
                   <span>{item.language.toUpperCase()}</span>
                 </div>
                 <div className="bureau-card-copy">
@@ -505,7 +505,7 @@ function BureauDetail({
       ) : (
         <>
           <div className={`bureau-detail-cover theme-${bureau.theme.toLowerCase()}`}>
-            <img src={mark} alt="" />
+            <Regalia id="seal-witness" />
             <div>
               <p className="community-eyebrow">
                 {ru ? "БЮРО ИГРОКОВ" : "PLAYER BUREAU"} / {bureau.language.toUpperCase()}

@@ -237,7 +237,7 @@ test("earned achievement filter shows an honest empty state", async () => {
   assert.equal(doc.querySelector(".achievement-progress progress").value, 0)
   await api.act(async () => button(doc, "Earned").click())
   assert.equal(doc.querySelectorAll(".achievement-card").length, 0)
-  assert.match(doc.body.textContent, /No seals here yet/)
+  assert.match(doc.body.textContent, /No awards here yet/)
   await api.act(async () => root.unmount())
 })
 
