@@ -9,7 +9,7 @@ from sqlalchemy import delete, text
 from uuid import uuid4
 
 from app.db import engine, SessionLocal
-from app.models import BureauMembership, BureauMembershipPeriod, PlayerBureau, PublicProfile, User
+from app.models import ArchiveCard, ArchiveLedger, BureauMembership, BureauMembershipPeriod, PlayerBureau, PublicProfile, User
 
 
 def current_revision() -> str:
@@ -64,6 +64,10 @@ def main() -> None:
         db.add(member); db.flush()
         member_id, joined_at = member.id, member.joined_at
         db.add(BureauMembershipPeriod(id=member_id, bureau_id=bureau.id, user_id=player.id, joined_at=joined_at))
+        card = ArchiveCard(creator_id=player_id, hero="abrams", rank="S", title="Preserved artwork", status="PUBLISHED",
+                           image_data=b"migration-preserved-image", image_digest="preserved-digest")
+        db.add(card); db.flush(); card_id = card.id
+        db.add(ArchiveLedger(user_id=player_id, source="migration-preserve", reason="CIPHER", delta=150))
         db.commit()
 
     print(f"Downgrade smoke: {head} -> {parent}")
@@ -97,11 +101,15 @@ def main() -> None:
         period = db.get(BureauMembershipPeriod, member_id)
         assert period.user_id == player_id and period.bureau_id == bureau_id
         assert period.joined_at.replace(tzinfo=timezone.utc) == joined_at and period.left_at is None
+        card = db.get(ArchiveCard, card_id)
+        assert card.title == "Preserved artwork" and card.image_data == b"migration-preserved-image"
+        assert db.query(ArchiveLedger).filter_by(user_id=player_id).one().delta == 150
+        db.execute(delete(ArchiveCard).where(ArchiveCard.id == card_id))
         db.execute(delete(BureauMembershipPeriod).where(BureauMembershipPeriod.id == member_id))
         db.execute(delete(PlayerBureau).where(PlayerBureau.id == bureau_id))
         db.execute(delete(User).where(User.id == player_id))
         db.commit()
-    print("Existing profile preserved; bureau remains active; membership history preserved")
+    print("Existing profile, membership, archive artwork and 150 earned tokens preserved")
 
     print(
         f"Migration smoke OK: "

@@ -6,6 +6,33 @@ import ArchivePage from "../src/archive/ArchivePage"
 import CardStudio from "../src/archive/CardStudio"
 import CardReviewDesk from "../src/admin/CardReviewDesk"
 import Cipher from "../src/archive/Cipher"
+import OwnerArchiveDesk from "../src/admin/OwnerArchiveDesk"
+import { TransactionStatus, useTransaction } from "../src/archive/transactions"
+
+function TransactionHarness({
+  csrf,
+  accountKey,
+  onChanged,
+}: {
+  csrf: string
+  accountKey: string
+  onChanged: () => void
+}) {
+  const transaction = useTransaction(csrf, accountKey, onChanged)
+  return (
+    <>
+      <button
+        disabled={transaction.busy || !!transaction.pending}
+        onClick={() =>
+          void transaction.execute("/api/archive/packs/test/open", { revision: 4, starter: false })
+        }
+      >
+        Open test pack
+      </button>
+      <TransactionStatus transaction={transaction} />
+    </>
+  )
+}
 
 export { act }
 export function mount(element: HTMLElement, page: string, props: Record<string, unknown>) {
@@ -15,6 +42,8 @@ export function mount(element: HTMLElement, page: string, props: Record<string, 
     studio: CardStudio,
     review: CardReviewDesk,
     cipher: Cipher,
+    owner: OwnerArchiveDesk,
+    transaction: TransactionHarness,
   }[page] as React.ComponentType<Record<string, unknown>>
   const root = createRoot(element)
   root.render(

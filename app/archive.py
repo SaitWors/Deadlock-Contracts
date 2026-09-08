@@ -15,6 +15,7 @@ from .community import Strict, no_store
 from .db import get_db
 from .models import ArchiveCard, ArchiveCipher, ArchiveLedger, User, utcnow
 from .services import archive as service
+from .services import archive_packs as packs
 from .services.auth import require_csrf, require_user
 
 Rank = Literal["F", "E", "D", "C", "B", "A", "S", "SS", "SSS"]
@@ -74,7 +75,9 @@ def build_router(require_permission, effective_role):
     def meta(response: Response, user: User = Depends(require_user)):
         no_store(response)
         return {"ranks": service.RANKS, "heroes": [{"key": key, "name": name} for key, name in service.HEROES.items()],
-                "can_publish": effective_role(user) in {"ADMIN", "OWNER"}, "frame_version": 1}
+                "can_publish": effective_role(user) in {"ADMIN", "OWNER"}, "frame_version": 1,
+                "can_manage_packs": effective_role(user) == "OWNER", "direct_costs": packs.DIRECT_COST,
+                "default_weights": packs.DEFAULT_WEIGHTS, "price_model": packs.PRICE_MODEL, "account_key": user.id}
 
     @router.get("/archive/wallet")
     def wallet(response: Response, offset: int = Query(default=0, ge=0, le=100000),
@@ -213,7 +216,8 @@ def build_router(require_permission, effective_role):
     @router.get("/archive/cards/{card_id}/image")
     def image(card_id: UUID, user: User = Depends(require_user), db: Session = Depends(get_db)):
         card = db.get(ArchiveCard, str(card_id))
-        if not card or card.status == "REMOVED" or (card.status != "PUBLISHED" and card.creator_id != user.id):
+        if not card or card.status == "REMOVED" or (card.status != "PUBLISHED" and card.creator_id != user.id
+                                                    and not packs.owns_card(db, user.id, card.id)):
             raise HTTPException(404, "Image not found")
         return serve_image(card)
 

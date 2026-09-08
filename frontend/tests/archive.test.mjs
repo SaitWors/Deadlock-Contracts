@@ -56,6 +56,10 @@ const meta = {
   heroes: [{ key: "abrams", name: "Abrams" }],
   ranks: ["F", "E", "D", "C", "B", "A", "S", "SS", "SSS"],
   can_publish: false,
+  can_manage_packs: false,
+  account_key: "test-account",
+  direct_costs: { F: 20, E: 30, D: 45, C: 70, B: 110, A: 180, S: 300, SS: 500, SSS: 900 },
+  default_weights: { F: 2000, E: 1600, D: 1200, C: 900, B: 600, A: 350, S: 150, SS: 60, SSS: 15 },
 }
 const card = {
   id: "draft-1",
@@ -220,5 +224,199 @@ test("failed staff permission does not expose review actions", async () => {
   })
   assert.match(doc.querySelector('[role="alert"]').textContent, /TOTP required/)
   assert.equal(button(doc, "Опубликовать"), undefined)
+  await api.act(async () => root.unmount())
+})
+
+test("non-owner staff cannot open pack tools or trigger their API requests", async () => {
+  const calls = []
+  const { api, doc } = runtime(async (url) => {
+    calls.push(url)
+    return response({})
+  })
+  let root
+  await api.act(async () => {
+    root = api.mount(doc.getElementById("mount"), "owner", {
+      csrf: "csrf",
+      permissions: ["admin.access", "cards.publish"],
+    })
+  })
+  assert.match(doc.querySelector('[role="alert"]').textContent, /только OWNER/)
+  assert.equal(button(doc, "Создать пак"), undefined)
+  assert.equal(calls.length, 0)
+  await api.act(async () => root.unmount())
+})
+
+test("an uncertain opening keeps the same key across a remount and retries only once", async () => {
+  const writes = []
+  const { api, doc, w } = runtime(async (url, init) => {
+    writes.push(JSON.parse(init.body))
+    if (writes.length === 1) throw new Error("Connection lost")
+    return response({
+      id: "receipt-1",
+      kind: "PACK_OPEN",
+      delta: -30,
+      balance_after: 60,
+      created_at: "2026-09-08T00:00:00Z",
+      items: [],
+    })
+  })
+  let root
+  const props = { csrf: "pay-csrf", accountKey: "owner-account", onChanged() {} }
+  await api.act(async () => {
+    root = api.mount(doc.getElementById("mount"), "transaction", props)
+  })
+  await api.act(async () => {
+    button(doc, "Open test pack").click()
+    button(doc, "Open test pack").click()
+  })
+  assert.equal(writes.length, 1)
+  assert.match(doc.body.textContent, /Connection lost/)
+  assert.ok(w.sessionStorage.getItem("dc-archive-request:owner-account"))
+  await api.act(async () => root.unmount())
+  await api.act(async () => {
+    root = api.mount(doc.getElementById("mount"), "transaction", props)
+  })
+  assert.equal(button(doc, "Open test pack").disabled, true)
+  await api.act(async () => button(doc, "Повторить запрос").click())
+  assert.equal(writes.length, 2)
+  assert.deepEqual(writes[0], writes[1])
+  assert.equal(w.sessionStorage.getItem("dc-archive-request:owner-account"), null)
+  assert.match(doc.querySelector(".archive-receipt").textContent, /-30/)
+  await api.act(async () => root.unmount())
+})
+
+test("pack opening shows actual odds and sends the displayed revision with CSRF", async () => {
+  const writes = []
+  const released = { ...card, status: "PUBLISHED" }
+  const pack = {
+    id: "pack-1",
+    revision: 8,
+    title: "Ночная почта",
+    description: "First release",
+    price: 30,
+    draws: 2,
+    card_count: 1,
+    ready: true,
+    active: true,
+    starter: true,
+    odds: [{ rank: "SSS", percent: 100, weight: 1, total_weight: 1 }],
+    recommendation: { price: 990 },
+    entries: [{ card_id: card.id, card: released, rank: "SSS", weight: 1, percent: 100 }],
+  }
+  const { api, doc } = runtime(async (url, init = {}) => {
+    if (init.method === "POST") {
+      writes.push({ url, body: JSON.parse(init.body), csrf: init.headers.get("X-CSRF-Token") })
+      return response({
+        id: "receipt",
+        kind: "PACK_OPEN",
+        delta: -30,
+        balance_after: 60,
+        created_at: "2026-09-08T00:00:00Z",
+        items: [],
+      })
+    }
+    if (url.includes("/meta")) return response(meta)
+    if (url.includes("/wallet")) return response(wallet)
+    if (url.includes("/packs/pack-1")) return response({ pack })
+    if (url.includes("/packs?")) return response({ items: [pack], total: 1, starter_claimed: true })
+    return response({ items: [], total: 0 })
+  })
+  let root
+  await api.act(async () => {
+    root = api.mount(doc.getElementById("mount"), "archive", {
+      csrf: "pack-csrf",
+      mode: "packs",
+      onWalletChange() {},
+    })
+  })
+  await api.act(async () => button(doc, "Состав и открытие").click())
+  assert.match(doc.querySelector(".archive-pack-odds").textContent, /100%/)
+  assert.match(doc.querySelector(".archive-pack-odds").textContent, /Гарантированного ранга нет/)
+  assert.equal(button(doc, "Получить стартовый бесплатно"), undefined)
+  await api.act(async () => button(doc, "Открыть за 30").click())
+  assert.equal(writes.length, 1)
+  assert.equal(writes[0].csrf, "pack-csrf")
+  assert.equal(writes[0].body.revision, 8)
+  assert.equal(writes[0].body.starter, false)
+  assert.ok(writes[0].body.request_key)
+  assert.equal(writes[0].body.price, undefined)
+  await api.act(async () => root.unmount())
+})
+
+test("collection limits the showcase to three owned designs and preserves its revision", async () => {
+  const writes = []
+  const items = [1, 2, 3, 4].map((i) => ({
+    card: { ...card, id: `card-${i}`, title: `Card ${i}`, status: "PUBLISHED" },
+    quantity: 1,
+    test_count: 0,
+    recycle: null,
+  }))
+  const { api, doc } = runtime(async (url, init = {}) => {
+    if (init.method === "PUT") {
+      writes.push(JSON.parse(init.body))
+      return response({ ...writes[0], revision: 4, profile_public: false })
+    }
+    if (url.includes("/meta")) return response(meta)
+    if (url.includes("/wallet")) return response(wallet)
+    if (url.includes("/showcase"))
+      return response({ card_ids: [], is_public: false, revision: 3, profile_public: false })
+    if (url.includes("/inventory?")) return response({ items, total: 4 })
+    return response({ items: [], total: 0 })
+  })
+  let root
+  await api.act(async () => {
+    root = api.mount(doc.getElementById("mount"), "archive", {
+      csrf: "csrf",
+      mode: "collection",
+      onWalletChange() {},
+    })
+  })
+  const checks = [...doc.querySelectorAll(".archive-grid input[type=checkbox]")]
+  assert.equal(checks.length, 4)
+  for (let i = 0; i < 3; i++) await api.act(async () => checks[i].click())
+  assert.equal(checks[3].disabled, true)
+  assert.equal(button(doc, "Обменять один дубль"), undefined)
+  await api.act(async () => button(doc, "Сохранить витрину").click())
+  assert.equal(writes[0].revision, 3)
+  assert.deepEqual(writes[0].card_ids, ["card-1", "card-2", "card-3"])
+  assert.equal(writes[0].is_public, false)
+  await api.act(async () => root.unmount())
+})
+
+test("wallet distinguishes paid openings and owner adjustments without a doubled sign", async () => {
+  const { api, doc } = runtime(async (url) =>
+    response(
+      url.includes("/meta")
+        ? meta
+        : url.includes("/wallet")
+          ? {
+              ...wallet,
+              history: [
+                { id: "paid", delta: -30, reason: "PACK_OPEN", created_at: "2026-09-08T00:00:00Z" },
+                {
+                  id: "grant",
+                  delta: 150,
+                  reason: "OWNER_TOKENS",
+                  created_at: "2026-09-08T00:01:00Z",
+                },
+              ],
+              history_total: 2,
+            }
+          : { items: [], total: 0 },
+    ),
+  )
+  let root
+  await api.act(async () => {
+    root = api.mount(doc.getElementById("mount"), "archive", {
+      csrf: "csrf",
+      mode: "wallet",
+      onWalletChange() {},
+    })
+  })
+  const text = doc.querySelector(".archive-ledger").textContent
+  assert.match(text, /Открытие конверта/)
+  assert.match(text, /Корректировка OWNER/)
+  assert.match(text, /-30/)
+  assert.doesNotMatch(text, /\+-30/)
   await api.act(async () => root.unmount())
 })

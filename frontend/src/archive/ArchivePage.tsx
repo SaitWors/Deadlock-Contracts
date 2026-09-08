@@ -4,8 +4,12 @@ import { useLanguage } from "../i18n"
 import CardPreview from "./CardPreview"
 import CardStudio, { CardStatus } from "./CardStudio"
 import Cipher from "./Cipher"
+import PackShop from "./PackShop"
+import CollectionPage from "./CollectionPage"
+import { TransactionStatus, useTransaction } from "./transactions"
 import { RANKS, type Card, type Meta, type Wallet } from "./types"
 import "./archive.css"
+import "./packs.css"
 
 export default function ArchivePage({
   csrf,
@@ -13,13 +17,13 @@ export default function ArchivePage({
   onWalletChange,
 }: {
   csrf: string
-  mode?: "archive" | "studio" | "wallet"
+  mode?: "archive" | "studio" | "wallet" | "packs" | "collection"
   onWalletChange: () => void
 }) {
   const { language, locale } = useLanguage()
   const ru = language === "ru"
   const [view, setView] = useState(
-    mode === "studio" ? "mine" : mode === "wallet" ? "wallet" : "cipher",
+    mode === "studio" ? "mine" : mode === "archive" ? "cipher" : mode,
   )
   const [hero, setHero] = useState("")
   const [rank, setRank] = useState("")
@@ -31,6 +35,7 @@ export default function ArchivePage({
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState("")
   const [notice, setNotice] = useState("")
+  const [collectionRevision, setCollectionRevision] = useState(0)
   const meta = useResource<Meta>("/api/archive/meta")
   const wallet = useResource<Wallet>(`/api/archive/wallet?offset=${historyOffset}`)
   const cards = useResource<{ items: Card[]; total: number }>(
@@ -42,6 +47,11 @@ export default function ArchivePage({
   const coverage = useResource<{ items: { hero: string; rank: string; count: number }[] }>(
     "/api/archive/coverage",
   )
+  const transaction = useTransaction(csrf, meta.data?.account_key || "", () => {
+    wallet.reload()
+    onWalletChange()
+    setCollectionRevision((value) => value + 1)
+  })
   const chooseView = (next: string) => {
     setView(next)
     setOffset(0)
@@ -83,8 +93,8 @@ export default function ArchivePage({
           <h1>{ru ? "Архив бюро" : "Bureau archive"}</h1>
           <p>
             {ru
-              ? "Расшифровывай документы. Создавай карточки. Собирай будущую коллекцию."
-              : "Decode documents. Create cards. Shape the future collection."}
+              ? "Расшифровывай документы. Открывай конверты. Собирай свою коллекцию."
+              : "Decode documents. Open envelopes. Build your collection."}
           </p>
         </div>
         <div className="archive-balance">
@@ -95,6 +105,8 @@ export default function ArchivePage({
       <nav className="archive-tabs" aria-label={ru ? "Разделы архива" : "Archive sections"}>
         {[
           ["cipher", ru ? "Шифр бюро" : "Cipher"],
+          ["packs", ru ? "Конверты" : "Envelopes"],
+          ["collection", ru ? "Моя коллекция" : "My collection"],
           ["catalog", ru ? "Каталог" : "Catalogue"],
           ["mine", ru ? "Мои карточки" : "My designs"],
           ["wallet", ru ? "История жетонов" : "Token history"],
@@ -123,6 +135,22 @@ export default function ArchivePage({
         </p>
       )}
       {notice && <p role="status">{notice}</p>}
+      <TransactionStatus transaction={transaction} />
+      {view === "packs" && (
+        <PackShop
+          revision={collectionRevision}
+          balance={wallet.data?.balance || 0}
+          transaction={transaction}
+        />
+      )}
+      {view === "collection" && (
+        <CollectionPage
+          csrf={csrf}
+          meta={meta.data}
+          revision={collectionRevision}
+          transaction={transaction}
+        />
+      )}
       {view === "cipher" && wallet.data && (
         <Cipher
           wallet={wallet.data}
@@ -141,16 +169,29 @@ export default function ArchivePage({
           <h2>{ru ? "История жетонов" : "Token history"}</h2>
           <p>
             {ru
-              ? "Жетоны сохраняются для будущих конвертов. Открытие паков появится после наполнения каталога и настройки редкостей. XP за матчи учитывается отдельно."
-              : "Tokens are saved for future envelopes. Packs follow catalogue preparation and rarity balancing. Match XP is separate."}
+              ? "Жетоны тратятся на конверты или конкретные карточки в каталоге. История показывает заработок, покупки, обмен дублей и выдачу OWNER. XP за матчи учитывается отдельно."
+              : "Spend tokens on envelopes or specific catalogue cards. This history includes earnings, purchases, duplicate recycling and OWNER adjustments. Match XP is separate."}
           </p>
           {wallet.data.history.length ? (
             <ul className="archive-ledger">
               {wallet.data.history.map((item) => (
                 <li key={item.id}>
                   <span>{new Date(item.created_at).toLocaleString(locale)}</span>
-                  <span>{ru ? "Шифр бюро" : "Bureau cipher"}</span>
-                  <b>+{item.delta} ◉</b>
+                  <span>
+                    {
+                      ({
+                        CIPHER: ["Шифр бюро", "Bureau cipher"],
+                        PACK_OPEN: ["Открытие конверта", "Pack opening"],
+                        DIRECT_CARD: ["Получение карточки", "Direct card"],
+                        RECYCLE: ["Обмен дубля", "Duplicate recycling"],
+                        OWNER_TOKENS: ["Корректировка OWNER", "OWNER adjustment"],
+                      }[item.reason] || [item.reason, item.reason])[ru ? 0 : 1]
+                    }
+                  </span>
+                  <b>
+                    {item.delta > 0 ? "+" : ""}
+                    {item.delta} ◉
+                  </b>
                 </li>
               ))}
             </ul>
@@ -307,6 +348,7 @@ export default function ArchivePage({
                 <article key={card.id}>
                   <CardPreview card={card} />
                   <CardStatus card={card} />
+                  <h3 className="archive-item-title">{card.title}</h3>
                   <p>{card.description}</p>
                   <small>{card.artist}</small>
                   {card.source_url && (
@@ -315,6 +357,25 @@ export default function ArchivePage({
                     </a>
                   )}
                   {card.review_note && <p className="archive-review-note">{card.review_note}</p>}
+                  {view === "catalog" && meta.data!.direct_costs && (
+                    <button
+                      disabled={
+                        transaction.busy ||
+                        !!transaction.pending ||
+                        !wallet.data ||
+                        wallet.data.balance < meta.data!.direct_costs[card.rank]
+                      }
+                      onClick={() =>
+                        void transaction.execute(`/api/archive/cards/${card.id}/acquire`, {
+                          expected_price: meta.data!.direct_costs[card.rank],
+                        })
+                      }
+                    >
+                      {ru
+                        ? `Получить за ${meta.data!.direct_costs[card.rank]} ◉`
+                        : `Acquire for ${meta.data!.direct_costs[card.rank]} ◉`}
+                    </button>
+                  )}
                   {view === "mine" && (
                     <div className="archive-actions">
                       {["DRAFT", "REJECTED"].includes(card.status) && (

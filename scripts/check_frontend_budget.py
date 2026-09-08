@@ -8,9 +8,9 @@ from urllib.parse import urlsplit
 
 
 LIMITS = {
-    # Stage 4: lazy card studio, catalogue and cipher (+32 KB), measured 529 KB.
+    # Stage 5: lazy pack shop, owner editor and inventory (+34 KB), measured 563 KB.
     # The public entry stays 292 KB; preserve its separate 310 KB ceiling.
-    "javascript_total": 540_000,
+    "javascript_total": 580_000,
     "initial_javascript": 310_000,
     # Nine reusable vector frames and the account menu: measured CSS 272 KB.
     "css_total": 280_000,

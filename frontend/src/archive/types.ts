@@ -19,7 +19,70 @@ export type Card = {
   rights_confirmed?: boolean
   review_note?: string
 }
-export type Meta = { heroes: { key: string; name: string }[]; ranks: Rank[]; can_publish: boolean }
+export type Meta = {
+  heroes: { key: string; name: string }[]
+  ranks: Rank[]
+  can_publish: boolean
+  can_manage_packs: boolean
+  account_key: string
+  direct_costs: Record<Rank, number>
+  default_weights: Record<Rank, number>
+}
+
+export type Odds = { rank: Rank; weight: number; total_weight: number; percent: number }
+export type Recommendation = {
+  price: number
+  model: number
+  discount_percent: number
+  expected_direct_cost: number
+  weeks_at_150: number
+}
+export type Pack = {
+  id: string
+  revision: number
+  title: string
+  description: string
+  price: number
+  draws: number
+  active: boolean
+  starter: boolean
+  ready: boolean
+  card_count: number
+  cover: Card | null
+  odds: Odds[]
+  recommendation: Recommendation
+  entries?: { card_id: string; weight: number; rank: Rank; percent: number; card: Card | null }[]
+}
+export type Receipt = {
+  id: string
+  kind: string
+  delta: number
+  balance_after: number
+  created_at: string
+  pack?: { id: string; title: string; price: number; revision: number; draws: number; odds: Odds[] }
+  items: {
+    id: string
+    card: Card
+    duplicate: boolean
+    test_grant: boolean
+    recycle_value: number
+  }[]
+}
+export type Inventory = {
+  items: {
+    card: Card
+    quantity: number
+    test_count: number
+    recycle: { id: string; value: number } | null
+  }[]
+  total: number
+}
+export type Showcase = {
+  card_ids: string[]
+  is_public: boolean
+  revision: number
+  profile_public: boolean
+}
 export type Round = {
   id: string
   slot: number
