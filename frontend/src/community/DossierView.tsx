@@ -3,6 +3,7 @@ import mark from "@/imports/mark.svg"
 import { contractTitle, useLanguage } from "../i18n"
 import { Seal } from "./Shared"
 import type { Module, Profile } from "./types"
+import CardPreview from "../archive/CardPreview"
 
 export function visibleProfile(profile: Profile): Profile {
   const achievements =
@@ -18,6 +19,7 @@ export function visibleProfile(profile: Profile): Profile {
       ? profile.featured_achievement
       : null,
     showcase: profile.show_showcase ? profile.showcase : [],
+    cards: profile.show_cards ? profile.cards : [],
     bureau: profile.show_bureau ? profile.bureau : null,
     links: profile.show_links ? profile.links : {},
   }
@@ -189,6 +191,19 @@ export default function DossierView({
           {(profile.showcase_order || ["contracts", "achievements", "bureau"]).map((key) => (
             <div key={key}>{modules[key]}</div>
           ))}
+          {profile.show_cards && !!profile.cards?.length && (
+            <section className="dossier-module">
+              <header>
+                <h2>{ru ? "Коллекция карточек" : "Card showcase"}</h2>
+                <span>{profile.cards.length} / 3</span>
+              </header>
+              <div className="dossier-card-showcase">
+                {profile.cards.map((card) => (
+                  <CardPreview key={card.id} card={card} />
+                ))}
+              </div>
+            </section>
+          )}
         </div>
         <aside className="dossier-sidebar">
           {featured && (

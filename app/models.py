@@ -95,6 +95,75 @@ class ArchiveLedger(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
 
+class ArchivePack(Base):
+    __tablename__ = "archive_packs"
+    __table_args__ = (CheckConstraint("revision > 0", name="ck_archive_pack_revision"),)
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uuid4)
+    creator_id: Mapped[str | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"))
+    revision: Mapped[int] = mapped_column(Integer, default=1)
+    active: Mapped[bool] = mapped_column(Boolean, default=False, index=True)
+    starter: Mapped[bool] = mapped_column(Boolean, default=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class ArchivePackVersion(Base):
+    __tablename__ = "archive_pack_versions"
+    __table_args__ = (UniqueConstraint("pack_id", "revision", name="uq_archive_pack_version"),)
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uuid4)
+    pack_id: Mapped[str] = mapped_column(ForeignKey("archive_packs.id", ondelete="CASCADE"), index=True)
+    revision: Mapped[int] = mapped_column(Integer)
+    # Immutable configuration, including its title, price, draw count and weighted pool.
+    config: Mapped[dict[str, Any]] = mapped_column(JSON)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class ArchiveOperation(Base):
+    __tablename__ = "archive_operations"
+    __table_args__ = (
+        UniqueConstraint("user_id", "request_key", name="uq_archive_operation_request"),
+        UniqueConstraint("user_id", "benefit_key", name="uq_archive_operation_benefit"),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uuid4)
+    user_id: Mapped[str] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    request_key: Mapped[str] = mapped_column(String(36))
+    signature: Mapped[str] = mapped_column(String(64))
+    benefit_key: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    kind: Mapped[str] = mapped_column(String(32))
+    pack_version_id: Mapped[str | None] = mapped_column(ForeignKey("archive_pack_versions.id", ondelete="RESTRICT"), nullable=True)
+    result: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class ArchiveItem(Base):
+    __tablename__ = "archive_items"
+    __table_args__ = (
+        CheckConstraint("cost_basis >= 0", name="ck_archive_item_cost"),
+        Index("ix_archive_items_owner_card_state", "user_id", "card_id", "state"),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uuid4)
+    user_id: Mapped[str] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    card_id: Mapped[str] = mapped_column(ForeignKey("archive_cards.id", ondelete="RESTRICT"), index=True)
+    operation_id: Mapped[str] = mapped_column(ForeignKey("archive_operations.id", ondelete="CASCADE"))
+    cost_basis: Mapped[int] = mapped_column(Integer, default=0)
+    test_grant: Mapped[bool] = mapped_column(Boolean, default=False)
+    state: Mapped[str] = mapped_column(String(16), default="OWNED")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class ArchiveShowcase(Base):
+    __tablename__ = "archive_showcases"
+
+    user_id: Mapped[str] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), primary_key=True)
+    card_ids: Mapped[list[str]] = mapped_column(JSON, default=list)
+    is_public: Mapped[bool] = mapped_column(Boolean, default=False)
+    revision: Mapped[int] = mapped_column(Integer, default=1)
+
+
 class PublicProfile(Base):
     __tablename__ = "public_profiles"
     __table_args__ = (UniqueConstraint("user_id", name="uq_public_profile_user"),)

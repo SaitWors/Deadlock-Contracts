@@ -27,6 +27,7 @@ import {
 
 const ArchivePage = lazy(() => import("./archive/ArchivePage"))
 const CardReviewDesk = lazy(() => import("./admin/CardReviewDesk"))
+const OwnerArchiveDesk = lazy(() => import("./admin/OwnerArchiveDesk"))
 
 const BureauModerationDesk = lazy(() => import("./admin/BureauModerationDesk"))
 
@@ -582,6 +583,7 @@ type AdminSection =
   | "reviews"
   | "bureau_reports"
   | "cards"
+  | "packs"
   | "announcements"
   | "matches"
   | "boards"
@@ -599,6 +601,7 @@ const ADMIN_SECTION_PERMISSIONS: Record<AdminSection, string> = {
   reviews: "reviews.read",
   bureau_reports: "bureaus.moderate",
   cards: "cards.publish",
+  packs: "packs.manage",
   announcements: "announcements.read",
   matches: "matches.read",
   boards: "boards.read",
@@ -617,6 +620,7 @@ const ADMIN_SECTION_ORDER: Array<[AdminSection, string]> = [
   ["reviews", "Проверки"],
   ["bureau_reports", "Бюро игроков"],
   ["cards", "Карточки"],
+  ["packs", "Конверты · OWNER"],
   ["announcements", "Уведомления"],
   ["matches", "Матчи"],
   ["boards", "Дела"],
@@ -681,6 +685,8 @@ type Tab =
   | "archive"
   | "studio"
   | "wallet"
+  | "packs"
+  | "collection"
 type QuestFilter = "ALL" | "COMBAT" | "SUPPORT" | "ECONOMY" | "SURVIVAL"
 
 class ApiError extends Error {
@@ -1096,6 +1102,8 @@ export default function Dashboard({ initialSession }: { initialSession: SessionP
         "archive",
         "studio",
         "wallet",
+        "packs",
+        "collection",
         "admin",
       ].includes(hash)
     )
@@ -2356,7 +2364,7 @@ export default function Dashboard({ initialSession }: { initialSession: SessionP
             </>
           )}
 
-          {["archive", "studio", "wallet"].includes(tab) && (
+          {["archive", "studio", "wallet", "packs", "collection"].includes(tab) && (
             <Suspense
               fallback={
                 <p role="status">{language === "ru" ? "Открываем архив…" : "Opening archive…"}</p>
@@ -2365,7 +2373,7 @@ export default function Dashboard({ initialSession }: { initialSession: SessionP
               <ArchivePage
                 key={tab}
                 csrf={csrf}
-                mode={tab as "archive" | "studio" | "wallet"}
+                mode={tab as "archive" | "studio" | "wallet" | "packs" | "collection"}
                 onWalletChange={() => setArchiveRevision((value) => value + 1)}
               />
             </Suspense>
@@ -3822,6 +3830,11 @@ function AdminConsole({
         />
       )}
 
+      {section === "packs" && (
+        <Suspense fallback={<p role="status">Конверты / Packs…</p>}>
+          <OwnerArchiveDesk csrf={csrf} permissions={auth.permissions} />
+        </Suspense>
+      )}
       {section === "cards" && (
         <Suspense fallback={<p role="status">Карточки / Cards…</p>}>
           <CardReviewDesk csrf={csrf} />

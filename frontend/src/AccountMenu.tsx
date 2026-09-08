@@ -31,6 +31,11 @@ export default function AccountMenu({
     `/api/bureaus?menu=${open ? "open" : "closed"}`,
   )
   useEffect(() => {
+    const refresh = () => wallet.reload()
+    window.addEventListener("dc-archive-wallet", refresh)
+    return () => window.removeEventListener("dc-archive-wallet", refresh)
+  }, [])
+  useEffect(() => {
     if (!open) return
     first.current?.focus()
     const outside = (event: PointerEvent) => {
@@ -138,6 +143,14 @@ export default function AccountMenu({
             <span>F · E · D · C · B · A · S · SS · SSS</span>
           </button>
           <div className="bureau-profile-links">
+            <button onClick={() => go("packs")}>
+              {ru ? "Конверты архива" : "Archive envelopes"}
+              <span>✉</span>
+            </button>
+            <button onClick={() => go("collection")}>
+              {ru ? "Моя коллекция" : "My collection"}
+              <span>▤</span>
+            </button>
             <button onClick={() => go("studio")}>
               {ru ? "Мои карточки и заявки" : "My designs & submissions"}
               <span>▤</span>

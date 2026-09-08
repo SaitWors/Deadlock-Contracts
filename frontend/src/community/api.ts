@@ -1,6 +1,15 @@
 import { useEffect, useState } from "react"
 import { apiLanguage, useLanguage } from "../i18n"
 
+export class ApiError extends Error {
+  constructor(
+    message: string,
+    public status: number,
+  ) {
+    super(message)
+  }
+}
+
 export async function request<T>(url: string, csrf = "", init: RequestInit = {}): Promise<T> {
   const headers = new Headers(init.headers)
   headers.set("Accept", "application/json")
@@ -11,7 +20,10 @@ export async function request<T>(url: string, csrf = "", init: RequestInit = {})
   const response = await fetch(url, { ...init, headers, credentials: "same-origin" })
   const data = await response.json().catch(() => null)
   if (!response.ok)
-    throw new Error(typeof data?.detail === "string" ? data.detail : `HTTP ${response.status}`)
+    throw new ApiError(
+      typeof data?.detail === "string" ? data.detail : `HTTP ${response.status}`,
+      response.status,
+    )
   return data as T
 }
 

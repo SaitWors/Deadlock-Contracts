@@ -840,11 +840,13 @@ def _profile_showcase(db: Session, user: User, limit: int = 3, pinned_ids: list[
 
 
 def _public_profile_payload(db: Session, user: User, profile: PublicProfile, *, private: bool = False) -> dict:
+    from .services.archive_packs import profile_cards
     progression = user_progression(db, user)
     collection = achievement_collection(db, user.id) if private or (profile.show_achievements and profile.show_stats) else None
     achievements = collection["items"] if collection else []
     featured = next((item for item in achievements if item["id"] == profile.featured_achievement and item["earned"]), None)
     payload = {
+        **profile_cards(db, user.id, public_slug=None if private else profile.slug),
         "slug": profile.slug,
         "headline": profile.headline,
         "bio": profile.bio,
@@ -1334,6 +1336,10 @@ app.include_router(build_community_operations_router(_require_permission))
 
 from .archive import build_router as build_archive_router
 
+from .archive_packs import build_router as build_archive_packs_router
+
+# Specific acquisition routes precede the existing card author-action route.
+app.include_router(build_archive_packs_router(_require_permission, _effective_access_role))
 app.include_router(build_archive_router(_require_permission, _effective_access_role))
 
 def _require_owner(admin: User = Depends(_require_admin)) -> User:

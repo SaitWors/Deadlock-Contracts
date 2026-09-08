@@ -32,6 +32,8 @@ export type Showcase = {
 }
 export type Module = "contracts" | "achievements" | "bureau"
 export type Profile = {
+  show_cards?: boolean
+  cards?: import("../archive/types").Card[]
   slug: string
   headline: string
   bio: string

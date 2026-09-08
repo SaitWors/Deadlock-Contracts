@@ -19,6 +19,8 @@ ALL_PERMISSIONS = frozenset(
         "reviews.decide",
         "bureaus.moderate",
         "cards.publish",
+        "packs.manage",
+        "archive.grant_self",
         "matches.read",
         "boards.read",
         "companions.read",

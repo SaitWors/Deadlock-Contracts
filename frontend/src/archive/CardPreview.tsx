@@ -1,4 +1,5 @@
 import { RANKS, type Card } from "./types"
+import "./card-preview.css"
 
 export default function CardPreview({
   card,
@@ -11,6 +12,7 @@ export default function CardPreview({
       className="archive-card"
       data-rank={card.rank}
       aria-label={`${card.hero_name} · ${card.title} · ${card.rank}`}
+      title={`${card.hero_name} · ${card.title} · ${card.rank}`}
     >
       <div className="archive-card-art">
         {card.image_url ? (
@@ -58,15 +60,15 @@ export default function CardPreview({
                 strokeWidth="2"
               />
             )}
-            {tier >= 6 && (
+            {!flip && tier >= 6 && (
               <path
                 d="M130 6L160 19L200 3L240 19L270 6M165 32L200 16L235 32L200 49Z"
                 stroke="currentColor"
                 strokeWidth="3"
               />
             )}
-            {tier >= 7 && <circle cx="200" cy="33" r="8" fill="currentColor" />}
-            {tier === 8 && (
+            {!flip && tier >= 7 && <circle cx="200" cy="33" r="8" fill="currentColor" />}
+            {!flip && tier === 8 && (
               <path
                 d="M172 61L200 49L228 61M187 68L200 88L213 68"
                 stroke="currentColor"
@@ -81,7 +83,6 @@ export default function CardPreview({
       <figcaption>
         <small>{card.hero_name || "DEADLOCK CONTRACTS"}</small>
         <strong>{card.title || "…"}</strong>
-        <span>ARCHIVE / {card.rank}</span>
       </figcaption>
     </figure>
   )
