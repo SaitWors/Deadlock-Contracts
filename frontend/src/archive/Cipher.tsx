@@ -1,9 +1,10 @@
-import { useEffect, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import { request } from "../community/api"
 import { useLanguage } from "../i18n"
 import type { Round, Wallet } from "./types"
 
-const glyphs = ["✧", "◈", "▤", "♟", "⌘", "⌛"]
+import Regalia from "../regalia/Regalia"
+import { CIPHER_ART } from "../regalia/catalog"
 const names = {
   ru: ["Компас", "Хамелеон", "Документы", "Сыщики", "Руки", "Часы"],
   en: ["Compass", "Chameleon", "Documents", "Detectives", "Hands", "Hourglass"],
@@ -24,10 +25,13 @@ export default function Cipher({
   const [choice, setChoice] = useState<number[]>([])
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState("")
+  const guard = useRef(false)
   useEffect(() => {
     if (wallet.round) setRound(wallet.round)
   }, [wallet.round])
   const act = async (url: string, body?: unknown) => {
+    if (guard.current) return
+    guard.current = true
     setBusy(true)
     setError("")
     try {
@@ -42,6 +46,7 @@ export default function Cipher({
       setError((reason as Error).message)
       onEarned()
     } finally {
+      guard.current = false
       setBusy(false)
     }
   }
@@ -88,7 +93,9 @@ export default function Cipher({
               </p>
             )}
             <div className="archive-cipher-symbols" aria-hidden="true">
-              ✧ ◈ ▤ ⌘
+              {CIPHER_ART.slice(0, 4).map((id) => (
+                <Regalia key={id} id={id} />
+              ))}
             </div>
             <button
               className="archive-primary"
@@ -110,8 +117,14 @@ export default function Cipher({
             <ol className="archive-guesses" aria-live="polite">
               {round.guesses.map((guess, i) => (
                 <li key={i}>
-                  <span aria-label={guess.symbols.map((s) => names[language][s]).join(", ")}>
-                    {guess.symbols.map((s) => glyphs[s]).join(" ")}
+                  <span
+                    className="cipher-guess-art"
+                    role="img"
+                    aria-label={guess.symbols.map((s) => names[language][s]).join(", ")}
+                  >
+                    {guess.symbols.map((s) => (
+                      <Regalia key={s} id={CIPHER_ART[s]} />
+                    ))}
                   </span>
                   <small>
                     {guess.exact} {ru ? "на месте" : "exact"} · {guess.misplaced}{" "}
@@ -151,13 +164,17 @@ export default function Cipher({
                   ))}
                 </div>
                 <div className="archive-symbol-picker">
-                  {glyphs.map((glyph, id) => (
+                  {CIPHER_ART.map((art, id) => (
                     <button
                       key={id}
                       disabled={busy || choice.includes(id) || choice.length === 4}
-                      onClick={() => setChoice((old) => [...old, id])}
+                      onClick={() =>
+                        setChoice((old) =>
+                          old.length < 4 && !old.includes(id) ? [...old, id] : old,
+                        )
+                      }
                     >
-                      <b>{glyph}</b>
+                      <Regalia id={art} />
                       {names[language][id]}
                     </button>
                   ))}

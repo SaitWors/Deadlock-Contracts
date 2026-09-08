@@ -420,3 +420,66 @@ test("wallet distinguishes paid openings and owner adjustments without a doubled
   assert.doesNotMatch(text, /\+-30/)
   await api.act(async () => root.unmount())
 })
+
+test("seal picker preserves symbol numbers and cannot double-select or submit twice", async () => {
+  const writes = []
+  let resolve
+  const { api, doc, w } = runtime((url, init) => {
+    writes.push({ url, init, body: JSON.parse(init.body) })
+    return new Promise((done) => {
+      resolve = done
+    })
+  })
+  let root
+  await api.act(async () => {
+    root = api.mount(doc.getElementById("mount"), "cipher", {
+      wallet: {
+        ...wallet,
+        round: { id: "round", revision: 2, status: "OPEN", guesses: [], solution: null },
+      },
+      csrf: "csrf",
+      onEarned() {},
+    })
+  })
+  const picker = () => [...doc.querySelectorAll(".archive-symbol-picker button")]
+  assert.equal(picker().length, 6)
+  assert.equal(
+    picker()[0].querySelector("[data-regalia]").getAttribute("data-regalia"),
+    "seal-compass",
+  )
+  await api.act(async () => {
+    picker()[0].click()
+    picker()[0].click()
+  })
+  assert.equal(
+    [...doc.querySelectorAll(".archive-choice span")].filter((s) => s.textContent === "Компас")
+      .length,
+    1,
+  )
+  for (const id of [2, 4, 5]) await api.act(async () => picker()[id].click())
+  assert.ok(picker().every((button) => button.disabled))
+  await api.act(async () => {
+    button(doc, "Проверить").click()
+    button(doc, "Проверить").click()
+  })
+  assert.equal(writes.length, 1)
+  assert.deepEqual(writes[0].body, { revision: 2, symbols: [0, 2, 4, 5] })
+  assert.equal(new w.Headers(writes[0].init.headers).get("X-CSRF-Token"), "csrf")
+  await api.act(async () =>
+    resolve(
+      response({
+        round: {
+          id: "round",
+          revision: 3,
+          status: "OPEN",
+          guesses: [{ symbols: [0, 2, 4, 5], exact: 2, misplaced: 1 }],
+        },
+      }),
+    ),
+  )
+  assert.match(
+    doc.querySelector(".cipher-guess-art").getAttribute("aria-label"),
+    /Компас, Документы, Руки, Часы/,
+  )
+  await api.act(async () => root.unmount())
+})

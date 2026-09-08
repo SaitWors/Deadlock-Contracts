@@ -1,5 +1,6 @@
 import type { ReactNode } from "react"
 import mark from "@/imports/mark.svg"
+import Regalia from "../regalia/Regalia"
 import { contractTitle, useLanguage } from "../i18n"
 import { Seal } from "./Shared"
 import type { Module, Profile } from "./types"
@@ -40,7 +41,7 @@ export default function DossierView({
   )
   const names: Record<Module, string> = {
     contracts: ru ? "Витрина дел" : "Case showcase",
-    achievements: ru ? "Коллекция печатей" : "Seal collection",
+    achievements: ru ? "Медали и печати" : "Medals & seals",
     bureau: ru ? "Моё бюро" : "My bureau",
   }
   const modules: Record<Module, ReactNode> = {
@@ -101,8 +102,8 @@ export default function DossierView({
           {!profile.achievements.some((item) => item.earned) && (
             <p className="community-muted">
               {ru
-                ? "Первый завершённый контракт откроет первую печать."
-                : "Your first completed contract unlocks your first seal."}
+                ? "Первый завершённый контракт откроет первую медаль."
+                : "Your first completed contract unlocks your first medal."}
             </p>
           )}
         </div>
@@ -117,7 +118,7 @@ export default function DossierView({
           </span>
         </header>
         <div className="dossier-bureau">
-          <img src={mark} alt="" />
+          <Regalia id="seal-team" />
           <div>
             <h3>{profile.bureau.name}</h3>
             <p>

@@ -2,6 +2,7 @@ import { useRef, useState } from "react"
 import { useLanguage } from "../i18n"
 import { request, useResource } from "./api"
 import { LoadState } from "./Shared"
+import Regalia from "../regalia/Regalia"
 
 type Operation = {
   id: string
@@ -99,8 +100,13 @@ export default function Operations({
   const selected = resource.data?.templates[template]
   return (
     <section className="community-panel bureau-operations">
-      <p className="community-eyebrow">{ru ? "ОБЩЕЕ ДЕЛО" : "SHARED PURPOSE"}</p>
-      <h2>{ru ? "Совместные операции" : "Joint operations"}</h2>
+      <div className="bureau-regalia-heading">
+        <Regalia id="seal-team" />
+        <div>
+          <p className="community-eyebrow">{ru ? "ОБЩЕЕ ДЕЛО" : "SHARED PURPOSE"}</p>
+          <h2>{ru ? "Совместные операции" : "Joint operations"}</h2>
+        </div>
+      </div>
       <p>
         {ru
           ? "Выберите общую цель. Выполняйте свои контракты и собирайте командную печать для витрины профиля."

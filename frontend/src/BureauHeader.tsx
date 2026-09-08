@@ -8,12 +8,14 @@ export default function BureauHeader({
   onNavigate,
   actions,
   mobileActions,
+  mobileItems,
 }: {
   items: { id: string; label: string; badge?: string }[]
   active: string
   onNavigate: (id: string) => void
   actions: ReactNode
   mobileActions?: ReactNode
+  mobileItems?: { id: string; label: string; badge?: string }[]
 }) {
   const { language } = useLanguage()
   const [open, setOpen] = useState(false)
@@ -94,7 +96,7 @@ export default function BureauHeader({
           id={menuId}
           aria-label={language === "ru" ? "Мобильная навигация" : "Mobile navigation"}
         >
-          {items.map((item) => (
+          {(mobileItems || items).map((item) => (
             <button
               key={item.id}
               aria-current={active === item.id ? "page" : undefined}

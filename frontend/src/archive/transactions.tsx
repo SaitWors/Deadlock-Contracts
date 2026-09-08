@@ -2,6 +2,7 @@ import { useEffect, useState } from "react"
 import { ApiError, request } from "../community/api"
 import { useLanguage } from "../i18n"
 import CardPreview from "./CardPreview"
+import Regalia from "../regalia/Regalia"
 import type { Receipt } from "./types"
 
 type Pending = { url: string; body: Record<string, unknown> & { request_key: string } }
@@ -156,7 +157,7 @@ export function ReceiptView({ receipt, onClose }: { receipt: Receipt; onClose?: 
       </p>
       {!revealed ? (
         <div className="archive-envelope-reveal">
-          <span aria-hidden="true">✧</span>
+          <Regalia id="seal-archive" />
           <p>
             {ru
               ? "Карточки уже сохранены в коллекции."

@@ -10,12 +10,14 @@ export default function AccountMenu({
   csrf,
   revision,
   onNavigate,
+  onOpenGuide,
 }: {
   user: { display_name: string; avatar_url: string | null; xp: number; is_staff: boolean }
   level: number
   csrf: string
   revision: number
   onNavigate: (tab: string) => void
+  onOpenGuide?: () => void
 }) {
   const { language, locale } = useLanguage()
   const ru = language === "ru"
@@ -170,6 +172,20 @@ export default function AccountMenu({
               </button>
             )}
           </div>
+          {onOpenGuide && (
+            <div className="bureau-profile-links">
+              <button
+                onClick={() => {
+                  setOpen(false)
+                  trigger.current?.focus()
+                  onOpenGuide()
+                }}
+              >
+                {ru ? "Как работает бюро · 3 шага" : "How the bureau works · 3 steps"}
+                <span>?</span>
+              </button>
+            </div>
+          )}
           {error && <p role="alert">{error}</p>}
           <button
             className="bureau-profile-logout"

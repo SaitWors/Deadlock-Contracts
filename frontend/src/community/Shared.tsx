@@ -1,4 +1,6 @@
 import type { ReactNode } from "react"
+import Regalia from "../regalia/Regalia"
+import { ACHIEVEMENT_ART } from "../regalia/catalog"
 import { useLanguage } from "../i18n"
 import type { Achievement } from "./types"
 
@@ -52,6 +54,9 @@ const GLYPHS: Record<string, string> = {
   four_categories: "M18 18h10v10H18z M36 18h10v10H36z M18 36h10v10H18z M36 36h10v10H36z",
 }
 export function Seal({ item }: { item: Achievement }) {
+  const art = ACHIEVEMENT_ART[item.id]
+  if (art)
+    return <Regalia id={art} className={`community-seal ${item.earned ? "earned" : "locked"}`} />
   return (
     <svg
       className={`community-seal ${item.earned ? "earned" : "locked"}`}
