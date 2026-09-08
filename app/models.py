@@ -4,7 +4,7 @@ import uuid
 from datetime import date, datetime, timezone
 from typing import Any
 
-from sqlalchemy import BigInteger, Boolean, Date, DateTime, Float, ForeignKey, Index, Integer, JSON, String, Text, UniqueConstraint, text
+from sqlalchemy import BigInteger, Boolean, CheckConstraint, Date, DateTime, Float, ForeignKey, Index, Integer, JSON, LargeBinary, String, Text, UniqueConstraint, text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from .db import Base
@@ -35,6 +35,64 @@ class User(Base):
     public_badges: Mapped[list[str]] = mapped_column(JSON, default=list)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
+
+
+class ArchiveCard(Base):
+    __tablename__ = "archive_cards"
+    __table_args__ = (CheckConstraint("revision > 0", name="ck_archive_card_revision"),)
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uuid4)
+    creator_id: Mapped[str | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"), index=True)
+    hero: Mapped[str] = mapped_column(String(40), index=True)
+    rank: Mapped[str] = mapped_column(String(3), index=True)
+    title: Mapped[str] = mapped_column(String(80))
+    description: Mapped[str] = mapped_column(String(600), default="")
+    artist: Mapped[str] = mapped_column(String(100), default="")
+    source_url: Mapped[str] = mapped_column(String(500), default="")
+    rights_confirmed: Mapped[bool] = mapped_column(Boolean, default=False)
+    image_data: Mapped[bytes | None] = mapped_column(LargeBinary, nullable=True, deferred=True)
+    image_digest: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    crop_x: Mapped[int] = mapped_column(Integer, default=50)
+    crop_y: Mapped[int] = mapped_column(Integer, default=50)
+    zoom: Mapped[float] = mapped_column(Float, default=1.0)
+    frame_version: Mapped[int] = mapped_column(Integer, default=1)
+    status: Mapped[str] = mapped_column(String(16), default="DRAFT", index=True)
+    revision: Mapped[int] = mapped_column(Integer, default=1)
+    review_note: Mapped[str] = mapped_column(String(600), default="")
+    reviewed_by: Mapped[str | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    submitted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    published_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
+class ArchiveCipher(Base):
+    __tablename__ = "archive_ciphers"
+    __table_args__ = (UniqueConstraint("user_id", "week", "slot", name="uq_archive_cipher_slot"),
+                     CheckConstraint("slot BETWEEN 1 AND 5", name="ck_archive_cipher_slot"))
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uuid4)
+    user_id: Mapped[str] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    week: Mapped[date] = mapped_column(Date)
+    slot: Mapped[int] = mapped_column(Integer)
+    solution: Mapped[list[int]] = mapped_column(JSON)
+    guesses: Mapped[list[list[int]]] = mapped_column(JSON, default=list)
+    status: Mapped[str] = mapped_column(String(16), default="OPEN")
+    revision: Mapped[int] = mapped_column(Integer, default=1)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
+class ArchiveLedger(Base):
+    __tablename__ = "archive_ledger"
+    __table_args__ = (UniqueConstraint("user_id", "source", name="uq_archive_ledger_source"),)
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uuid4)
+    user_id: Mapped[str] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    source: Mapped[str] = mapped_column(String(80))
+    reason: Mapped[str] = mapped_column(String(32))
+    delta: Mapped[int] = mapped_column(Integer)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
 
 class PublicProfile(Base):

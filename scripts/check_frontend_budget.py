@@ -8,14 +8,12 @@ from urllib.parse import urlsplit
 
 
 LIMITS = {
-    # Stage 3 adds operations, private appeals and a lazy staff queue (+19 KB).
-    # Measured total: 497 KB; public entry remains 292 KB. Both budgets apply.
-    "javascript_total": 510_000,
+    # Stage 4: lazy card studio, catalogue and cipher (+32 KB), measured 529 KB.
+    # The public entry stays 292 KB; preserve its separate 310 KB ceiling.
+    "javascript_total": 540_000,
     "initial_javascript": 310_000,
-    # PR #29 adds the system-announcement UI across the public app and admin center.
-    # Keep the CSS budget enforced, but rebaseline it above the measured 248,851-byte
-    # production bundle instead of disabling or bypassing the asset-budget gate.
-    "css_total": 260_000,
+    # Nine reusable vector frames and the account menu: measured CSS 272 KB.
+    "css_total": 280_000,
     "largest_image": 600_000,
     "assets_total": 2_300_000,
 }

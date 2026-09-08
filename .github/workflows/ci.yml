@@ -171,6 +171,9 @@ jobs:
         run: |
           python scripts/ci_community_smoke.py
 
+      - name: Verify archive currency concurrency
+        run: python scripts/ci_archive_smoke.py
+
       - name: Verify final head
         run: |
           python -m alembic current --check-heads

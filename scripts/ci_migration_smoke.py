@@ -49,7 +49,7 @@ def main() -> None:
             f"Database must begin at head {head}, got {before}"
         )
 
-    # Preserve the existing profile and backfill membership history from 0014.
+    # Preserve the existing profile and preserve membership history across the latest migration.
     token = uuid4().hex[:12]
     with SessionLocal() as db:
         player = User(display_name="Migration preservation check")
@@ -63,6 +63,7 @@ def main() -> None:
         member = BureauMembership(bureau_id=bureau.id, user_id=player.id, role="DIRECTOR")
         db.add(member); db.flush()
         member_id, joined_at = member.id, member.joined_at
+        db.add(BureauMembershipPeriod(id=member_id, bureau_id=bureau.id, user_id=player.id, joined_at=joined_at))
         db.commit()
 
     print(f"Downgrade smoke: {head} -> {parent}")
@@ -100,7 +101,7 @@ def main() -> None:
         db.execute(delete(PlayerBureau).where(PlayerBureau.id == bureau_id))
         db.execute(delete(User).where(User.id == player_id))
         db.commit()
-    print("Existing profile preserved; bureau remains active; membership history backfilled")
+    print("Existing profile preserved; bureau remains active; membership history preserved")
 
     print(
         f"Migration smoke OK: "
