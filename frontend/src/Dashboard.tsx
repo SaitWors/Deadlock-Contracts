@@ -3,6 +3,7 @@ import markImage from "@/imports/mark.svg"
 import curatorImage from "@/imports/curator-optimized.webp"
 import ProfileStudio from "./ProfileStudio"
 import BureauHeader from "./BureauHeader"
+import AccountMenu from "./AccountMenu"
 import Leaderboard from "./community/Leaderboard"
 import Achievements from "./community/Achievements"
 import Bureaus from "./community/Bureaus"
@@ -23,6 +24,9 @@ import {
   useLanguage,
   type Language,
 } from "./i18n"
+
+const ArchivePage = lazy(() => import("./archive/ArchivePage"))
+const CardReviewDesk = lazy(() => import("./admin/CardReviewDesk"))
 
 const BureauModerationDesk = lazy(() => import("./admin/BureauModerationDesk"))
 
@@ -577,6 +581,7 @@ type AdminSection =
   | "users"
   | "reviews"
   | "bureau_reports"
+  | "cards"
   | "announcements"
   | "matches"
   | "boards"
@@ -593,6 +598,7 @@ const ADMIN_SECTION_PERMISSIONS: Record<AdminSection, string> = {
   users: "users.read",
   reviews: "reviews.read",
   bureau_reports: "bureaus.moderate",
+  cards: "cards.publish",
   announcements: "announcements.read",
   matches: "matches.read",
   boards: "boards.read",
@@ -610,6 +616,7 @@ const ADMIN_SECTION_ORDER: Array<[AdminSection, string]> = [
   ["users", "Игроки"],
   ["reviews", "Проверки"],
   ["bureau_reports", "Бюро игроков"],
+  ["cards", "Карточки"],
   ["announcements", "Уведомления"],
   ["matches", "Матчи"],
   ["boards", "Дела"],
@@ -671,6 +678,9 @@ type Tab =
   | "leaderboard"
   | "achievements"
   | "bureaus"
+  | "archive"
+  | "studio"
+  | "wallet"
 type QuestFilter = "ALL" | "COMBAT" | "SUPPORT" | "ECONOMY" | "SURVIVAL"
 
 class ApiError extends Error {
@@ -1068,6 +1078,7 @@ function ModeTabs({
 export default function Dashboard({ initialSession }: { initialSession: SessionPayload }) {
   const { language, locale } = useLanguage()
   const [user, setUser] = useState(initialSession.user)
+  const [archiveRevision, setArchiveRevision] = useState(0)
   const [csrf] = useState(initialSession.csrf_token)
   const tabFromLocation = (): Tab => {
     const hash = window.location.hash.slice(1).split("/")[0]
@@ -1082,6 +1093,10 @@ export default function Dashboard({ initialSession }: { initialSession: SessionP
         "achievements",
         "bureaus",
         "leaderboard",
+        "archive",
+        "studio",
+        "wallet",
+        "admin",
       ].includes(hash)
     )
       return hash as Tab
@@ -1440,7 +1455,8 @@ export default function Dashboard({ initialSession }: { initialSession: SessionP
     ["home", language === "ru" ? "ГЛАВНАЯ" : "HOME", "hq"],
     ["quests", language === "ru" ? "КОНТРАКТЫ" : "CONTRACTS", "contract"],
     ["active", language === "ru" ? "АКТИВНОЕ ДЕЛО" : "ACTIVE CASE", "case"],
-    ["history", language === "ru" ? "АРХИВ" : "ARCHIVE", "case"],
+    ["history", language === "ru" ? "ИСТОРИЯ ДЕЛ" : "CASE HISTORY", "case"],
+    ["archive", language === "ru" ? "АРХИВ КАРТОЧЕК" : "CARD ARCHIVE", "case"],
     ["achievements", language === "ru" ? "ДОСТИЖЕНИЯ" : "ACHIEVEMENTS", "case"],
     ["bureaus", language === "ru" ? "БЮРО ИГРОКОВ" : "PLAYER BUREAUS", "hq"],
     ["leaderboard", language === "ru" ? "РЕЙТИНГ" : "LEADERBOARD", "case"],
@@ -1488,7 +1504,7 @@ export default function Dashboard({ initialSession }: { initialSession: SessionP
       <BureauHeader
         active={tab}
         items={nav
-          .filter(([id]) => !["home", "profile", "active"].includes(id))
+          .filter(([id]) => !["home", "profile", "active", "history", "achievements"].includes(id))
           .map(([id, label]) => ({ id, label }))}
         onNavigate={(id) => setTab(id as Tab)}
         mobileActions={
@@ -1522,36 +1538,13 @@ export default function Dashboard({ initialSession }: { initialSession: SessionP
                     : "COMPANION"}
               </span>
             </button>
-            <button
-              className="dc-auth-account-button"
-              type="button"
-              onClick={() => setTab("profile")}
-              title={language === "ru" ? "Открыть профиль" : "Open profile"}
-            >
-              {user.avatar_url ? (
-                <img src={user.avatar_url} alt="" />
-              ) : (
-                <span className="dc-auth-account-avatar">DC</span>
-              )}
-              <span className="dc-auth-account-copy">
-                <b>{shownName}</b>
-                <small>
-                  {BADGE_META[user.badges?.[0] || "PLAYER"].label} · LVL {level} ·{" "}
-                  {user.xp.toLocaleString(locale)} XP
-                </small>
-              </span>
-            </button>
-            <button
-              className="dc-auth-logout"
-              type="button"
-              onClick={() =>
-                api("/api/auth/logout", csrf, { method: "POST" }).finally(() =>
-                  location.assign("/"),
-                )
-              }
-            >
-              {t(language, "Выйти")}
-            </button>
+            <AccountMenu
+              user={user}
+              level={level}
+              csrf={csrf}
+              revision={archiveRevision}
+              onNavigate={(next) => setTab(next as Tab)}
+            />
           </>
         }
       />
@@ -1595,6 +1588,22 @@ export default function Dashboard({ initialSession }: { initialSession: SessionP
 
           {tab === "home" && (
             <>
+              <div className="dc-home-archive-callout">
+                <div>
+                  <strong>{language === "ru" ? "Сегодня в бюро" : "Today at the bureau"}</strong>
+                  <p>
+                    {language === "ru"
+                      ? "Шифры и мастерская карточек доступны прямо в браузере."
+                      : "Ciphers and the card studio work in your browser."}
+                  </p>
+                </div>
+                <button className="dc-primary" onClick={() => setTab("archive")}>
+                  {language === "ru" ? "Разобрать шифр" : "Decode a cipher"}
+                </button>
+                <button className="dc-auth-account-button" onClick={() => setTab("studio")}>
+                  {language === "ru" ? "Создать карточку" : "Create a card"}
+                </button>
+              </div>
               <section className="dc-command-hero dc-v3-hero">
                 <div className="dc-command-copy">
                   <p className="dc-eyebrow">
@@ -2347,6 +2356,20 @@ export default function Dashboard({ initialSession }: { initialSession: SessionP
             </>
           )}
 
+          {["archive", "studio", "wallet"].includes(tab) && (
+            <Suspense
+              fallback={
+                <p role="status">{language === "ru" ? "Открываем архив…" : "Opening archive…"}</p>
+              }
+            >
+              <ArchivePage
+                key={tab}
+                csrf={csrf}
+                mode={tab as "archive" | "studio" | "wallet"}
+                onWalletChange={() => setArchiveRevision((value) => value + 1)}
+              />
+            </Suspense>
+          )}
           {tab === "leaderboard" && (
             <Leaderboard authenticated onProfile={() => setTab("profile")} />
           )}
@@ -3799,6 +3822,11 @@ function AdminConsole({
         />
       )}
 
+      {section === "cards" && (
+        <Suspense fallback={<p role="status">Карточки / Cards…</p>}>
+          <CardReviewDesk csrf={csrf} />
+        </Suspense>
+      )}
       {section === "bureau_reports" && (
         <Suspense fallback={<p role="status">Открываем обращения…</p>}>
           <BureauModerationDesk csrf={csrf} />

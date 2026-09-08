@@ -816,7 +816,9 @@ class EndToEndTests(unittest.TestCase):
 
     def test_request_guards_and_cookie_attributes(self) -> None:
         with TestClient(app) as client:
-            oversized = client.post("/api/auth/demo", content=b"x" * 70000)
+            oversized = client.post(
+                "/api/auth/demo", content=b"x" * (settings.max_request_body_bytes + 1)
+            )
             self.assertEqual(oversized.status_code, 413)
             oversized_error = oversized.json()
             self.assertEqual(oversized_error["code"], "PAYLOAD_TOO_LARGE")

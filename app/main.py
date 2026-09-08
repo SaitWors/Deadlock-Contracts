@@ -1332,6 +1332,10 @@ from .community_operations import build_router as build_community_operations_rou
 
 app.include_router(build_community_operations_router(_require_permission))
 
+from .archive import build_router as build_archive_router
+
+app.include_router(build_archive_router(_require_permission, _effective_access_role))
+
 def _require_owner(admin: User = Depends(_require_admin)) -> User:
     if _effective_access_role(admin) != "OWNER":
         raise HTTPException(403, "Требуется доступ владельца проекта")
@@ -4759,6 +4763,8 @@ def delete_account(
     db: Session = Depends(get_db),
 ) -> dict:
     leave_for_account_deletion(db, user.id)
+    from .models import ArchiveCard
+    db.execute(delete(ArchiveCard).where(ArchiveCard.creator_id == user.id, ArchiveCard.status.notin_(["PUBLISHED", "ARCHIVED"])))
     account_id = user.account_id
     submissions = list(db.scalars(select(EvidenceSubmission).where(EvidenceSubmission.user_id == user.id)).all())
     if submissions:

@@ -83,7 +83,7 @@ class Settings:
     request_timeout_seconds: float = float(os.getenv("REQUEST_TIMEOUT_SECONDS", "15"))
     request_connect_timeout_seconds: float = float(os.getenv("REQUEST_CONNECT_TIMEOUT_SECONDS", "5"))
     max_provider_response_bytes: int = int(os.getenv("MAX_PROVIDER_RESPONSE_BYTES", str(4 * 1024 * 1024)))
-    max_request_body_bytes: int = int(os.getenv("MAX_REQUEST_BODY_BYTES", str(64 * 1024)))
+    max_request_body_bytes: int = int(os.getenv("MAX_REQUEST_BODY_BYTES", str(1024 * 1024)))
     min_match_duration_seconds: int = int(os.getenv("MIN_MATCH_DURATION_SECONDS", "600"))
 
     global_rate_limit_per_minute: int = int(os.getenv("GLOBAL_RATE_LIMIT_PER_MINUTE", "240"))
