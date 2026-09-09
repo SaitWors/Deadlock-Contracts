@@ -1,16 +1,15 @@
 import { useRef, useState } from "react"
-import Regalia from "../regalia/Regalia"
+import Icon from "../icons/Icon"
+import BureauEditor from "./BureauEditor"
+import { appearanceOf, BureauHero, BureauCover, BureauEmblem } from "./BureauIdentity"
 import { useLanguage } from "../i18n"
 import { request, useResource } from "./api"
 import { LoadState, PageHead } from "./Shared"
 import Operations from "./Operations"
 import BureauSafety from "./BureauSafety"
-import type { BureauSummary, Theme } from "./types"
+import type { BureauSummary, BureauSettings } from "./types"
 
-type Settings = Pick<BureauSummary, "name" | "tagline" | "language" | "theme" | "recruitment"> & {
-  description: string
-  rules: string
-}
+type Settings = BureauSettings
 type Member = {
   id: string | null
   display_name: string | null
@@ -21,6 +20,11 @@ type Member = {
 }
 type Bureau = BureauSummary &
   Settings & {
+    design_revision?: number
+    listed?: boolean
+    welcome?: string
+    role_titles?: Record<string, string>
+    created_at?: string
     my_ban?: { reason: string } | null
     bans?: { id: string; display_name: string; reason: string }[]
     members: Member[]
@@ -52,156 +56,6 @@ const EMPTY: Settings & { slug: string } = {
   theme: "DOSSIER",
   recruitment: "APPLICATION",
 }
-function BureauEditor({
-  initial,
-  create = false,
-  busy,
-  onSave,
-  onCancel,
-}: {
-  initial: Settings & { slug?: string }
-  create?: boolean
-  busy: boolean
-  onSave: (value: Settings & { slug?: string }) => void
-  onCancel: () => void
-}) {
-  const { language } = useLanguage()
-  const ru = language === "ru"
-  const [draft, setDraft] = useState(initial)
-  const field = (key: keyof typeof draft, value: string) =>
-    setDraft((previous) => ({ ...previous, [key]: value }))
-  return (
-    <form
-      className="bureau-editor"
-      onSubmit={(event) => {
-        event.preventDefault()
-        onSave(draft)
-      }}
-    >
-      <h2>
-        {create
-          ? ru
-            ? "Открыть своё бюро"
-            : "Found your bureau"
-          : ru
-            ? "Настройки бюро"
-            : "Bureau settings"}
-      </h2>
-      <fieldset disabled={busy}>
-        <div className="community-form-grid">
-          <label>
-            {ru ? "Название · со словом Deadlock" : "Name · include the word Deadlock"}
-            <input
-              required
-              minLength={10}
-              maxLength={64}
-              value={draft.name}
-              onChange={(event) => field("name", event.target.value)}
-            />
-          </label>
-          {create && (
-            <label>
-              {ru
-                ? "Адрес · латиница, цифры, дефис"
-                : "Address · lowercase letters, numbers, hyphens"}
-              <input
-                required
-                minLength={3}
-                maxLength={32}
-                pattern="[a-z0-9]+(-[a-z0-9]+)*"
-                value={draft.slug || ""}
-                onChange={(event) => field("slug", event.target.value.toLowerCase())}
-              />
-            </label>
-          )}
-          <label className="span-two">
-            {ru ? "Девиз" : "Tagline"}
-            <input
-              maxLength={120}
-              value={draft.tagline}
-              onChange={(event) => field("tagline", event.target.value)}
-            />
-          </label>
-          <label>
-            {ru ? "О бюро" : "About the bureau"}
-            <textarea
-              rows={4}
-              maxLength={1200}
-              value={draft.description}
-              onChange={(event) => field("description", event.target.value)}
-            />
-          </label>
-          <label>
-            {ru ? "Правила вступления" : "Membership rules"}
-            <textarea
-              rows={4}
-              maxLength={1200}
-              value={draft.rules}
-              onChange={(event) => field("rules", event.target.value)}
-            />
-          </label>
-          <label>
-            {ru ? "Набор" : "Recruitment"}
-            <select
-              value={draft.recruitment}
-              onChange={(event) => field("recruitment", event.target.value)}
-            >
-              <option value="OPEN">{ru ? "Свободное вступление" : "Open membership"}</option>
-              <option value="APPLICATION">{ru ? "По заявкам" : "By application"}</option>
-              <option value="CLOSED">{ru ? "Закрыт" : "Closed"}</option>
-            </select>
-          </label>
-          <label>
-            {ru ? "Язык общения" : "Language"}
-            <select
-              value={draft.language}
-              onChange={(event) => field("language", event.target.value)}
-            >
-              <option value="ru">Русский</option>
-              <option value="en">English</option>
-              <option value="any">{ru ? "Любой" : "Any"}</option>
-            </select>
-          </label>
-          <label>
-            {ru ? "Обложка" : "Cover"}
-            <select
-              value={draft.theme}
-              onChange={(event) => field("theme", event.target.value as Theme)}
-            >
-              <option value="DOSSIER">DOSSIER</option>
-              <option value="NOIR">NOIR</option>
-              <option value="SIGNAL">SIGNAL</option>
-            </select>
-          </label>
-        </div>
-        <p className="community-muted">
-          {ru
-            ? "До 25 участников. Одно бюро на игрока. Имена и аватары видны своим участникам; для остальных действуют настройки профиля."
-            : "Up to 25 members. One bureau per player. Names and avatars are visible to fellow members; profile privacy applies to everyone else."}
-        </p>
-        <div className="community-actions">
-          <button className="dc-primary" type="submit">
-            {busy
-              ? ru
-                ? "Сохраняем…"
-                : "Saving…"
-              : create
-                ? ru
-                  ? "Создать бюро"
-                  : "Create bureau"
-                : ru
-                  ? "Сохранить"
-                  : "Save"}
-          </button>
-          <button className="dc-ghost" type="button" onClick={onCancel}>
-            {ru ? "Отмена" : "Cancel"}
-          </button>
-        </div>
-      </fieldset>
-    </form>
-  )
-}
-
 export default function Bureaus({
   csrf,
   slug,
@@ -258,10 +112,10 @@ export default function Bureaus({
       />
     )
   return (
-    <section className="community-page">
+    <section className="community-page guild-directory-page">
       <PageHead
         number="04 / PLAYER BUREAUS"
-        title={ru ? "Свои люди. Общее дело." : "Your people. A shared purpose."}
+        title={ru ? "Найдите своих в городе" : "Find your people in the city"}
         text={
           ru
             ? "Найдите людей с похожим стилем игры или откройте собственное бюро. Город достаточно большой для всех."
@@ -270,7 +124,7 @@ export default function Bureaus({
       >
         {resource.data?.my_bureau ? (
           <button className="dc-primary" onClick={() => onSelect(resource.data!.my_bureau!.slug)}>
-            {ru ? "Моё бюро ↗" : "My bureau ↗"}
+            <Icon name="users" /> {ru ? "Моё бюро" : "My bureau"}
           </button>
         ) : (
           <button
@@ -278,11 +132,10 @@ export default function Bureaus({
             disabled={resource.loading || !!resource.error}
             onClick={() => setCreating(!creating)}
           >
-            {ru ? "Основать бюро" : "Found a bureau"}
+            <Icon name="plus" /> {ru ? "Основать бюро" : "Found a bureau"}
           </button>
         )}
       </PageHead>
-      <BureauSafety />
       {error && (
         <p role="alert" className="community-error">
           {error}
@@ -319,6 +172,11 @@ export default function Bureaus({
           </button>
         </div>
       </form>
+      <p className="guild-directory-count">
+        {resource.data
+          ? `${resource.data.total} ${ru ? "бюро в каталоге" : "bureaus in the directory"}`
+          : ""}
+      </p>
       {resource.loading || resource.error || !resource.data ? (
         <LoadState error={resource.error} retry={resource.reload} />
       ) : (
@@ -327,13 +185,11 @@ export default function Bureaus({
             {resource.data.items.map((item) => (
               <button
                 key={item.slug}
-                className={`bureau-directory-card theme-${item.theme.toLowerCase()}`}
+                className={`bureau-directory-card guild-directory-card accent-${appearanceOf(item).accent.toLowerCase()}`}
                 onClick={() => onSelect(item.slug)}
               >
-                <div className="bureau-card-cover">
-                  <Regalia id="seal-witness" />
-                  <span>{item.language.toUpperCase()}</span>
-                </div>
+                <BureauCover item={item} />
+                <BureauEmblem item={item} />
                 <div className="bureau-card-copy">
                   <p className="community-eyebrow">
                     {resource.data?.my_bureau?.slug === item.slug
@@ -365,7 +221,7 @@ export default function Bureaus({
                     <span>
                       {item.member_count} / {item.capacity} {ru ? "участников" : "members"}
                     </span>
-                    <span>↗</span>
+                    <Icon name="arrow-up-right" />
                   </footer>
                 </div>
               </button>
@@ -440,7 +296,8 @@ function BureauDetail({
   const guard = useRef(false)
   const [error, setError] = useState("")
   const [notice, setNotice] = useState("")
-  const [editing, setEditing] = useState(false)
+  const [tab, setTab] = useState("about")
+  const [copyLink, setCopyLink] = useState(false)
   const [agreed, setAgreed] = useState(false)
   const [message, setMessage] = useState("")
   const [reason, setReason] = useState("")
@@ -480,7 +337,7 @@ function BureauDetail({
         return
       }
       if (result.bureau) resource.setData({ bureau: result.bureau })
-      setEditing(false)
+      if (path === "/customization") setTab("about")
       setMemberAction(null)
       setLiftBan("")
       setReason("")
@@ -496,27 +353,59 @@ function BureauDetail({
   const bureau = resource.data?.bureau
   const otherBureau = myBureau && myBureau.slug !== slug
   return (
-    <section className="community-page bureau-detail">
+    <section
+      className={`community-page bureau-detail guild-page accent-${appearanceOf(bureau || {}).accent.toLowerCase()}`}
+    >
       <button className="community-back" onClick={onBack}>
-        ← {ru ? "Все бюро" : "All bureaus"}
+        <Icon name="arrow-left" /> {ru ? "Все бюро" : "All bureaus"}
       </button>
       {resource.loading || resource.error || !bureau ? (
         <LoadState error={resource.error} retry={resource.reload} />
       ) : (
         <>
-          <div className={`bureau-detail-cover theme-${bureau.theme.toLowerCase()}`}>
-            <Regalia id="seal-witness" />
-            <div>
-              <p className="community-eyebrow">
-                {ru ? "БЮРО ИГРОКОВ" : "PLAYER BUREAU"} / {bureau.language.toUpperCase()}
-              </p>
-              <h1>{bureau.name}</h1>
-              <p>{bureau.tagline}</p>
-              <span>
-                {bureau.member_count} / {bureau.capacity} {ru ? "участников" : "members"}
-              </span>
-            </div>
-          </div>
+          <BureauHero item={bureau}>
+            <button className="dc-ghost" onClick={() => setCopyLink(!copyLink)}>
+              <Icon name="external-link" />
+              {ru ? "Пригласить" : "Invite"}
+            </button>
+            {bureau.can_manage && (
+              <button className="dc-primary" onClick={() => setTab("settings")}>
+                <Icon name="settings" />
+                {ru ? "Настроить бюро" : "Bureau settings"}
+              </button>
+            )}
+          </BureauHero>
+          {copyLink && (
+            <label className="guild-invite">
+              {ru ? "Скопируйте ссылку на бюро" : "Copy this bureau link"}
+              <input
+                readOnly
+                value={`${window.location.origin}/#bureaus/${bureau.slug}`}
+                onFocus={(event) => event.currentTarget.select()}
+              />
+            </label>
+          )}
+          <nav className="guild-tabs" aria-label={ru ? "Разделы бюро" : "Bureau sections"}>
+            {(
+              [
+                ["about", "info", ru ? "О бюро" : "About", true],
+                ["roster", "users", ru ? "Состав" : "Members", true],
+                ["operations", "target", ru ? "Операции" : "Operations", !!bureau.my_role],
+                ["requests", "mail", ru ? "Заявки" : "Applications", bureau.can_manage],
+                ["settings", "settings", ru ? "Управление" : "Management", bureau.can_manage],
+              ] as const
+            )
+              .filter((item) => item[3])
+              .map(([id, icon, label]) => (
+                <button key={id} type="button" aria-pressed={tab === id} onClick={() => setTab(id)}>
+                  <Icon name={icon} size={18} />
+                  {label}
+                  {id === "requests" && !!bureau.applications.length && (
+                    <b>{bureau.applications.length}</b>
+                  )}
+                </button>
+              ))}
+          </nav>
           {error && (
             <p role="alert" className="community-error">
               {error}
@@ -527,14 +416,6 @@ function BureauDetail({
               {notice}
             </p>
           )}
-          <div className="community-actions">
-            {bureau.my_role && <span className="bureau-role">{roles[bureau.my_role]}</span>}
-            {bureau.can_edit && (
-              <button className="dc-ghost" onClick={() => setEditing(!editing)}>
-                {ru ? "Настроить бюро" : "Bureau settings"}
-              </button>
-            )}
-          </div>
           {bureau.moderation_note && (
             <p role="status" className="community-error">
               {bureau.status === "FROZEN"
@@ -545,13 +426,7 @@ function BureauDetail({
               {bureau.moderation_note}
             </p>
           )}
-          <BureauSafety
-            slug={slug}
-            csrf={csrf}
-            banned={!!bureau.my_ban}
-            appeal={bureau.can_edit && bureau.status === "FROZEN"}
-          />
-          {bureau.my_role && (
+          {bureau.my_role && tab === "operations" && (
             <Operations
               slug={slug}
               csrf={csrf}
@@ -560,25 +435,42 @@ function BureauDetail({
               frozen={bureau.status === "FROZEN"}
             />
           )}
-          {editing && (
+          {tab === "settings" && bureau.can_edit && (
             <BureauEditor
               initial={{
                 name: bureau.name,
+                slug: bureau.slug,
                 tagline: bureau.tagline,
                 description: bureau.description,
                 rules: bureau.rules,
                 language: bureau.language,
                 theme: bureau.theme,
                 recruitment: bureau.recruitment,
+                appearance: bureau.appearance,
+                role_titles: bureau.role_titles as Settings["role_titles"],
+                listed: bureau.listed,
+                welcome: bureau.welcome,
+                expected_revision: bureau.design_revision,
+                avatar_url: bureau.avatar_url,
+                cover_url: bureau.cover_url,
               }}
               busy={busy}
-              onSave={(value) => void mutate("", value, "PUT")}
-              onCancel={() => setEditing(false)}
+              onSave={(value) => void mutate("/customization", value, "PUT")}
+              onCancel={() => setTab("about")}
             />
           )}
-          <div className="bureau-content-grid">
+          <div className="bureau-content-grid guild-content" data-section={tab}>
             <div>
-              <section className="community-panel">
+              {bureau.my_role && bureau.welcome && tab === "about" && (
+                <section className="community-panel guild-welcome">
+                  <Icon name="message-circle" size={24} />
+                  <div>
+                    <h2>{ru ? "Для своих" : "For our members"}</h2>
+                    <p className="community-prose">{bureau.welcome}</p>
+                  </div>
+                </section>
+              )}
+              <section className="community-panel" hidden={tab !== "about"}>
                 <h2>{ru ? "Наше дело" : "Our purpose"}</h2>
                 <p className="community-prose">
                   {bureau.description ||
@@ -594,59 +486,95 @@ function BureauDetail({
                       : "Respect each other and the community rules.")}
                 </p>
               </section>
-              <section className="community-panel">
+              <section
+                className="community-panel guild-roster-panel"
+                hidden={!["about", "roster"].includes(tab)}
+              >
                 <h2>
                   {ru ? "Состав бюро" : "Bureau roster"} <small>{bureau.member_count}</small>
                 </h2>
-                <ul className="bureau-members">
-                  {bureau.members.map((member, index) => (
-                    <li key={member.id || index}>
-                      {member.avatar_url ? (
-                        <img src={member.avatar_url} alt="" />
-                      ) : (
-                        <span className="community-avatar">DC</span>
-                      )}
-                      <div>
-                        {member.profile_url ? (
-                          <a href={member.profile_url}>{member.display_name}</a>
+                <ul
+                  className={`bureau-members guild-members roster-${appearanceOf(bureau).roster_layout.toLowerCase()}`}
+                >
+                  {(tab === "about" ? bureau.members.slice(0, 6) : bureau.members).map(
+                    (member, index) => (
+                      <li key={member.id || index}>
+                        {member.avatar_url ? (
+                          <img src={member.avatar_url} alt="" />
                         ) : (
-                          <b>
-                            {member.display_name || (ru ? "Скрытый профиль" : "Private profile")}
-                          </b>
+                          <span className="community-avatar">
+                            <Icon name="user-round" size={28} />
+                          </span>
                         )}
-                        <small>
-                          {roles[member.role]}
-                          {member.is_me ? (ru ? " · ВЫ" : " · YOU") : ""}
-                        </small>
-                      </div>
-                      {bureau.can_manage &&
-                        !member.is_me &&
-                        member.role !== "DIRECTOR" &&
-                        (bureau.can_edit || member.role === "OPERATIVE") && (
-                          <select
-                            aria-label={`${ru ? "Действие с участником" : "Member action"}: ${member.display_name}`}
-                            disabled={busy}
-                            value=""
-                            onChange={(event) =>
-                              setMemberAction({ member, action: event.target.value })
-                            }
-                          >
-                            <option value="">{ru ? "Управление" : "Manage"}</option>
-                            {bureau.can_edit && (
-                              <>
-                                <option value={member.role === "MODERATOR" ? "DEMOTE" : "PROMOTE"}>
-                                  {actionNames[member.role === "MODERATOR" ? "DEMOTE" : "PROMOTE"]}
-                                </option>
-                                <option value="TRANSFER">{actionNames.TRANSFER}</option>
-                              </>
-                            )}
-                            <option value="REMOVE">{actionNames.REMOVE}</option>
-                            <option value="BAN">{actionNames.BAN}</option>
-                          </select>
-                        )}
-                    </li>
-                  ))}
+                        <div>
+                          {member.profile_url ? (
+                            <a href={member.profile_url}>{member.display_name}</a>
+                          ) : (
+                            <b>
+                              {member.display_name || (ru ? "Скрытый профиль" : "Private profile")}
+                            </b>
+                          )}
+                          {bureau.role_titles?.[member.role] && (
+                            <span className="guild-custom-rank">
+                              {bureau.role_titles[member.role]}
+                            </span>
+                          )}
+                          <small className="guild-role">
+                            <Icon
+                              name={
+                                member.role === "DIRECTOR"
+                                  ? "crown"
+                                  : member.role === "MODERATOR"
+                                    ? "shield-check"
+                                    : "user-round"
+                              }
+                              size={14}
+                            />
+                            {roles[member.role]}
+                            {member.is_me ? (ru ? " · ВЫ" : " · YOU") : ""}
+                          </small>
+                        </div>
+                        {bureau.can_manage &&
+                          !member.is_me &&
+                          member.role !== "DIRECTOR" &&
+                          (bureau.can_edit || member.role === "OPERATIVE") && (
+                            <select
+                              aria-label={`${ru ? "Действие с участником" : "Member action"}: ${member.display_name}`}
+                              disabled={busy}
+                              value=""
+                              onChange={(event) =>
+                                setMemberAction({ member, action: event.target.value })
+                              }
+                            >
+                              <option value="">{ru ? "Управление" : "Manage"}</option>
+                              {bureau.can_edit && (
+                                <>
+                                  <option
+                                    value={member.role === "MODERATOR" ? "DEMOTE" : "PROMOTE"}
+                                  >
+                                    {
+                                      actionNames[
+                                        member.role === "MODERATOR" ? "DEMOTE" : "PROMOTE"
+                                      ]
+                                    }
+                                  </option>
+                                  <option value="TRANSFER">{actionNames.TRANSFER}</option>
+                                </>
+                              )}
+                              <option value="REMOVE">{actionNames.REMOVE}</option>
+                              <option value="BAN">{actionNames.BAN}</option>
+                            </select>
+                          )}
+                      </li>
+                    ),
+                  )}
                 </ul>
+                {tab === "about" && bureau.members.length > 6 && (
+                  <button className="dc-ghost" onClick={() => setTab("roster")}>
+                    {ru ? "Весь состав" : "View all members"}
+                    <Icon name="chevron-right" />
+                  </button>
+                )}
                 {!bureau.my_role && (
                   <p className="community-footnote">
                     {ru
@@ -655,7 +583,7 @@ function BureauDetail({
                   </p>
                 )}
               </section>
-              {memberAction && (
+              {memberAction && ["about", "roster"].includes(tab) && (
                 <form
                   className="community-panel bureau-action-panel"
                   onSubmit={(event) => {
@@ -705,7 +633,7 @@ function BureauDetail({
                   </div>
                 </form>
               )}
-              {bureau.can_manage && (
+              {bureau.can_manage && tab === "requests" && (
                 <section className="community-panel">
                   <h2>
                     {ru ? "Заявки на вступление" : "Membership applications"}{" "}
@@ -752,8 +680,8 @@ function BureauDetail({
                 </section>
               )}
             </div>
-            <aside>
-              <section className="community-panel bureau-join">
+            <aside hidden={!["about", "settings"].includes(tab)}>
+              <section className="community-panel bureau-join" hidden={tab !== "about"}>
                 <p className="community-eyebrow">{ru ? "ПРИЁМНАЯ" : "RECEPTION"}</p>
                 <h2>
                   {bureau.my_role
@@ -857,7 +785,7 @@ function BureauDetail({
                   </p>
                 )}
               </section>
-              {bureau.my_role && bureau.my_role !== "DIRECTOR" && (
+              {bureau.my_role && bureau.my_role !== "DIRECTOR" && tab === "about" && (
                 <details className="community-panel">
                   <summary>{ru ? "Покинуть бюро" : "Leave bureau"}</summary>
                   <p>
@@ -874,7 +802,7 @@ function BureauDetail({
                   </button>
                 </details>
               )}
-              {bureau.can_edit && (
+              {bureau.can_edit && tab === "settings" && (
                 <details className="community-panel">
                   <summary>{ru ? "Распустить бюро" : "Disband bureau"}</summary>
                   <form
@@ -902,14 +830,14 @@ function BureauDetail({
                   </form>
                 </details>
               )}
-              {bureau.can_manage && !!bureau.bans?.length && (
+              {bureau.can_manage && tab === "settings" && !!bureau.bans?.length && (
                 <details className="community-panel">
                   <summary>{ru ? "Запреты вступления" : "Membership bans"}</summary>
                   {bureau.bans.map((ban) => (
                     <article className="bureau-application" key={ban.id}>
                       <b>{ban.display_name}</b>
                       <p className="community-prose">{ban.reason}</p>
-                      {bureau.can_edit && (
+                      {bureau.can_edit && tab === "settings" && (
                         <button
                           className="dc-ghost"
                           disabled={busy}
@@ -957,7 +885,7 @@ function BureauDetail({
                   )}
                 </details>
               )}
-              {bureau.can_manage && (
+              {bureau.can_manage && tab === "settings" && (
                 <details className="community-panel">
                   <summary>{ru ? "Журнал управления" : "Management log"}</summary>
                   <ul className="bureau-journal">
@@ -979,6 +907,9 @@ function BureauDetail({
                                     ? "Снял запрет вступления"
                                     : "Lifted a membership ban",
                                   "bureau.created": ru ? "Основал бюро" : "Founded bureau",
+                                  "bureau.customized": ru
+                                    ? "Изменил оформление бюро"
+                                    : "Customised bureau",
                                   "bureau.updated": ru ? "Изменил настройки" : "Updated settings",
                                   "bureau.joined": ru ? "Вступил в бюро" : "Joined bureau",
                                   "bureau.left": ru ? "Покинул бюро" : "Left bureau",
@@ -998,6 +929,12 @@ function BureauDetail({
               )}
             </aside>
           </div>
+          <BureauSafety
+            slug={slug}
+            csrf={csrf}
+            banned={!!bureau.my_ban}
+            appeal={bureau.can_edit && bureau.status === "FROZEN"}
+          />
         </>
       )}
     </section>

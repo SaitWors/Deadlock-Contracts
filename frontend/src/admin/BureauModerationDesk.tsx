@@ -103,6 +103,11 @@ export default function BureauModerationDesk({ csrf }: { csrf: string }) {
                         rules: "Правила",
                         ban_reason: "Причина блокировки",
                         moderation_note: "Пояснение сотрудника",
+                        rank_director: "Звание директора",
+                        rank_moderator: "Звание модератора",
+                        rank_operative: "Звание оперативника",
+                        avatar_digest: "Версия эмблемы",
+                        cover_digest: "Версия обложки",
                       }[key] || key}
                       :{" "}
                     </b>
@@ -110,6 +115,23 @@ export default function BureauModerationDesk({ csrf }: { csrf: string }) {
                   </p>
                 ))}
               </details>
+              {!!Object.keys(item.current_artwork || {}).length && (
+                <details>
+                  <summary>Текущее оформление · может отличаться от снимка</summary>
+                  <div className="bureau-review-art">
+                    {Object.entries(item.current_artwork || {}).map(([kind, url]) => (
+                      <figure key={kind}>
+                        <img
+                          src={url}
+                          alt={kind === "avatar" ? "Эмблема бюро" : "Обложка бюро"}
+                          loading="lazy"
+                        />
+                        <figcaption>{kind === "avatar" ? "Эмблема" : "Обложка"}</figcaption>
+                      </figure>
+                    ))}
+                  </div>
+                </details>
+              )}
               {item.decision_note && <blockquote>{item.decision_note}</blockquote>}
               {item.status === "OPEN" &&
                 (selected !== item.id ? (

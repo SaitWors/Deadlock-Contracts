@@ -1,3 +1,4 @@
+import Icon from "./icons/Icon"
 import { useEffect, useId, useRef, useState } from "react"
 import { useLanguage } from "./i18n"
 import { SelectionChangedError, SigningUnconfirmedError } from "./contract-signing"
@@ -112,7 +113,7 @@ export default function ContractSigning(props: SigningProps) {
           onClick={onClose}
           aria-label={ru ? "Закрыть договор" : "Close contract"}
         >
-          ×
+          <Icon name="x" />
         </button>
       </div>
       <div className="signing-document">

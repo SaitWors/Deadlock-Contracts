@@ -1,3 +1,4 @@
+import Icon from "../icons/Icon"
 import { useState } from "react"
 import { useResource } from "../community/api"
 import { useLanguage } from "../i18n"
@@ -64,7 +65,7 @@ export default function PackShop({
       {data.loading && <p role="status">{ru ? "Загрузка конвертов…" : "Loading packs…"}</p>}
       {data.data?.total === 0 && (
         <div className="archive-empty">
-          <span>✉</span>
+          <Icon name="mail" size={28} />
           <p>
             {ru
               ? "Владелец ещё не опубликовал конверты. Жетоны сохраняются; карточку можно получить напрямую в каталоге."
@@ -87,7 +88,7 @@ export default function PackShop({
         {data.data?.items.map((pack) => (
           <article className="archive-pack-tile" key={pack.id}>
             <div className="archive-envelope-art" aria-hidden="true">
-              <span>✉</span>
+              <Icon name="mail" size={28} />
               <b>{pack.draws}</b>
             </div>
             <small>
@@ -100,7 +101,8 @@ export default function PackShop({
             <h3>{pack.title}</h3>
             <p>{pack.description}</p>
             <p>
-              {pack.card_count} {ru ? "дизайнов в составе" : "designs in pool"} · {pack.price} ◉
+              {pack.card_count} {ru ? "дизайнов в составе" : "designs in pool"} · {pack.price}{" "}
+              <Icon name="coins" size={18} />
             </p>
             {!pack.ready && (
               <p>
@@ -170,7 +172,7 @@ function PackDetails({
                 })
               }
             >
-              {ru ? `Открыть за ${pack.price} ◉` : `Open for ${pack.price} ◉`}
+              {ru ? `Открыть за ${pack.price} жет.` : `Open for ${pack.price} tokens`}
             </button>
             {pack.starter && !starterClaimed && (
               <button

@@ -44,7 +44,7 @@ export default function Achievements({ onProfile }: { onProfile: () => void }) {
               />
             </div>
             <button className="dc-ghost" onClick={onProfile}>
-              {ru ? "Оформить витрину ↗" : "Edit showcase ↗"}
+              {ru ? "Оформить витрину" : "Edit showcase"}
             </button>
           </div>
           <div

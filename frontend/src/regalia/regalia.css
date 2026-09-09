@@ -8,16 +8,11 @@
   pointer-events: none;
   user-select: none;
 }
-.regalia-plate {
-  background: #080c0a;
-  border-radius: 8px;
-}
-.regalia-cutout {
-  filter: drop-shadow(0 5px 5px #0005);
-}
+.regalia-symbol { display:inline-flex;align-items:center;justify-content:center;background:#a5c9ac0d;border:1px solid #a5c9ac24;border-radius:22%;color:#b6d2af; }
+.regalia-symbol>.dc-svg-icon { width:52%;height:52%; }
 .community-seal.bureau-regalia {
-  width: 128px;
-  height: 140px;
+  width: 96px;
+  height: 96px;
   margin-inline: auto;
 }
 .community-seal.bureau-regalia.locked {
@@ -25,8 +20,8 @@
   opacity: 0.45;
 }
 .achievement-card .community-seal.bureau-regalia {
-  width: 128px;
-  height: 140px;
+  width: 96px;
+  height: 96px;
   margin: 0 auto 22px;
 }
 .dossier-seals .community-seal.bureau-regalia {
@@ -35,11 +30,11 @@
 }
 .dossier-featured-seal .community-seal.bureau-regalia {
   width: 96px;
-  height: 104px;
+  height: 96px;
 }
 .signing-seal.bureau-regalia {
   width: 104px;
-  height: 104px;
+  height: 96px;
 }
 .bureau-regalia-heading {
   display: flex;
@@ -55,7 +50,7 @@
 }
 .bureau-regalia-heading > .bureau-regalia {
   width: 72px;
-  height: 76px;
+  height: 72px;
 }
 .dossier-bureau .bureau-regalia,
 .bureau-directory .bureau-regalia,

@@ -1,3 +1,4 @@
+import Icon from "../icons/Icon"
 import { RANKS, type Card } from "./types"
 import "./card-preview.css"
 
@@ -28,7 +29,7 @@ export default function CardPreview({
           />
         ) : (
           <span className="archive-art-placeholder" aria-hidden="true">
-            ✧
+            <Icon name="images" size={40} />
           </span>
         )}
       </div>

@@ -1,3 +1,4 @@
+import Icon from "./icons/Icon"
 import React, { useState, useEffect, useRef, useCallback } from "react"
 import BureauHeader from "./BureauHeader"
 import Leaderboard from "./community/Leaderboard"
@@ -142,7 +143,7 @@ const TIMELINE_STEPS = [
   {
     time: "19:17:41",
     label: "Матч найден",
-    detail: "Mode confirmed · STANDARD ✓",
+    detail: "Mode confirmed · STANDARD",
     success: false,
   },
   {
@@ -154,7 +155,7 @@ const TIMELINE_STEPS = [
   {
     time: "19:48:17",
     label: "Условия проверены",
-    detail: "Содействия: 13 ≥ 10 ✓   Смерти: 5 ≤ 7 ✓",
+    detail: "Содействия: 13 ≥ 10 · Смерти: 5 ≤ 7",
     success: false,
   },
   {
@@ -322,30 +323,7 @@ function SteamIcon() {
 }
 
 function AnimatedEyeLogo() {
-  return (
-    <div className="eye-glow" style={{ display: "inline-flex" }}>
-      <svg width="22" height="22" viewBox="0 0 22 22" fill="none" aria-hidden="true">
-        <g className="eye-spin" style={{ transformOrigin: "11px 11px" }}>
-          <path
-            d="M11 1 L21 11 L11 21 L1 11 Z"
-            stroke="#7AB384"
-            strokeWidth="1.2"
-            fill="none"
-            strokeLinecap="round"
-          />
-          <path
-            d="M11 4 L18 11 L11 18 L4 11 Z"
-            stroke="rgba(122,179,132,0.3)"
-            strokeWidth="0.8"
-            fill="none"
-          />
-        </g>
-        <circle cx="11" cy="11" r="3.5" fill="#7AB384" />
-        <circle cx="11" cy="11" r="1.5" fill="#05070E" />
-        <circle cx="11" cy="11" r="0.6" fill="#94C28F" />
-      </svg>
-    </div>
-  )
+  return <Icon name="eye" size={22} />
 }
 
 function SteamButton({
@@ -792,21 +770,21 @@ export default function Landing() {
               <div className="max-w-[1320px] mx-auto px-6 lg:px-8 py-5 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                 {[
                   {
-                    icon: "✓",
+                    icon: <Icon name="circle-check" size={24} />,
                     text: language === "ru" ? "ВЫБОР ДО НАЧАЛА МАТЧА" : "LOCKED BEFORE MATCH",
                   },
                   {
-                    icon: "◎",
+                    icon: <Icon name="shield-check" size={24} />,
                     text:
                       language === "ru" ? "ПРОВЕРКА ИТОГОВОЙ СТАТИСТИКИ" : "FINAL STATS VERIFIED",
                   },
                   {
-                    icon: "◇",
+                    icon: <Icon name="gem" size={24} />,
                     text:
                       language === "ru" ? "НЕТ ДАННЫХ — НЕТ ПОРАЖЕНИЯ" : "MISSING DATA ≠ FAILURE",
                   },
                   {
-                    icon: "↻",
+                    icon: <Icon name="repeat" size={24} />,
                     text: language === "ru" ? "НАГРАДЫ НЕ ДУБЛИРУЮТСЯ" : "NO DUPLICATE REWARDS",
                   },
                 ].map(({ icon, text }) => (
@@ -984,7 +962,7 @@ export default function Landing() {
                               zIndex: 2,
                             }}
                           >
-                            ✓
+                            <Icon name="check" size={14} />
                           </div>
                         )}
                         <div className="flex justify-between items-start mb-2 pr-6">

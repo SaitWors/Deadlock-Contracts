@@ -1,3 +1,4 @@
+import Icon from "../icons/Icon"
 import { useEffect, useMemo, useState } from "react"
 import { useLanguage } from "../i18n"
 import AnnouncementBanner from "./AnnouncementBanner"
@@ -73,7 +74,7 @@ export default function AnnouncementLayer() {
         aria-expanded={centerOpen}
         aria-controls="dc-announcement-center"
       >
-        <span aria-hidden="true">◇</span>
+        <Icon name="bell" />
         {language === "ru" ? "Уведомления" : "Notifications"}
         <b>{sorted.length}</b>
       </button>

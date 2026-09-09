@@ -1,6 +1,5 @@
 // Run from frontend after a production build. No external requests or login.
-// Generates a fixture and 30 separately reusable SVG assets. Matte backgrounds
-// are retained explicitly; export never fabricates an alpha mask.
+// Exports real UI fixtures and vendored Lucide SVGs, with their license.
 import path from "node:path"
 import fs from "node:fs/promises"
 import vm from "node:vm"
@@ -20,7 +19,7 @@ const result = await build({
   build: {
     write: false,
     minify: true,
-    lib: { entry: "tests/bureau-layout-entry.tsx", name: "BureauLayout", formats: ["iife"] },
+    lib: { entry: "tests/guild-layout-entry.tsx", name: "BureauLayout", formats: ["iife"] },
   },
 })
 await fs.writeFile(
@@ -50,10 +49,27 @@ await Promise.all(
 await fs.writeFile(path.join(target, "fixture.css"), css)
 await fs.writeFile(
   path.join(target, "index.html"),
-  '<!doctype html><html lang="ru"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>PR36 bureau QA</title><link rel="stylesheet" href="fixture.css"><body><div id="root"></div><script src="fixture.js"></script><script>BureauLayout.mount(document.getElementById("root"));</script></body></html>',
+  '<!doctype html><html lang="ru"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>PR37 bureau QA</title><link rel="stylesheet" href="fixture.css"><body><div id="root"></div><script src="fixture.js"></script><script>BureauLayout.mount(document.getElementById("root"));</script></body></html>',
 )
 
-// Vite's library mode embeds the existing bitmaps; SVG exports are self-contained.
+const briefing = await build({
+  ...options,
+  build: {
+    write: false,
+    minify: true,
+    lib: { entry: "tests/bureau-layout-entry.tsx", name: "BriefingLayout", formats: ["iife"] },
+  },
+})
+await fs.writeFile(
+  path.join(target, "briefing.js"),
+  briefing[0].output.find((item) => item.type === "chunk").code,
+)
+await fs.writeFile(
+  path.join(target, "briefing.html"),
+  '<!doctype html><html lang="ru"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>PR37 briefing QA</title><link rel="stylesheet" href="fixture.css"><body><a href="index.html">К бюро / Back to bureaus</a><div id="root"></div><script src="briefing.js"></script><script>BriefingLayout.mount(document.getElementById("root"));</script></body></html>',
+)
+
+// Stable reward identifiers are exported as native vectors, without any bitmap.
 const catalogBuild = await build({
   ...options,
   build: {
@@ -65,32 +81,27 @@ const catalogBuild = await build({
 const context = vm.createContext({})
 vm.runInContext(catalogBuild[0].output.find((item) => item.type === "chunk").code, context)
 const entries = Object.entries(context.RegaliaCatalog.REGALIA)
-for (const [id, art] of entries) {
-  if (!/^data:image\/webp;base64,[a-zA-Z0-9+/=]+$/.test(art.src))
-    throw new Error(`Export expected an embedded bitmap: ${id}`)
-  const [x, y, width, height] = art.box.split(" ").map(Number)
-  if (
-    x < 0 ||
-    y < 0 ||
-    width <= 0 ||
-    height <= 0 ||
-    x + width > art.width ||
-    y + height > art.height
-  )
-    throw new Error(`Out-of-bounds source rectangle: ${id}`)
-  await fs.writeFile(
-    path.join(target, "regalia", `${id}.svg`),
-    `<svg xmlns="http://www.w3.org/2000/svg" width="384" height="384" viewBox="${art.box}"><defs><clipPath id="bounds"><rect x="${x}" y="${y}" width="${width}" height="${height}"/></clipPath></defs><image clip-path="url(#bounds)" width="${art.width}" height="${art.height}" href="${art.src}"/></svg>`,
-  )
+const iconSource = path.resolve("src/icons/lucide")
+await fs.mkdir(path.join(target, "icons"), { recursive: true })
+for (const name of await fs.readdir(iconSource)) {
+  if (!name.endsWith(".svg")) continue
+  await fs.copyFile(path.join(iconSource, name), path.join(target, "icons", name))
 }
+for (const [id, art] of entries) {
+  const svg = await fs.readFile(path.join(iconSource, `${art.icon}.svg`), "utf8")
+  if (/<image|<script|<foreignObject|href=|data:/i.test(svg))
+    throw new Error(`Unexpected icon payload: ${id}`)
+  await fs.writeFile(path.join(target, "regalia", `${id}.svg`), svg)
+}
+await fs.copyFile("public/licenses/lucide.txt", path.join(target, "LICENSE-lucide.txt"))
 await fs.writeFile(
   path.join(target, "regalia", "manifest.json"),
   JSON.stringify(
-    entries.map(([id, { src, ...art }]) => ({ id, ...art })),
+    entries.map(([id, art]) => ({ id, ...art })),
     null,
     2,
   ),
 )
 process.stdout.write(
-  `Fixture: ${target}/index.html\nIndependent SVG assets: ${entries.length} in ${target}/regalia/\n`,
+  `Fixture: ${target}/index.html\nNative SVG exports: ${entries.length} reward IDs; ${(await fs.readdir(iconSource)).length} Lucide icons.\n`,
 )

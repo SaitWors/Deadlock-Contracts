@@ -22,7 +22,7 @@ export default function PublicDossier({ slug }: { slug: string }) {
         onNavigate={(id) => location.assign(`/#${id === "home" ? "home" : "leaderboards"}`)}
         actions={
           <a className="dc-ghost" href="/">
-            {ru ? "В бюро ↗" : "Back to bureau ↗"}
+            {ru ? "В бюро" : "Back to bureau"}
           </a>
         }
       />

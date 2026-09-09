@@ -1,3 +1,4 @@
+import Icon from "../icons/Icon"
 import { useEffect, useState } from "react"
 import { ApiError, request } from "../community/api"
 import { useLanguage } from "../i18n"
@@ -152,8 +153,9 @@ export function ReceiptView({ receipt, onClose }: { receipt: Receipt; onClose?: 
       </header>
       <p>
         {new Date(receipt.created_at).toLocaleString(locale)} · {receipt.delta > 0 ? "+" : ""}
-        {receipt.delta} ◉ · {ru ? "Баланс после операции" : "Balance after transaction"}:{" "}
-        {receipt.balance_after} ◉
+        {receipt.delta} <Icon name="coins" size={18} /> ·{" "}
+        {ru ? "Баланс после операции" : "Balance after transaction"}: {receipt.balance_after}{" "}
+        <Icon name="coins" size={18} />
       </p>
       {!revealed ? (
         <div className="archive-envelope-reveal">

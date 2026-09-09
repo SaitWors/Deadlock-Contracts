@@ -1,0 +1,353 @@
+/* Shared visual language across the guest bureau, dashboard and account menu. */
+.dc-svg-icon {
+  display: inline-block;
+  flex-shrink: 0;
+  vertical-align: middle;
+  pointer-events: none;
+}
+.bureau-public,
+.bureau-app {
+  --color-cream: #edf0e9;
+  --color-cream-dim: #afb9ae;
+  --color-panel: #151c17;
+  --color-elevated: #202a22;
+  --color-border: #ffffff13;
+  --color-border-hi: #ffffff28;
+  --color-mint: #a5c9ac;
+  --color-mint-glow: #bad7bd;
+  --color-page: #101512;
+}
+.bureau-app .community-page {
+  color: var(--color-cream);
+}
+.bureau-header {
+  background: #111713ed;
+  border-bottom-color: #ffffff10;
+  backdrop-filter: blur(16px);
+}
+.bureau-nav button {
+  border-radius: 9px;
+  font-family: var(--font-body);
+  font-size: 12px;
+  text-transform: none;
+  letter-spacing: 0;
+  padding: 9px 11px;
+}
+.bureau-nav button[aria-current="page"] {
+  background: #a5c9ac18;
+  color: #c8e3cb;
+  border-bottom-color: transparent;
+}
+.bureau-menu-toggle {
+  border-color: #ffffff22;
+  border-radius: 12px;
+  display: none;
+}
+.bureau-mobile-nav button {
+  font-family: var(--font-body);
+  border-radius: 10px;
+  min-height: 44px;
+}
+.bureau-mobile-nav button[aria-current="page"] {
+  background: #a5c9ac20;
+  color: #d6e9d5;
+}
+.bureau-app .bureau-profile-trigger {
+  border-radius: 12px;
+}
+.bureau-app .bureau-profile-trigger > img,
+.bureau-app .bureau-profile-trigger > span:first-child {
+  border-radius: 10px;
+  border-color: #ffffff25;
+}
+.bureau-app .bureau-profile-trigger small {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  color: #bbcbb7;
+}
+.bureau-app .bureau-profile-trigger > svg:last-child {
+  color: #94a392;
+}
+.bureau-app .bureau-profile-popover {
+  border-radius: 20px;
+  background: #18201b;
+  border: 1px solid #ffffff18;
+  box-shadow: 0 24px 72px #0008;
+  padding: 20px;
+  scrollbar-width: thin;
+}
+.bureau-app .bureau-profile-popover header > strong {
+  font-family: var(--font-body);
+  font-size: 22px;
+  line-height: 1.3;
+  letter-spacing: -0.025em;
+}
+.bureau-app .bureau-profile-popover header > small {
+  color: #99b09a;
+  letter-spacing: 0.1em;
+}
+.bureau-app .bureau-wallet-strip {
+  border-radius: 14px;
+  border: 1px solid #d9be7c24;
+  background: #262b1e;
+  padding: 16px;
+}
+.bureau-app .bureau-wallet-strip b {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  font: 650 24px/1.5 var(--font-body);
+}
+.bureau-app .bureau-wallet-strip button {
+  border: 0;
+  border-radius: 10px;
+  padding: 10px 13px;
+  background: #d5bc82;
+  font-size: 12px;
+}
+.bureau-app .bureau-profile-links {
+  border-color: #ffffff0f;
+  padding: 10px 0;
+}
+.bureau-app .bureau-profile-links button,
+.bureau-app .bureau-profile-section button {
+  border-radius: 10px;
+  min-height: 46px;
+  color: #cbd5cb;
+  gap: 14px;
+  line-height: 1.5;
+}
+.bureau-app .bureau-profile-links button:hover,
+.bureau-app .bureau-profile-section button:hover {
+  background: #ffffff07;
+}
+.bureau-app .bureau-profile-links svg,
+.bureau-app .bureau-profile-section svg {
+  color: #9eaf9c;
+  width: 18px;
+  height: 18px;
+}
+.bureau-app .bureau-profile-section button {
+  border-color: #ffffff14;
+  background: #111713;
+  padding: 14px;
+}
+.bureau-app .bureau-studio-callout {
+  border-radius: 14px;
+  background: linear-gradient(125deg, #31482f, #1d2c23);
+  border: 1px solid #88b68133;
+  padding: 18px;
+}
+.bureau-app .bureau-studio-callout b {
+  font-family: var(--font-body);
+  font-size: 18px;
+}
+.bureau-app .bureau-profile-logout {
+  color: #dfa69a;
+}
+.bureau-app .dc-mobile-bottom-nav {
+  background: #141b16f5;
+  border-top: 1px solid #ffffff12;
+  padding: 8px 8px max(8px, env(safe-area-inset-bottom));
+  gap: 4px;
+  backdrop-filter: blur(12px);
+}
+.bureau-app .dc-mobile-bottom-nav > button {
+  border-radius: 12px;
+  border: 0;
+  color: #93a291;
+  min-height: 54px;
+  padding: 6px 3px;
+  gap: 5px;
+}
+.bureau-app .dc-mobile-bottom-nav > button.active {
+  background: #a5c9ac20;
+  color: #d3e9d1;
+  box-shadow: none;
+  border: 0;
+}
+.bureau-app .dc-mobile-bottom-nav > button span {
+  font: 500 10px/1.3 var(--font-body);
+}
+.bureau-app .dc-mobile-bottom-nav .dc-icon {
+  width: 21px;
+  height: 21px;
+}
+.bureau-app .community-page :is(.dc-primary, .dc-ghost) {
+  border-radius: 11px;
+  gap: 8px;
+  font-family: var(--font-body);
+  font-size: 13px;
+}
+.bureau-app .community-tabs {
+  border: 0;
+  background: #171f19;
+  border-radius: 14px;
+  padding: 5px;
+  gap: 4px;
+}
+.bureau-app .community-tabs button {
+  font-family: var(--font-body);
+  font-size: 13px;
+  border: 0;
+  border-radius: 10px;
+  padding: 10px 16px;
+}
+.bureau-app .community-tabs button[aria-pressed="true"] {
+  background: #a5c9ac23;
+  color: #d1e4cb;
+}
+.bureau-app .community-head h1 {
+  font-family: var(--font-body);
+  font-size: clamp(30px, 4vw, 46px);
+  letter-spacing: -0.04em;
+  line-height: 1.2;
+}
+.bureau-app .community-head h2,
+.bureau-app .community-panel h2 {
+  font-family: var(--font-body);
+}
+.bureau-app .community-head {
+  border-color: #ffffff10;
+}
+.bureau-app .community-panel,
+.bureau-app .achievement-card,
+.bureau-app .community-collection-summary,
+.bureau-app .leaderboard-mine {
+  border-radius: 18px;
+  border-color: #ffffff14;
+}
+.bureau-app .achievement-card {
+  background: #171f19;
+  padding: 26px;
+}
+.bureau-app .achievement-card.earned {
+  background: linear-gradient(160deg, #243425, #151d18);
+  border-color: #91b28230;
+}
+.bureau-app .achievement-card h2 {
+  font-family: var(--font-body);
+  font-size: 19px;
+  line-height: 1.35;
+}
+.bureau-app .community-empty {
+  border-radius: 18px;
+  border-color: #ffffff1c;
+}
+.bureau-app .leaderboard-table-wrap {
+  border-radius: 18px;
+}
+.bureau-app .leaderboard-table caption {
+  font-family: var(--font-body);
+  font-size: 13px;
+  letter-spacing: 0;
+  text-transform: none;
+}
+.bureau-app .community-avatar,
+.bureau-app .leaderboard-player img {
+  border-radius: 10px;
+}
+.bureau-app .dossier-view {
+  border-radius: 22px;
+}
+.bureau-app .dossier-avatar {
+  border-radius: 20px;
+}
+.bureau-app .dossier-module,
+.bureau-app .dossier-sidebar > section {
+  border-radius: 16px;
+  overflow: hidden;
+}
+.bureau-app .dc-home-archive-callout {
+  border-radius: 18px;
+  border: 1px solid #ffffff18;
+  background: linear-gradient(110deg, #283c2b, #17231c);
+  box-shadow: none;
+}
+.bureau-app .dc-home-archive-callout::after {
+  display: none;
+}
+.bureau-app .dc-home-archive-callout strong {
+  font: 650 24px/1.3 var(--font-body);
+  letter-spacing: -0.025em;
+}
+.bureau-app .bureau-action {
+  border-radius: 11px;
+  font-family: var(--font-body);
+}
+.bureau-app .dc-command-hero {
+  border-radius: 22px;
+  overflow: hidden;
+  border-color: #ffffff15;
+}
+.bureau-app .dc-command-copy h1 {
+  font-family: var(--font-body);
+  font-size: clamp(32px, 4vw, 52px);
+  line-height: 1.12;
+  letter-spacing: -0.04em;
+}
+.bureau-app .contract-card {
+  border-radius: 16px;
+  border-color: #ffffff1a;
+}
+.bureau-app .contract-card .dc-check {
+  display: grid;
+  place-items: center;
+}
+.bureau-app .contract-card .dc-check svg {
+  width: 16px;
+  height: 16px;
+}
+.bureau-app .dc-category-tabs i,
+.bureau-app .dc-contract i {
+  display: inline-flex;
+  align-items: center;
+}
+.bureau-app .dc-category-tabs svg,
+.bureau-app .dc-contract i svg {
+  width: 16px;
+  height: 16px;
+}
+.bureau-app .archive-balance,
+.bureau-app .archive-card-details,
+.bureau-app .archive-pack,
+.bureau-app .archive-cipher {
+  border-radius: 18px;
+}
+.bureau-app button svg + span {
+  min-width: 0;
+}
+@media (max-width: 1399px) {
+  .bureau-menu-toggle {
+    display: grid;
+    place-items: center;
+  }
+}
+@media (max-width: 700px) {
+  .bureau-app .bureau-profile-popover {
+    right: 12px;
+    left: auto;
+    top: 76px;
+    max-height: calc(100dvh - 162px);
+    padding: 18px;
+    width: 360px;
+    max-width: calc(100vw - 24px);
+  }
+  .bureau-app .bureau-profile-trigger > svg:last-child {
+    display: none;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .bureau-header,
+  .bureau-app .bureau-profile-popover,
+  .bureau-app .dc-mobile-bottom-nav {
+    backdrop-filter: none;
+  }
+}
+
+.bureau-app .bureau-profile-section .guild-emblem{width:38px;height:38px;min-width:38px;border-width:2px;border-radius:10px;box-shadow:none}.bureau-app .bureau-profile-section .guild-emblem>svg{width:19px;height:19px}.dossier-bureau .guild-emblem{width:64px;height:64px;border-width:3px;border-radius:15px}.dossier-bureau .guild-emblem>svg{width:30px;height:30px}
+.guild-emblem.shape-circle,.guild-preview .guild-emblem.shape-circle,.guild-directory-card .guild-emblem.shape-circle{border-radius:50%}.guild-emblem.shape-shield,.guild-preview .guild-emblem.shape-shield,.guild-directory-card .guild-emblem.shape-shield{border-radius:22px 22px 48% 48%}
+@media(max-width:767px){.guild-page .guild-members select{font-size:16px}}
+
+.bureau-review-art{display:flex;gap:16px;flex-wrap:wrap}.bureau-review-art figure{max-width:360px;margin:12px 0}.bureau-review-art img{width:100%;max-height:240px;object-fit:contain;border-radius:12px}.bureau-review-art figcaption{font-size:12px;color:var(--color-cream-dim)}

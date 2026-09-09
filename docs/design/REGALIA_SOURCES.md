@@ -1,3 +1,7 @@
+# Historical asset record
+
+Stage 7 replaces these bitmap assets with native Lucide SVGs. See [SVG_SOURCES.md](SVG_SOURCES.md) for the current source and license. The record below describes PR36.
+
 # Regalia source record
 
 Artwork supplied by the project owner for PR36 on 2026-09-08. No web-sourced artwork or new licence claims.

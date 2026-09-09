@@ -43,6 +43,8 @@ def report_payload(item: BureauReport, bureau: PlayerBureau | None = None, *, st
         "created_at": operations.aware(item.created_at).isoformat()}
     if staff:
         result.update(snapshot={key: value for key, value in item.snapshot.items() if key != "ban_created_at"}, bureau_status=bureau.status if bureau else "DELETED")
+        result["current_artwork"] = {kind: f"/api/admin/bureaus/{bureau.slug}/media/{kind}?r={getattr(bureau, kind + '_digest')}"
+            for kind in ("avatar", "cover") if getattr(bureau, kind + "_digest")} if bureau else {}
     return result
 
 
@@ -86,6 +88,10 @@ def build_router(require_permission):
         item = BureauReport(bureau_id=bureau.id, reporter_id=user.id, bureau_name=bureau.name,
             kind=payload.kind, message=payload.message,
             snapshot={"name": bureau.name, "description": bureau.description, "rules": bureau.rules,
+                      "rank_director": (bureau.role_titles or {}).get("DIRECTOR", ""),
+                      "rank_moderator": (bureau.role_titles or {}).get("MODERATOR", ""),
+                      "rank_operative": (bureau.role_titles or {}).get("OPERATIVE", ""),
+                      "avatar_digest": bureau.avatar_digest or "", "cover_digest": bureau.cover_digest or "",
                       "ban_reason": ban.reason if ban else "", "ban_created_at": operations.aware(ban.created_at).isoformat() if ban else "", "moderation_note": bureau.moderation_note})
         db.add(item); bureaus.commit(db)
         return {"report": report_payload(item, bureau)}
@@ -102,6 +108,14 @@ def build_router(require_permission):
             bureaus.audit(db, bureau, user.id, "ban_lifted", reason=payload.reason)
         bureaus.commit(db)
         return {"bureau": bureaus.detail(db, bureau, user)}
+
+    @router.get("/admin/bureaus/{slug}/media/{kind}")
+    def review_media(slug: str, kind: Literal["avatar", "cover"], staff: User = Depends(require_permission("bureaus.moderate")), db: Session = Depends(get_db)):
+        bureau = db.scalar(select(PlayerBureau).where(PlayerBureau.slug == slug))
+        data = getattr(bureau, f"{kind}_data") if bureau else None
+        if not data:
+            raise HTTPException(404, "Image not found")
+        return Response(data, media_type="image/webp", headers={"Cache-Control": "private, no-store", "X-Content-Type-Options": "nosniff"})
 
     @router.get("/admin/bureau-reports")
     def queue(response: Response, status: Literal["OPEN", "RESOLVED", "DISMISSED"] = "OPEN",

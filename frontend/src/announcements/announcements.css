@@ -232,7 +232,7 @@
   animation: dc-announcement-scan 650ms ease-out both;
 }
 .dc-announcement--confetti::before {
-  content: "◆  ·  ◆  ·  ◆";
+  content: "";
   position: absolute;
   top: 4px;
   right: 44px;

@@ -10,6 +10,9 @@ export type Achievement = {
 }
 export type Collection = { items: Achievement[]; earned: number; total: number }
 export type BureauSummary = {
+  appearance?: BureauAppearance
+  avatar_url?: string | null
+  cover_url?: string | null
   slug: string
   name: string
   tagline: string
@@ -20,6 +23,43 @@ export type BureauSummary = {
   status?: "ACTIVE" | "FROZEN"
   moderation_note?: string
   capacity: number
+}
+export type BureauAppearance = {
+  accent: "SAGE" | "BRASS" | "OCEAN" | "PLUM" | "EMBER"
+  cover: "AURORA" | "GRID" | "ARCHIVE" | "PLAIN"
+  emblem:
+    | "compass"
+    | "swords"
+    | "shield"
+    | "crown"
+    | "eye"
+    | "moon"
+    | "feather"
+    | "flask-conical"
+    | "book-open"
+    | "handshake"
+    | "gem"
+    | "building-2"
+  avatar_shape: "ROUNDED" | "CIRCLE" | "SHIELD"
+  roster_layout: "CARDS" | "LIST"
+  cover_position: number
+}
+export type BureauSettings = Pick<
+  BureauSummary,
+  "name" | "tagline" | "language" | "theme" | "recruitment"
+> & {
+  slug?: string
+  description: string
+  rules: string
+  appearance?: BureauAppearance
+  role_titles?: Record<"DIRECTOR" | "MODERATOR" | "OPERATIVE", string>
+  welcome?: string
+  listed?: boolean
+  expected_revision?: number
+  avatar_image?: string | null
+  cover_image?: string | null
+  avatar_url?: string | null
+  cover_url?: string | null
 }
 export type Showcase = {
   id: string

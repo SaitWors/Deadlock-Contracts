@@ -7,6 +7,8 @@ import "./bureau.css"
 import "./community/community.css"
 import "./announcements/announcements.css"
 import "./bureau-stage6.css"
+import "./community/guilds.css"
+import "./interface-polish.css"
 
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>

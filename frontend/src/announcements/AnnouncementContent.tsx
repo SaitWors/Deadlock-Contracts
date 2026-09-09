@@ -1,14 +1,15 @@
+import Icon, { type IconName } from "../icons/Icon"
 import { useEffect, useState } from "react"
 import { useLanguage } from "../i18n"
 import type { Announcement } from "./announcement-types"
 
-const severityIcon: Record<Announcement["severity"], string> = {
-  INFO: "i",
-  SUCCESS: "✓",
-  WARNING: "!",
-  MAINTENANCE: "⚙",
-  CRITICAL: "!",
-  EVENT: "★",
+const severityIcon: Record<Announcement["severity"], IconName> = {
+  INFO: "info",
+  SUCCESS: "circle-check",
+  WARNING: "triangle-alert",
+  MAINTENANCE: "settings",
+  CRITICAL: "triangle-alert",
+  EVENT: "calendar-days",
 }
 
 const effectClass: Record<Announcement["effect"], string> = {
@@ -61,7 +62,7 @@ export default function AnnouncementContent({
       data-announcement={`${item.id}:${item.revision}`}
     >
       <span className="dc-announcement__icon" aria-hidden="true">
-        {severityIcon[item.severity]}
+        <Icon name={severityIcon[item.severity]} />
       </span>
       <div className="dc-announcement__copy">
         <div className="dc-announcement__meta">
@@ -98,7 +99,7 @@ export default function AnnouncementContent({
           onClick={onDismiss}
           aria-label={language === "ru" ? "Закрыть уведомление" : "Dismiss notification"}
         >
-          ×
+          <Icon name="x" />
         </button>
       )}
     </article>

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import re
+import hashlib
 from typing import Literal
 from uuid import UUID
 
@@ -12,8 +13,10 @@ from sqlalchemy.orm import Session
 from .db import get_db
 from .models import BureauApplication, BureauBan, BureauMembership, PlayerBureau, User, utcnow
 from .services import bureaus
+from .services import bureau_design
+from .services.archive import image_bytes
 from .services.achievements import achievement_collection
-from .services.auth import require_csrf, require_user
+from .services.auth import current_user_optional, require_csrf, require_user
 from .services.leaderboard import public_leaderboard
 
 router = APIRouter(prefix="/api", tags=["Player community"])
@@ -35,6 +38,17 @@ class BureauSettings(Strict):
 
 class CreateBureau(BureauSettings):
     slug: str = Field(min_length=3, max_length=32, pattern=r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
+
+
+class CustomizeBureau(BureauSettings):
+    expected_revision: int = Field(ge=1)
+    appearance: bureau_design.Appearance = Field(default_factory=bureau_design.Appearance)
+    role_titles: bureau_design.RoleTitles = Field(default_factory=bureau_design.RoleTitles)
+    welcome: str = Field(default="", max_length=500)
+    listed: bool = True
+    # None keeps the current file; the empty string removes it.
+    avatar_image: str | None = Field(default=None, max_length=400_000)
+    cover_image: str | None = Field(default=None, max_length=400_000)
 
 
 class JoinBureau(Strict):
@@ -76,7 +90,7 @@ def my_leaderboard(response: Response, scope: Literal["all_time", "today", "rare
 def directory(response: Response, q: str = Query(default="", max_length=64), offset: int = Query(default=0, ge=0, le=10000),
               user: User = Depends(require_user), db: Session = Depends(get_db)) -> dict:
     no_store(response)
-    statement = select(PlayerBureau).where(PlayerBureau.status == "ACTIVE")
+    statement = select(PlayerBureau).where(PlayerBureau.status == "ACTIVE", PlayerBureau.listed.is_(True))
     if q.strip():
         search = q.strip().replace("\\", "\\\\").replace("%", r"\%").replace("_", r"\_")
         statement = statement.where(or_(PlayerBureau.name.ilike(f"%{search}%", escape="\\"), PlayerBureau.slug.ilike(f"%{search}%", escape="\\")))
@@ -94,7 +108,7 @@ def directory(response: Response, q: str = Query(default="", max_length=64), off
 def apply_settings(bureau: PlayerBureau, payload: BureauSettings) -> None:
     if not re.search(r"\bdeadlock\b", payload.name, re.IGNORECASE):
         raise HTTPException(422, "Название бюро должно содержать слово Deadlock")
-    for key, value in payload.model_dump(exclude={"slug"}).items():
+    for key, value in payload.model_dump(include=set(BureauSettings.model_fields)).items():
         setattr(bureau, key, value)
 
 
@@ -136,9 +150,49 @@ def update(slug: str, payload: BureauSettings, user: User = Depends(require_user
     bureau = bureaus.lock_bureau(db, slug)
     bureaus.require_manager(db, bureau, user.id, director=True)
     apply_settings(bureau, payload)
+    bureau.design_revision += 1
     bureaus.audit(db, bureau, user.id, "updated")
     bureaus.commit(db)
     return {"bureau": bureaus.detail(db, bureau, user)}
+
+
+@router.put("/bureaus/{slug}/customization", dependencies=[Depends(require_csrf)])
+def customize(slug: str, payload: CustomizeBureau, user: User = Depends(require_user), db: Session = Depends(get_db)) -> dict:
+    bureau = bureaus.lock_bureau(db, slug)
+    bureaus.require_manager(db, bureau, user.id, director=True)
+    if bureau.design_revision != payload.expected_revision:
+        raise HTTPException(409, "Настройки изменились. Обновите страницу перед сохранением / Settings changed; reload before saving")
+    # Decode both before mutating anything, so invalid media cannot partially save.
+    media = {kind: image_bytes(value) if value else None for kind in ("avatar", "cover")
+             if (value := getattr(payload, f"{kind}_image")) is not None}
+    apply_settings(bureau, payload)
+    bureau.appearance = payload.appearance.model_dump()
+    bureau.role_titles = payload.role_titles.model_dump()
+    bureau.welcome = payload.welcome
+    bureau.listed = payload.listed
+    for kind, data in media.items():
+        setattr(bureau, f"{kind}_data", data)
+        setattr(bureau, f"{kind}_digest", hashlib.sha256(data).hexdigest() if data else None)
+    bureau.design_revision += 1
+    bureaus.audit(db, bureau, user.id, "customized", revision=bureau.design_revision, media_changed=list(media))
+    bureaus.commit(db)
+    return {"bureau": bureaus.detail(db, bureau, user)}
+
+
+@router.get("/bureaus/{slug}/media/{kind}")
+def bureau_media(slug: str, kind: Literal["avatar", "cover"], user: User | None = Depends(current_user_optional), db: Session = Depends(get_db)) -> Response:
+    # Published bureau artwork also appears in opted-in public profile showcases.
+    bureau = db.scalar(select(PlayerBureau).where(PlayerBureau.slug == slug))
+    if not bureau:
+        raise HTTPException(404, "Image not found")
+    if bureau.status != "ACTIVE":
+        own = bureaus.membership(db, user.id) if user else None
+        if not own or own.bureau_id != bureau.id:
+            raise HTTPException(404, "Image not found")
+    data = getattr(bureau, f"{kind}_data")
+    if not data:
+        raise HTTPException(404, "Image not found")
+    return Response(data, media_type="image/webp", headers={"Cache-Control": "private, no-store", "X-Content-Type-Options": "nosniff"})
 
 
 @router.post("/bureaus/{slug}/join", dependencies=[Depends(require_csrf)])

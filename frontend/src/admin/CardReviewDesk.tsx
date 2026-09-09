@@ -92,7 +92,7 @@ export default function CardReviewDesk({ csrf }: { csrf: string }) {
               </p>
               {card.source_url && (
                 <a href={card.source_url} target="_blank" rel="noopener noreferrer">
-                  {ru ? "Открыть источник ↗" : "Open source ↗"}
+                  {ru ? "Открыть источник" : "Open source"}
                 </a>
               )}
               {card.review_note && <p>{card.review_note}</p>}

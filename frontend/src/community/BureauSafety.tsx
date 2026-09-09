@@ -16,6 +16,7 @@ export type Report = {
   created_at: string
   snapshot?: Record<string, string>
   bureau_status?: string
+  current_artwork?: Record<string, string>
 }
 export default function BureauSafety({
   slug,
