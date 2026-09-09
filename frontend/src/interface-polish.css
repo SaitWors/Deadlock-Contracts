@@ -351,3 +351,5 @@
 @media(max-width:767px){.guild-page .guild-members select{font-size:16px}}
 
 .bureau-review-art{display:flex;gap:16px;flex-wrap:wrap}.bureau-review-art figure{max-width:360px;margin:12px 0}.bureau-review-art img{width:100%;max-height:240px;object-fit:contain;border-radius:12px}.bureau-review-art figcaption{font-size:12px;color:var(--color-cream-dim)}
+
+.bureau-profile-section .guild-emblem.shape-circle{border-radius:50%}.bureau-profile-section .guild-emblem.shape-shield{border-radius:22px 22px 48% 48%}

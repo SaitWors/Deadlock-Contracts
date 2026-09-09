@@ -160,7 +160,7 @@ function Fixture() {
   const [icons, setIcons] = useState(false)
   return (
     <div
-      className="dc-dashboard dc-v3 bureau-app"
+      className="dc-dashboard dc-redesign dc-v3 dc-vnext bureau-app min-h-screen community-dashboard"
       style={{ minHeight: "100vh", padding: "24px 16px 100px" }}
     >
       <main style={{ maxWidth: 1200, margin: "auto" }}>

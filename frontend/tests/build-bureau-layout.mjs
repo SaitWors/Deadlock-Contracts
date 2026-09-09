@@ -35,11 +35,18 @@ let css = (
   await Promise.all(cssNames.map((name) => fs.readFile(path.join(assets, name), "utf8")))
 ).join("\n")
 const referenced = new Set()
-css = css.replace(/url\((['"]?)(?:\/assets\/|\.\/)?([^)'"/]+)\1\)/g, (match, quote, name) => {
-  if (!files.includes(name)) return match
-  referenced.add(name)
-  return `url("assets/${name}")`
-})
+css = css.replace(
+  /url\((['"]?)(?:\/(?:static\/)?assets\/|\.\/)?([^)'"/]+)\1\)/g,
+  (match, quote, name) => {
+    if (!files.includes(name)) return match
+    referenced.add(name)
+    return `url("assets/${name}")`
+  },
+)
+if (/url\(["']?\/(?:static\/)?assets\//.test(css))
+  throw new Error("The offline preview still references a production asset URL")
+if (![...referenced].some((name) => name.endsWith(".woff2")))
+  throw new Error("The offline preview must include its fonts")
 await fs.mkdir(path.join(target, "assets"), { recursive: true })
 await Promise.all(
   [...referenced].map((name) =>

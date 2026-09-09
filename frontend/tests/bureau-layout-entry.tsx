@@ -15,7 +15,7 @@ function Fixture() {
   const [active, setActive] = useState("home")
   return (
     <div
-      className="dc-dashboard dc-v3 bureau-app"
+      className="dc-dashboard dc-redesign dc-v3 dc-vnext bureau-app min-h-screen community-dashboard"
       style={{ padding: "24px 16px 100px", minHeight: "100vh" }}
     >
       <main style={{ maxWidth: 1100, margin: "auto" }}>
