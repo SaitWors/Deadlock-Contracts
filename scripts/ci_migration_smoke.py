@@ -98,6 +98,10 @@ def main() -> None:
         assert profile.pinned_contract_ids == []
         bureau = db.get(PlayerBureau, bureau_id)
         assert bureau.status == "ACTIVE" and bureau.moderation_note == ""
+        assert bureau.name == "Deadlock Migration" and bureau.owner_user_id == player_id
+        assert bureau.appearance == {} and bureau.role_titles == {}
+        assert bureau.listed is True and bureau.welcome == "" and bureau.design_revision == 1
+        assert bureau.avatar_data is None and bureau.cover_data is None
         period = db.get(BureauMembershipPeriod, member_id)
         assert period.user_id == player_id and period.bureau_id == bureau_id
         assert period.joined_at.replace(tzinfo=timezone.utc) == joined_at and period.left_at is None

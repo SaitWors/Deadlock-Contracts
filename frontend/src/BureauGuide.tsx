@@ -1,3 +1,4 @@
+import Icon from "./icons/Icon"
 import { useEffect, useId, useRef, useState } from "react"
 import { useLanguage } from "./i18n"
 import Regalia from "./regalia/Regalia"
@@ -113,7 +114,7 @@ export default function BureauGuide({
       <header className="bureau-guide-top">
         <span>{ru ? "ПАМЯТКА ОПЕРАТИВНИКА" : "OPERATIVE BRIEFING"}</span>
         <button onClick={onClose} aria-label={ru ? "Закрыть вступление" : "Close introduction"}>
-          ×
+          <Icon name="x" />
         </button>
       </header>
       <div
@@ -148,7 +149,7 @@ export default function BureauGuide({
           className="bureau-action bureau-action-secondary"
           onClick={() => onNavigate((["quests", "archive", "bureaus"] as const)[step])}
         >
-          {current.action} ↗
+          {current.action}
         </button>
       </div>
       <footer className="bureau-guide-footer">

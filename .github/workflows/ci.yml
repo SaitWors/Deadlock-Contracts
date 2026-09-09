@@ -112,7 +112,7 @@ jobs:
         run: |
           python3 ../scripts/check_frontend_budget.py dist
 
-      - name: Build bureau preview and separate regalia exports
+      - name: Build bureau customization preview and licensed SVG exports
         run: node tests/build-bureau-layout.mjs ../.qa/bureau-layout
 
       - name: Upload bureau design preview

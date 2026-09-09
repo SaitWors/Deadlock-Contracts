@@ -102,6 +102,268 @@ function button(doc, text) {
   return [...doc.querySelectorAll("button")].find((item) => item.textContent.includes(text))
 }
 
+const bureauFixture = () => ({
+  slug: "night",
+  name: "Deadlock Night Office",
+  tagline: "Your people",
+  description: "Our story",
+  rules: "Be kind",
+  theme: "DOSSIER",
+  language: "en",
+  recruitment: "APPLICATION",
+  member_count: 2,
+  capacity: 25,
+  status: "ACTIVE",
+  my_role: "DIRECTOR",
+  can_manage: true,
+  can_edit: true,
+  application_pending: false,
+  design_revision: 4,
+  listed: true,
+  welcome: "Members only welcome",
+  avatar_url: "/avatar.webp",
+  cover_url: "/cover.webp",
+  appearance: {
+    accent: "SAGE",
+    cover: "AURORA",
+    emblem: "compass",
+    avatar_shape: "ROUNDED",
+    roster_layout: "CARDS",
+    cover_position: 50,
+  },
+  role_titles: { DIRECTOR: "Archivist", MODERATOR: "", OPERATIVE: "" },
+  members: [
+    {
+      id: "director",
+      display_name: "Mandarin",
+      avatar_url: null,
+      profile_url: null,
+      role: "DIRECTOR",
+      is_me: true,
+    },
+    {
+      id: "member",
+      display_name: "<img src=x onerror=alert(1)>",
+      avatar_url: null,
+      profile_url: null,
+      role: "OPERATIVE",
+      is_me: false,
+    },
+  ],
+  applications: [{ id: "application", display_name: "New player", message: "Hello" }],
+  bans: [],
+  journal: [],
+})
+function bureauReply(url, value) {
+  if (url.includes("bureau-reports")) return { items: [] }
+  if (url.includes("/operations")) return { items: [], templates: {} }
+  if (url.startsWith("/api/bureaus?"))
+    return { items: [value], total: 1, my_bureau: value.my_role ? value : null, pending_slugs: [] }
+  return { bureau: value }
+}
+function fieldByLabel(doc, text) {
+  return [...doc.querySelectorAll("label")]
+    .find((label) => label.textContent.includes(text))
+    ?.querySelector("input,textarea,select")
+}
+function inputValue(w, input, value) {
+  const prototype =
+    input.tagName === "TEXTAREA" ? w.HTMLTextAreaElement.prototype : w.HTMLInputElement.prototype
+  Object.getOwnPropertyDescriptor(prototype, "value").set.call(input, value)
+  input.dispatchEvent(new w.Event("input", { bubbles: true }))
+}
+
+test("bureau tabs reveal the roster, applications and operations while preserving real roles", async () => {
+  const value = bureauFixture(),
+    requests = []
+  const { doc, w, api } = runtime(async (url, init) => {
+    requests.push({ url, init })
+    return response(bureauReply(url, value))
+  }, "en")
+  let root
+  await api.act(async () => {
+    root = api.mount(doc.getElementById("mount"), "bureaus", {
+      slug: "night",
+      csrf: "csrf",
+      onSelect() {},
+    })
+  })
+  assert.equal(doc.querySelector('.guild-tabs button[aria-pressed="true"]').textContent, "About")
+  assert.match(doc.querySelector(".guild-welcome").textContent, /Members only/)
+  assert.match(doc.querySelector(".guild-custom-rank").textContent, /Archivist/)
+  assert.match(doc.querySelector(".guild-role").textContent, /Director/)
+  assert.equal(doc.querySelector(".guild-members img"), null)
+  await api.act(async () => button(doc.querySelector(".guild-tabs"), "Members").click())
+  assert.equal(doc.querySelector(".guild-roster-panel").hidden, false)
+  const action = doc.querySelector('select[aria-label^="Member action"]')
+  assert.ok([...action.options].some((option) => option.value === "PROMOTE"))
+  await api.act(async () => {
+    action.value = "PROMOTE"
+    action.dispatchEvent(new w.Event("change", { bubbles: true }))
+  })
+  assert.match(doc.querySelector(".bureau-action-panel").textContent, /Make moderator/)
+  await api.act(async () => button(doc.querySelector(".guild-tabs"), "Applications").click())
+  assert.equal(doc.querySelector(".guild-roster-panel").hidden, true)
+  assert.match(doc.querySelector(".bureau-application").textContent, /New player/)
+  await api.act(async () => button(doc.querySelector(".guild-tabs"), "Operations").click())
+  assert.ok(requests.some(({ url }) => url === "/api/bureaus/night/operations"))
+  await api.act(async () => root.unmount())
+})
+
+test("bureau customization previews changes, sends revision and CSRF once, and preserves a failed draft", async () => {
+  const value = bureauFixture(),
+    writes = []
+  let complete
+  const { doc, w, api } = runtime((url, init) => {
+    if (init.method === "PUT") {
+      writes.push({ url, init })
+      return new Promise((resolve) => {
+        complete = resolve
+      })
+    }
+    return Promise.resolve(response(bureauReply(url, value)))
+  }, "en")
+  let root
+  await api.act(async () => {
+    root = api.mount(doc.getElementById("mount"), "bureaus", {
+      slug: "night",
+      csrf: "csrf-fixture",
+      onSelect() {},
+    })
+  })
+  await api.act(async () => button(doc, "Bureau settings").click())
+  await api.act(async () => button(doc.querySelector(".guild-settings-nav"), "Appearance").click())
+  await api.act(async () => {
+    button(doc.querySelector(".guild-swatches"), "Plum").click()
+    button(doc.querySelector(".guild-emblem-options"), "Feather").click()
+  })
+  assert.ok(doc.querySelector(".guild-preview .accent-plum"))
+  assert.ok(doc.querySelector('.guild-preview [data-icon="feather"]'))
+  await api.act(async () => button(doc.querySelector(".guild-settings-nav"), "Rank names").click())
+  await api.act(async () => inputValue(w, fieldByLabel(doc, "Director"), "<script>owner</script>"))
+  await api.act(async () => button(doc.querySelector(".guild-settings-nav"), "Admission").click())
+  await api.act(async () => {
+    fieldByLabel(doc, "Show bureau in the directory").click()
+    inputValue(w, fieldByLabel(doc, "Welcome message"), "New member note")
+  })
+  const form = doc.querySelector(".guild-editor")
+  await api.act(async () => {
+    form.dispatchEvent(new w.Event("submit", { bubbles: true, cancelable: true }))
+    form.dispatchEvent(new w.Event("submit", { bubbles: true, cancelable: true }))
+  })
+  assert.equal(writes.length, 1)
+  assert.equal(writes[0].url, "/api/bureaus/night/customization")
+  assert.equal(writes[0].init.headers.get("X-CSRF-Token"), "csrf-fixture")
+  const payload = JSON.parse(writes[0].init.body)
+  assert.equal(payload.expected_revision, 4)
+  assert.equal(payload.appearance.accent, "PLUM")
+  assert.equal(payload.appearance.emblem, "feather")
+  assert.equal(payload.role_titles.DIRECTOR, "<script>owner</script>")
+  assert.equal(payload.listed, false)
+  assert.equal(payload.welcome, "New member note")
+  assert.equal(payload.slug, undefined)
+  assert.equal(payload.avatar_url, undefined)
+  assert.equal(payload.avatar_image, undefined)
+  await api.act(async () =>
+    complete({
+      ok: false,
+      status: 409,
+      json: async () => ({ detail: "Settings changed; reload before saving" }),
+    }),
+  )
+  assert.match(doc.querySelector('[role="alert"]').textContent, /Settings changed/)
+  assert.equal(fieldByLabel(doc, "Welcome message").value, "New member note")
+  assert.ok(doc.querySelector(".guild-editor"))
+  await api.act(async () => root.unmount())
+})
+
+test("removing bureau media sends explicit clears and a successful save renders returned branding", async () => {
+  const value = bureauFixture()
+  let body
+  const { doc, w, api } = runtime(async (url, init) => {
+    if (init.method === "PUT") {
+      body = JSON.parse(init.body)
+      Object.assign(value, {
+        avatar_url: null,
+        cover_url: null,
+        appearance: body.appearance,
+        design_revision: 5,
+      })
+      return response({ bureau: value })
+    }
+    return response(bureauReply(url, value))
+  }, "en")
+  let root
+  await api.act(async () => {
+    root = api.mount(doc.getElementById("mount"), "bureaus", {
+      slug: "night",
+      csrf: "csrf",
+      onSelect() {},
+    })
+  })
+  await api.act(async () => button(doc, "Bureau settings").click())
+  await api.act(async () => button(doc.querySelector(".guild-settings-nav"), "Appearance").click())
+  for (const upload of doc.querySelectorAll(".guild-upload"))
+    await api.act(async () => button(upload, "Remove image").click())
+  assert.equal(doc.querySelector(".guild-preview img"), null)
+  await api.act(async () =>
+    doc
+      .querySelector(".guild-editor")
+      .dispatchEvent(new w.Event("submit", { bubbles: true, cancelable: true })),
+  )
+  assert.equal(body.avatar_image, "")
+  assert.equal(body.cover_image, "")
+  assert.equal(doc.querySelector(".guild-editor"), null)
+  assert.equal(doc.querySelector(".guild-hero img"), null)
+  assert.match(doc.querySelector('[role="status"]').textContent, /Changes saved/)
+  await api.act(async () => root.unmount())
+})
+
+test("bureau visitor sees no management controls or private welcome and must accept rules to join", async () => {
+  const value = {
+    ...bureauFixture(),
+    my_role: null,
+    can_manage: false,
+    can_edit: false,
+    welcome: "",
+    applications: [],
+    members: [
+      {
+        id: null,
+        display_name: null,
+        avatar_url: null,
+        profile_url: null,
+        role: "DIRECTOR",
+        is_me: false,
+      },
+    ],
+  }
+  const writes = []
+  const { doc, api } = runtime(async (url, init) => {
+    if (init.method === "POST") writes.push({ url, body: JSON.parse(init.body) })
+    return response(bureauReply(url, value))
+  }, "en")
+  let root
+  await api.act(async () => {
+    root = api.mount(doc.getElementById("mount"), "bureaus", {
+      slug: "night",
+      csrf: "csrf",
+      onSelect() {},
+    })
+  })
+  assert.equal(doc.querySelector(".guild-welcome"), null)
+  assert.equal(button(doc, "Bureau settings"), undefined)
+  assert.equal(button(doc.querySelector(".guild-tabs"), "Applications"), undefined)
+  assert.equal(button(doc, "Send application").disabled, true)
+  await api.act(async () => fieldByLabel(doc, "I agree to the bureau rules").click())
+  assert.equal(button(doc, "Send application").disabled, false)
+  await api.act(async () => button(doc, "Send application").click())
+  assert.equal(writes.length, 1)
+  assert.equal(writes[0].url, "/api/bureaus/night/join")
+  assert.equal(writes[0].body.agree_rules, true)
+  await api.act(async () => root.unmount())
+})
+
 test("authenticated leaderboard shows own rank beyond the first 50 and keeps filter requests isolated", async () => {
   let resolveOld
   const calls = []

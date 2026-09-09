@@ -1,3 +1,4 @@
+import Icon from "../icons/Icon"
 import { useState } from "react"
 import { request, useResource } from "../community/api"
 import { useLanguage } from "../i18n"
@@ -99,7 +100,10 @@ export default function ArchivePage({
         </div>
         <div className="archive-balance">
           <small>{ru ? "Жетоны архива" : "Archive tokens"}</small>
-          <strong>◉ {wallet.data ? wallet.data.balance.toLocaleString(locale) : "—"}</strong>
+          <strong>
+            <Icon name="coins" size={18} />{" "}
+            {wallet.data ? wallet.data.balance.toLocaleString(locale) : "—"}
+          </strong>
         </div>
       </header>
       <nav className="archive-tabs" aria-label={ru ? "Разделы архива" : "Archive sections"}>
@@ -190,7 +194,7 @@ export default function ArchivePage({
                   </span>
                   <b>
                     {item.delta > 0 ? "+" : ""}
-                    {item.delta} ◉
+                    {item.delta} <Icon name="coins" size={18} />
                   </b>
                 </li>
               ))}
@@ -330,7 +334,7 @@ export default function ArchivePage({
             <p role="status">{ru ? "Загружаем карточки…" : "Loading cards…"}</p>
           ) : !cards.data?.items.length ? (
             <div className="archive-empty">
-              <span>▤</span>
+              <Icon name="layers" size={28} />
               <h3>{ru ? "Здесь начинается коллекция" : "The collection starts here"}</h3>
               <p>
                 {view === "mine"
@@ -353,7 +357,7 @@ export default function ArchivePage({
                   <small>{card.artist}</small>
                   {card.source_url && (
                     <a href={card.source_url} target="_blank" rel="noopener noreferrer">
-                      {ru ? "Источник изображения ↗" : "Artwork source ↗"}
+                      {ru ? "Источник изображения" : "Artwork source"}
                     </a>
                   )}
                   {card.review_note && <p className="archive-review-note">{card.review_note}</p>}
@@ -372,8 +376,8 @@ export default function ArchivePage({
                       }
                     >
                       {ru
-                        ? `Получить за ${meta.data!.direct_costs[card.rank]} ◉`
-                        : `Acquire for ${meta.data!.direct_costs[card.rank]} ◉`}
+                        ? `Получить за ${meta.data!.direct_costs[card.rank]} жет.`
+                        : `Acquire for ${meta.data!.direct_costs[card.rank]} tokens`}
                     </button>
                   )}
                   {view === "mine" && (

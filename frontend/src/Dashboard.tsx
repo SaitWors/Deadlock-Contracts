@@ -1,3 +1,4 @@
+import SvgIcon, { type IconName } from "./icons/Icon"
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react"
 import markImage from "@/imports/mark.svg"
 import curatorImage from "@/imports/curator-optimized.webp"
@@ -856,8 +857,21 @@ const countdownHms = (value?: string | null, now = Date.now()) => {
 
 const safeName = (value: string, language: Language = "ru") =>
   /^Steam \d{17,20}$/.test(value) ? (language === "ru" ? "Steam-профиль" : "Steam profile") : value
-const categoryGlyph = (value: string) =>
-  ({ COMBAT: "⌁", SUPPORT: "＋", ECONOMY: "◇", SURVIVAL: "◉", ALL: "◆" })[value] || "◆"
+const categoryGlyph = (value: string) => (
+  <SvgIcon
+    name={
+      (
+        {
+          COMBAT: "swords",
+          SUPPORT: "heart-handshake",
+          ECONOMY: "coins",
+          SURVIVAL: "shield",
+          ALL: "layers",
+        } as Record<string, IconName>
+      )[value] || "layers"
+    }
+  />
+)
 const categoryLabel = (value: string, language: Language = "ru") =>
   t(
     language,
@@ -909,61 +923,16 @@ function RoleIcon({
 }: {
   name: "crown" | "shield" | "gear" | "stream" | "flask" | "star" | "player"
 }) {
-  const glyphs: Record<string, React.ReactNode> = {
-    crown: (
-      <>
-        <path d="M3.5 8.5 7 12l5-7 5 7 3.5-3.5-1.6 9.5H5.1z" />
-        <path d="M6 20h12" />
-      </>
-    ),
-    shield: (
-      <>
-        <path d="M12 3 4.8 6v5.2c0 4.7 2.8 7.8 7.2 9.8 4.4-2 7.2-5.1 7.2-9.8V6z" />
-        <path d="M12 8v7M8.5 11.5h7" />
-      </>
-    ),
-    gear: (
-      <>
-        <circle cx="12" cy="12" r="3.1" />
-        <path d="M12 2.8v2M12 19.2v2M21.2 12h-2M4.8 12h-2M18.5 5.5l-1.4 1.4M6.9 17.1l-1.4 1.4M18.5 18.5l-1.4-1.4M6.9 6.9 5.5 5.5" />
-        <circle cx="12" cy="12" r="7.1" />
-      </>
-    ),
-    stream: (
-      <>
-        <path d="M5 4h14v11l-4 4h-3l-2 2v-2H5z" />
-        <path d="M10 8v5M14 8v5" />
-      </>
-    ),
-    flask: (
-      <>
-        <path d="M9 3h6M10 3v6l-5 9a2 2 0 0 0 1.8 3h10.4A2 2 0 0 0 19 18l-5-9V3" />
-        <path d="M8 15h8" />
-      </>
-    ),
-    star: <path d="m12 3 2.2 5.3L20 9l-4.3 3.8 1.3 5.7-5-3-5 3 1.3-5.7L4 9l5.8-.7z" />,
-    player: (
-      <>
-        <circle cx="12" cy="12" r="7" />
-        <circle cx="12" cy="12" r="2" />
-        <path d="M12 3v3M12 18v3M3 12h3M18 12h3" />
-      </>
-    ),
-  }
-  return (
-    <svg
-      className="dc-role-icon"
-      viewBox="0 0 24 24"
-      aria-hidden="true"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.6"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    >
-      {glyphs[name]}
-    </svg>
-  )
+  const icons = {
+    crown: "crown",
+    shield: "shield-check",
+    gear: "settings",
+    stream: "video",
+    flask: "flask-conical",
+    star: "star",
+    player: "user-round",
+  } as const
+  return <SvgIcon name={icons[name]} className="dc-role-icon" />
 }
 
 function RoleBadge({ badge, compact = false }: { badge: BadgeId; compact?: boolean }) {
@@ -1002,53 +971,14 @@ const joinLabel = (value?: string | null, language: Language = "ru") =>
     : "—"
 
 function Icon({ name }: { name: "hq" | "contract" | "case" | "profile" | "admin" }) {
-  const paths: Record<string, React.ReactNode> = {
-    hq: (
-      <>
-        <path d="M4 19V9l8-5 8 5v10" />
-        <path d="M8 19v-6h8v6" />
-      </>
-    ),
-    contract: (
-      <>
-        <path d="M7 3h10l3 3v15H7z" />
-        <path d="M17 3v4h4" />
-        <path d="M10 11h7M10 15h7" />
-      </>
-    ),
-    case: (
-      <>
-        <path d="M4 7h16v12H4z" />
-        <path d="M8 7V5h8v2M9 12h6" />
-      </>
-    ),
-    profile: (
-      <>
-        <circle cx="12" cy="8" r="4" />
-        <path d="M4 21a8 8 0 0 1 16 0" />
-      </>
-    ),
-    admin: (
-      <>
-        <path d="M12 3 4 7v5c0 5 3.4 8 8 9 4.6-1 8-4 8-9V7z" />
-        <path d="m9 12 2 2 4-4" />
-      </>
-    ),
-  }
-  return (
-    <svg
-      viewBox="0 0 24 24"
-      aria-hidden="true"
-      className="dc-icon"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.7"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    >
-      {paths[name]}
-    </svg>
-  )
+  const icons = {
+    hq: "house",
+    contract: "file-text",
+    case: "briefcase-business",
+    profile: "user-round",
+    admin: "shield-check",
+  } as const
+  return <SvgIcon name={icons[name]} className="dc-icon" />
 }
 
 function ModeTabs({
@@ -1622,7 +1552,7 @@ export default function Dashboard({ initialSession }: { initialSession: SessionP
                     {language === "ru" ? "Создать карточку" : "Create a card"}
                   </button>
                   <button className="bureau-callout-link" onClick={() => setTab("packs")}>
-                    {language === "ru" ? "Посмотреть конверты ↗" : "Explore envelopes ↗"}
+                    {language === "ru" ? "Посмотреть конверты" : "Explore envelopes"}
                   </button>
                 </div>
               </div>
@@ -1924,7 +1854,11 @@ export default function Dashboard({ initialSession }: { initialSession: SessionP
                         >
                           <div className="holo-overlay" />
                           <div className="dc-motion-card-sheen" />
-                          {chosen && <div className="dc-check dc-motion-check">✓</div>}
+                          {chosen && (
+                            <div className="dc-check dc-motion-check">
+                              <SvgIcon name="check" size={16} />
+                            </div>
+                          )}
                           <div className="dc-contract-top">
                             <span>
                               <i>{categoryGlyph(option.category)}</i>
@@ -2297,11 +2231,16 @@ export default function Dashboard({ initialSession }: { initialSession: SessionP
                                         : ""
                                   }
                                 >
-                                  {item.status === "COMPLETED"
-                                    ? "✓"
-                                    : item.status === "FAILED"
-                                      ? "×"
-                                      : "•"}
+                                  <SvgIcon
+                                    name={
+                                      item.status === "COMPLETED"
+                                        ? "circle-check"
+                                        : item.status === "FAILED"
+                                          ? "x"
+                                          : "hourglass"
+                                    }
+                                    size={18}
+                                  />
                                 </span>
                                 <p>
                                   <b>{localizedContractTitle(item, language)}</b>

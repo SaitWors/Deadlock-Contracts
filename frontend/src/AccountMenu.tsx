@@ -1,3 +1,6 @@
+import { BureauEmblem, appearanceOf } from "./community/BureauIdentity"
+import type { BureauSummary } from "./community/types"
+import Icon from "./icons/Icon"
 import { useEffect, useId, useRef, useState } from "react"
 import { request, useResource } from "./community/api"
 import { useLanguage } from "./i18n"
@@ -29,7 +32,7 @@ export default function AccountMenu({
   const trigger = useRef<HTMLButtonElement>(null)
   const first = useRef<HTMLButtonElement>(null)
   const wallet = useResource<Wallet>(`/api/archive/wallet?view=${revision}`)
-  const bureau = useResource<{ my_bureau: { name: string; slug: string } | null }>(
+  const bureau = useResource<{ my_bureau: BureauSummary | null }>(
     `/api/bureaus?menu=${open ? "open" : "closed"}`,
   )
   useEffect(() => {
@@ -85,10 +88,11 @@ export default function AccountMenu({
         <span>
           <b>{user.display_name}</b>
           <small>
-            LVL {level} · {wallet.data ? `${wallet.data.balance.toLocaleString(locale)} ◉` : "— ◉"}
+            LVL {level} · <Icon name="coins" size={14} />{" "}
+            {wallet.data ? wallet.data.balance.toLocaleString(locale) : "—"}
           </small>
         </span>
-        <i aria-hidden="true">⌄</i>
+        <Icon name="chevron-down" size={16} />
       </button>
       {open && (
         <section
@@ -106,7 +110,10 @@ export default function AccountMenu({
           <div className="bureau-wallet-strip">
             <div>
               <small>{ru ? "Жетоны архива" : "Archive tokens"}</small>
-              <b>◉ {wallet.data ? wallet.data.balance.toLocaleString(locale) : "—"}</b>
+              <b>
+                <Icon name="coins" />{" "}
+                {wallet.data ? wallet.data.balance.toLocaleString(locale) : "—"}
+              </b>
             </div>
             <button ref={first} onClick={() => go("archive")}>
               {ru ? "Заработать" : "Earn tokens"}
@@ -121,22 +128,30 @@ export default function AccountMenu({
           <div className="bureau-profile-links">
             <button onClick={() => go("profile")}>
               {ru ? "Мой профиль и настройки" : "Profile & settings"}
-              <span>↗</span>
+              <Icon name="arrow-up-right" />
             </button>
             <button onClick={() => go("leaderboard")}>
               {ru ? "Моё место в рейтинге" : "My leaderboard position"}
-              <span>↗</span>
+              <Icon name="arrow-up-right" />
             </button>
             <button onClick={() => go("achievements")}>
               {ru ? "Достижения" : "Achievements"}
-              <span>✧</span>
+              <Icon name="medal" />
             </button>
           </div>
           <div className="bureau-profile-section">
             <small>{ru ? "МОЁ БЮРО" : "MY BUREAU"}</small>
-            <button onClick={() => go("bureaus")}>
+            <button
+              className={`accent-${appearanceOf(bureau.data?.my_bureau || {}).accent.toLowerCase()}`}
+              onClick={() => {
+                go("bureaus")
+                if (bureau.data?.my_bureau?.slug)
+                  window.location.hash = `bureaus/${bureau.data.my_bureau.slug}`
+              }}
+            >
+              {bureau.data?.my_bureau && <BureauEmblem item={bureau.data.my_bureau} />}
               {bureau.data?.my_bureau?.name || (ru ? "Найти своё бюро" : "Find a bureau")}
-              <span>↗</span>
+              <Icon name="arrow-up-right" />
             </button>
           </div>
           <button className="bureau-studio-callout" onClick={() => go("studio")}>
@@ -147,28 +162,28 @@ export default function AccountMenu({
           <div className="bureau-profile-links">
             <button onClick={() => go("packs")}>
               {ru ? "Конверты архива" : "Archive envelopes"}
-              <span>✉</span>
+              <Icon name="mail" />
             </button>
             <button onClick={() => go("collection")}>
               {ru ? "Моя коллекция" : "My collection"}
-              <span>▤</span>
+              <Icon name="layers" />
             </button>
             <button onClick={() => go("studio")}>
               {ru ? "Мои карточки и заявки" : "My designs & submissions"}
-              <span>▤</span>
+              <Icon name="layers" />
             </button>
             <button onClick={() => go("wallet")}>
               {ru ? "История жетонов" : "Token history"}
-              <span>◉</span>
+              <Icon name="coins" />
             </button>
             <button onClick={() => go("history")}>
               {ru ? "История контрактов" : "Contract history"}
-              <span>↗</span>
+              <Icon name="arrow-up-right" />
             </button>
             {user.is_staff && (
               <button onClick={() => go("admin")}>
                 {ru ? "Панель сотрудников" : "Staff desk"}
-                <span>↗</span>
+                <Icon name="arrow-up-right" />
               </button>
             )}
           </div>
@@ -182,7 +197,7 @@ export default function AccountMenu({
                 }}
               >
                 {ru ? "Как работает бюро · 3 шага" : "How the bureau works · 3 steps"}
-                <span>?</span>
+                <Icon name="info" />
               </button>
             </div>
           )}

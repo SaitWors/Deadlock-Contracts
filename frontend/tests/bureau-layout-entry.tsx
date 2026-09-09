@@ -15,11 +15,11 @@ function Fixture() {
   const [active, setActive] = useState("home")
   return (
     <div
-      className="dc-dashboard dc-v3 bureau-app"
+      className="dc-dashboard dc-redesign dc-v3 dc-vnext bureau-app min-h-screen community-dashboard"
       style={{ padding: "24px 16px 100px", minHeight: "100vh" }}
     >
       <main style={{ maxWidth: 1100, margin: "auto" }}>
-        <h1>PR36 · визуальная приёмка</h1>
+        <h1>PR37 · визуальная приёмка</h1>
         <p>
           Реальные компоненты. Ширину окна меняйте средствами браузера. Здесь нет авторизации и
           начисления наград.
@@ -82,7 +82,7 @@ function Fixture() {
                 <figcaption>
                   <strong>{art.label}</strong>
                   <p style={{ overflowWrap: "anywhere" }}>{id}</p>
-                  <small>{art.cutout ? "Прозрачный фон" : "Исходный фрагмент на подложке"}</small>
+                  <small>Lucide · SVG</small>
                 </figcaption>
               </figure>
             ),

@@ -14,6 +14,7 @@ from sqlalchemy.orm import Session
 from ..models import AuditLog, BureauApplication, BureauBan, BureauMembership, BureauMembershipPeriod, PlayerBureau, PublicProfile, User
 
 from . import bureau_operations as operations
+from . import bureau_design
 
 CAPACITY = 25
 MANAGERS = {"DIRECTOR", "MODERATOR"}
@@ -61,7 +62,7 @@ def commit(db: Session) -> None:
 def summary(db: Session, bureau: PlayerBureau, count: int | None = None) -> dict:
     if count is None:
         count = db.scalar(select(func.count()).select_from(BureauMembership).where(BureauMembership.bureau_id == bureau.id)) or 0
-    return {"slug": bureau.slug, "name": bureau.name, "tagline": bureau.tagline,
+    return {**bureau_design.summary(bureau), "slug": bureau.slug, "name": bureau.name, "tagline": bureau.tagline,
             "theme": bureau.theme, "language": bureau.language, "recruitment": bureau.recruitment,
             "member_count": count, "capacity": CAPACITY, "status": bureau.status, "moderation_note": bureau.moderation_note}
 
@@ -114,7 +115,11 @@ def detail(db: Session, bureau: PlayerBureau, viewer: User) -> dict:
     return {"bans": bans, "my_ban": {"reason": ban.reason} if ban else None, **summary(db, bureau, len(rows)), "description": bureau.description, "rules": bureau.rules,
             "members": members, "my_role": own.role if inside else None, "can_manage": bool(manager),
             "can_edit": bool(inside and own.role == "DIRECTOR" and bureau.owner_user_id == viewer.id),
-            "application_pending": pending is not None, "applications": applications, "journal": journal}
+            "application_pending": pending is not None, "applications": applications, "journal": journal,
+            "design_revision": bureau.design_revision, "listed": bureau.listed,
+            "welcome": bureau.welcome if inside else "",
+            "role_titles": bureau_design.RoleTitles.model_validate(bureau.role_titles or {}).model_dump(),
+            "created_at": bureau.created_at.isoformat()}
 
 
 def require_active(bureau: PlayerBureau) -> None:

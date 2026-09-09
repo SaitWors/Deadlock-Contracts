@@ -413,7 +413,7 @@ export default function ProfileStudio({ csrf, onNotice, onError, onRefresh, onBu
             </button>
             {!editing && draft.public_url && (
               <a className="dc-ghost" href={draft.public_url}>
-                {ru ? "Открыть публичный профиль ↗" : "Open public profile ↗"}
+                {ru ? "Открыть публичный профиль" : "Open public profile"}
               </a>
             )}
           </>

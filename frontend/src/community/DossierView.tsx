@@ -1,6 +1,6 @@
 import type { ReactNode } from "react"
 import mark from "@/imports/mark.svg"
-import Regalia from "../regalia/Regalia"
+import { BureauEmblem, appearanceOf } from "./BureauIdentity"
 import { contractTitle, useLanguage } from "../i18n"
 import { Seal } from "./Shared"
 import type { Module, Profile } from "./types"
@@ -117,8 +117,10 @@ export default function DossierView({
             {profile.bureau.member_count} / {profile.bureau.capacity}
           </span>
         </header>
-        <div className="dossier-bureau">
-          <Regalia id="seal-team" />
+        <div
+          className={`dossier-bureau accent-${appearanceOf(profile.bureau).accent.toLowerCase()}`}
+        >
+          <BureauEmblem item={profile.bureau} />
           <div>
             <h3>{profile.bureau.name}</h3>
             <p>
@@ -127,11 +129,11 @@ export default function DossierView({
             </p>
             {onBureau ? (
               <button onClick={() => onBureau(profile.bureau!.slug)}>
-                {ru ? "Открыть бюро ↗" : "Open bureau ↗"}
+                {ru ? "Открыть бюро" : "Open bureau"}
               </button>
             ) : (
               <a href={`/#bureaus/${profile.bureau.slug}`}>
-                {ru ? "Посмотреть бюро ↗" : "View bureau ↗"}
+                {ru ? "Посмотреть бюро" : "View bureau"}
               </a>
             )}
           </div>
@@ -250,7 +252,7 @@ export default function DossierView({
                   .filter(([, href]) => /^https:\/\//i.test(href))
                   .map(([key, href]) => (
                     <a key={key} href={href} target="_blank" rel="noreferrer">
-                      {key} ↗
+                      {key}
                     </a>
                   ))}
               </div>

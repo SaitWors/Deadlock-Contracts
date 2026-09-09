@@ -1,3 +1,4 @@
+import Icon from "./icons/Icon"
 import { useEffect, useId, useRef, useState, type ReactNode } from "react"
 import logo from "@/imports/logo-horizontal.svg"
 import { LanguageSwitch, useLanguage } from "./i18n"
@@ -87,7 +88,7 @@ export default function BureauHeader({
           }
           onClick={() => setOpen(!open)}
         >
-          {open ? "×" : "☰"}
+          <Icon name={open ? "x" : "menu"} size={24} />
         </button>
       </div>
       {open && (

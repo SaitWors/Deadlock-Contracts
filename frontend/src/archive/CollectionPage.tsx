@@ -1,3 +1,4 @@
+import Icon from "../icons/Icon"
 import { useEffect, useState } from "react"
 import { request, useResource } from "../community/api"
 import { useLanguage } from "../i18n"
@@ -244,8 +245,8 @@ export default function CollectionPage({
                 }
               >
                 {ru
-                  ? `Обменять один дубль: +${item.recycle.value} ◉`
-                  : `Recycle one duplicate: +${item.recycle.value} ◉`}
+                  ? `Обменять один дубль: +${item.recycle.value} жет.`
+                  : `Recycle one duplicate: +${item.recycle.value} tokens`}
               </button>
             )}
           </article>
@@ -260,7 +261,7 @@ export default function CollectionPage({
           <button key={item.id} onClick={() => setReceipt(item)}>
             {item.pack?.title || item.kind} · {new Date(item.created_at).toLocaleString()} ·{" "}
             {item.delta > 0 ? "+" : ""}
-            {item.delta} ◉
+            {item.delta} <Icon name="coins" size={18} />
           </button>
         ))}
         {history.data?.total === 0 && <p>{ru ? "Операций пока нет." : "No transactions yet."}</p>}

@@ -1,3 +1,4 @@
+import Icon from "../icons/Icon"
 import { useEffect, useState, type FormEvent } from "react"
 import { request, useResource } from "../community/api"
 import { useLanguage } from "../i18n"
@@ -111,7 +112,8 @@ function OwnerContent({ csrf }: { csrf: string }) {
                   <article key={pack.id}>
                     <h3>{pack.title}</h3>
                     <p>
-                      {pack.price} ◉ · {pack.draws} {ru ? "карточек" : "cards"} ·{" "}
+                      {pack.price} <Icon name="coins" size={18} /> · {pack.draws}{" "}
+                      {ru ? "карточек" : "cards"} ·{" "}
                       {pack.active
                         ? ru
                           ? "Опубликован"
@@ -194,8 +196,8 @@ function OwnerContent({ csrf }: { csrf: string }) {
                 onClick={() => void tx.execute("/api/owner/archive/tokens", { delta, note })}
               >
                 {ru
-                  ? `Изменить свой баланс на ${delta > 0 ? "+" : ""}${delta} ◉`
-                  : `Adjust my balance by ${delta > 0 ? "+" : ""}${delta} ◉`}
+                  ? `Изменить свой баланс на ${delta > 0 ? "+" : ""}${delta} жет.`
+                  : `Adjust my balance by ${delta > 0 ? "+" : ""}${delta} tokens`}
               </button>
             </div>
             <h3>{ru ? "Выдать себе карточку" : "Grant myself a card"}</h3>
@@ -454,12 +456,12 @@ function PackForm({
             <>
               <h3>
                 {ru ? "Рекомендованная цена" : "Recommended price"}: {preview.recommendation.price}{" "}
-                ◉
+                <Icon name="coins" size={18} />
               </h3>
               <p>
                 {ru
-                  ? `Средняя цена прямого получения этого состава: ${preview.recommendation.expected_direct_cost} ◉. Для случайного конверта — скидка 45%, округление вверх до 5 жетонов. При 150 жетонах в неделю это ${preview.recommendation.weeks_at_150} недели накопления.`
-                  : `Expected direct acquisition cost: ${preview.recommendation.expected_direct_cost} ◉. Random packs receive a 45% discount, rounded up to 5 tokens. At 150 tokens per week: ${preview.recommendation.weeks_at_150} weeks.`}
+                  ? `Средняя цена прямого получения этого состава: ${preview.recommendation.expected_direct_cost} жет. Для случайного конверта — скидка 45%, округление вверх до 5 жетонов. При 150 жетонах в неделю это ${preview.recommendation.weeks_at_150} недели накопления.`
+                  : `Expected direct acquisition cost: ${preview.recommendation.expected_direct_cost} tokens. Random packs receive a 45% discount, rounded up to 5 tokens. At 150 tokens per week: ${preview.recommendation.weeks_at_150} weeks.`}
               </p>
               <button
                 type="button"

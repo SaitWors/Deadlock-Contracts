@@ -8,16 +8,15 @@ from urllib.parse import urlsplit
 
 
 LIMITS = {
-    # Stage 5: lazy pack shop, owner editor and inventory (+34 KB), measured 563 KB.
-    # The public entry stays 292 KB; preserve its separate 310 KB ceiling.
-    "javascript_total": 580_000,
+    # Stage 7: a saved guild editor, shared brand components and Lucide SVG nodes.
+    # Measured 597 KB total / 305 KB initial; keep the public-entry cap unchanged.
+    "javascript_total": 615_000,
     "initial_javascript": 310_000,
-    # Stage 6: accessible briefing, folder document and mobile controls, 288 KB.
-    "css_total": 295_000,
+    # New guild layouts plus shared interface polish; measured 316 KB.
+    "css_total": 325_000,
     "largest_image": 600_000,
-    # Five supplied regalia sheets + two validated cutouts, 1.37 MB of artwork.
-    # Actual build: 3.26 MB; the initial JS and per-image caps remain unchanged.
-    "assets_total": 3_350_000,
+    # Removed 1.37 MB of bitmap regalia. New build is 1.94 MB including fonts.
+    "assets_total": 2_100_000,
 }
 IMAGE_SUFFIXES = {".avif", ".gif", ".jpg", ".jpeg", ".png", ".webp"}
 

@@ -318,7 +318,7 @@ const EN: Record<string, string> = {
   "Условия проверены": "Conditions verified",
   "Контракт выполнен": "Contract completed",
   "Надёжный партнёр · 10 содействий, ≤7 смертей": "Reliable Partner · 10 assists, ≤7 deaths",
-  "Содействия: 13 ≥ 10 ✓   Смерти: 5 ≤ 7 ✓": "Assists: 13 ≥ 10 ✓   Deaths: 5 ≤ 7 ✓",
+  "Содействия: 13 ≥ 10 · Смерти: 5 ≤ 7": "Assists: 13 ≥ 10 · Deaths: 5 ≤ 7",
   "Контракт ещё не зафиксирован.": "No contract locked yet.",
   "Жду ваш выбор.": "Awaiting your selection.",
   "Выберите цель до матча.": "Choose an objective before the match.",
@@ -602,7 +602,7 @@ export function MCGCredit({
     >
       <span>{language === "ru" ? "СОЗДАНО КОМАНДОЙ" : "CREATED BY"}</span>
       <b>M.C.G.</b>
-      <em>MANDARIN CREATOR GROUP ↗</em>
+      <em>MANDARIN CREATOR GROUP</em>
     </a>
   )
 }
