@@ -1,0 +1,23 @@
+.bureau-callout-stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 24px;
+  margin: 16px 0 0;
+}
+
+.bureau-callout-stats div {
+  min-width: 90px;
+}
+
+.bureau-callout-stats dt {
+  color: var(--color-cream-dim);
+  font-size: 0.75rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.bureau-callout-stats dd {
+  margin: 3px 0 0;
+  color: var(--color-cream);
+  font-weight: 700;
+}

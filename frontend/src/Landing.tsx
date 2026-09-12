@@ -1,5 +1,5 @@
 import Icon from "./icons/Icon"
-import React, { useState, useEffect, useRef, useCallback } from "react"
+import React, { Suspense, useState, useEffect, useRef, useCallback } from "react"
 import BureauHeader from "./BureauHeader"
 import Leaderboard from "./community/Leaderboard"
 import ContractSigning from "./ContractSigning"
@@ -9,10 +9,12 @@ import { LanguageSwitch, MCGCredit, t, useLanguage } from "./i18n"
 
 type ContractCategory = "COMFORT" | "GROWTH" | "HERO" | "VARIETY" | "EVENT"
 type GameMode = "STANDARD" | "RANKED" | "STREET BRAWL"
-type PublicPage = "home" | "contracts" | "how" | "campaigns" | "leaderboards"
+type PublicPage = "home" | "try" | "contracts" | "how" | "campaigns" | "leaderboards"
+
+const GuestCipher = React.lazy(() => import("./archive/GuestCipher"))
 
 const NAV_ITEMS: Array<{
-  id: Exclude<PublicPage, "home">
+  id: Exclude<PublicPage, "home" | "try">
   label: string
 }> = [
   { id: "contracts", label: "CONTRACTS" },
@@ -410,7 +412,7 @@ export default function Landing() {
   const { language } = useLanguage()
   const pageFromHash = (): PublicPage => {
     const value = window.location.hash.replace("#", "") as PublicPage
-    return ["home", "contracts", "how", "campaigns", "leaderboards"].includes(value)
+    return ["home", "try", "contracts", "how", "campaigns", "leaderboards"].includes(value)
       ? value
       : "home"
   }
@@ -614,6 +616,16 @@ export default function Landing() {
                   )}
                 </p>
                 <div className="flex flex-wrap gap-3 mb-5">
+                  <button
+                    type="button"
+                    className="btn-primary px-6 py-3.5 text-sm font-bold"
+                    onClick={(event) => {
+                      ripple(event)
+                      navigate("try")
+                    }}
+                  >
+                    {language === "ru" ? "Попробовать без входа" : "Try without signing in"}
+                  </button>
                   <SteamButton large />
                   <button
                     type="button"
@@ -635,6 +647,19 @@ export default function Landing() {
                     </span>
                   </button>
                 </div>
+                <p
+                  className="text-sm leading-relaxed mb-4 max-w-[520px]"
+                  style={{ color: "#9DAA98" }}
+                >
+                  {language === "ru"
+                    ? "В браузере: шифры → жетоны архива → карточки. XP начисляется отдельно за проверенные матчевые контракты."
+                    : "In your browser: ciphers → archive tokens → cards. XP is earned separately from verified match contracts."}
+                </p>
+                <p className="text-xs mb-4 max-w-[520px]" style={{ color: "#7F8478" }}>
+                  {language === "ru"
+                    ? "Авторизация проходит на стороне Steam; сайт не запрашивает ваш пароль Steam."
+                    : "Authorization happens on Steam; this site never asks for your Steam password."}
+                </p>
                 <p className="text-xs" style={{ color: "#7F8478" }}>
                   STANDARD · RANKED · STREET BRAWL ·{" "}
                   {language === "ru" ? "АВТОПРОВЕРКА" : "AUTO VERIFY"}
@@ -1152,6 +1177,17 @@ export default function Landing() {
 
           <div className="flame-divider" />
         </>
+      )}
+      {page === "try" && (
+        <Suspense
+          fallback={
+            <main className="guest-cipher" role="status">
+              {language === "ru" ? "Открываем учебный шифр…" : "Opening the teaching cipher…"}
+            </main>
+          }
+        >
+          <GuestCipher onHome={() => navigate("home")} />
+        </Suspense>
       )}
       {page === "how" && (
         <>
