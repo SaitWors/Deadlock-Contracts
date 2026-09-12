@@ -18,6 +18,7 @@ import { prefersReducedMotion, useRipple, useTilt } from "./motion"
 import AnnouncementCenter from "./admin/AnnouncementCenter"
 import ReviewDesk from "./admin/ReviewDesk"
 import type { AdminReview } from "./admin/admin-types"
+import ArchiveNextStep from "./archive/ArchiveNextStep"
 import {
   MCGCredit,
   apiLanguage,
@@ -1529,33 +1530,7 @@ export default function Dashboard({ initialSession }: { initialSession: SessionP
 
           {tab === "home" && (
             <>
-              <div className="dc-home-archive-callout">
-                <div>
-                  <span className="bureau-callout-label">
-                    {language === "ru" ? "ДОСТУПНО БЕЗ КОМПАНЬОНА" : "AVAILABLE IN YOUR BROWSER"}
-                  </span>
-                  <strong>{language === "ru" ? "Сегодня в бюро" : "Today at the bureau"}</strong>
-                  <p>
-                    {language === "ru"
-                      ? "Разберите шифр, заработайте жетоны и начните коллекцию карточек героев."
-                      : "Solve a cipher, earn tokens and start your hero card collection."}
-                  </p>
-                </div>
-                <div className="bureau-callout-actions">
-                  <button className="bureau-action" onClick={() => setTab("archive")}>
-                    {language === "ru" ? "Разобрать шифр" : "Decode a cipher"}
-                  </button>
-                  <button
-                    className="bureau-action bureau-action-secondary"
-                    onClick={() => setTab("studio")}
-                  >
-                    {language === "ru" ? "Создать карточку" : "Create a card"}
-                  </button>
-                  <button className="bureau-callout-link" onClick={() => setTab("packs")}>
-                    {language === "ru" ? "Посмотреть конверты" : "Explore envelopes"}
-                  </button>
-                </div>
-              </div>
+              <ArchiveNextStep revision={archiveRevision} onNavigate={(next) => setTab(next)} />
               <section className="dc-command-hero dc-v3-hero">
                 <div className="dc-command-copy">
                   <p className="dc-eyebrow">

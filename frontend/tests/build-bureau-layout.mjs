@@ -56,7 +56,7 @@ await Promise.all(
 await fs.writeFile(path.join(target, "fixture.css"), css)
 await fs.writeFile(
   path.join(target, "index.html"),
-  '<!doctype html><html lang="ru"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>PR37 bureau QA</title><link rel="stylesheet" href="fixture.css"><body><div id="root"></div><script src="fixture.js"></script><script>BureauLayout.mount(document.getElementById("root"));</script></body></html>',
+  '<!doctype html><html lang="ru"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>PR37 bureau QA</title><link rel="stylesheet" href="fixture.css"><body><a href="first-visit.html">Первый визит / First visit</a><div id="root"></div><script src="fixture.js"></script><script>BureauLayout.mount(document.getElementById("root"));</script></body></html>',
 )
 
 const briefing = await build({
@@ -74,6 +74,27 @@ await fs.writeFile(
 await fs.writeFile(
   path.join(target, "briefing.html"),
   '<!doctype html><html lang="ru"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>PR37 briefing QA</title><link rel="stylesheet" href="fixture.css"><body><a href="index.html">К бюро / Back to bureaus</a><div id="root"></div><script src="briefing.js"></script><script>BriefingLayout.mount(document.getElementById("root"));</script></body></html>',
+)
+
+const firstVisit = await build({
+  ...options,
+  build: {
+    write: false,
+    minify: true,
+    lib: {
+      entry: "tests/first-visit-layout-entry.tsx",
+      name: "FirstVisitLayout",
+      formats: ["iife"],
+    },
+  },
+})
+await fs.writeFile(
+  path.join(target, "first-visit.js"),
+  firstVisit[0].output.find((item) => item.type === "chunk").code,
+)
+await fs.writeFile(
+  path.join(target, "first-visit.html"),
+  '<!doctype html><html lang="ru"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>First visit QA</title><link rel="stylesheet" href="fixture.css"><body style="margin:0"><a href="index.html">К макету бюро / Back to bureau fixture</a><div id="root"></div><script src="first-visit.js"></script><script>FirstVisitLayout.mount(document.getElementById("root"));</script></body></html>',
 )
 
 // Stable reward identifiers are exported as native vectors, without any bitmap.
