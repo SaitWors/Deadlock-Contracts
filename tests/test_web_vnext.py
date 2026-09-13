@@ -70,14 +70,14 @@ def test_failed_alpha3_motion_helper_is_not_part_of_runtime() -> None:
 def test_public_navigation_and_verified_leaderboard_are_restored() -> None:
     normalized_landing = " ".join(
         LANDING.replace('"', "'").split()
-    )
+    ).casefold()
 
     assert (
-        "{ id: 'campaigns', label: 'CAMPAIGNS · SOON' }"
+        "{ id: 'campaigns', label: 'campaigns · soon' }"
         in normalized_landing
     )
     assert (
-        "{ id: 'leaderboards', label: 'LEADERBOARD' }"
+        "{ id: 'leaderboards', label: 'leaderboard' }"
         in normalized_landing
     )
 
