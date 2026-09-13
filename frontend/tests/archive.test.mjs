@@ -22,7 +22,7 @@ before(async () => {
   code = result[0].output.find((item) => item.type === "chunk").code
 })
 after(() => environments.forEach((dom) => dom.window.close()))
-function runtime(fetch, language = "ru") {
+function runtime(fetch, language = "ru", reducedMotion = false) {
   const dom = new JSDOM('<main id="mount"></main>', {
     url: "https://qa.invalid",
     runScripts: "outside-only",
@@ -36,10 +36,32 @@ function runtime(fetch, language = "ru") {
   w.Headers = Headers
   w.AbortController = AbortController
   w.fetch = fetch
+  const motionListeners = new Set()
+  const media = {
+    matches: reducedMotion,
+    addEventListener: (_, listener) => motionListeners.add(listener),
+    removeEventListener: (_, listener) => motionListeners.delete(listener),
+  }
+  w.matchMedia = () => media
+  w.HTMLDialogElement.prototype.showModal = function () {
+    this.setAttribute("open", "")
+  }
+  w.HTMLDialogElement.prototype.close = function () {
+    this.removeAttribute("open")
+    this.dispatchEvent(new w.Event("close"))
+  }
   w.IS_REACT_ACT_ENVIRONMENT = true
   w.localStorage.setItem("dc.ui.language", language)
   w.eval(code)
-  return { w, api: w.ArchiveTest, doc: w.document }
+  return {
+    w,
+    api: w.ArchiveTest,
+    doc: w.document,
+    setReducedMotion(value) {
+      media.matches = value
+      motionListeners.forEach((listener) => listener({ matches: value }))
+    },
+  }
 }
 const response = (data) => ({ ok: true, json: async () => data })
 const wallet = {
@@ -81,6 +103,228 @@ const card = {
 }
 const button = (doc, text) =>
   [...doc.querySelectorAll("button")].find((b) => b.textContent.includes(text))
+
+const packReceipt = (id = "receipt-reveal", items = []) => ({
+  id,
+  kind: "PACK_OPEN",
+  delta: -30,
+  balance_after: 60,
+  created_at: "2026-09-08T00:00:00Z",
+  pack: { id: "pack", title: "Night mail", price: 30, revision: 1, draws: items.length, odds: [] },
+  items,
+})
+const receiptItem = (id, title, rank = "F", duplicate = false, test_grant = false) => ({
+  id,
+  card: { ...card, id: `card-${id}`, title, rank },
+  duplicate,
+  test_grant,
+  recycle_value: 0,
+})
+
+test("cinematic pack reveal uses receipt order and replay has no network or wallet effects", async () => {
+  const calls = []
+  let closed = 0
+  const receipt = packReceipt("ordered", [
+    receiptItem("one", "First file", "F"),
+    receiptItem("two", "Second file", "SSS", true, true),
+  ])
+  const { api, doc } = runtime(async (...args) => {
+    calls.push(args)
+    return response({})
+  }, "en")
+  let root
+  await api.act(async () => {
+    root = api.mount(doc.getElementById("mount"), "receipt", {
+      receipt,
+      cinematic: true,
+      onClose: () => closed++,
+    })
+  })
+  assert.equal(doc.querySelector("dialog").hasAttribute("open"), false)
+  assert.ok(button(doc, "Reveal cards"))
+  await api.act(async () => button(doc, "Reveal cards").click())
+  assert.equal(doc.querySelector("dialog").hasAttribute("open"), true)
+  await api.act(async () => button(doc, "Skip to results").click())
+  const titles = [...doc.querySelectorAll("dialog .archive-card strong")].map(
+    (node) => node.textContent,
+  )
+  assert.deepEqual(titles, ["First file", "Second file"])
+  assert.match(doc.querySelector("dialog").textContent, /Duplicate/)
+  assert.match(doc.querySelector("dialog").textContent, /OWNER test grant/)
+  await api.act(async () => button(doc, "Close reveal").click())
+  assert.equal(closed, 0)
+  assert.ok(button(doc, "Replay reveal"))
+  await api.act(async () => button(doc, "Replay reveal").click())
+  await api.act(async () => button(doc, "Close reveal").click())
+  assert.equal(calls.length, 0)
+  assert.match(doc.querySelector(".archive-receipt").textContent, /Night mail/)
+  await api.act(async () => root.unmount())
+})
+
+test("history and non-pack receipts render immediately without a cinematic dialog", async () => {
+  const { api, doc } = runtime(async () => response({}), "en")
+  let root
+  await api.act(async () => {
+    root = api.mount(doc.getElementById("mount"), "receipt", {
+      receipt: packReceipt("history", [receiptItem("one", "History card")]),
+    })
+  })
+  assert.match(doc.querySelector(".archive-receipt").textContent, /History card/)
+  assert.equal(doc.querySelector("dialog"), null)
+  await api.act(async () => root.unmount())
+  const direct = { ...packReceipt("direct", [receiptItem("two", "Direct card")]), kind: "DIRECT" }
+  await api.act(async () => {
+    root = api.mount(doc.getElementById("mount"), "receipt", { receipt: direct, cinematic: true })
+  })
+  assert.match(doc.querySelector(".archive-receipt").textContent, /Direct card/)
+  assert.equal(doc.querySelector("dialog"), null)
+  await api.act(async () => root.unmount())
+})
+
+test("reduced motion opens a pack reveal directly at complete results", async () => {
+  const { api, doc } = runtime(async () => response({}), "en", true)
+  let root
+  await api.act(async () => {
+    root = api.mount(doc.getElementById("mount"), "receipt", {
+      receipt: packReceipt("reduced", [receiptItem("one", "Quiet card")]),
+      cinematic: true,
+    })
+  })
+  await api.act(async () => button(doc, "Reveal cards").click())
+  assert.match(doc.querySelector("dialog").textContent, /Quiet card/)
+  assert.equal(button(doc, "Break the seal"), undefined)
+  await api.act(async () => root.unmount())
+})
+
+test("receipt identity resets reveal state while the same identity preserves it", async () => {
+  const { api, doc } = runtime(async () => response({}), "en")
+  let root
+  await api.act(async () => {
+    root = api.mount(doc.getElementById("mount"), "receipt", {
+      receipt: packReceipt("first", [receiptItem("one", "First receipt")]),
+      cinematic: true,
+    })
+  })
+  await api.act(async () => button(doc, "Reveal cards").click())
+  await api.act(async () => button(doc, "Skip to results").click())
+  await api.act(async () => button(doc, "Close reveal").click())
+  assert.ok(button(doc, "Replay reveal"))
+  await api.act(async () => {
+    root.rerender({
+      receipt: packReceipt("first", [receiptItem("one", "Updated same receipt")]),
+      cinematic: true,
+    })
+  })
+  assert.ok(button(doc, "Replay reveal"))
+  await api.act(async () => {
+    root.rerender({
+      receipt: packReceipt("second", [receiptItem("two", "Second receipt")]),
+      cinematic: true,
+    })
+  })
+  assert.ok(button(doc, "Reveal cards"))
+  await api.act(async () => root.unmount())
+})
+
+test("a reduced-motion change during opening skips directly to results", async () => {
+  const { api, doc, setReducedMotion } = runtime(async () => response({}), "en")
+  let root
+  await api.act(async () => {
+    root = api.mount(doc.getElementById("mount"), "receipt", {
+      receipt: packReceipt("motion-change", [receiptItem("one", "Motion-safe result")]),
+      cinematic: true,
+    })
+  })
+  await api.act(async () => button(doc, "Reveal cards").click())
+  await api.act(async () => button(doc, "Break the seal").click())
+  await api.act(async () => setReducedMotion(true))
+  assert.match(doc.querySelector("dialog").textContent, /Motion-safe result/)
+  assert.equal(button(doc, "Skip to results"), undefined)
+  await api.act(async () => root.unmount())
+})
+
+test("TransactionStatus offers the cinematic reveal for a saved starter pack receipt", async () => {
+  const starter = {
+    ...packReceipt("starter", [receiptItem("starter-card", "Starter dossier", "A")]),
+    kind: "STARTER_PACK",
+  }
+  const { api, doc } = runtime(async () => response(starter), "en")
+  let root
+  await api.act(async () => {
+    root = api.mount(doc.getElementById("mount"), "transaction", {
+      csrf: "csrf",
+      accountKey: "starter-account",
+      onChanged() {},
+    })
+  })
+  await api.act(async () => button(doc, "Open test pack").click())
+  assert.ok(button(doc, "Reveal cards"))
+  assert.equal(doc.querySelector(".archive-receipt .archive-card"), null)
+  await api.act(async () => root.unmount())
+})
+
+test("opening stages move focus to the available keyboard action", async () => {
+  const { api, doc } = runtime(async () => response({}), "en")
+  let root
+  await api.act(async () => {
+    root = api.mount(doc.getElementById("mount"), "receipt", {
+      receipt: packReceipt("keyboard", [receiptItem("one", "Keyboard card", "SS")]),
+      cinematic: true,
+    })
+  })
+  await api.act(async () => button(doc, "Reveal cards")?.click())
+  await api.act(async () => button(doc, "Break the seal").click())
+  await api.act(async () => await new Promise((resolve) => setTimeout(resolve, 600)))
+  assert.equal(doc.activeElement, button(doc, "Results"))
+  await api.act(async () => button(doc, "Results").click())
+  assert.equal(doc.activeElement, button(doc, "Close reveal"))
+  await api.act(async () => root.unmount())
+})
+
+test("close, cancel and unmount each clear the pending opening timer", async () => {
+  const { api, doc, w } = runtime(async () => response({}), "en")
+  const nativeSetTimeout = w.setTimeout.bind(w)
+  const nativeClearTimeout = w.clearTimeout.bind(w)
+  const openingTimers = []
+  const clearedOpeningTimers = new Set()
+  w.setTimeout = (callback, delay, ...args) => {
+    const timer = nativeSetTimeout(callback, delay, ...args)
+    if (delay === 550) openingTimers.push(timer)
+    return timer
+  }
+  w.clearTimeout = (timer) => {
+    if (openingTimers.includes(timer)) clearedOpeningTimers.add(timer)
+    nativeClearTimeout(timer)
+  }
+  let root
+  await api.act(async () => {
+    root = api.mount(doc.getElementById("mount"), "receipt", {
+      receipt: packReceipt("focus", [receiptItem("one", "Focus card")]),
+      cinematic: true,
+    })
+  })
+  const trigger = button(doc, "Reveal cards")
+  trigger.focus()
+  await api.act(async () => trigger.click())
+  await api.act(async () => button(doc, "Break the seal").click())
+  await api.act(async () => button(doc, "Close reveal").click())
+  assert.ok(clearedOpeningTimers.has(openingTimers[0]))
+  assert.equal(doc.activeElement, trigger)
+  assert.match(doc.querySelector(".pack-reveal-inline").textContent, /Focus card/)
+
+  await api.act(async () => trigger.click())
+  await api.act(async () => button(doc, "Break the seal").click())
+  await api.act(async () =>
+    doc.querySelector("dialog").dispatchEvent(new w.Event("cancel", { cancelable: true })),
+  )
+  assert.ok(clearedOpeningTimers.has(openingTimers[1]))
+
+  await api.act(async () => button(doc, "Close reveal").click())
+  await api.act(async () => trigger.click())
+  await api.act(async () => button(doc, "Break the seal").click())
+  await api.act(async () => root.unmount())
+  assert.ok(clearedOpeningTimers.has(openingTimers[2]))
+})
 
 test("account popover shows actual tokens, closes on Escape and restores focus", async () => {
   const { w, api, doc } = runtime(async (url) =>
@@ -330,6 +574,10 @@ test("pack opening shows actual odds and sends the displayed revision with CSRF"
     })
   })
   await api.act(async () => button(doc, "Состав и открытие").click())
+  assert.equal(doc.activeElement, doc.querySelector("#archive-pack-details"))
+  await api.act(async () => button(doc, "Закрыть состав").click())
+  assert.equal(doc.activeElement, button(doc, "Состав и открытие"))
+  await api.act(async () => button(doc, "Состав и открытие").click())
   assert.match(doc.querySelector(".archive-pack-odds").textContent, /100%/)
   assert.match(doc.querySelector(".archive-pack-odds").textContent, /Гарантированного ранга нет/)
   assert.equal(button(doc, "Получить стартовый бесплатно"), undefined)
@@ -340,6 +588,7 @@ test("pack opening shows actual odds and sends the displayed revision with CSRF"
   assert.equal(writes[0].body.starter, false)
   assert.ok(writes[0].body.request_key)
   assert.equal(writes[0].body.price, undefined)
+  assert.equal(doc.activeElement, doc.querySelector(".archive-receipt"))
   await api.act(async () => root.unmount())
 })
 

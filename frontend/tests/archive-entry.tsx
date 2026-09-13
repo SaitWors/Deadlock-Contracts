@@ -7,7 +7,7 @@ import CardStudio from "../src/archive/CardStudio"
 import CardReviewDesk from "../src/admin/CardReviewDesk"
 import Cipher from "../src/archive/Cipher"
 import OwnerArchiveDesk from "../src/admin/OwnerArchiveDesk"
-import { TransactionStatus, useTransaction } from "../src/archive/transactions"
+import { ReceiptView, TransactionStatus, useTransaction } from "../src/archive/transactions"
 
 function TransactionHarness({
   csrf,
@@ -34,6 +34,18 @@ function TransactionHarness({
   )
 }
 
+function ReceiptHarness({
+  receipt,
+  cinematic = false,
+  onClose,
+}: {
+  receipt: Parameters<typeof ReceiptView>[0]["receipt"]
+  cinematic?: boolean
+  onClose?: () => void
+}) {
+  return <ReceiptView receipt={receipt} cinematic={cinematic} onClose={onClose} />
+}
+
 export { act }
 export function mount(element: HTMLElement, page: string, props: Record<string, unknown>) {
   const Component = {
@@ -44,12 +56,15 @@ export function mount(element: HTMLElement, page: string, props: Record<string, 
     cipher: Cipher,
     owner: OwnerArchiveDesk,
     transaction: TransactionHarness,
+    receipt: ReceiptHarness,
   }[page] as React.ComponentType<Record<string, unknown>>
   const root = createRoot(element)
-  root.render(
-    <LanguageProvider>
-      <Component {...props} />
-    </LanguageProvider>,
-  )
-  return { unmount: () => root.unmount() }
+  const render = (nextProps: Record<string, unknown>) =>
+    root.render(
+      <LanguageProvider>
+        <Component {...nextProps} />
+      </LanguageProvider>,
+    )
+  render(props)
+  return { rerender: render, unmount: () => root.unmount() }
 }

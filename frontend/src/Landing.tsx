@@ -17,10 +17,10 @@ const NAV_ITEMS: Array<{
   id: Exclude<PublicPage, "home" | "try">
   label: string
 }> = [
-  { id: "contracts", label: "CONTRACTS" },
-  { id: "how", label: "HOW IT WORKS" },
-  { id: "campaigns", label: "CAMPAIGNS · SOON" },
-  { id: "leaderboards", label: "LEADERBOARD" },
+  { id: "contracts", label: "Contracts" },
+  { id: "how", label: "How it works" },
+  { id: "campaigns", label: "Campaigns · soon" },
+  { id: "leaderboards", label: "Leaderboard" },
 ]
 
 interface Contract {
@@ -177,87 +177,6 @@ const CURATOR_MESSAGES = [
   "Условия зафиксированы. Ждём матч.",
 ]
 
-// A stable headline keeps the promise readable while the artwork carries motion.
-function HeroHeading({
-  lines,
-  className = "",
-  style = {},
-}: {
-  lines: { text: string; accent?: boolean }[]
-  className?: string
-  style?: React.CSSProperties
-}) {
-  return (
-    <h1 className={className} style={style}>
-      {lines.map((line, index) => (
-        <React.Fragment key={index}>
-          <span className={line.accent ? "bureau-accent" : undefined}>{line.text}</span>
-          {index < lines.length - 1 && <br />}
-        </React.Fragment>
-      ))}
-    </h1>
-  )
-}
-
-// ─── Animated counter ──────────────────────────────────────────────
-function AnimatedCounter({
-  target,
-  prefix = "",
-  suffix = "",
-  duration = 800,
-}: {
-  target: number
-  prefix?: string
-  suffix?: string
-  duration?: number
-}) {
-  const [count, setCount] = useState(0)
-  const ref = useRef<HTMLSpanElement>(null)
-  const started = useRef(false)
-
-  useEffect(() => {
-    const el = ref.current
-    if (!el) return
-    let frame = 0
-    if (prefersReducedMotion()) {
-      setCount(target)
-      return
-    }
-    const obs = new IntersectionObserver(
-      ([entry]) => {
-        if (entry.isIntersecting && !started.current) {
-          started.current = true
-          el.classList.add("counted")
-          let startTime = 0
-          const animate = (ts: number) => {
-            if (!startTime) startTime = ts
-            const p = Math.min((ts - startTime) / duration, 1)
-            const ease = 1 - Math.pow(1 - p, 3)
-            setCount(Math.floor(ease * target))
-            if (p < 1) frame = requestAnimationFrame(animate)
-            else setCount(target)
-          }
-          frame = requestAnimationFrame(animate)
-        }
-      },
-      { threshold: 0.5 },
-    )
-    obs.observe(el)
-    return () => {
-      obs.disconnect()
-      cancelAnimationFrame(frame)
-    }
-  }, [target, duration])
-
-  return (
-    <span ref={ref} className="stat-counter">
-      {prefix}
-      {count.toLocaleString()}
-      {suffix}
-    </span>
-  )
-}
-
 // ─── Curator typer ─────────────────────────────────────────────────
 function CuratorTyper() {
   const { language } = useLanguage()
@@ -331,24 +250,19 @@ function AnimatedEyeLogo() {
 function SteamButton({
   large = false,
   compact = false,
+  secondary = false,
   onClick,
 }: {
   large?: boolean
   compact?: boolean
+  secondary?: boolean
   onClick?: (e: React.MouseEvent<HTMLButtonElement>) => void
 }) {
   const ripple = useRipple()
   const { language } = useLanguage()
   return (
     <button
-      className="btn-primary inline-flex items-center gap-2.5 font-bold"
-      style={{
-        padding: compact ? "10px 12px" : large ? "14px 32px" : "10px 20px",
-        fontSize: large ? "16px" : "14px",
-        border: "1px solid var(--color-mint)",
-        borderRadius: "4px",
-        fontFamily: "var(--font-display)",
-      }}
+      className={`bureau-steam-button ${secondary ? "btn-ghost" : "btn-primary"} ${compact ? "is-compact" : ""} ${large ? "is-large" : ""}`}
       aria-label={language === "ru" ? "Войти через Steam" : "Sign in with Steam"}
       type="button"
       onClick={(e) => {
@@ -365,11 +279,11 @@ function SteamButton({
       <SteamIcon />
       {compact
         ? language === "ru"
-          ? "ВОЙТИ"
-          : "SIGN IN"
+          ? "Войти"
+          : "Sign in"
         : language === "ru"
-          ? "ВОЙТИ ЧЕРЕЗ STEAM"
-          : "SIGN IN WITH STEAM"}
+          ? "Войти через Steam"
+          : "Sign in with Steam"}
     </button>
   )
 }
@@ -394,9 +308,9 @@ function SectionHeading({
 }) {
   return (
     <h2
-      className={`glitch-hover font-bold leading-tight ${className}`}
+      className={`font-bold leading-tight ${className}`}
       style={{
-        fontFamily: "Roboto Condensed, Barlow Condensed, sans-serif",
+        fontFamily: "var(--font-body)",
         fontSize: "clamp(28px, 4vw, 42px)",
         color: "#F1E4C8",
       }}
@@ -514,10 +428,10 @@ export default function Landing() {
           label:
             language === "ru"
               ? {
-                  contracts: "КОНТРАКТЫ",
-                  how: "КАК ЭТО РАБОТАЕТ",
-                  campaigns: "КАМПАНИИ · СКОРО",
-                  leaderboards: "РЕЙТИНГ",
+                  contracts: "Контракты",
+                  how: "Как это работает",
+                  campaigns: "Кампании · скоро",
+                  leaderboards: "Рейтинг",
                 }[item.id]
               : item.label,
         }))}
@@ -526,351 +440,105 @@ export default function Landing() {
       />
       {page === "home" && (
         <>
-          {/* ── HERO ── */}
-          <section
-            className="relative pt-[72px] overflow-hidden"
-            style={{ minHeight: "min(800px, 100svh)", backgroundColor: "var(--color-page)" }}
-          >
-            <div
-              className="hero-grid absolute inset-0 pointer-events-none opacity-[0.038]"
-              style={{
-                backgroundImage:
-                  "linear-gradient(rgba(122,179,132,1) 1px, transparent 1px), linear-gradient(90deg, rgba(122,179,132,1) 1px, transparent 1px)",
-                backgroundSize: "52px 52px",
-              }}
-            />
-
-            {/* Atmosphere */}
-            <div
-              className="orb orb-1"
-              style={{
-                width: "500px",
-                height: "500px",
-                background: "radial-gradient(circle, rgba(69,127,91,0.22) 0%, transparent 70%)",
-                top: "5%",
-                left: "44%",
-              }}
-            />
-            <div
-              className="absolute inset-0 pointer-events-none"
-              style={{
-                background:
-                  "radial-gradient(ellipse 100% 100% at 50% 0%, transparent 55%, rgba(5,7,14,0.75) 100%)",
-              }}
-            />
-
-            <div
-              className="relative max-w-[1320px] mx-auto px-6 lg:px-8 py-16 lg:py-24 grid grid-cols-1 lg:grid-cols-2 gap-10 lg:gap-16 items-center"
-              style={{ minHeight: "calc(800px - 72px)" }}
-            >
-              <div>
-                <div
-                  className="inline-flex items-center gap-2 mb-5 px-3 py-1.5 border"
-                  style={{
-                    borderColor: "#26543D",
-                    backgroundColor: "rgba(38,84,61,0.22)",
-                    backdropFilter: "blur(8px)",
-                    borderRadius: "4px",
-                  }}
-                >
-                  <span
-                    className="w-1.5 h-1.5 rounded-full"
-                    style={{
-                      backgroundColor: "#7AB384",
-                      boxShadow: "0 0 6px #7AB384",
-                      animation: "dot-ping 2s ease infinite",
-                    }}
-                  />
-                  <span
-                    className="text-[11px] font-semibold tracking-[0.28em] uppercase"
-                    style={{ color: "#7AB384" }}
-                  >
-                    {language === "ru"
-                      ? "ПРОВЕРЯЕМЫЕ КОНТРАКТЫ ДЛЯ DEADLOCK"
-                      : "VERIFIABLE CONTRACTS FOR DEADLOCK"}
-                  </span>
-                </div>
-
-                <HeroHeading
-                  lines={[
-                    { text: language === "ru" ? "ВЫБЕРИТЕ КОНТРАКТ" : "CHOOSE A CONTRACT" },
-                    { text: language === "ru" ? "СЫГРАЙТЕ МАТЧ" : "PLAY THE MATCH" },
-                    { text: language === "ru" ? "ЗАКРОЙТЕ ДЕЛО" : "CLOSE THE CASE", accent: true },
-                  ]}
-                  className="font-extrabold leading-none mb-6"
-                  style={{
-                    fontFamily: "Roboto Condensed, Barlow Condensed, sans-serif",
-                    fontSize: "clamp(36px, 6.5vw, 76px)",
-                    letterSpacing: "-0.01em",
-                    display: "block",
-                  }}
-                />
-
-                <p
-                  className="text-base leading-relaxed mb-8 max-w-[420px]"
-                  style={{ color: "#B6AC94" }}
-                >
-                  {t(
-                    language,
-                    "Зафиксируйте 1–3 задания до матча. После игры сервис найдёт нужный матч, проверит статистику и сохранит результат.",
-                  )}
-                </p>
-                <div className="flex flex-wrap gap-3 mb-5">
-                  <button
-                    type="button"
-                    className="btn-primary px-6 py-3.5 text-sm font-bold"
-                    onClick={(event) => {
-                      ripple(event)
-                      navigate("try")
-                    }}
-                  >
-                    {language === "ru" ? "Попробовать без входа" : "Try without signing in"}
-                  </button>
-                  <SteamButton large />
-                  <button
-                    type="button"
-                    className="btn-ghost px-6 py-3.5 text-sm font-medium inline-flex items-center gap-2"
-                    style={{
-                      backgroundColor: "transparent",
-                      color: "#B6AC94",
-                      border: "1px solid #3B5145",
-                      borderRadius: "5px",
-                    }}
-                    onClick={(event) => {
-                      ripple(event)
-                      navigate("contracts")
-                    }}
-                  >
-                    {language === "ru" ? "ПОПРОБОВАТЬ ПОДПИСАНИЕ" : "CONTRACT PREVIEW"}{" "}
-                    <span className="arrow-bounce" aria-hidden="true">
-                      ↓
-                    </span>
-                  </button>
-                </div>
-                <p
-                  className="text-sm leading-relaxed mb-4 max-w-[520px]"
-                  style={{ color: "#9DAA98" }}
-                >
-                  {language === "ru"
-                    ? "В браузере: шифры → жетоны архива → карточки. XP начисляется отдельно за проверенные матчевые контракты."
-                    : "In your browser: ciphers → archive tokens → cards. XP is earned separately from verified match contracts."}
-                </p>
-                <p className="text-xs mb-4 max-w-[520px]" style={{ color: "#7F8478" }}>
-                  {language === "ru"
-                    ? "Авторизация проходит на стороне Steam; сайт не запрашивает ваш пароль Steam."
-                    : "Authorization happens on Steam; this site never asks for your Steam password."}
-                </p>
-                <p className="text-xs" style={{ color: "#7F8478" }}>
-                  STANDARD · RANKED · STREET BRAWL ·{" "}
-                  {language === "ru" ? "АВТОПРОВЕРКА" : "AUTO VERIFY"}
-                </p>
+          <section className="bureau-welcome" aria-labelledby="welcome-title">
+            <div className="bureau-welcome-copy">
+              <p className="bureau-welcome-eyebrow">
+                DEADLOCK CONTRACTS · {language === "ru" ? "ОТКРЫТОЕ БЮРО" : "OPEN BUREAU"}
+              </p>
+              <h1 id="welcome-title">
+                {language === "ru" ? "У каждого матча" : "Every match has"}{" "}
+                <span>{language === "ru" ? "своя история." : "a story."}</span>
+              </h1>
+              <p className="bureau-welcome-lead">
+                {language === "ru"
+                  ? "Выбирайте контракты, собирайте карточки и найдите своё бюро. Начать можно прямо здесь — с небольшого шифра в браузере."
+                  : "Choose contracts, collect cards and find your bureau. Start right here with a short cipher in your browser."}
+              </p>
+              <div className="bureau-welcome-actions">
+                <button type="button" className="btn-primary" onClick={() => navigate("try")}>
+                  {language === "ru" ? "Попробовать без входа" : "Try without signing in"}
+                  <Icon name="chevron-right" size={18} />
+                </button>
+                <SteamButton secondary />
               </div>
-
-              {/* Right */}
-              <div className="flex flex-col items-center lg:items-end gap-6">
-                <img
-                  src={logoImage}
-                  alt="Deadlock Contracts"
-                  className="logo-glow drop-shadow-2xl"
-                  style={{
-                    maxHeight: "300px",
-                    width: "auto",
-                    maxWidth: "100%",
-                    objectFit: "contain",
-                  }}
-                />
-
-                {/* Example card with 3D tilt + neon border trace */}
-                <div
-                  className="neon-border-card w-full max-w-[360px]"
-                  style={{ borderRadius: "6px" }}
-                >
-                  <div
-                    className="border p-5 relative overflow-hidden"
-                    style={{
-                      backgroundColor: "#0E1512",
-                      borderColor: "#3B5145",
-                      borderRadius: "6px",
-                      boxShadow: "0 0 30px rgba(69,127,91,0.12)",
-                      willChange: "transform",
-                    }}
-                    onMouseMove={tilt.onMouseMove}
-                    onMouseLeave={tilt.onMouseLeave}
-                  >
-                    <div className="holo-overlay" style={{ opacity: 0.5 }} />
-                    <div
-                      className="absolute inset-0 pointer-events-none"
-                      style={{
-                        background:
-                          "linear-gradient(135deg, rgba(122,179,132,0.04) 0%, transparent 50%)",
-                      }}
-                    />
-                    <div className="flex justify-between items-start mb-3 relative">
-                      <span
-                        className="text-[10px] font-bold tracking-widest"
-                        style={{
-                          color: "#7AB384",
-                          fontFamily: "Roboto Condensed, Barlow Condensed, sans-serif",
-                          textShadow: "0 0 8px rgba(122,179,132,0.5)",
-                        }}
-                      >
-                        STABILITY
-                      </span>
-                      <span
-                        className="text-[10px] px-2 py-0.5 font-semibold tracking-wider"
-                        style={{
-                          backgroundColor: "#151D19",
-                          color: "#7F8478",
-                          borderRadius: "3px",
-                          border: "1px solid #26352E",
-                        }}
-                      >
-                        RELIABLE
-                      </span>
-                    </div>
-                    <h3
-                      className="font-bold mb-2 relative"
-                      style={{
-                        fontFamily: "Roboto Condensed, Barlow Condensed, sans-serif",
-                        fontSize: "20px",
-                        color: "#F1E4C8",
-                      }}
-                    >
-                      {t(language, "Надёжный партнёр")}
-                    </h3>
-                    <p
-                      className="text-sm mb-4 leading-relaxed relative"
-                      style={{ color: "#B6AC94" }}
-                    >
-                      {t(language, "Совершите не менее 10 содействий и умрите не более 7 раз.")}
-                    </p>
-                    <div
-                      className="flex justify-between items-center pt-3 relative"
-                      style={{ borderTop: "1px solid #26352E" }}
-                    >
-                      <span className="text-[11px]" style={{ color: "#7F8478" }}>
-                        STANDARD · 1 MATCH · AUTO VERIFY
-                      </span>
-                      <span
-                        className="font-bold text-sm"
-                        style={{
-                          color: "#7AB384",
-                          fontFamily: "Roboto Condensed, Barlow Condensed, sans-serif",
-                          textShadow: "0 0 8px rgba(122,179,132,0.4)",
-                        }}
-                      >
-                        +120 XP
-                      </span>
-                    </div>
-                    <div className="mt-3 pt-3 relative" style={{ borderTop: "1px solid #1A2520" }}>
-                      <p
-                        className="italic"
-                        style={{
-                          color: "#7F8478",
-                          fontFamily: "Cormorant Garamond, serif",
-                          fontSize: "14px",
-                          lineHeight: 1.5,
-                        }}
-                      >
-                        “{t(language, "В последних матчах вы часто помогали команде.")}”
-                      </p>
-                    </div>
-                  </div>
+              <p className="bureau-welcome-trust">
+                <Icon name="shield-check" size={18} />
+                {language === "ru"
+                  ? "Авторизация проходит на стороне Steam; сайт не запрашивает ваш пароль Steam."
+                  : "Authorization happens on Steam; this site never asks for your Steam password."}
+              </p>
+            </div>
+            <div className="bureau-welcome-art">
+              <div className="bureau-welcome-caption">
+                <span>{language === "ru" ? "ГОРОДСКОЙ АРХИВ" : "CITY ARCHIVE"}</span>
+                <Icon name="archive" size={18} />
+              </div>
+              <img
+                src={logoImage}
+                alt="Deadlock Contracts"
+                width="800"
+                height="400"
+                fetchPriority="high"
+              />
+              <div className="bureau-welcome-file">
+                <Icon name="file-text" size={26} />
+                <div>
+                  <b>{language === "ru" ? "Ваше следующее дело" : "Your next case"}</b>
+                  <p>
+                    {language === "ru"
+                      ? "Выбрать цель. Сыграть матч. Забрать награду."
+                      : "Choose a goal. Play a match. Claim the reward."}
+                  </p>
                 </div>
               </div>
             </div>
           </section>
-
-          {/* ── FLAME DIVIDER ── */}
-          <div className="flame-divider" />
-
-          {/* ── TRUST STRIP ── */}
-          <Reveal>
-            <div
-              style={{
-                borderBottom: "1px solid #26352E",
-                backgroundColor: "#0C1410",
-              }}
-            >
-              <div className="max-w-[1320px] mx-auto px-6 lg:px-8 py-5 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                {[
-                  {
-                    icon: <Icon name="circle-check" size={24} />,
-                    text: language === "ru" ? "ВЫБОР ДО НАЧАЛА МАТЧА" : "LOCKED BEFORE MATCH",
-                  },
-                  {
-                    icon: <Icon name="shield-check" size={24} />,
-                    text:
-                      language === "ru" ? "ПРОВЕРКА ИТОГОВОЙ СТАТИСТИКИ" : "FINAL STATS VERIFIED",
-                  },
-                  {
-                    icon: <Icon name="gem" size={24} />,
-                    text:
-                      language === "ru" ? "НЕТ ДАННЫХ — НЕТ ПОРАЖЕНИЯ" : "MISSING DATA ≠ FAILURE",
-                  },
-                  {
-                    icon: <Icon name="repeat" size={24} />,
-                    text: language === "ru" ? "НАГРАДЫ НЕ ДУБЛИРУЮТСЯ" : "NO DUPLICATE REWARDS",
-                  },
-                ].map(({ icon, text }) => (
-                  <div key={text} className="flex items-center gap-3">
-                    <span
-                      className="trust-icon text-base shrink-0 font-bold cursor-default"
-                      style={{ color: "#7AB384" }}
-                    >
-                      {icon}
-                    </span>
-                    <span className="text-xs font-medium" style={{ color: "#B6AC94" }}>
-                      {text}
-                    </span>
-                  </div>
-                ))}
+          <section
+            className="bureau-paths"
+            aria-label={language === "ru" ? "Чем заняться в бюро" : "Explore the bureau"}
+          >
+            <article>
+              <Icon name="file-text" size={26} />
+              <div>
+                <h2>
+                  {language === "ru" ? "Следующий матч — с целью" : "Give your next match a goal"}
+                </h2>
+                <p>
+                  {language === "ru"
+                    ? "Зафиксируйте до трёх контрактов до матча. Сервис проверит итоговую статистику; выполненные условия принесут XP."
+                    : "Lock up to three contracts before a match. The service checks final stats; completed objectives earn XP."}
+                </p>
+                <button type="button" onClick={() => navigate("contracts")}>
+                  {language === "ru" ? "Попробовать подписание" : "Preview a contract"}
+                  <Icon name="chevron-right" size={16} />
+                </button>
               </div>
-            </div>
-          </Reveal>
-
-          {/* ── STATS ROW ── */}
-          <Reveal>
-            <div
-              style={{
-                borderBottom: "1px solid #1A2520",
-                backgroundColor: "#08100D",
-              }}
-            >
-              <div className="max-w-[1320px] mx-auto px-6 lg:px-8 py-10 grid grid-cols-2 lg:grid-cols-4 gap-6">
-                {[
-                  { target: 3, suffix: "", label: "SUPPORTED MODES" },
-                  { target: 6, suffix: "", label: "OFFERS / MODE" },
-                  { target: 3, suffix: "", label: "SELECT / MODE" },
-                  { target: 1, suffix: "", label: "FREE REROLL / DAY" },
-                ].map(({ target, suffix, label }) => (
-                  <div key={label} className="text-center">
-                    <div
-                      className="font-extrabold mb-1"
-                      style={{
-                        fontFamily: "Roboto Condensed, Barlow Condensed, sans-serif",
-                        fontSize: "clamp(28px,3.5vw,42px)",
-                        color: "#7AB384",
-                        textShadow: "0 0 16px rgba(122,179,132,0.4)",
-                      }}
-                    >
-                      <AnimatedCounter target={target} suffix={suffix} />
-                    </div>
-                    <div className="text-xs font-medium" style={{ color: "#7F8478" }}>
-                      {label}
-                    </div>
-                  </div>
-                ))}
+            </article>
+            <article>
+              <Icon name="images" size={26} />
+              <div>
+                <h2>
+                  {language === "ru" ? "Коллекция между матчами" : "A collection between matches"}
+                </h2>
+                <p>
+                  {language === "ru"
+                    ? "Решайте шифры, получайте жетоны архива и открывайте карточки. Жетоны и матчевый XP считаются отдельно. Компаньон не нужен."
+                    : "Solve ciphers, earn archive tokens and open cards. Tokens are separate from match XP. No companion required."}
+                </p>
+                <button type="button" onClick={() => navigate("try")}>
+                  {language === "ru" ? "Разгадать первый шифр" : "Try your first cipher"}
+                  <Icon name="chevron-right" size={16} />
+                </button>
               </div>
-            </div>
-          </Reveal>
+            </article>
+          </section>
         </>
       )}
       {page === "contracts" && (
         <>
           {/* ── INTERACTIVE BOARD ── */}
           <section
-            className="pt-32 pb-24 px-6 lg:px-8 relative overflow-hidden"
+            className="bureau-contract-preview pt-32 pb-24 px-6 lg:px-8 relative overflow-hidden"
             ref={boardRef}
             onMouseMove={handleBoardMouseMove}
           >
@@ -940,7 +608,7 @@ export default function Landing() {
                           backgroundColor: gameMode === mode ? "#1A2F22" : "transparent",
                           color: gameMode === mode ? "#94C28F" : "#7F8478",
                           borderRight: i < 2 ? "1px solid #3B5145" : "none",
-                          fontFamily: "Roboto Condensed, Barlow Condensed, sans-serif",
+                          fontFamily: "var(--font-body)",
                           letterSpacing: "0.06em",
                           textShadow: gameMode === mode ? "0 0 10px rgba(122,179,132,0.5)" : "none",
                         }}
@@ -965,9 +633,9 @@ export default function Landing() {
                           isSelected ? "selected" : ""
                         }`}
                         style={{
-                          backgroundColor: "#0E1512",
+                          backgroundColor: "var(--color-panel)",
                           borderColor: isSelected ? "#7AB384" : "#26352E",
-                          borderRadius: "6px",
+                          borderRadius: "16px",
                         }}
                         onClick={() => toggleContract(c.id)}
                         aria-pressed={isSelected}
@@ -995,8 +663,8 @@ export default function Landing() {
                             className="text-[10px] font-bold tracking-widest"
                             style={{
                               color: catColor,
-                              fontFamily: "Roboto Condensed, Barlow Condensed, sans-serif",
-                              textShadow: `0 0 8px ${catColor}99`,
+                              fontFamily: "var(--font-body)",
+                              textShadow: "none",
                             }}
                           >
                             {CATEGORY_LABEL[c.category]}
@@ -1016,10 +684,10 @@ export default function Landing() {
                         <h3
                           className="font-bold mb-2 flex-1"
                           style={{
-                            fontFamily: "Roboto Condensed, Barlow Condensed, sans-serif",
-                            fontSize: "18px",
-                            color: "#F1E4C8",
-                            lineHeight: 1.2,
+                            fontFamily: "var(--font-body)",
+                            fontSize: "20px",
+                            color: "var(--color-cream)",
+                            lineHeight: 1.35,
                           }}
                         >
                           {c.title}
@@ -1038,7 +706,7 @@ export default function Landing() {
                             className="font-bold"
                             style={{
                               color: "#7AB384",
-                              fontFamily: "Roboto Condensed, Barlow Condensed, sans-serif",
+                              fontFamily: "var(--font-body)",
                               fontSize: "16px",
                               textShadow: isSelected ? "0 0 12px rgba(122,179,132,0.7)" : "none",
                             }}
@@ -1059,7 +727,7 @@ export default function Landing() {
                   style={{
                     backgroundColor: selected.length > 0 ? "#0C1510" : "#080C0B",
                     borderColor: selected.length > 0 ? "#3B5145" : "#1A2520",
-                    borderRadius: "6px",
+                    borderRadius: "16px",
                     boxShadow: selected.length > 0 ? "0 0 24px rgba(69,127,91,0.14)" : "none",
                   }}
                 >
@@ -1067,7 +735,7 @@ export default function Landing() {
                     <div
                       className="font-bold mb-1.5"
                       style={{
-                        fontFamily: "Roboto Condensed, Barlow Condensed, sans-serif",
+                        fontFamily: "var(--font-body)",
                         fontSize: "18px",
                         color: "#F1E4C8",
                       }}
@@ -1117,7 +785,7 @@ export default function Landing() {
                           ref={xpRef}
                           className="xp-pop font-bold"
                           style={{
-                            fontFamily: "Roboto Condensed, Barlow Condensed, sans-serif",
+                            fontFamily: "var(--font-body)",
                             fontSize: "22px",
                             color: "#7AB384",
                             textShadow:
@@ -1160,7 +828,7 @@ export default function Landing() {
                         color: selected.length > 0 ? "#F1E4C8" : "#7F8478",
                         border: `1px solid ${selected.length > 0 ? "#7AB384" : "#26352E"}`,
                         borderRadius: "4px",
-                        fontFamily: "Roboto Condensed, Barlow Condensed, sans-serif",
+                        fontFamily: "var(--font-body)",
                         letterSpacing: "0.05em",
                         boxShadow: selected.length > 0 ? "0 0 14px rgba(122,179,132,0.3)" : "none",
                       }}
@@ -1239,9 +907,9 @@ export default function Landing() {
                 <div
                   className="border p-6 relative overflow-hidden"
                   style={{
-                    backgroundColor: "#0E1512",
+                    backgroundColor: "var(--color-panel)",
                     borderColor: "#26352E",
-                    borderRadius: "6px",
+                    borderRadius: "16px",
                     boxShadow: "0 0 30px rgba(0,0,0,0.4), inset 0 1px 0 rgba(122,179,132,0.06)",
                   }}
                   onMouseMove={tilt.onMouseMove}
@@ -1258,7 +926,7 @@ export default function Landing() {
                     <span
                       className="text-[11px] font-bold tracking-widest"
                       style={{
-                        fontFamily: "Roboto Condensed, Barlow Condensed, sans-serif",
+                        fontFamily: "var(--font-body)",
                         color: "#7F8478",
                       }}
                     >
@@ -1376,7 +1044,7 @@ export default function Landing() {
                 <div
                   className="font-bold"
                   style={{
-                    fontFamily: "Roboto Condensed, Barlow Condensed, sans-serif",
+                    fontFamily: "var(--font-body)",
                     fontSize: "clamp(24px,3.5vw,38px)",
                     minHeight: "1.3em",
                   }}
@@ -1427,9 +1095,9 @@ export default function Landing() {
                       key={i}
                       className="border overflow-hidden"
                       style={{
-                        backgroundColor: "#0E1512",
+                        backgroundColor: "var(--color-panel)",
                         borderColor: openFaq === i ? "#3B5145" : "#26352E",
-                        borderRadius: "6px",
+                        borderRadius: "16px",
                         boxShadow: openFaq === i ? "0 0 16px rgba(122,179,132,0.09)" : "none",
                         transition: "border-color 0.2s, box-shadow 0.2s",
                       }}
@@ -1579,7 +1247,7 @@ export default function Landing() {
               className="text-[10px] font-bold tracking-widest uppercase mb-4"
               style={{
                 color: "#7F8478",
-                fontFamily: "Roboto Condensed, Barlow Condensed, sans-serif",
+                fontFamily: "var(--font-body)",
               }}
             >
               PLATFORM
@@ -1617,7 +1285,7 @@ export default function Landing() {
               className="text-[10px] font-bold tracking-widest uppercase mb-4"
               style={{
                 color: "#7F8478",
-                fontFamily: "Roboto Condensed, Barlow Condensed, sans-serif",
+                fontFamily: "var(--font-body)",
               }}
             >
               DOCUMENTS

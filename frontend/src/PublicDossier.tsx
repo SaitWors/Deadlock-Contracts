@@ -16,8 +16,8 @@ export default function PublicDossier({ slug }: { slug: string }) {
       <BureauHeader
         active="profile"
         items={[
-          { id: "home", label: ru ? "ГЛАВНАЯ" : "HOME" },
-          { id: "leaderboards", label: ru ? "РЕЙТИНГ" : "LEADERBOARD" },
+          { id: "home", label: ru ? "Главная" : "Home" },
+          { id: "leaderboards", label: ru ? "Рейтинг" : "Leaderboard" },
         ]}
         onNavigate={(id) => location.assign(`/#${id === "home" ? "home" : "leaderboards"}`)}
         actions={
