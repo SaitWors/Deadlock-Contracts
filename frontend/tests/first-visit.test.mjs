@@ -259,7 +259,7 @@ test("the prominent home trial reaches #try and guest return restores existing h
   assert.match(doc.querySelector("main").textContent, /Teaching cipher/)
   await api.act(async () => button(doc, "Return home").click())
   assert.equal(w.location.hash, "#home")
-  assert.match(doc.querySelector("h1").textContent, /CHOOSE A CONTRACT/)
+  assert.match(doc.querySelector("h1").textContent, /Every match has a story/)
   await api.act(async () => root.unmount())
 })
 

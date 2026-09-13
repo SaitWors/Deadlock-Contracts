@@ -1,9 +1,9 @@
 import Icon from "../icons/Icon"
-import { useEffect, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import { ApiError, request } from "../community/api"
 import { useLanguage } from "../i18n"
 import CardPreview from "./CardPreview"
-import Regalia from "../regalia/Regalia"
+import PackReveal from "./PackReveal"
 import type { Receipt } from "./types"
 
 type Pending = { url: string; body: Record<string, unknown> & { request_key: string } }
@@ -127,23 +127,34 @@ export function TransactionStatus({
         </div>
       )}
       {transaction.receipt && (
-        <ReceiptView receipt={transaction.receipt} onClose={transaction.clearReceipt} />
+        <ReceiptView receipt={transaction.receipt} cinematic onClose={transaction.clearReceipt} />
       )}
     </>
   )
 }
 
-export function ReceiptView({ receipt, onClose }: { receipt: Receipt; onClose?: () => void }) {
+export function ReceiptView({
+  receipt,
+  onClose,
+  cinematic = false,
+}: {
+  receipt: Receipt
+  onClose?: () => void
+  cinematic?: boolean
+}) {
   const { language, locale } = useLanguage()
   const ru = language === "ru"
-  const [revealed, setRevealed] = useState(
-    () =>
-      !receipt.items.length ||
-      typeof matchMedia === "undefined" ||
-      matchMedia("(prefers-reduced-motion: reduce)").matches,
-  )
+  const useCinematic = cinematic && ["PACK_OPEN", "STARTER_PACK"].includes(receipt.kind)
+  const result = useRef<HTMLElement>(null)
+  useEffect(() => {
+    if (!cinematic) return
+    result.current?.focus({ preventScroll: true })
+    result.current?.scrollIntoView?.({ block: "start", behavior: "instant" })
+  }, [receipt.id, cinematic])
   return (
     <section
+      ref={result}
+      tabIndex={cinematic ? -1 : undefined}
       className="archive-receipt"
       aria-label={ru ? "Результат операции" : "Transaction result"}
     >
@@ -157,19 +168,8 @@ export function ReceiptView({ receipt, onClose }: { receipt: Receipt; onClose?: 
         {ru ? "Баланс после операции" : "Balance after transaction"}: {receipt.balance_after}{" "}
         <Icon name="coins" size={18} />
       </p>
-      {!revealed ? (
-        <div className="archive-envelope-reveal">
-          <Regalia id="seal-archive" />
-          <p>
-            {ru
-              ? "Карточки уже сохранены в коллекции."
-              : "Your cards are already saved to your collection."}
-          </p>
-          <button className="archive-primary" onClick={() => setRevealed(true)}>
-            {ru ? "Снять печать" : "Break the seal"}
-          </button>
-          <button onClick={() => setRevealed(true)}>{ru ? "Показать сразу" : "Show now"}</button>
-        </div>
+      {useCinematic ? (
+        <PackReveal key={receipt.id} receipt={receipt} />
       ) : (
         <div className="archive-grid archive-revealed">
           {receipt.items.map((item) => (

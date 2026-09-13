@@ -1,5 +1,5 @@
 import Icon from "../icons/Icon"
-import { useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import { useResource } from "../community/api"
 import { useLanguage } from "../i18n"
 import { Pager } from "./ArchivePage"
@@ -81,29 +81,43 @@ export default function PackShop({
           balance={balance}
           starterClaimed={!!data.data?.starter_claimed}
           transaction={transaction}
-          onClose={() => setSelected(null)}
+          onClose={() => {
+            document.getElementById(`archive-pack-${selected}`)?.focus({ preventScroll: true })
+            setSelected(null)
+          }}
         />
       )}
       <div className="archive-pack-grid">
         {data.data?.items.map((pack) => (
           <article className="archive-pack-tile" key={pack.id}>
             <div className="archive-envelope-art" aria-hidden="true">
-              <Icon name="mail" size={28} />
-              <b>{pack.draws}</b>
+              {pack.cover ? <CardPreview card={pack.cover} /> : <Icon name="images" size={54} />}
+              <span>
+                <Icon name="mail" size={18} />
+                {pack.draws} {ru ? "карт" : "cards"}
+              </span>
             </div>
             <small>
               {pack.starter
                 ? ru
-                  ? "ДОСТУПЕН КАК СТАРТОВЫЙ"
-                  : "STARTER ELIGIBLE"
-                : "ARCHIVE RELEASE"}
+                  ? "Доступен как стартовый"
+                  : "Starter eligible"
+                : ru
+                  ? "Выпуск архива"
+                  : "Archive release"}
             </small>
             <h3>{pack.title}</h3>
             <p>{pack.description}</p>
-            <p>
-              {pack.card_count} {ru ? "дизайнов в составе" : "designs in pool"} · {pack.price}{" "}
-              <Icon name="coins" size={18} />
-            </p>
+            <small>
+              {pack.card_count} {ru ? "дизайнов в составе" : "designs in pool"}
+            </small>
+            {pack.cover && (
+              <small>
+                {ru
+                  ? "Обложка — пример из состава, а не гарантированная награда."
+                  : "Cover: a pool example, not a guaranteed reward."}
+              </small>
+            )}
             {!pack.ready && (
               <p>
                 {ru
@@ -111,9 +125,20 @@ export default function PackShop({
                   : "Paused: contents require an update."}
               </p>
             )}
-            <button onClick={() => setSelected(pack.id)}>
-              {ru ? "Состав и открытие" : "Contents & opening"}
-            </button>
+            <footer>
+              <b aria-label={`${pack.price} ${ru ? "жетонов" : "tokens"}`}>
+                <Icon name="coins" size={20} />
+                {pack.price}
+              </b>
+              <button
+                id={`archive-pack-${pack.id}`}
+                aria-expanded={selected === pack.id}
+                aria-controls={selected === pack.id ? "archive-pack-details" : undefined}
+                onClick={() => setSelected(pack.id)}
+              >
+                {ru ? "Состав и открытие" : "Contents & opening"}
+              </button>
+            </footer>
           </article>
         ))}
       </div>
@@ -144,9 +169,17 @@ function PackDetails({
   const data = useResource<{ pack: Pack }>(`/api/archive/packs/${id}?refresh=${revision}`)
   const pack = data.data?.pack
   const locked = transaction.busy || !!transaction.pending || !pack?.ready
+  const panel = useRef<HTMLElement>(null)
+  useEffect(() => {
+    panel.current?.focus({ preventScroll: true })
+    panel.current?.scrollIntoView?.({ block: "start", behavior: "instant" })
+  }, [id])
   return (
     <section
       className="archive-panel archive-pack-details"
+      id="archive-pack-details"
+      ref={panel}
+      tabIndex={-1}
       aria-label={ru ? "Выбранный конверт" : "Selected pack"}
     >
       <button onClick={onClose}>{ru ? "Закрыть состав" : "Close contents"}</button>

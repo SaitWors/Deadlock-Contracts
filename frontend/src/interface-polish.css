@@ -17,7 +17,7 @@
   --color-mint-glow: #bad7bd;
   --color-page: #101512;
 }
-.bureau-app .community-page {
+.community-page {
   color: var(--color-cream);
 }
 .bureau-header {
@@ -174,88 +174,88 @@
   width: 21px;
   height: 21px;
 }
-.bureau-app .community-page :is(.dc-primary, .dc-ghost) {
+.community-page :is(.dc-primary, .dc-ghost) {
   border-radius: 11px;
   gap: 8px;
   font-family: var(--font-body);
   font-size: 13px;
 }
-.bureau-app .community-tabs {
+.community-tabs {
   border: 0;
   background: #171f19;
   border-radius: 14px;
   padding: 5px;
   gap: 4px;
 }
-.bureau-app .community-tabs button {
+.community-tabs button {
   font-family: var(--font-body);
   font-size: 13px;
   border: 0;
   border-radius: 10px;
   padding: 10px 16px;
 }
-.bureau-app .community-tabs button[aria-pressed="true"] {
+.community-tabs button[aria-pressed="true"] {
   background: #a5c9ac23;
   color: #d1e4cb;
 }
-.bureau-app .community-head h1 {
+.community-head h1 {
   font-family: var(--font-body);
   font-size: clamp(30px, 4vw, 46px);
   letter-spacing: -0.04em;
   line-height: 1.2;
 }
-.bureau-app .community-head h2,
-.bureau-app .community-panel h2 {
+.community-head h2,
+.community-panel h2 {
   font-family: var(--font-body);
 }
-.bureau-app .community-head {
+.community-head {
   border-color: #ffffff10;
 }
-.bureau-app .community-panel,
-.bureau-app .achievement-card,
-.bureau-app .community-collection-summary,
-.bureau-app .leaderboard-mine {
+.community-panel,
+.achievement-card,
+.community-collection-summary,
+.leaderboard-mine {
   border-radius: 18px;
   border-color: #ffffff14;
 }
-.bureau-app .achievement-card {
+.achievement-card {
   background: #171f19;
   padding: 26px;
 }
-.bureau-app .achievement-card.earned {
+.achievement-card.earned {
   background: linear-gradient(160deg, #243425, #151d18);
   border-color: #91b28230;
 }
-.bureau-app .achievement-card h2 {
+.achievement-card h2 {
   font-family: var(--font-body);
   font-size: 19px;
   line-height: 1.35;
 }
-.bureau-app .community-empty {
+.community-empty {
   border-radius: 18px;
   border-color: #ffffff1c;
 }
-.bureau-app .leaderboard-table-wrap {
+.leaderboard-table-wrap {
   border-radius: 18px;
 }
-.bureau-app .leaderboard-table caption {
+.leaderboard-table caption {
   font-family: var(--font-body);
   font-size: 13px;
   letter-spacing: 0;
   text-transform: none;
 }
-.bureau-app .community-avatar,
-.bureau-app .leaderboard-player img {
+.community-avatar,
+.leaderboard-player img {
   border-radius: 10px;
 }
-.bureau-app .dossier-view {
+.dossier-view {
   border-radius: 22px;
 }
-.bureau-app .dossier-avatar {
+.dossier-avatar {
   border-radius: 20px;
 }
-.bureau-app .dossier-module,
-.bureau-app .dossier-sidebar > section {
+.dossier-module,
+.dossier-sidebar > section {
   border-radius: 16px;
   overflow: hidden;
 }
@@ -317,12 +317,6 @@
 }
 .bureau-app button svg + span {
   min-width: 0;
-}
-@media (max-width: 1399px) {
-  .bureau-menu-toggle {
-    display: grid;
-    place-items: center;
-  }
 }
 @media (max-width: 700px) {
   .bureau-app .bureau-profile-popover {

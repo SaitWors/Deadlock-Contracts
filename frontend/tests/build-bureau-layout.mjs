@@ -56,7 +56,7 @@ await Promise.all(
 await fs.writeFile(path.join(target, "fixture.css"), css)
 await fs.writeFile(
   path.join(target, "index.html"),
-  '<!doctype html><html lang="ru"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>PR37 bureau QA</title><link rel="stylesheet" href="fixture.css"><body><a href="first-visit.html">Первый визит / First visit</a><div id="root"></div><script src="fixture.js"></script><script>BureauLayout.mount(document.getElementById("root"));</script></body></html>',
+  '<!doctype html><html lang="ru"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Bureau design QA</title><link rel="stylesheet" href="fixture.css"><body><a href="welcome.html">Главная / Welcome</a> · <a href="pack-reveal.html">Открытие паков / Packs</a> · <a href="first-visit.html">Первый визит / First visit</a><div id="root"></div><script src="fixture.js"></script><script>BureauLayout.mount(document.getElementById("root"));</script></body></html>',
 )
 
 const briefing = await build({
@@ -73,7 +73,7 @@ await fs.writeFile(
 )
 await fs.writeFile(
   path.join(target, "briefing.html"),
-  '<!doctype html><html lang="ru"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>PR37 briefing QA</title><link rel="stylesheet" href="fixture.css"><body><a href="index.html">К бюро / Back to bureaus</a><div id="root"></div><script src="briefing.js"></script><script>BriefingLayout.mount(document.getElementById("root"));</script></body></html>',
+  '<!doctype html><html lang="ru"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Briefing QA</title><link rel="stylesheet" href="fixture.css"><body><a href="index.html">К бюро / Back to bureaus</a><div id="root"></div><script src="briefing.js"></script><script>BriefingLayout.mount(document.getElementById("root"));</script></body></html>',
 )
 
 const firstVisit = await build({
@@ -95,6 +95,38 @@ await fs.writeFile(
 await fs.writeFile(
   path.join(target, "first-visit.html"),
   '<!doctype html><html lang="ru"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>First visit QA</title><link rel="stylesheet" href="fixture.css"><body style="margin:0"><a href="index.html">К макету бюро / Back to bureau fixture</a><div id="root"></div><script src="first-visit.js"></script><script>FirstVisitLayout.mount(document.getElementById("root"));</script></body></html>',
+)
+
+// These pages are a reviewable model of the shipped components, not another UI.
+for (const [name, entry, title] of [
+  ["welcome", "landing-layout-entry.tsx", "Главная / Welcome"],
+  ["pack-reveal", "pack-reveal-layout-entry.tsx", "Открытие конверта / Pack reveal"],
+]) {
+  const preview = await build({
+    ...options,
+    build: {
+      write: false,
+      minify: true,
+      lib: { entry: `tests/${entry}`, name: "DesignPreview", formats: ["iife"] },
+    },
+  })
+  await fs.writeFile(
+    path.join(target, `${name}.js`),
+    preview[0].output.find((item) => item.type === "chunk").code,
+  )
+  await fs.writeFile(
+    path.join(target, `${name}.html`),
+    `<!doctype html><html lang="ru"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${title}</title><link rel="stylesheet" href="fixture.css"><body style="margin:0"><div id="root"></div><script src="${name}.js"></script><script>DesignPreview.mount(document.getElementById("root"));</script></body></html>`,
+  )
+}
+const demoArt = files.find(
+  (name) => name.startsWith("curator-optimized-") && name.endsWith(".webp"),
+)
+if (!demoArt) throw new Error("Missing local demo artwork")
+await fs.copyFile(path.join(assets, demoArt), path.join(target, "art.webp"))
+await fs.writeFile(
+  path.join(target, "README.txt"),
+  "Распакуйте весь архив и откройте welcome.html или pack-reveal.html в браузере.\nЭто реальные компоненты новой версии с учебными данными. Вход и операции с реальным балансом отключены.\nПроверьте ширину 320, 390, 768 и 1440 px, масштаб 200%, клавиатуру и уменьшенное движение.\nExtract the whole archive and open welcome.html or pack-reveal.html. Real components, demo data, no real transactions.\n",
 )
 
 // Stable reward identifiers are exported as native vectors, without any bitmap.
