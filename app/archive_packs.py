@@ -86,6 +86,10 @@ class Showcase(Strict):
         return values
 
 
+class Favorite(Strict):
+    favorite: bool = Field(strict=True)
+
+
 def build_router(require_permission, effective_role):
     router = APIRouter(prefix="/api", tags=["Archive packs"])
 
@@ -123,9 +127,21 @@ def build_router(require_permission, effective_role):
     @router.get("/archive/inventory")
     def inventory(response: Response, hero: str = Query(default="", max_length=40), rank: Rank | None = None,
                   q: str = Query(default="", max_length=80), offset: int = Query(default=0, ge=0, le=100000),
+                  favorites_only: bool = False,
                   user: User = Depends(require_user), db: Session = Depends(get_db)):
         no_store(response)
-        return service.inventory(db, user.id, hero, rank, q, offset)
+        return service.inventory(db, user.id, hero, rank, q, offset, favorites_only)
+
+    @router.get("/archive/favorites")
+    def favorites(response: Response, user: User = Depends(require_user), db: Session = Depends(get_db)):
+        no_store(response)
+        return {"card_ids": service.favorite_card_ids(db, user.id)}
+
+    @router.put("/archive/favorites/{card_id}", dependencies=[Depends(require_csrf)])
+    def save_favorite(card_id: UUID, payload: Favorite, response: Response,
+                      user: User = Depends(require_user), db: Session = Depends(get_db)):
+        no_store(response)
+        return service.set_favorite(db, user.id, str(card_id), payload.favorite)
 
     @router.post("/archive/items/{item_id}/recycle", dependencies=[Depends(require_csrf)])
     def recycle(item_id: UUID, payload: RequestKey, user: User = Depends(require_user), db: Session = Depends(get_db)):

@@ -3,7 +3,8 @@ import { useEffect, useState } from "react"
 import { request, useResource } from "../community/api"
 import { useLanguage } from "../i18n"
 import { Pager } from "./ArchivePage"
-import CardPreview from "./CardPreview"
+import CardSurface from "./CardSurface"
+import { FavoriteButton, FavoriteError, type FavoriteControls } from "./favorites"
 import { RANKS, type Inventory, type Meta, type Receipt, type Showcase } from "./types"
 import { ReceiptView, type useTransaction } from "./transactions"
 
@@ -12,11 +13,13 @@ export default function CollectionPage({
   meta,
   revision,
   transaction,
+  favorites,
 }: {
   csrf: string
   meta: Meta
   revision: number
   transaction: ReturnType<typeof useTransaction>
+  favorites: FavoriteControls
 }) {
   const { language } = useLanguage()
   const ru = language === "ru"
@@ -25,6 +28,7 @@ export default function CollectionPage({
   const [q, setQ] = useState("")
   const [search, setSearch] = useState("")
   const [offset, setOffset] = useState(0)
+  const [favoritesOnly, setFavoritesOnly] = useState(false)
   const [selected, setSelected] = useState<string[]>([])
   const [visible, setVisible] = useState(false)
   const [saving, setSaving] = useState(false)
@@ -33,7 +37,7 @@ export default function CollectionPage({
   const [historyOffset, setHistoryOffset] = useState(0)
   const [receipt, setReceipt] = useState<Receipt | null>(null)
   const inventory = useResource<Inventory>(
-    `/api/archive/inventory?hero=${hero}${rank ? `&rank=${rank}` : ""}&q=${encodeURIComponent(search)}&offset=${offset}&refresh=${revision}`,
+    `/api/archive/inventory?hero=${hero}${rank ? `&rank=${rank}` : ""}&q=${encodeURIComponent(search)}&offset=${offset}&refresh=${revision}&favorites_only=${favoritesOnly}`,
   )
   const coverage = useResource<{ items: { hero: string; rank: string; count: number }[] }>(
     `/api/archive/inventory/coverage?refresh=${revision}`,
@@ -48,6 +52,11 @@ export default function CollectionPage({
       setVisible(showcase.data.is_public)
     }
   }, [showcase.data])
+  useEffect(() => {
+    if (!favoritesOnly) return
+    setOffset(0)
+    inventory.reload()
+  }, [favorites.revision])
   const save = async () => {
     if (!showcase.data) return
     setSaving(true)
@@ -99,6 +108,7 @@ export default function CollectionPage({
         </p>
       )}
       {notice && <p role="status">{notice}</p>}
+      <FavoriteError controls={favorites} />
       <div className="archive-panel archive-showcase-settings">
         <h3>
           {ru
@@ -183,6 +193,18 @@ export default function CollectionPage({
         </label>
         <button>{ru ? "Найти" : "Search"}</button>
       </form>
+      <label className="archive-check">
+        <input
+          name="favorites_only"
+          type="checkbox"
+          checked={favoritesOnly}
+          onChange={(event) => {
+            setFavoritesOnly(event.target.checked)
+            setOffset(0)
+          }}
+        />
+        {ru ? "Только избранное" : "Favorites only"}
+      </label>
       {hero && (
         <>
           <p>
@@ -211,16 +233,20 @@ export default function CollectionPage({
       {inventory.data?.total === 0 && (
         <div className="archive-empty">
           <p>
-            {ru
-              ? "Здесь пока нет карточек. Загляни в конверты или выбери конкретную карточку в каталоге."
-              : "No matching cards yet. Open an envelope or choose a card in the catalogue."}
+            {favoritesOnly
+              ? ru
+                ? "В избранном пока нет подходящих карточек. Отметь понравившиеся звёздочкой в коллекции или при открытии конверта."
+                : "No matching favorites. Star a card in your collection or while opening an envelope."
+              : ru
+                ? "Здесь пока нет карточек. Загляни в конверты или выбери конкретную карточку в каталоге."
+                : "No matching cards yet. Open an envelope or choose a card in the catalogue."}
           </p>
         </div>
       )}
       <div className="archive-grid">
         {inventory.data?.items.map((item) => (
           <article key={item.card.id}>
-            <CardPreview card={item.card} />
+            <CardSurface card={item.card} />
             <h3 className="archive-item-title">{item.card.title}</h3>
             <p>
               {ru ? "Экземпляров" : "Copies"}: {item.quantity}
@@ -228,6 +254,7 @@ export default function CollectionPage({
                 ? ` · ${ru ? "тестовых" : "test grants"}: ${item.test_count}`
                 : ""}
             </p>
+            <FavoriteButton controls={favorites} cardId={item.card.id} />
             <label className="archive-check">
               <input
                 type="checkbox"

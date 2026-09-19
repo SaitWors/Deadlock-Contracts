@@ -121,6 +121,316 @@ const receiptItem = (id, title, rank = "F", duplicate = false, test_grant = fals
   recycle_value: 0,
 })
 
+function pointer(w, element, type, x, y = 100) {
+  const event = new w.MouseEvent(type, { bubbles: true, clientX: x, clientY: y, button: 0 })
+  Object.defineProperties(event, {
+    pointerId: { value: 1 },
+    pointerType: { value: "touch" },
+    isPrimary: { value: true },
+  })
+  element.dispatchEvent(event)
+}
+
+test("stacked cards require a flip and only a horizontal revealed swipe advances", async () => {
+  const calls = []
+  const { api, doc, w } = runtime(async (...args) => {
+    calls.push(args)
+    return response({})
+  }, "en")
+  let root
+  await api.act(async () => {
+    root = api.mount(doc.getElementById("mount"), "receipt", {
+      receipt: packReceipt("gestures", [
+        receiptItem("first", "First dossier"),
+        receiptItem("second", "Second dossier"),
+      ]),
+      cinematic: true,
+    })
+  })
+  await api.act(async () => button(doc, "Reveal cards").click())
+  await api.act(async () => button(doc, "Break the seal").click())
+  await api.act(async () => await new Promise((resolve) => setTimeout(resolve, 600)))
+  const flip = () => doc.querySelector("button[aria-label='Reveal card']")
+  assert.ok(flip(), "a face-down card must offer a named flip control")
+  assert.equal(doc.querySelector(".card-surface-front").getAttribute("aria-hidden"), "true")
+  await api.act(async () => {
+    pointer(w, flip(), "pointerdown", 120)
+    pointer(w, flip(), "pointermove", 240)
+    pointer(w, flip(), "pointerup", 240)
+  })
+  assert.match(doc.querySelector(".pack-reveal-card").textContent, /1 \/ 2/)
+  await api.act(async () => flip().click())
+  assert.equal(doc.querySelector(".card-surface-front").getAttribute("aria-hidden"), "false")
+  const control = () => doc.querySelector(".card-surface-control")
+  await api.act(async () => {
+    pointer(w, control(), "pointerdown", 120, 100)
+    pointer(w, control(), "pointermove", 145, 230)
+    pointer(w, control(), "pointerup", 145, 230)
+  })
+  assert.match(doc.querySelector(".pack-reveal-card").textContent, /1 \/ 2/)
+  await api.act(async () => {
+    pointer(w, control(), "pointerdown", 120)
+    pointer(w, control(), "pointermove", 250)
+    pointer(w, control(), "pointercancel", 250)
+  })
+  assert.match(doc.querySelector(".pack-reveal-card").textContent, /1 \/ 2/)
+  await api.act(async () => {
+    pointer(w, control(), "pointerdown", 120)
+    pointer(w, control(), "pointermove", 250)
+    pointer(w, control(), "pointerup", 250)
+    control().dispatchEvent(new w.MouseEvent("click", { bubbles: true, detail: 1 }))
+  })
+  await api.act(async () => await new Promise((resolve) => setTimeout(resolve, 300)))
+  assert.match(doc.querySelector(".pack-reveal-card").textContent, /2 \/ 2/)
+  assert.ok(flip(), "the next card remains face down after a swipe-generated click")
+  assert.equal(calls.length, 0)
+  await api.act(async () => root.unmount())
+})
+
+test("collection favorites save with CSRF, retry failure and filter the server inventory", async () => {
+  const writes = [],
+    reads = []
+  let marked = false,
+    fail = true
+  const { api, doc } = runtime(async (url, init = {}) => {
+    if (init.method === "PUT") {
+      writes.push({ url, body: JSON.parse(init.body), csrf: init.headers.get("X-CSRF-Token") })
+      if (fail) return { ok: false, status: 503, json: async () => ({ detail: "Try again" }) }
+      marked = JSON.parse(init.body).favorite
+      return response({ card_id: card.id, favorite: marked })
+    }
+    reads.push(url)
+    if (url.includes("/favorites")) return response({ card_ids: marked ? [card.id] : [] })
+    if (url.includes("/meta")) return response(meta)
+    if (url.includes("/wallet")) return response(wallet)
+    if (url.includes("/showcase"))
+      return response({ card_ids: [], is_public: false, revision: 0, profile_public: false })
+    if (url.includes("/inventory?"))
+      return response({
+        items: [{ card, quantity: 1, test_count: 0, recycle: null, favorite: marked }],
+        total: 1,
+      })
+    return response({ items: [], total: 0 })
+  }, "en")
+  let root
+  await api.act(async () => {
+    root = api.mount(doc.getElementById("mount"), "archive", {
+      csrf: "favorite-csrf",
+      mode: "collection",
+      onWalletChange() {},
+    })
+  })
+  assert.ok(button(doc, "Add to favorites"))
+  await api.act(async () => button(doc, "Add to favorites").click())
+  assert.match(doc.querySelector("[role=alert]").textContent, /Try again/)
+  assert.ok(button(doc, "Add to favorites"), "failed save must not claim the favorite was saved")
+  fail = false
+  await api.act(async () => button(doc, "Add to favorites").click())
+  assert.equal(writes.length, 2)
+  assert.equal(writes[1].csrf, "favorite-csrf")
+  assert.equal(writes[1].url, `/api/archive/favorites/${card.id}`)
+  assert.deepEqual(writes[1].body, { favorite: true })
+  assert.equal(button(doc, "Remove from favorites").getAttribute("aria-pressed"), "true")
+  await api.act(async () => doc.querySelector("input[name=favorites_only]").click())
+  assert.ok(reads.some((url) => url.includes("favorites_only=true")))
+  assert.equal(writes.filter((x) => /open|recycle|showcase/.test(x.url)).length, 0)
+  await api.act(async () => root.unmount())
+})
+
+test("receipt favorite changes refresh a mounted favorites-only collection", async () => {
+  const item = receiptItem("receipt-favorite", "Receipt favorite")
+  const receipt = packReceipt("recovered-favorite", [item])
+  let marked = true,
+    inventoryReads = 0
+  const inventoryUrls = []
+  const { api, doc, w } = runtime(
+    async (url, init = {}) => {
+      if (init.method === "PUT" && url.includes("/favorites/")) {
+        marked = JSON.parse(init.body).favorite
+        return response({ card_id: item.card.id, favorite: marked })
+      }
+      if (url.includes("/requests/req")) return response({ operation: receipt })
+      if (url.includes("/favorites")) return response({ card_ids: marked ? [item.card.id] : [] })
+      if (url.includes("/meta")) return response(meta)
+      if (url.includes("/wallet")) return response(wallet)
+      if (url.includes("/showcase"))
+        return response({ card_ids: [], is_public: false, revision: 0, profile_public: false })
+      if (url.includes("/inventory?")) {
+        inventoryReads += 1
+        inventoryUrls.push(url)
+        const favoritesOnly = url.includes("favorites_only=true")
+        return response({
+          items:
+            favoritesOnly && !marked
+              ? []
+              : [{ card: item.card, quantity: 1, test_count: 0, recycle: null, favorite: marked }],
+          total: favoritesOnly ? (marked ? 19 : 0) : 1,
+        })
+      }
+      return response({ items: [], total: 0 })
+    },
+    "en",
+    true,
+  )
+  w.sessionStorage.setItem(
+    `dc-archive-request:${meta.account_key}`,
+    JSON.stringify({ url: "/api/archive/packs/p/open", body: { request_key: "req" } }),
+  )
+  let root
+  await api.act(async () => {
+    root = api.mount(doc.getElementById("mount"), "archive", {
+      csrf: "favorite-csrf",
+      mode: "collection",
+      onWalletChange() {},
+    })
+  })
+  await api.act(async () => button(doc, "Check result").click())
+  await api.act(async () => doc.querySelector("input[name=favorites_only]").click())
+  await api.act(async () => button(doc, "Next").click())
+  assert.match(inventoryUrls.at(-1), /offset=18/)
+  const inventoryReadsBefore = inventoryReads
+  await api.act(async () => button(doc, "Reveal cards").click())
+  const dialog = doc.querySelector("dialog")
+  assert.equal(dialog.querySelectorAll(".archive-card").length, 1)
+  await api.act(async () => button(dialog, "Remove from favorites").click())
+  assert.ok(inventoryReads > inventoryReadsBefore, "the filtered inventory must be invalidated")
+  assert.match(inventoryUrls.at(-1), /offset=0.*favorites_only=true/)
+  assert.ok(
+    doc.querySelector("h3.archive-item-title") === null,
+    "the unfavorited collection row must disappear",
+  )
+  assert.equal(dialog.querySelectorAll(".archive-card").length, 1, "the receipt remains immutable")
+  await api.act(async () => root.unmount())
+})
+
+test("a pending favorite swipe cannot advance after skipping and never buys again", async () => {
+  const writes = []
+  let finish
+  const { api, doc, w } = runtime(async (url, init = {}) => {
+    if (init.method === "PUT") {
+      writes.push({ url, body: JSON.parse(init.body) })
+      return new Promise((resolve) => {
+        finish = resolve
+      })
+    }
+    return response({ card_ids: [] })
+  }, "en")
+  let root
+  await api.act(async () => {
+    root = api.mount(doc.getElementById("mount"), "favoriteReceipt", {
+      receipt: packReceipt("slow", [receiptItem("one", "First"), receiptItem("two", "Second")]),
+      csrf: "csrf",
+      accountKey: "account-one",
+    })
+  })
+  await api.act(async () => button(doc, "Reveal cards").click())
+  await api.act(async () => button(doc, "Break the seal").click())
+  await api.act(async () => await new Promise((resolve) => setTimeout(resolve, 600)))
+  await api.act(async () => doc.querySelector("button[aria-label='Reveal card']").click())
+  await api.act(async () => {
+    const control = doc.querySelector(".card-surface-control")
+    pointer(w, control, "pointerdown", 240)
+    pointer(w, control, "pointermove", 100)
+    pointer(w, control, "pointerup", 100)
+  })
+  assert.equal(writes.length, 1)
+  assert.deepEqual(writes[0], { url: "/api/archive/favorites/card-one", body: { favorite: true } })
+  assert.ok(button(doc, "Saving…").disabled)
+  await api.act(async () => button(doc, "Skip to results").click())
+  await api.act(async () => finish(response({ card_id: "card-one", favorite: true })))
+  await api.act(async () => await new Promise((resolve) => setTimeout(resolve, 300)))
+  assert.equal(doc.querySelector(".pack-reveal-shell").dataset.stage, "results")
+  assert.equal(doc.querySelectorAll("dialog .archive-card").length, 2)
+  assert.ok(button(doc, "Remove from favorites"))
+  assert.equal(writes.length, 1)
+  await api.act(async () => root.unmount())
+})
+
+test("favorite writes are single-flight and stale account responses are ignored", async () => {
+  const writes = []
+  let finish
+  const { api, doc } = runtime(async (url, init = {}) => {
+    if (init.method === "PUT") {
+      writes.push(init)
+      return new Promise((resolve) => {
+        finish = resolve
+      })
+    }
+    return response({ card_ids: [] })
+  }, "en")
+  let root
+  const receipt = packReceipt("account-test", [receiptItem("one", "Owned file")])
+  await api.act(async () => {
+    root = api.mount(doc.getElementById("mount"), "favoriteReceipt", {
+      receipt,
+      csrf: "csrf-a",
+      accountKey: "a",
+    })
+  })
+  await api.act(async () => button(doc, "Reveal cards").click())
+  await api.act(async () => button(doc, "Skip to results").click())
+  await api.act(async () => {
+    button(doc, "Add to favorites").click()
+    button(doc, "Add to favorites").click()
+  })
+  assert.equal(writes.length, 1)
+  await api.act(async () => root.rerender({ receipt, csrf: "csrf-b", accountKey: "b" }))
+  assert.equal(writes[0].signal.aborted, true)
+  await api.act(async () => finish(response({ card_id: "card-one", favorite: true })))
+  await api.act(async () => button(doc, "Reveal cards").click())
+  await api.act(async () => button(doc, "Skip to results").click())
+  assert.equal(button(doc, "Remove from favorites"), undefined)
+  assert.equal(button(doc, "Add to favorites").getAttribute("aria-pressed"), "false")
+  await api.act(async () => root.unmount())
+})
+
+test("favorite errors remain visible in inline results after closing the reveal", async () => {
+  const { api, doc } = runtime(
+    async (_url, init = {}) =>
+      init.method === "PUT"
+        ? { ok: false, status: 503, json: async () => ({ detail: "Please retry favorite" }) }
+        : response({ card_ids: [] }),
+    "en",
+  )
+  let root
+  await api.act(async () => {
+    root = api.mount(doc.getElementById("mount"), "favoriteReceipt", {
+      receipt: packReceipt("inline-error", [receiptItem("one", "Saved card")]),
+      csrf: "csrf",
+      accountKey: "account",
+    })
+  })
+  await api.act(async () => button(doc, "Reveal cards").click())
+  await api.act(async () => button(doc, "Close reveal").click())
+  await api.act(async () =>
+    button(doc.querySelector(".pack-reveal-inline"), "Add to favorites").click(),
+  )
+  const visibleAlert = [...doc.querySelectorAll("[role=alert]")].find(
+    (node) => !node.closest("dialog"),
+  )
+  assert.ok(visibleAlert, "Save failures must be visible outside the closed dialog")
+  assert.match(visibleAlert.textContent, /Please retry favorite/)
+  assert.ok(button(doc.querySelector(".pack-reveal-inline"), "Add to favorites"))
+  await api.act(async () => root.unmount())
+})
+
+test("empty receipt shows complete results without an inert opening sequence", async () => {
+  const { api, doc } = runtime(async () => response({}), "ru")
+  let root
+  await api.act(async () => {
+    root = api.mount(doc.getElementById("mount"), "receipt", {
+      receipt: packReceipt("empty"),
+      cinematic: true,
+    })
+  })
+  await api.act(async () => button(doc, "Раскрыть карточки").click())
+  assert.match(doc.querySelector("dialog").textContent, /Получено: 0/)
+  assert.equal(doc.querySelector(".card-surface-control"), null)
+  await api.act(async () => button(doc, "Закрыть показ").click())
+  assert.equal(doc.querySelector("dialog").open, false)
+  await api.act(async () => root.unmount())
+})
+
 test("cinematic pack reveal uses receipt order and replay has no network or wallet effects", async () => {
   const calls = []
   let closed = 0
@@ -275,9 +585,20 @@ test("opening stages move focus to the available keyboard action", async () => {
   await api.act(async () => button(doc, "Reveal cards")?.click())
   await api.act(async () => button(doc, "Break the seal").click())
   await api.act(async () => await new Promise((resolve) => setTimeout(resolve, 600)))
+  const flip = doc.querySelector("button[aria-label='Reveal card']")
+  assert.equal(doc.activeElement, flip)
+  await api.act(async () => flip.click())
   assert.equal(doc.activeElement, button(doc, "Results"))
-  await api.act(async () => button(doc, "Results").click())
-  assert.equal(doc.activeElement, button(doc, "Close reveal"))
+  await api.act(async () =>
+    doc.activeElement.dispatchEvent(
+      new doc.defaultView.KeyboardEvent("keydown", { key: "ArrowRight", bubbles: true }),
+    ),
+  )
+  await api.act(async () => await new Promise((resolve) => setTimeout(resolve, 300)))
+  assert.ok(
+    doc.activeElement === button(doc, "Close reveal"),
+    "ArrowRight reaches results and focuses Close",
+  )
   await api.act(async () => root.unmount())
 })
 

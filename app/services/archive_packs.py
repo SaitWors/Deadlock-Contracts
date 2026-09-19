@@ -9,8 +9,8 @@ from collections import Counter
 from fastapi import HTTPException
 from sqlalchemy import Integer, func, select
 
-from ..models import (ArchiveCard, ArchiveItem, ArchiveLedger, ArchiveOperation, ArchivePack,
-                      ArchivePackVersion, ArchiveShowcase, AuditLog, PublicProfile, User, utcnow)
+from ..models import (ArchiveCard, ArchiveFavorite, ArchiveItem, ArchiveLedger, ArchiveOperation, ArchivePack,
+                      ArchivePackVersion, ArchiveShowcase, AuditLog, PublicProfile)
 from .archive import RANKS, aware, card_payload, lock_user
 
 # Internal collection balance, not a cash value or an external market estimate.
@@ -231,9 +231,34 @@ def recycle(db, user_id, item_id, payload):
     return finish(db, operation, delta=item.cost_basis // 5, extra={"recycled_item_id": item.id})
 
 
-def inventory(db, user_id, hero, rank, q, offset):
+def favorite_card_ids(db, user_id):
+    owned = select(ArchiveItem.id).where(ArchiveItem.user_id == user_id,
+                                         ArchiveItem.card_id == ArchiveFavorite.card_id,
+                                         ArchiveItem.state == "OWNED").exists()
+    return list(db.scalars(select(ArchiveFavorite.card_id).where(ArchiveFavorite.user_id == user_id, owned)
+                           .order_by(ArchiveFavorite.card_id)))
+
+
+def set_favorite(db, user_id, card_id, favorite):
+    lock_user(db, user_id)
+    row = db.get(ArchiveFavorite, (user_id, card_id))
+    if favorite:
+        if not owns_card(db, user_id, card_id):
+            raise HTTPException(404, "Card not found")
+        if row is None:
+            db.add(ArchiveFavorite(user_id=user_id, card_id=card_id))
+    elif row is not None:
+        db.delete(row)
+    db.commit()
+    return {"card_id": card_id, "favorite": favorite}
+
+
+def inventory(db, user_id, hero, rank, q, offset, favorites_only=False):
     count = func.count(ArchiveItem.id).label("quantity")
-    statement = select(ArchiveCard, count, func.sum(ArchiveItem.test_grant.cast(Integer)).label("test_count")) \
+    favorite = select(ArchiveFavorite.card_id).where(ArchiveFavorite.user_id == user_id,
+                                                      ArchiveFavorite.card_id == ArchiveCard.id).exists()
+    statement = select(ArchiveCard, count, func.sum(ArchiveItem.test_grant.cast(Integer)).label("test_count"),
+                       favorite.label("favorite")) \
         .join(ArchiveItem, ArchiveItem.card_id == ArchiveCard.id).where(ArchiveItem.user_id == user_id, ArchiveItem.state == "OWNED")
     if hero:
         statement = statement.where(ArchiveCard.hero == hero)
@@ -241,15 +266,18 @@ def inventory(db, user_id, hero, rank, q, offset):
         statement = statement.where(ArchiveCard.rank == rank)
     if q:
         statement = statement.where(ArchiveCard.title.ilike("%" + q.replace("\\", "\\\\").replace("%", r"\%").replace("_", r"\_") + "%", escape="\\"))
+    if favorites_only:
+        statement = statement.where(favorite)
     statement = statement.group_by(ArchiveCard.id)
     total = db.scalar(select(func.count()).select_from(statement.subquery()))
     rows = db.execute(statement.order_by(ArchiveCard.hero, ArchiveCard.rank, ArchiveCard.title, ArchiveCard.id).offset(offset).limit(18)).all()
     result = []
-    for card, quantity, test_count in rows:
+    for card, quantity, test_count, is_favorite in rows:
         duplicate = db.scalar(select(ArchiveItem).where(ArchiveItem.user_id == user_id, ArchiveItem.card_id == card.id,
                           ArchiveItem.state == "OWNED", ArchiveItem.cost_basis >= 5)
                           .order_by(ArchiveItem.cost_basis.desc(), ArchiveItem.id).limit(1)) if quantity > 1 else None
         result.append({"card": card_payload(card), "quantity": quantity, "test_count": test_count,
+                       "favorite": bool(is_favorite),
                        "recycle": {"id": duplicate.id, "value": duplicate.cost_basis // 5} if duplicate else None})
     return {"items": result, "total": total}
 

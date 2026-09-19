@@ -8,6 +8,20 @@ import CardReviewDesk from "../src/admin/CardReviewDesk"
 import Cipher from "../src/archive/Cipher"
 import OwnerArchiveDesk from "../src/admin/OwnerArchiveDesk"
 import { ReceiptView, TransactionStatus, useTransaction } from "../src/archive/transactions"
+import { useFavorites } from "../src/archive/favorites"
+
+function FavoriteReceiptHarness({
+  receipt,
+  csrf,
+  accountKey,
+}: {
+  receipt: Parameters<typeof ReceiptView>[0]["receipt"]
+  csrf: string
+  accountKey: string
+}) {
+  const favorites = useFavorites(csrf, accountKey)
+  return <ReceiptView key={accountKey} receipt={receipt} cinematic favorites={favorites} />
+}
 
 function TransactionHarness({
   csrf,
@@ -57,6 +71,7 @@ export function mount(element: HTMLElement, page: string, props: Record<string, 
     owner: OwnerArchiveDesk,
     transaction: TransactionHarness,
     receipt: ReceiptHarness,
+    favoriteReceipt: FavoriteReceiptHarness,
   }[page] as React.ComponentType<Record<string, unknown>>
   const root = createRoot(element)
   const render = (nextProps: Record<string, unknown>) =>
