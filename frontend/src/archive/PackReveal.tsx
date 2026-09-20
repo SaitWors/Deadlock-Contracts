@@ -2,13 +2,20 @@ import { useEffect, useRef, useState } from "react"
 import Icon from "../icons/Icon"
 import { useLanguage } from "../i18n"
 import Regalia from "../regalia/Regalia"
-import CardPreview from "./CardPreview"
+import CardSurface from "./CardSurface"
+import { FavoriteButton, FavoriteError, type FavoriteControls } from "./favorites"
 import type { Receipt } from "./types"
 import "./pack-reveal.css"
 
 type Stage = "sealed" | "opening" | "cards" | "results"
 
-export default function PackReveal({ receipt }: { receipt: Receipt }) {
+export default function PackReveal({
+  receipt,
+  favorites,
+}: {
+  receipt: Receipt
+  favorites?: FavoriteControls
+}) {
   const { language } = useLanguage()
   const ru = language === "ru"
   const dialogRef = useRef<HTMLDialogElement>(null)
@@ -16,8 +23,13 @@ export default function PackReveal({ receipt }: { receipt: Receipt }) {
   const stageActionRef = useRef<HTMLButtonElement>(null)
   const closeActionRef = useRef<HTMLButtonElement>(null)
   const timerRef = useRef<number | null>(null)
+  const session = useRef(0)
+  const actionLocked = useRef(false)
   const [stage, setStage] = useState<Stage>("sealed")
   const [cardIndex, setCardIndex] = useState(0)
+  const [faceUp, setFaceUp] = useState(false)
+  const [departure, setDeparture] = useState<"left" | "right" | null>(null)
+  const [saving, setSaving] = useState(false)
   const [completed, setCompleted] = useState(false)
   const [showInlineResults, setShowInlineResults] = useState(false)
   const [reduced, setReduced] = useState(false)
@@ -26,12 +38,18 @@ export default function PackReveal({ receipt }: { receipt: Receipt }) {
     if (timerRef.current !== null) window.clearTimeout(timerRef.current)
     timerRef.current = null
   }
-  const results = () => {
+  const invalidate = () => {
+    ++session.current
     clearTimer()
+    actionLocked.current = false
+  }
+  const results = () => {
+    invalidate()
+    setSaving(false)
+    setDeparture(null)
     setStage("results")
     setCompleted(true)
   }
-
   useEffect(() => {
     const media = matchMedia("(prefers-reduced-motion: reduce)")
     const update = () => {
@@ -41,55 +59,98 @@ export default function PackReveal({ receipt }: { receipt: Receipt }) {
     update()
     media.addEventListener("change", update)
     return () => {
-      clearTimer()
+      invalidate()
       media.removeEventListener("change", update)
     }
   }, [])
-
   useEffect(() => {
-    clearTimer()
+    invalidate()
     setStage("sealed")
     setCardIndex(0)
+    setFaceUp(false)
     setCompleted(false)
     setShowInlineResults(false)
+    setSaving(false)
+    setDeparture(null)
     if (dialogRef.current?.open) dialogRef.current.close()
   }, [receipt.id])
-
   useEffect(() => {
     if (!dialogRef.current?.open) return
-    if (stage === "cards") stageActionRef.current?.focus()
+    if (stage === "cards" || stage === "sealed") stageActionRef.current?.focus()
     if (stage === "results") closeActionRef.current?.focus()
-  }, [stage, cardIndex])
+  }, [stage, cardIndex, faceUp])
 
   const open = () => {
+    invalidate()
     setCardIndex(0)
+    setFaceUp(false)
+    setDeparture(null)
+    setSaving(false)
+    setShowInlineResults(false)
     setStage(reduced || !receipt.items.length ? "results" : "sealed")
     if (reduced || !receipt.items.length) setCompleted(true)
     dialogRef.current?.showModal()
+    stageActionRef.current?.focus()
   }
   const breakSeal = () => {
+    if (actionLocked.current) return
     if (reduced) return results()
+    actionLocked.current = true
     setStage("opening")
     clearTimer()
     timerRef.current = window.setTimeout(() => {
       timerRef.current = null
+      actionLocked.current = false
       setStage(receipt.items.length ? "cards" : "results")
       if (!receipt.items.length) setCompleted(true)
     }, 550)
   }
-  const next = () => {
-    if (cardIndex + 1 >= receipt.items.length) results()
-    else setCardIndex((index) => index + 1)
+  const next = async (direction: "left" | "right") => {
+    if (stage !== "cards" || !faceUp || actionLocked.current) return
+    const item = receipt.items[cardIndex]
+    if (
+      !item ||
+      (direction === "left" && (!favorites?.ids || favorites.loading || favorites.pendingId))
+    )
+      return
+    const epoch = session.current
+    actionLocked.current = true
+    if (direction === "left") {
+      setSaving(true)
+      const saved = await favorites!.setFavorite(item.card.id, true)
+      if (epoch !== session.current || !dialogRef.current?.open) return
+      setSaving(false)
+      if (!saved) {
+        actionLocked.current = false
+        return
+      }
+    }
+    if (epoch !== session.current || !dialogRef.current?.open) return
+    setDeparture(direction)
+    clearTimer()
+    timerRef.current = window.setTimeout(
+      () => {
+        timerRef.current = null
+        if (cardIndex + 1 >= receipt.items.length) results()
+        else {
+          setFaceUp(false)
+          setDeparture(null)
+          setCardIndex((index) => index + 1)
+          actionLocked.current = false
+        }
+      },
+      reduced ? 0 : 240,
+    )
   }
   const close = () => dialogRef.current?.close()
-
+  const current = receipt.items[cardIndex]
+  const itemLabel = (item: Receipt["items"][number]) =>
+    `${item.duplicate ? (ru ? "Дубль" : "Duplicate") : ru ? "Новая карточка" : "New card"}${item.test_grant ? (ru ? " · Тестовая выдача OWNER" : " · OWNER test grant") : ""}`
   const itemSummary = (item: Receipt["items"][number]) => (
     <article key={item.id} data-rank={item.card.rank}>
-      <CardPreview card={item.card} />
-      <p>
-        {item.duplicate ? (ru ? "Дубль" : "Duplicate") : ru ? "Новая карточка" : "New card"}
-        {item.test_grant ? (ru ? " · Тестовая выдача OWNER" : " · OWNER test grant") : ""}
-      </p>
+      <CardSurface card={item.card} reduced={reduced} />
+      <p>{itemLabel(item)}</p>
+      {favorites && <FavoriteButton controls={favorites} cardId={item.card.id} />}
     </article>
   )
 
@@ -112,23 +173,27 @@ export default function PackReveal({ receipt }: { receipt: Receipt }) {
           {receipt.items.map(itemSummary)}
         </div>
       )}
+      {showInlineResults && favorites && <FavoriteError controls={favorites} />}
       <dialog
         ref={dialogRef}
         className="pack-reveal"
         data-theme="archive"
         aria-labelledby={`pack-reveal-title-${receipt.id}`}
         onClose={() => {
-          clearTimer()
+          invalidate()
           setShowInlineResults(true)
+          setCompleted(true)
           triggerRef.current?.focus()
         }}
-        onCancel={clearTimer}
+        onCancel={invalidate}
       >
         <div className="pack-reveal-shell" data-stage={stage}>
           <header>
             <div>
               <small>{ru ? "АРХИВНАЯ ДОСТАВКА" : "ARCHIVE DELIVERY"}</small>
-              <h2 id={`pack-reveal-title-${receipt.id}`}>{receipt.pack?.title}</h2>
+              <h2 id={`pack-reveal-title-${receipt.id}`}>
+                {receipt.pack?.title || (ru ? "Карточки архива" : "Archive cards")}
+              </h2>
             </div>
             <button onClick={close} aria-label={ru ? "Закрыть показ" : "Close reveal"}>
               <Icon name="x" />
@@ -138,10 +203,16 @@ export default function PackReveal({ receipt }: { receipt: Receipt }) {
           {(stage === "sealed" || stage === "opening") && (
             <div className="pack-reveal-envelope" aria-live="polite">
               <div className="pack-envelope-art" aria-hidden="true">
-                <span className="pack-envelope-flap" />
-                <span className="pack-envelope-seal">
+                <div className="pack-tear-strip">
+                  <span>DEADLOCK CONTRACTS</span>
+                  <Icon name="arrow-up-right" />
+                </div>
+                <div className="pack-envelope-body">
                   <Regalia id="seal-archive" />
-                </span>
+                  <span>THE ARCHIVE</span>
+                  <small>{String(receipt.items.length).padStart(2, "0")} · COLLECTION FILES</small>
+                </div>
+                <span className="pack-open-light" />
               </div>
               <p>
                 {ru
@@ -149,45 +220,100 @@ export default function PackReveal({ receipt }: { receipt: Receipt }) {
                   : "Cards are already saved to your collection"}
               </p>
               {stage === "sealed" && (
-                <button className="archive-primary" onClick={breakSeal}>
-                  {ru ? "Снять печать" : "Break the seal"}
+                <button ref={stageActionRef} className="archive-primary" onClick={breakSeal}>
+                  {ru ? "Вскрыть конверт" : "Break the seal"}
                 </button>
               )}
             </div>
           )}
 
-          {stage === "cards" && receipt.items[cardIndex] && (
+          {stage === "cards" && current && (
             <article
-              key={receipt.items[cardIndex].id}
+              key={current.id}
               className="pack-reveal-card"
-              data-rank={receipt.items[cardIndex].card.rank}
               aria-live="polite"
+              onKeyDown={(event) => {
+                if (faceUp && (event.key === "ArrowLeft" || event.key === "ArrowRight")) {
+                  event.preventDefault()
+                  if (!event.repeat) void next(event.key === "ArrowLeft" ? "left" : "right")
+                }
+              }}
             >
-              <CardPreview card={receipt.items[cardIndex].card} />
-              <p>
+              <div className="pack-card-stack">
+                {[0, 1].slice(0, Math.min(2, receipt.items.length - cardIndex - 1)).map((layer) => (
+                  <span key={layer} className="pack-stack-back" aria-hidden="true" />
+                ))}
+                <div className="pack-card-moving" data-departure={departure}>
+                  <CardSurface
+                    card={current.card}
+                    revealed={faceUp}
+                    reduced={reduced}
+                    disabled={saving || !!departure}
+                    actionRef={!faceUp ? stageActionRef : undefined}
+                    onFlip={() => setFaceUp((value) => !value)}
+                    onSwipe={(direction) => void next(direction)}
+                  />
+                </div>
+              </div>
+              <p className="pack-card-status">
                 {cardIndex + 1} / {receipt.items.length} ·{" "}
-                {receipt.items[cardIndex].duplicate
-                  ? ru
-                    ? "Дубль"
-                    : "Duplicate"
+                {faceUp
+                  ? itemLabel(current)
                   : ru
-                    ? "Новая карточка"
-                    : "New card"}
-                {receipt.items[cardIndex].test_grant
-                  ? ru
-                    ? " · Тестовая выдача OWNER"
-                    : " · OWNER test grant"
-                  : ""}
+                    ? "Нажми на карточку, чтобы раскрыть"
+                    : "Tap the card to reveal it"}
               </p>
-              <button ref={stageActionRef} className="archive-primary" onClick={next}>
-                {cardIndex + 1 === receipt.items.length
-                  ? ru
-                    ? "Итоги"
-                    : "Results"
-                  : ru
-                    ? "Следующая"
-                    : "Next card"}
-              </button>
+              {faceUp && (
+                <div className="pack-card-actions">
+                  {favorites && (
+                    <button
+                      disabled={
+                        saving ||
+                        !!departure ||
+                        favorites.loading ||
+                        !favorites.ids ||
+                        !!favorites.pendingId
+                      }
+                      onClick={() => void next("left")}
+                    >
+                      <Icon name="star" size={18} />
+                      {saving
+                        ? ru
+                          ? "Сохраняем…"
+                          : "Saving…"
+                        : ru
+                          ? "В избранное и дальше"
+                          : "Favorite & next"}
+                    </button>
+                  )}
+                  <button
+                    ref={stageActionRef}
+                    className="archive-primary"
+                    disabled={saving || !!departure}
+                    onClick={() => void next("right")}
+                  >
+                    {cardIndex + 1 === receipt.items.length
+                      ? ru
+                        ? "Итоги"
+                        : "Results"
+                      : ru
+                        ? "Следующая"
+                        : "Next card"}
+                    <Icon name="arrow-up-right" size={18} />
+                  </button>
+                </div>
+              )}
+              {faceUp && (
+                <small>
+                  {ru
+                    ? favorites
+                      ? "Влево — в избранное · вправо — дальше"
+                      : "Вправо — следующая карточка"
+                    : favorites
+                      ? "Swipe left to favorite · right to continue"
+                      : "Swipe right to continue"}
+                </small>
+              )}
             </article>
           )}
 
@@ -199,14 +325,16 @@ export default function PackReveal({ receipt }: { receipt: Receipt }) {
               <div className="archive-grid">{receipt.items.map(itemSummary)}</div>
             </div>
           )}
-
           <footer>
-            {stage !== "results" && (
-              <button onClick={results}>{ru ? "Сразу к итогам" : "Skip to results"}</button>
-            )}
-            <button ref={closeActionRef} onClick={close}>
-              {ru ? "Закрыть показ" : "Close reveal"}
-            </button>
+            {favorites && <FavoriteError controls={favorites} />}
+            <div>
+              {stage !== "results" && (
+                <button onClick={results}>{ru ? "Сразу к итогам" : "Skip to results"}</button>
+              )}
+              <button ref={closeActionRef} onClick={close}>
+                {ru ? "Закрыть показ" : "Close reveal"}
+              </button>
+            </div>
           </footer>
         </div>
       </dialog>

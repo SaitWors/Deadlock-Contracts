@@ -70,6 +70,7 @@ export type Receipt = {
 }
 export type Inventory = {
   items: {
+    favorite: boolean
     card: Card
     quantity: number
     test_count: number

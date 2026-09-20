@@ -1,11 +1,14 @@
 import Icon from "../icons/Icon"
+import type { ReactNode } from "react"
 import { RANKS, type Card } from "./types"
 import "./card-preview.css"
 
 export default function CardPreview({
   card,
+  artOverlay,
 }: {
   card: Pick<Card, "rank" | "title" | "hero_name" | "image_url" | "crop_x" | "crop_y" | "zoom">
+  artOverlay?: ReactNode
 }) {
   const tier = RANKS.indexOf(card.rank)
   return (
@@ -32,6 +35,7 @@ export default function CardPreview({
             <Icon name="images" size={40} />
           </span>
         )}
+        {artOverlay}
       </div>
       <svg className="archive-card-frame" viewBox="0 0 400 600" fill="none" aria-hidden="true">
         <path

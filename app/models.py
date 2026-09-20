@@ -155,6 +155,13 @@ class ArchiveItem(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
 
+class ArchiveFavorite(Base):
+    __tablename__ = "archive_favorites"
+
+    user_id: Mapped[str] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), primary_key=True)
+    card_id: Mapped[str] = mapped_column(ForeignKey("archive_cards.id", ondelete="CASCADE"), primary_key=True)
+
+
 class ArchiveShowcase(Base):
     __tablename__ = "archive_showcases"
 

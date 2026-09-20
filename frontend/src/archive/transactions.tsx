@@ -4,6 +4,7 @@ import { ApiError, request } from "../community/api"
 import { useLanguage } from "../i18n"
 import CardPreview from "./CardPreview"
 import PackReveal from "./PackReveal"
+import type { FavoriteControls } from "./favorites"
 import type { Receipt } from "./types"
 
 type Pending = { url: string; body: Record<string, unknown> & { request_key: string } }
@@ -101,8 +102,10 @@ export function useTransaction(csrf: string, accountKey: string, onChanged: () =
 
 export function TransactionStatus({
   transaction,
+  favorites,
 }: {
   transaction: ReturnType<typeof useTransaction>
+  favorites?: FavoriteControls
 }) {
   const { language } = useLanguage()
   const ru = language === "ru"
@@ -127,7 +130,12 @@ export function TransactionStatus({
         </div>
       )}
       {transaction.receipt && (
-        <ReceiptView receipt={transaction.receipt} cinematic onClose={transaction.clearReceipt} />
+        <ReceiptView
+          receipt={transaction.receipt}
+          cinematic
+          favorites={favorites}
+          onClose={transaction.clearReceipt}
+        />
       )}
     </>
   )
@@ -137,10 +145,12 @@ export function ReceiptView({
   receipt,
   onClose,
   cinematic = false,
+  favorites,
 }: {
   receipt: Receipt
   onClose?: () => void
   cinematic?: boolean
+  favorites?: FavoriteControls
 }) {
   const { language, locale } = useLanguage()
   const ru = language === "ru"
@@ -169,7 +179,7 @@ export function ReceiptView({
         <Icon name="coins" size={18} />
       </p>
       {useCinematic ? (
-        <PackReveal key={receipt.id} receipt={receipt} />
+        <PackReveal key={receipt.id} receipt={receipt} favorites={favorites} />
       ) : (
         <div className="archive-grid archive-revealed">
           {receipt.items.map((item) => (

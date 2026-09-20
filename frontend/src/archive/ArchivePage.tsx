@@ -7,6 +7,7 @@ import CardStudio, { CardStatus } from "./CardStudio"
 import Cipher from "./Cipher"
 import PackShop from "./PackShop"
 import CollectionPage from "./CollectionPage"
+import { useFavorites } from "./favorites"
 import { TransactionStatus, useTransaction } from "./transactions"
 import { RANKS, type Card, type Meta, type Wallet } from "./types"
 import "./archive.css"
@@ -38,6 +39,7 @@ export default function ArchivePage({
   const [notice, setNotice] = useState("")
   const [collectionRevision, setCollectionRevision] = useState(0)
   const meta = useResource<Meta>("/api/archive/meta")
+  const favorites = useFavorites(csrf, meta.data?.account_key || "")
   const wallet = useResource<Wallet>(`/api/archive/wallet?offset=${historyOffset}`)
   const cards = useResource<{ items: Card[]; total: number }>(
     `/api/archive/cards?mine=${view === "mine"}&hero=${encodeURIComponent(hero)}&rank=${encodeURIComponent(rank)}&q=${encodeURIComponent(search)}&offset=${offset}`.replace(
@@ -139,7 +141,7 @@ export default function ArchivePage({
         </p>
       )}
       {notice && <p role="status">{notice}</p>}
-      <TransactionStatus transaction={transaction} />
+      <TransactionStatus transaction={transaction} favorites={favorites} />
       {view === "packs" && (
         <PackShop
           revision={collectionRevision}
@@ -149,6 +151,7 @@ export default function ArchivePage({
       )}
       {view === "collection" && (
         <CollectionPage
+          favorites={favorites}
           csrf={csrf}
           meta={meta.data}
           revision={collectionRevision}
