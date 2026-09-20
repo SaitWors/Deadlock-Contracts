@@ -3,6 +3,8 @@ import { useEffect, useId, useRef, useState, type ReactNode } from "react"
 import logo from "@/imports/logo-horizontal.svg"
 import { LanguageSwitch, useLanguage } from "./i18n"
 
+type HeaderItem = { id: string; label: string; badge?: string; href?: string }
+
 export default function BureauHeader({
   items,
   active,
@@ -10,13 +12,15 @@ export default function BureauHeader({
   actions,
   mobileActions,
   mobileItems,
+  homeHref,
 }: {
-  items: { id: string; label: string; badge?: string }[]
+  items: HeaderItem[]
   active: string
   onNavigate: (id: string) => void
   actions: ReactNode
   mobileActions?: ReactNode
-  mobileItems?: { id: string; label: string; badge?: string }[]
+  mobileItems?: HeaderItem[]
+  homeHref?: string
 }) {
   const { language } = useLanguage()
   const [open, setOpen] = useState(false)
@@ -41,32 +45,51 @@ export default function BureauHeader({
     onNavigate(id)
     setOpen(false)
   }
+  const itemLink = (item: HeaderItem) =>
+    item.href ? (
+      <a key={item.id} href={item.href} aria-current={active === item.id ? "page" : undefined}>
+        {item.label}
+        {item.badge && <small>{item.badge}</small>}
+      </a>
+    ) : (
+      <button
+        key={item.id}
+        aria-current={active === item.id ? "page" : undefined}
+        onClick={() => navigate(item.id)}
+      >
+        {item.label}
+        {item.badge && <small>{item.badge}</small>}
+      </button>
+    )
   return (
     <header className="bureau-header">
       <div className="bureau-header-inner">
-        <button
-          className="bureau-brand"
-          onClick={() => navigate("home")}
-          aria-label={
-            language === "ru" ? "Deadlock Contracts — главная" : "Deadlock Contracts — home"
-          }
-        >
-          <img src={logo} alt="Deadlock Contracts" width="144" height="44" />
-        </button>
+        {homeHref ? (
+          <a
+            className="bureau-brand"
+            href={homeHref}
+            aria-label={
+              language === "ru" ? "Deadlock Contracts — главная" : "Deadlock Contracts — home"
+            }
+          >
+            <img src={logo} alt="Deadlock Contracts" width="144" height="44" />
+          </a>
+        ) : (
+          <button
+            className="bureau-brand"
+            onClick={() => navigate("home")}
+            aria-label={
+              language === "ru" ? "Deadlock Contracts — главная" : "Deadlock Contracts — home"
+            }
+          >
+            <img src={logo} alt="Deadlock Contracts" width="144" height="44" />
+          </button>
+        )}
         <nav
           className="bureau-nav"
           aria-label={language === "ru" ? "Основная навигация" : "Main navigation"}
         >
-          {items.map((item) => (
-            <button
-              key={item.id}
-              aria-current={active === item.id ? "page" : undefined}
-              onClick={() => navigate(item.id)}
-            >
-              {item.label}
-              {item.badge && <small>{item.badge}</small>}
-            </button>
-          ))}
+          {items.map(itemLink)}
         </nav>
         <div className="bureau-account">
           <LanguageSwitch compact />
@@ -97,16 +120,7 @@ export default function BureauHeader({
           id={menuId}
           aria-label={language === "ru" ? "Мобильная навигация" : "Mobile navigation"}
         >
-          {(mobileItems || items).map((item) => (
-            <button
-              key={item.id}
-              aria-current={active === item.id ? "page" : undefined}
-              onClick={() => navigate(item.id)}
-            >
-              {item.label}
-              {item.badge && <small>{item.badge}</small>}
-            </button>
-          ))}
+          {(mobileItems || items).map(itemLink)}
           <div className="bureau-mobile-preferences">
             <LanguageSwitch />
             {mobileActions}

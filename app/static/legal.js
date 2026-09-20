@@ -3,27 +3,21 @@
 const documents = {
   "/privacy": {
     id: "privacyDocument",
-    title: "обработка данных",
   },
   "/terms": {
     id: "termsDocument",
-    title: "условия",
   },
   "/support": {
     id: "supportDocument",
-    title: "поддержка",
   },
   "/status": {
     id: "statusDocument",
-    title: "статус",
   },
   "/changelog": {
     id: "changelogDocument",
-    title: "изменения",
   },
   "/data-sources": {
     id: "dataSourcesDocument",
-    title: "источники данных",
   },
 };
 
@@ -45,15 +39,6 @@ document.querySelectorAll("[data-document-language]").forEach((link) => {
   const path = documents[normalizedPath] ? normalizedPath : "/privacy";
   if (language === "ru" || language === "en") link.href = `/${language}${path}`;
 });
-const englishTitles = {
-  "/privacy": "privacy",
-  "/terms": "terms",
-  "/support": "support",
-  "/status": "status",
-  "/changelog": "changelog",
-  "/data-sources": "data sources",
-};
-document.title = `Deadlock Contracts — ${english ? englishTitles[normalizedPath] : current.title}`;
 
 fetch("/api/status", {
   credentials: "same-origin",

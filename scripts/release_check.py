@@ -99,6 +99,9 @@ def main() -> int:
         "app/maintenance.py",
         "frontend/package.json",
         "frontend/src/Landing.tsx",
+        "app/seo.py",
+        "shared/public-pages.json",
+        "frontend/src/imports/vnext/brand-hero.jpg",
         "frontend/src/Dashboard.tsx",
         "scripts/init-secrets.sh",
     ]

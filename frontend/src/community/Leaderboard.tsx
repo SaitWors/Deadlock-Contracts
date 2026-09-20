@@ -37,15 +37,19 @@ export default function Leaderboard({
   const scoreLabel = scope === "all_time" || scope === "today" ? "XP" : ru ? "ОЧКИ" : "POINTS"
   return (
     <section className="community-page">
-      <PageHead
-        number="03 / CITY REGISTER"
-        title={ru ? "Лучшие агенты бюро" : "The bureau's finest"}
-        text={
-          ru
-            ? "Имена, за которыми стоят завершённые дела. Найдите своё место в городском реестре."
-            : "Names backed by completed cases. Find your place in the city register."
-        }
-      />
+      {authenticated ? (
+        <PageHead
+          number="03 / CITY REGISTER"
+          title={ru ? "Лучшие агенты бюро" : "The bureau's finest"}
+          text={
+            ru
+              ? "Имена, за которыми стоят завершённые дела. Найдите своё место в городском реестре."
+              : "Names backed by completed cases. Find your place in the city register."
+          }
+        />
+      ) : (
+        <h2>{ru ? "Актуальная таблица" : "Current standings"}</h2>
+      )}
       <div
         className="community-tabs"
         role="group"

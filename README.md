@@ -38,6 +38,9 @@ Backend remains authoritative: Companion/GEP evidence is accepted only through s
 
 ## Документы
 
+- [SEO: выкладка, Search Console, Bing и IndexNow](docs/SEO.md);
+- [публичное описание проекта на русском и английском](docs/public-project.md);
+
 - установка/обновление: `INSTALL_0.10.1_ALPHA9_RU.md`;
 - изменения: `RELEASE_NOTES_0.10.1_ALPHA9_RU.md`;
 - проверки: `TEST_REPORT_0.10.1_ALPHA9_RU.md`;

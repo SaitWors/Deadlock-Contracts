@@ -1,5 +1,6 @@
 import { lazy, Suspense, useEffect, useState } from "react"
 import Landing from "./Landing"
+import { legacyPublicUrl, resolvePublicRoute } from "./publicRoutes"
 const Dashboard = lazy(() => import("./Dashboard"))
 const PublicDossier = lazy(() => import("./PublicDossier"))
 import { apiLanguage, LanguageProvider, useLanguage } from "./i18n"
@@ -43,7 +44,7 @@ type SessionPayload = {
   }
 }
 
-function SessionApp() {
+function SessionApp({ onSession }: { onSession: (authenticated: boolean) => void }) {
   const { language, setServerDefault } = useLanguage()
   const { configureSession, setSurface } = useAnnouncements()
   const [session, setSession] = useState<SessionPayload | null>(null)
@@ -77,7 +78,13 @@ function SessionApp() {
               ? payload.user.locale
               : null,
           )
+          const authenticated = Boolean(payload.authenticated && payload.user && payload.csrf_token)
+          onSession(authenticated)
           setSession(payload)
+          if (!authenticated && window.location.pathname === "/") {
+            const legacy = legacyPublicUrl(window.location.hash, "ru")
+            if (legacy) window.location.replace(legacy)
+          }
         }
       })
       .catch((error) => {
@@ -89,7 +96,7 @@ function SessionApp() {
       window.clearTimeout(timeout)
       controller.abort()
     }
-  }, [attempt, setServerDefault])
+  }, [attempt, setServerDefault, onSession])
 
   useEffect(() => {
     const authenticated = Boolean(session?.authenticated && session.user && session.csrf_token)
@@ -101,66 +108,31 @@ function SessionApp() {
     setSurface(authenticated ? "SITE_DASHBOARD" : "SITE_PUBLIC")
   }, [configureSession, session, setSurface])
 
-  if (failed) {
+  if (!session?.authenticated || !session.user || !session.csrf_token) {
     return (
-      <main
-        className="min-h-screen grid place-items-center px-6"
-        style={{ backgroundColor: "#080C0B", color: "#F1E4C8" }}
-      >
-        <section
-          role="alert"
-          className="w-full max-w-lg border p-7 text-center"
-          style={{ backgroundColor: "#0E1512", borderColor: "#3B5145", borderRadius: "6px" }}
-        >
-          <p
-            className="text-xs font-semibold tracking-[0.22em] uppercase mb-3"
-            style={{ color: "#7AB384" }}
-          >
-            {language === "ru" ? "СЕРВИС ВРЕМЕННО НЕДОСТУПЕН" : "SERVICE TEMPORARILY UNAVAILABLE"}
-          </p>
-          <h1 className="text-2xl font-bold mb-3">
-            {language === "ru" ? "Не удалось открыть ваше дело" : "We could not open your case"}
-          </h1>
-          <p className="text-sm leading-relaxed mb-6" style={{ color: "#B6AC94" }}>
-            {language === "ru"
-              ? "Проверьте соединение и попробуйте ещё раз. Если ошибка повторяется, загляните на страницу статуса."
-              : "Check your connection and try again. If the error continues, check the status page."}
-          </p>
-          <div className="flex flex-wrap justify-center gap-3">
+      <>
+        {failed && (
+          <aside className="public-session-notice" role="alert">
+            <p>
+              {language === "ru"
+                ? "Не удалось проверить вход. Публичные страницы доступны."
+                : "Could not check your session. Public pages are still available."}
+            </p>
             <button
               type="button"
-              className="btn-primary px-5 py-2.5 text-sm font-bold"
+              className="btn-ghost"
               onClick={() => setAttempt((value) => value + 1)}
             >
               {language === "ru" ? "ПОВТОРИТЬ" : "TRY AGAIN"}
             </button>
-            <a className="btn-ghost px-5 py-2.5 text-sm" href="/status">
-              {language === "ru" ? "СТАТУС" : "STATUS"}
-            </a>
-            <a className="btn-ghost px-5 py-2.5 text-sm" href="/support">
-              {language === "ru" ? "ПОДДЕРЖКА" : "SUPPORT"}
-            </a>
-          </div>
-        </section>
-      </main>
+            <a href="/status">{language === "ru" ? "Статус" : "Status"}</a>
+            <a href="/support">{language === "ru" ? "Поддержка" : "Support"}</a>
+          </aside>
+        )}
+        <Landing />
+      </>
     )
   }
-  if (!session) {
-    return (
-      <main
-        className="min-h-screen grid place-items-center"
-        style={{ backgroundColor: "#080C0B", color: "#F1E4C8" }}
-      >
-        <div className="text-center">
-          <div className="dc-loader mx-auto mb-4" />
-          <p className="text-xs tracking-[0.28em] uppercase" style={{ color: "#7AB384" }}>
-            {language === "ru" ? "ОТКРЫВАЕМ ВАШЕ ДЕЛО" : "OPENING YOUR CASE"}
-          </p>
-        </div>
-      </main>
-    )
-  }
-  if (!session.authenticated || !session.user || !session.csrf_token) return <Landing />
   return (
     <Dashboard
       initialSession={{
@@ -171,15 +143,28 @@ function SessionApp() {
     />
   )
 }
-function AppRoutes() {
+function AppRoutes({ onSession }: { onSession: (authenticated: boolean) => void }) {
   const match = window.location.pathname.match(/^\/u\/([a-z0-9-]{3,32})\/?$/)
   if (match) return <PublicDossier slug={match[1]} />
-  return <SessionApp />
+  const route = resolvePublicRoute(window.location.pathname)
+  if (route && window.location.pathname !== "/") return <Landing />
+  if (["/", "/admin/reviews", "/admin/announcements"].includes(window.location.pathname))
+    return <SessionApp onSession={onSession} />
+  return (
+    <main className="public-document">
+      <h1>404</h1>
+      <a href="/ru/">На главную</a> · <a href="/en/">Home</a>
+    </main>
+  )
 }
 
 export default function App() {
+  const [privateSession, setPrivateSession] = useState(false)
+  const route = resolvePublicRoute(window.location.pathname)
+  const publicRoute =
+    window.location.pathname === "/" && privateSession ? undefined : route || undefined
   return (
-    <LanguageProvider>
+    <LanguageProvider publicRoute={publicRoute}>
       <AnnouncementProvider>
         <AnnouncementLayer />
         <Suspense
@@ -189,7 +174,7 @@ export default function App() {
             </main>
           }
         >
-          <AppRoutes />
+          <AppRoutes onSession={setPrivateSession} />
         </Suspense>
       </AnnouncementProvider>
     </LanguageProvider>

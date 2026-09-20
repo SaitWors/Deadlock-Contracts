@@ -536,7 +536,7 @@ test("a receipt without valid server timestamps cannot confirm signing", async (
 for (const language of ["ru", "en"]) {
   test(`public ${language} preview signs only a demo, retains selection on close, and resets on mode change`, async () => {
     const { api, w, document } = runtime(language)
-    w.history.replaceState(null, "", "/#contracts")
+    w.history.replaceState(null, "", `/${language}/contracts`)
     w.scrollTo = () => {}
     w.IntersectionObserver = class {
       constructor(callback) {

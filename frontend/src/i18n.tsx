@@ -1,5 +1,7 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react"
 
+import { publicUrl, type PublicRoute } from "./publicRoutes"
+
 export type Language = "en" | "ru"
 export type LanguageMode = "auto" | Language
 
@@ -28,6 +30,7 @@ function storedMode(): LanguageMode {
 
 type LanguageContextValue = {
   language: Language
+  publicRoute?: PublicRoute
   mode: LanguageMode
   setMode: (value: LanguageMode) => void
   setServerDefault: (value: Language | null) => void
@@ -42,11 +45,17 @@ const LanguageContext = createContext<LanguageContextValue>({
   locale: "en-US",
 })
 
-export function LanguageProvider({ children }: { children: React.ReactNode }) {
+export function LanguageProvider({
+  children,
+  publicRoute,
+}: {
+  children: React.ReactNode
+  publicRoute?: PublicRoute
+}) {
   const [mode, setModeState] = useState<LanguageMode>(() => storedMode())
   const [detected, setDetected] = useState<Language>(() => browserLanguage())
   const [serverDefault, setServerDefaultState] = useState<Language | null>(null)
-  const language = mode === "auto" ? (serverDefault ?? detected) : mode
+  const language = publicRoute?.language ?? (mode === "auto" ? (serverDefault ?? detected) : mode)
   const setServerDefault = useCallback((value: Language | null) => setServerDefaultState(value), [])
 
   useEffect(() => {
@@ -80,12 +89,13 @@ export function LanguageProvider({ children }: { children: React.ReactNode }) {
   const value = useMemo<LanguageContextValue>(
     () => ({
       language,
+      publicRoute,
       mode,
       setMode,
       setServerDefault,
       locale: language === "ru" ? "ru-RU" : "en-US",
     }),
-    [language, mode, setServerDefault],
+    [language, mode, publicRoute, setServerDefault],
   )
   return <LanguageContext.Provider value={value}>{children}</LanguageContext.Provider>
 }
@@ -101,7 +111,27 @@ export function apiLanguage(): Language {
 }
 
 export function LanguageSwitch({ compact = false }: { compact?: boolean }) {
-  const { language, mode, setMode } = useLanguage()
+  const { language, mode, setMode, publicRoute } = useLanguage()
+  if (publicRoute)
+    return (
+      <div
+        className={`dc-language-switch ${compact ? "compact" : ""}`}
+        aria-label={language === "ru" ? "Язык интерфейса" : "Interface language"}
+      >
+        {(["en", "ru"] as const).map((lang) => (
+          <a
+            key={lang}
+            href={publicUrl(publicRoute.page, lang)}
+            hrefLang={lang}
+            lang={lang}
+            aria-current={language === lang ? "page" : undefined}
+            className={language === lang ? "active" : ""}
+          >
+            {lang.toUpperCase()}
+          </a>
+        ))}
+      </div>
+    )
   return (
     <div
       className={`dc-language-switch ${compact ? "compact" : ""}`}

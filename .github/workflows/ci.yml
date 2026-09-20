@@ -382,3 +382,9 @@ jobs:
           test -f /app/alembic/versions/0008_board_match_candidate_queue.py
               echo "release image OK"
             '
+
+      - name: Verify crawlable documents in the release image
+        run: |
+          docker run --rm -i \
+            --entrypoint python \
+            deadlock-contracts:ci - < scripts/check_seo_release.py
