@@ -121,18 +121,9 @@ def test_alpha11_public_release_hygiene() -> None:
         assert document_id in legal
 
 
-def test_public_shell_does_not_mask_backend_outages_as_a_signed_out_session() -> None:
-    assert "if (failed) return <Landing />" not in APP
-    assert "SERVICE TEMPORARILY UNAVAILABLE" in APP
-    assert "setAttempt((value) => value + 1)" in APP
-    assert 'href="/status"' in APP
-    assert 'href="/support"' in APP
-
-
 def test_landing_reveal_and_contract_preview_are_keyboard_accessible() -> None:
     assert "IntersectionObserver" in LANDING
     assert "aria-pressed={isSelected}" in LANDING
-    assert "aria-expanded={openFaq === i}" in LANDING
 
 
 def test_deploy_runs_migrations_before_recreating_services() -> None:

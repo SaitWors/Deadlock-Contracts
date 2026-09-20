@@ -44,6 +44,7 @@ class Settings:
     app_env: str = os.getenv("APP_ENV", "development").strip().lower()
     service_role: str = os.getenv("SERVICE_ROLE", "web").strip().lower()
     app_base_url: str = os.getenv("APP_BASE_URL", "http://localhost:8080").rstrip("/")
+    indexnow_key: str = os.getenv("INDEXNOW_KEY", "").strip()
     contact_email: str = os.getenv("CONTACT_EMAIL", "").strip()
     database_url: str = _secret("DATABASE_URL", "sqlite:///./runtime/deadlock_contracts.db")
 
@@ -230,6 +231,9 @@ class Settings:
         parsed = urlparse(self.app_base_url)
         if parsed.scheme not in {"http", "https"} or not parsed.hostname or parsed.path not in {"", "/"}:
             raise RuntimeError("APP_BASE_URL must be an origin such as https://example.com")
+
+        if self.indexnow_key and not re.fullmatch(r"[A-Za-z0-9-]{8,128}", self.indexnow_key):
+            raise RuntimeError("INDEXNOW_KEY must contain 8–128 ASCII letters, digits or hyphens")
 
         if self.contact_email and (len(self.contact_email) > 254 or not re.fullmatch(r"[^@\s]+@[^@\s]+\.[^@\s]+", self.contact_email)):
             raise RuntimeError("CONTACT_EMAIL must be a valid email address")

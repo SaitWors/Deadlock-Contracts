@@ -1,15 +1,16 @@
 import Icon from "./icons/Icon"
-import React, { Suspense, useState, useEffect, useRef, useCallback } from "react"
+import React, { Suspense, useState, useEffect, useRef } from "react"
 import BureauHeader from "./BureauHeader"
 import Leaderboard from "./community/Leaderboard"
 import ContractSigning from "./ContractSigning"
-import { prefersReducedMotion, useRipple, useTilt } from "./motion"
+import { useRipple, useTilt } from "./motion"
 import logoImage from "@/imports/brand-hero.webp"
-import { LanguageSwitch, MCGCredit, t, useLanguage } from "./i18n"
+import { MCGCredit, t, useLanguage } from "./i18n"
+import PublicContent, { readPublicCopy } from "./PublicContent"
+import { publicUrl, resolvePublicRoute, legacyPublicUrl, type PublicPage } from "./publicRoutes"
 
 type ContractCategory = "COMFORT" | "GROWTH" | "HERO" | "VARIETY" | "EVENT"
 type GameMode = "STANDARD" | "RANKED" | "STREET BRAWL"
-type PublicPage = "home" | "try" | "contracts" | "how" | "campaigns" | "leaderboards"
 
 const GuestCipher = React.lazy(() => import("./archive/GuestCipher"))
 
@@ -19,6 +20,8 @@ const NAV_ITEMS: Array<{
 }> = [
   { id: "contracts", label: "Contracts" },
   { id: "how", label: "How it works" },
+  { id: "cards", label: "Cards" },
+  { id: "about", label: "About" },
   { id: "campaigns", label: "Campaigns · soon" },
   { id: "leaderboards", label: "Leaderboard" },
 ]
@@ -111,71 +114,6 @@ const CATEGORY_COLOR: Record<ContractCategory, string> = {
   VARIETY: "#8A78AE",
   EVENT: "#B65E58",
 }
-
-const FAQ_ITEMS = [
-  {
-    q: "Когда фиксируется контракт?",
-    a: "До начала матча. После фиксации условия нельзя изменить; сервис ждёт следующий подходящий матч.",
-  },
-  {
-    q: "Как проверяется результат?",
-    a: "После матча сервис получает итоговую статистику и отдельно проверяет каждое условие.",
-  },
-  {
-    q: "Что будет, если данных не хватает?",
-    a: "Сервис не засчитывает это как поражение. Он автоматически создаёт внутренний запрос на разбор; игроку не нужно загружать скриншоты или доказательства.",
-  },
-  {
-    q: "Какие режимы поддерживаются?",
-    a: "Доступны Standard, Ranked и Street Brawl. Для каждого режима — свой набор и отдельное дело до трёх контрактов.",
-  },
-  {
-    q: "Нужно ли что-то устанавливать?",
-    a: "Ничего обязательного устанавливать не нужно. Компаньон через GEP ускоряет обнаружение матча и позже позволит показывать прогресс во время игры.",
-  },
-]
-
-const TIMELINE_STEPS = [
-  {
-    time: "18:42:08",
-    label: "Контракты зафиксированы",
-    detail: "Надёжный партнёр · 10 содействий, ≤7 смертей",
-    success: false,
-  },
-  {
-    time: "19:17:41",
-    label: "Матч найден",
-    detail: "Mode confirmed · STANDARD",
-    success: false,
-  },
-  {
-    time: "19:48:16",
-    label: "Статистика получена",
-    detail: "От поставщика статистики",
-    success: false,
-  },
-  {
-    time: "19:48:17",
-    label: "Условия проверены",
-    detail: "Содействия: 13 ≥ 10 · Смерти: 5 ≤ 7",
-    success: false,
-  },
-  {
-    time: "19:48:17",
-    label: "Контракт выполнен",
-    detail: "+120 XP credited",
-    success: true,
-  },
-]
-
-const CURATOR_MESSAGES = [
-  "Контракт ещё не зафиксирован.",
-  "Жду ваш выбор.",
-  "Выберите цель до матча.",
-  "Статистика не лжёт.",
-  "Куратор наблюдает.",
-  "Условия зафиксированы. Ждём матч.",
-]
 
 // ─── Curator typer ─────────────────────────────────────────────────
 function CuratorTyper() {
@@ -324,41 +262,31 @@ function SectionHeading({
 // ─── Landing ───────────────────────────────────────────────────────
 export default function Landing() {
   const { language } = useLanguage()
-  const pageFromHash = (): PublicPage => {
-    const value = window.location.hash.replace("#", "") as PublicPage
-    return ["home", "try", "contracts", "how", "campaigns", "leaderboards"].includes(value)
-      ? value
-      : "home"
+  const route = resolvePublicRoute(window.location.pathname) || {
+    page: "home" as PublicPage,
+    language,
   }
-
-  const [page, setPage] = useState<PublicPage>(pageFromHash)
+  const page = route.page
+  const copy = readPublicCopy({ page, language })
   const [selected, setSelected] = useState<number[]>([])
   const [previewOpen, setPreviewOpen] = useState(false)
   const [gameMode, setGameMode] = useState<GameMode>("STANDARD")
-  const [openFaq, setOpenFaq] = useState<number | null>(null)
   const xpRef = useRef<HTMLSpanElement>(null)
   const boardRef = useRef<HTMLDivElement>(null)
   const [spotlight, setSpotlight] = useState({ x: 50, y: 50 })
   const ripple = useRipple()
-  const tilt = useTilt(2)
   const cardTilt = useTilt(2)
 
   useEffect(() => {
-    const handler = () => {
-      setPage(pageFromHash())
-      window.scrollTo({ top: 0 })
+    // Root hashes may belong to an authenticated dashboard. SessionApp resolves
+    // those only after it knows the visitor is a guest.
+    if (window.location.pathname !== "/") {
+      const legacy = legacyPublicUrl(window.location.hash, language)
+      if (legacy && legacy !== window.location.pathname) window.location.replace(legacy)
     }
-    window.addEventListener("hashchange", handler)
-    return () => window.removeEventListener("hashchange", handler)
-  }, [])
+  }, [language])
 
-  const navigate = (next: PublicPage) => {
-    if (window.location.hash !== `#${next}`) window.location.hash = next
-    else {
-      setPage(next)
-      window.scrollTo({ top: 0, behavior: prefersReducedMotion() ? "instant" : "smooth" })
-    }
-  }
+  const navigate = (next: PublicPage) => window.location.assign(publicUrl(next, language))
 
   const toggleContract = (id: number) => {
     setSelected((prev) => {
@@ -378,15 +306,6 @@ export default function Landing() {
     title: t(language, contract.title),
     condition: t(language, contract.condition),
     recommendation: contract.recommendation ? t(language, contract.recommendation) : undefined,
-  }))
-  const timelineSteps = TIMELINE_STEPS.map((step) => ({
-    ...step,
-    label: t(language, step.label),
-    detail: t(language, step.detail),
-  }))
-  const faqItems = FAQ_ITEMS.map((item) => ({
-    q: t(language, item.q),
-    a: t(language, item.a),
   }))
   const totalXP = selected.reduce(
     (sum, id) => sum + (contracts.find((contract) => contract.id === id)?.xp ?? 0),
@@ -423,13 +342,17 @@ export default function Landing() {
       )}
       <BureauHeader
         active={page}
+        homeHref={publicUrl("home", language)}
         items={NAV_ITEMS.map((item) => ({
           id: item.id,
+          href: publicUrl(item.id, language),
           label:
             language === "ru"
               ? {
                   contracts: "Контракты",
                   how: "Как это работает",
+                  cards: "Карточки",
+                  about: "О проекте",
                   campaigns: "Кампании · скоро",
                   leaderboards: "Рейтинг",
                 }[item.id]
@@ -438,6 +361,7 @@ export default function Landing() {
         onNavigate={(id) => navigate(id as PublicPage)}
         actions={<SteamButton compact />}
       />
+      {page !== "home" && page !== "try" && <PublicContent copy={copy} />}
       {page === "home" && (
         <>
           <section className="bureau-welcome" aria-labelledby="welcome-title">
@@ -446,19 +370,22 @@ export default function Landing() {
                 DEADLOCK CONTRACTS · {language === "ru" ? "ОТКРЫТОЕ БЮРО" : "OPEN BUREAU"}
               </p>
               <h1 id="welcome-title">
-                {language === "ru" ? "У каждого матча" : "Every match has"}{" "}
-                <span>{language === "ru" ? "своя история." : "a story."}</span>
+                {copy?.heading ||
+                  (language === "ru"
+                    ? "Deadlock Contracts: у каждого матча своя цель"
+                    : "Deadlock Contracts: give every match a goal")}
               </h1>
               <p className="bureau-welcome-lead">
-                {language === "ru"
-                  ? "Выбирайте контракты, собирайте карточки и найдите своё бюро. Начать можно прямо здесь — с небольшого шифра в браузере."
-                  : "Choose contracts, collect cards and find your bureau. Start right here with a short cipher in your browser."}
+                {copy?.intro ||
+                  (language === "ru"
+                    ? "Выбирайте контракты, собирайте карточки и найдите своё бюро. Начать можно прямо здесь — с небольшого шифра в браузере."
+                    : "Choose contracts, collect cards and find your bureau. Start right here with a short cipher in your browser.")}
               </p>
               <div className="bureau-welcome-actions">
-                <button type="button" className="btn-primary" onClick={() => navigate("try")}>
+                <a className="btn-primary" href={publicUrl("try", language)}>
                   {language === "ru" ? "Попробовать без входа" : "Try without signing in"}
                   <Icon name="chevron-right" size={18} />
-                </button>
+                </a>
                 <SteamButton secondary />
               </div>
               <p className="bureau-welcome-trust">
@@ -508,10 +435,10 @@ export default function Landing() {
                     ? "Зафиксируйте до трёх контрактов до матча. Сервис проверит итоговую статистику; выполненные условия принесут XP."
                     : "Lock up to three contracts before a match. The service checks final stats; completed objectives earn XP."}
                 </p>
-                <button type="button" onClick={() => navigate("contracts")}>
+                <a href={publicUrl("contracts", language)}>
                   {language === "ru" ? "Попробовать подписание" : "Preview a contract"}
                   <Icon name="chevron-right" size={16} />
-                </button>
+                </a>
               </div>
             </article>
             <article>
@@ -525,10 +452,10 @@ export default function Landing() {
                     ? "Решайте шифры, получайте жетоны архива и открывайте карточки. Жетоны и матчевый XP считаются отдельно. Компаньон не нужен."
                     : "Solve ciphers, earn archive tokens and open cards. Tokens are separate from match XP. No companion required."}
                 </p>
-                <button type="button" onClick={() => navigate("try")}>
+                <a href={publicUrl("try", language)}>
                   {language === "ru" ? "Разгадать первый шифр" : "Try your first cipher"}
                   <Icon name="chevron-right" size={16} />
-                </button>
+                </a>
               </div>
             </article>
           </section>
@@ -857,338 +784,12 @@ export default function Landing() {
           <GuestCipher onHome={() => navigate("home")} />
         </Suspense>
       )}
-      {page === "how" && (
-        <>
-          {/* ── VERIFICATION TIMELINE ── */}
-          <section
-            className="pt-32 pb-24 px-6 lg:px-8 relative overflow-hidden"
-            style={{ backgroundColor: "#060A08" }}
-          >
-            <div
-              className="absolute pointer-events-none"
-              style={{
-                width: "400px",
-                height: "400px",
-                background: "radial-gradient(circle, rgba(114,151,166,0.06) 0%, transparent 70%)",
-                top: "20%",
-                right: "-5%",
-              }}
-            />
-            <div className="relative max-w-[1320px] mx-auto grid grid-cols-1 lg:grid-cols-2 gap-14 lg:gap-20 items-start">
-              <Reveal>
-                <div>
-                  <Eyebrow>VERIFICATION PIPELINE</Eyebrow>
-                  <SectionHeading className="mb-4">
-                    {t(language, "Каждый шаг виден пользователю")}
-                  </SectionHeading>
-                  <p
-                    className="text-sm leading-relaxed mb-6"
-                    style={{ color: "#B6AC94", maxWidth: "400px" }}
-                  >
-                    {t(
-                      language,
-                      "Сервис находит подходящий матч, получает итоговую статистику и проверяет каждое условие. Если данных недостаточно, он сам создаёт внутренний запрос на разбор — игроку ничего загружать не нужно.",
-                    )}
-                  </p>
-                  <a
-                    href="#how"
-                    className="text-sm font-medium inline-flex items-center gap-1.5"
-                    style={{
-                      color: "#7AB384",
-                      textShadow: "0 0 8px rgba(122,179,132,0.3)",
-                    }}
-                  >
-                    {t(language, "Как проходит проверка")} <span className="arrow-bounce">→</span>
-                  </a>
-                </div>
-              </Reveal>
-
-              <Reveal delay={150}>
-                <div
-                  className="border p-6 relative overflow-hidden"
-                  style={{
-                    backgroundColor: "var(--color-panel)",
-                    borderColor: "#26352E",
-                    borderRadius: "16px",
-                    boxShadow: "0 0 30px rgba(0,0,0,0.4), inset 0 1px 0 rgba(122,179,132,0.06)",
-                  }}
-                  onMouseMove={tilt.onMouseMove}
-                  onMouseLeave={tilt.onMouseLeave}
-                >
-                  <div
-                    className="absolute top-0 right-0 w-16 h-16 pointer-events-none"
-                    style={{
-                      background:
-                        "radial-gradient(circle at top right, rgba(122,179,132,0.08) 0%, transparent 70%)",
-                    }}
-                  />
-                  <div className="flex items-center justify-between mb-6">
-                    <span
-                      className="text-[11px] font-bold tracking-widest"
-                      style={{
-                        fontFamily: "var(--font-body)",
-                        color: "#7F8478",
-                      }}
-                    >
-                      {t(language, "МАТЧ #48291031")}
-                    </span>
-                    <span
-                      className="badge-verified text-[10px] px-2 py-0.5 font-bold tracking-widest"
-                      style={{
-                        backgroundColor: "#0A1A10",
-                        color: "#7AB384",
-                        border: "1px solid #26543D",
-                        borderRadius: "3px",
-                      }}
-                    >
-                      {t(language, "ОБЫЧНЫЙ")}
-                    </span>
-                  </div>
-                  {timelineSteps.map((step, i) => (
-                    <div key={i} className="flex gap-4">
-                      <div className="flex flex-col items-center shrink-0">
-                        <div className="relative mt-[5px] shrink-0">
-                          <div
-                            className={`w-2.5 h-2.5 rounded-full ${
-                              step.success ? "timeline-dot" : ""
-                            }`}
-                            style={{
-                              backgroundColor: step.success
-                                ? "#7AB384"
-                                : i <= 3
-                                  ? "#457F5B"
-                                  : "#3B5145",
-                              boxShadow: step.success
-                                ? "0 0 12px rgba(122,179,132,0.9), 0 0 24px rgba(122,179,132,0.5)"
-                                : i <= 3
-                                  ? "0 0 6px rgba(69,127,91,0.5)"
-                                  : "none",
-                            }}
-                          />
-                        </div>
-                        {i < timelineSteps.length - 1 && (
-                          <div
-                            className="w-px flex-1 my-1"
-                            style={{
-                              background: "linear-gradient(to bottom, #3B5145, #26352E)",
-                              minHeight: "24px",
-                            }}
-                          />
-                        )}
-                      </div>
-                      <div className="pb-5 last:pb-0">
-                        <div className="flex flex-wrap items-baseline gap-x-3 mb-0.5">
-                          <span className="text-[11px] font-mono" style={{ color: "#7F8478" }}>
-                            {step.time}
-                          </span>
-                          <span
-                            className="text-sm font-semibold"
-                            style={{
-                              color: step.success ? "#7AB384" : "#F1E4C8",
-                              textShadow: step.success ? "0 0 10px rgba(122,179,132,0.6)" : "none",
-                            }}
-                          >
-                            {step.label}
-                          </span>
-                        </div>
-                        <p className="text-[11px]" style={{ color: "#7F8478" }}>
-                          {step.detail}
-                        </p>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </Reveal>
-            </div>
-          </section>
-
-          {/* ── CURATOR SECTION ── */}
-          <section
-            className="py-20 px-6 lg:px-8 relative overflow-hidden"
-            style={{
-              borderTop: "1px solid #1A2520",
-              borderBottom: "1px solid #1A2520",
-              backgroundColor: "#060D0A",
-            }}
-          >
-            <div
-              className="orb orb-2 absolute"
-              style={{
-                width: "350px",
-                height: "280px",
-                background: "radial-gradient(ellipse, rgba(69,127,91,0.1) 0%, transparent 70%)",
-                top: "50%",
-                left: "50%",
-                transform: "translate(-50%,-50%)",
-              }}
-            />
-            <Reveal>
-              <div className="relative max-w-[800px] mx-auto text-center">
-                <div className="mb-6 flex justify-center">
-                  <div
-                    className="eye-glow p-4 border rounded-full"
-                    style={{
-                      borderColor: "#26543D",
-                      backgroundColor: "rgba(38,84,61,0.2)",
-                    }}
-                  >
-                    <AnimatedEyeLogo />
-                  </div>
-                </div>
-                <p
-                  className="text-xs font-semibold tracking-[0.28em] uppercase mb-4"
-                  style={{ color: "#7F8478" }}
-                >
-                  CURATOR SIGNAL
-                </p>
-                <div
-                  className="font-bold"
-                  style={{
-                    fontFamily: "var(--font-body)",
-                    fontSize: "clamp(24px,3.5vw,38px)",
-                    minHeight: "1.3em",
-                  }}
-                >
-                  <CuratorTyper />
-                </div>
-                <p
-                  className="text-sm mt-4"
-                  style={{
-                    color: "#7F8478",
-                    fontFamily: "Cormorant Garamond, serif",
-                    fontStyle: "italic",
-                    fontSize: "16px",
-                  }}
-                >
-                  {t(language, '"Контракт — не наказание, а цель"')}
-                </p>
-              </div>
-            </Reveal>
-          </section>
-          {/* ── FAQ ── */}
-          <section
-            className="py-24 px-6 lg:px-8 relative overflow-hidden"
-            style={{ backgroundColor: "#060A08" }}
-          >
-            <div
-              className="absolute pointer-events-none"
-              style={{
-                width: "300px",
-                height: "300px",
-                background: "radial-gradient(circle, rgba(138,120,174,0.07) 0%, transparent 70%)",
-                top: "30%",
-                left: "-5%",
-              }}
-            />
-            <div className="relative max-w-[700px] mx-auto">
-              <Reveal>
-                <div className="text-center mb-10">
-                  <Eyebrow>FAQ / SYSTEM</Eyebrow>
-                  <SectionHeading>{t(language, "Частые вопросы")}</SectionHeading>
-                </div>
-              </Reveal>
-
-              <Reveal stagger>
-                <div className="space-y-2">
-                  {faqItems.map((item, i) => (
-                    <div
-                      key={i}
-                      className="border overflow-hidden"
-                      style={{
-                        backgroundColor: "var(--color-panel)",
-                        borderColor: openFaq === i ? "#3B5145" : "#26352E",
-                        borderRadius: "16px",
-                        boxShadow: openFaq === i ? "0 0 16px rgba(122,179,132,0.09)" : "none",
-                        transition: "border-color 0.2s, box-shadow 0.2s",
-                      }}
-                    >
-                      <button
-                        id={`faq-question-${i}`}
-                        type="button"
-                        className="w-full px-5 py-4 flex items-center justify-between gap-4 text-left"
-                        onClick={() => setOpenFaq(openFaq === i ? null : i)}
-                        aria-expanded={openFaq === i}
-                        aria-controls={`faq-answer-${i}`}
-                      >
-                        <span className="font-semibold text-sm" style={{ color: "#F1E4C8" }}>
-                          {item.q}
-                        </span>
-                        <span
-                          className="text-xl leading-none shrink-0 font-light"
-                          style={{
-                            color: "#7AB384",
-                            textShadow: "0 0 8px rgba(122,179,132,0.5)",
-                            transform: openFaq === i ? "rotate(45deg)" : "none",
-                            transition: "transform 0.28s cubic-bezier(0.34,1.56,0.64,1)",
-                            display: "inline-block",
-                          }}
-                        >
-                          +
-                        </span>
-                      </button>
-                      <div
-                        id={`faq-answer-${i}`}
-                        role="region"
-                        aria-labelledby={`faq-question-${i}`}
-                        aria-hidden={openFaq !== i}
-                        style={{
-                          maxHeight: openFaq === i ? "200px" : "0px",
-                          overflow: "hidden",
-                          transition: "max-height 0.35s cubic-bezier(0.16,1,0.3,1)",
-                        }}
-                      >
-                        <div className="px-5 pb-5">
-                          <p className="text-sm leading-relaxed" style={{ color: "#B6AC94" }}>
-                            {item.a}
-                          </p>
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </Reveal>
-            </div>
-          </section>
-        </>
-      )}
-      {page === "campaigns" && (
-        <section
-          className="pt-32 pb-28 px-6 lg:px-8 relative overflow-hidden"
-          style={{ minHeight: "680px", backgroundColor: "#060A08" }}
-        >
-          <div className="max-w-[900px] mx-auto text-center relative">
-            <Reveal>
-              <Eyebrow>CAMPAIGNS · SOON</Eyebrow>
-              <SectionHeading>{t(language, "Большие серии дел готовятся")}</SectionHeading>
-              <p
-                className="text-sm leading-relaxed mt-5 mx-auto max-w-[620px]"
-                style={{ color: "#B6AC94" }}
-              >
-                {t(
-                  language,
-                  "Сначала доводим daily boards для Standard, Ranked и Street Brawl. Кампании появятся отдельным обновлением.",
-                )}
-              </p>
-              <div
-                className="mt-8 inline-flex items-center gap-2 px-4 py-2 border text-xs font-bold tracking-widest"
-                style={{
-                  borderColor: "#5A4D35",
-                  color: "#C49A57",
-                  backgroundColor: "#15120D",
-                  borderRadius: "4px",
-                }}
-              >
-                IN DEVELOPMENT · SOON
-              </div>
-            </Reveal>
-          </div>
-        </section>
-      )}
       {page === "leaderboards" && (
         <div className="public-leaderboard">
           <Leaderboard />
         </div>
       )}
+      {page === "home" && <PublicContent copy={copy} heading={false} />}
       {/* ── FOOTER ── */}
       <footer
         className="px-6 lg:px-8 py-12 relative"
@@ -1216,19 +817,19 @@ export default function Landing() {
               {[
                 {
                   label: language === "ru" ? "Поддержка" : "Support",
-                  href: "/support",
+                  href: `/${language}/support`,
                 },
                 {
                   label: language === "ru" ? "Статус" : "Status",
-                  href: "/status",
+                  href: `/${language}/status`,
                 },
                 {
                   label: language === "ru" ? "Изменения" : "Changelog",
-                  href: "/changelog",
+                  href: `/${language}/changelog`,
                 },
                 {
                   label: language === "ru" ? "Источники данных" : "Data sources",
-                  href: "/data-sources",
+                  href: `/${language}/data-sources`,
                 },
               ].map((item) => (
                 <a
@@ -1255,19 +856,27 @@ export default function Landing() {
             {[
               {
                 label: "CONTRACTS",
-                href: "#contracts",
+                href: publicUrl("contracts", language),
+              },
+              {
+                label: language === "ru" ? "Карточки" : "Cards",
+                href: publicUrl("cards", language),
+              },
+              {
+                label: language === "ru" ? "О проекте" : "About",
+                href: publicUrl("about", language),
               },
               {
                 label: "HOW IT WORKS",
-                href: "#how",
+                href: publicUrl("how", language),
               },
               {
                 label: "CAMPAIGNS · SOON",
-                href: "#campaigns",
+                href: publicUrl("campaigns", language),
               },
               {
                 label: "LEADERBOARD",
-                href: "#leaderboards",
+                href: publicUrl("leaderboards", language),
               },
             ].map((item) => (
               <a
@@ -1293,19 +902,19 @@ export default function Landing() {
             {[
               {
                 label: language === "ru" ? "Данные" : "Privacy",
-                href: "/privacy",
+                href: `/${language}/privacy`,
               },
               {
                 label: language === "ru" ? "Условия" : "Terms",
-                href: "/terms",
+                href: `/${language}/terms`,
               },
               {
                 label: language === "ru" ? "Источники данных" : "Data sources",
-                href: "/data-sources",
+                href: `/${language}/data-sources`,
               },
               {
                 label: language === "ru" ? "Контакт" : "Contact",
-                href: "/support",
+                href: `/${language}/support`,
               },
             ].map((item) => (
               <a

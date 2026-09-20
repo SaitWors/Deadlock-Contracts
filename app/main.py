@@ -15,7 +15,7 @@ from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from fastapi import Depends, FastAPI, HTTPException, Request, Response
 from fastapi.exceptions import RequestValidationError
-from fastapi.responses import FileResponse, JSONResponse, PlainTextResponse, RedirectResponse
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, PlainTextResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, ConfigDict, Field
@@ -25,6 +25,7 @@ from sqlalchemy.orm import Session, selectinload
 from starlette.middleware.trustedhost import TrustedHostMiddleware
 
 from .config import settings
+from . import seo
 from .db import Base, SessionLocal, engine, get_db
 from .community import router as community_router
 from .services.achievements import achievement_collection, awarded_contract_filter
@@ -4838,28 +4839,19 @@ def disabled_redoc() -> None:
 app.mount("/static", StaticFiles(directory=STATIC), name="static")
 
 
-@app.get("/robots.txt", include_in_schema=False, response_class=PlainTextResponse)
+@app.api_route("/robots.txt", methods=["GET", "HEAD"], include_in_schema=False)
 def robots_txt() -> PlainTextResponse:
-    base = settings.app_base_url.rstrip("/")
-    return PlainTextResponse(
-        f"User-agent: *\nAllow: /\nDisallow: /api/\nDisallow: /reviewer\nSitemap: {base}/sitemap.xml\n",
-        media_type="text/plain",
-    )
+    return PlainTextResponse(seo.robots(settings.app_base_url))
 
 
-@app.get("/sitemap.xml", include_in_schema=False)
+@app.api_route("/sitemap.xml", methods=["GET", "HEAD"], include_in_schema=False)
 def sitemap_xml() -> Response:
-    base = settings.app_base_url.rstrip("/")
-    pages = ("", "privacy", "terms", "support", "status", "changelog", "data-sources")
-    urls = []
-    for page in pages:
-        suffix = f"/{page}" if page else "/"
-        urls.append(f"<url><loc>{base}{suffix}</loc></url>")
-        if page:
-            urls.append(f"<url><loc>{base}/ru/{page}</loc></url>")
-            urls.append(f"<url><loc>{base}/en/{page}</loc></url>")
-    body = '<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">' + "".join(urls) + "</urlset>"
-    return Response(content=body, media_type="application/xml")
+    return Response(content=seo.sitemap(settings.app_base_url), media_type="application/xml")
+
+
+@app.api_route("/llms.txt", methods=["GET", "HEAD"], include_in_schema=False)
+def llms_txt() -> PlainTextResponse:
+    return PlainTextResponse(seo.llms_summary(settings.app_base_url), headers={"X-Robots-Tag": "noindex"})
 
 
 @app.get("/reviewer", include_in_schema=False)
@@ -4875,62 +4867,131 @@ def reviewer_page() -> FileResponse:
     )
 
 
-def _legal_response(request: Request, language: str | None = None) -> FileResponse:
+def _legal_response(request: Request, language: str | None = None) -> HTMLResponse:
     selected = language or request_language(request.headers.get("accept-language"))
-    return FileResponse(
-        STATIC / ("legal_en.html" if selected == "en" else "legal.html"),
+    slug = request.url.path.rstrip("/").rsplit("/", 1)[-1]
+    return HTMLResponse(
+        seo.render_legal_page(slug, selected, settings.app_base_url),
         headers={"Vary": "Accept-Language"} if language is None else None,
     )
 
 
 @app.get("/privacy", include_in_schema=False)
-def privacy_page(request: Request) -> FileResponse:
+@app.head("/privacy", include_in_schema=False)
+def privacy_page(request: Request) -> HTMLResponse:
     return _legal_response(request)
 
 
 @app.get("/terms", include_in_schema=False)
-def terms_page(request: Request) -> FileResponse:
+@app.head("/terms", include_in_schema=False)
+def terms_page(request: Request) -> HTMLResponse:
     return _legal_response(request)
 
 
 @app.get("/support", include_in_schema=False)
-def support_page(request: Request) -> FileResponse:
+@app.head("/support", include_in_schema=False)
+def support_page(request: Request) -> HTMLResponse:
     return _legal_response(request)
 
 
 @app.get("/status", include_in_schema=False)
-def public_status_page(request: Request) -> FileResponse:
+@app.head("/status", include_in_schema=False)
+def public_status_page(request: Request) -> HTMLResponse:
     return _legal_response(request)
 
 
 @app.get("/changelog", include_in_schema=False)
-def changelog_page(request: Request) -> FileResponse:
+@app.head("/changelog", include_in_schema=False)
+def changelog_page(request: Request) -> HTMLResponse:
     return _legal_response(request)
 
 
 @app.get("/data-sources", include_in_schema=False)
-def data_sources_page(request: Request) -> FileResponse:
+@app.head("/data-sources", include_in_schema=False)
+def data_sources_page(request: Request) -> HTMLResponse:
     return _legal_response(request)
 
 
 @app.get("/ru/privacy", include_in_schema=False)
+@app.head("/ru/privacy", include_in_schema=False)
 @app.get("/ru/terms", include_in_schema=False)
+@app.head("/ru/terms", include_in_schema=False)
 @app.get("/ru/support", include_in_schema=False)
+@app.head("/ru/support", include_in_schema=False)
 @app.get("/ru/status", include_in_schema=False)
+@app.head("/ru/status", include_in_schema=False)
 @app.get("/ru/changelog", include_in_schema=False)
+@app.head("/ru/changelog", include_in_schema=False)
 @app.get("/ru/data-sources", include_in_schema=False)
+@app.head("/ru/data-sources", include_in_schema=False)
 @app.get("/en/privacy", include_in_schema=False)
+@app.head("/en/privacy", include_in_schema=False)
 @app.get("/en/terms", include_in_schema=False)
+@app.head("/en/terms", include_in_schema=False)
 @app.get("/en/support", include_in_schema=False)
+@app.head("/en/support", include_in_schema=False)
 @app.get("/en/status", include_in_schema=False)
+@app.head("/en/status", include_in_schema=False)
 @app.get("/en/changelog", include_in_schema=False)
+@app.head("/en/changelog", include_in_schema=False)
 @app.get("/en/data-sources", include_in_schema=False)
-def localized_legal_page(request: Request) -> FileResponse:
+@app.head("/en/data-sources", include_in_schema=False)
+def localized_legal_page(request: Request) -> HTMLResponse:
     language = request.url.path.split("/", 2)[1]
     return _legal_response(request, language)
 
 
-@app.get("/{path:path}")
-def spa(path: str) -> FileResponse:
-    # The SPA fallback never serves arbitrary filesystem paths.
-    return FileResponse(STATIC / "index.html")
+@app.api_route("/social-preview.jpg", methods=["GET", "HEAD"], include_in_schema=False)
+def social_preview() -> FileResponse:
+    image = STATIC / "social-preview.jpg"
+    if not image.is_file():
+        image = Path(__file__).resolve().parent.parent / "frontend/src/imports/vnext/brand-hero.jpg"
+    return FileResponse(image, media_type="image/jpeg", headers={"Cache-Control": "public, max-age=86400"})
+
+
+@app.api_route("/u/{slug}", methods=["GET", "HEAD"], include_in_schema=False)
+@app.api_route("/u/{slug}/", methods=["GET", "HEAD"], include_in_schema=False)
+def public_profile_document(slug: str, request: Request, db: Session = Depends(get_db)) -> Response:
+    # Match the public API's visibility rules without serializing any account data.
+    valid = re.fullmatch(r"[a-z0-9]+(?:-[a-z0-9]+)*", slug) and 3 <= len(slug) <= 32
+    visible = valid and db.scalar(select(PublicProfile.user_id).join(User, User.id == PublicProfile.user_id).where(
+        PublicProfile.slug == slug, PublicProfile.is_public.is_(True), User.status == "ACTIVE"))
+    headers = {"X-Robots-Tag": "noindex, follow", "Cache-Control": "private, no-store"}
+    if not visible:
+        return HTMLResponse(seo.render_not_found(settings.app_base_url), status_code=404, headers=headers)
+    if request.url.path.endswith("/"):
+        return RedirectResponse(f"/u/{slug}", status_code=308, headers=headers)
+    return HTMLResponse(seo.render_document(
+        title="Профиль игрока | Deadlock Contracts", description="Публичное досье игрока Deadlock Contracts.",
+        body='<main class="public-document"><h1>Профиль игрока</h1><p>Публичное досье загружается…</p></main>',
+        language="ru", base=settings.app_base_url, path=f"/u/{slug}", index=False), headers=headers)
+
+
+@app.api_route("/{path:path}", methods=["GET", "HEAD"], include_in_schema=False)
+def spa(path: str) -> Response:
+    if seo.valid_indexnow_key(settings.indexnow_key) and path == settings.indexnow_key + ".txt":
+        return PlainTextResponse(settings.indexnow_key, headers={"X-Robots-Tag": "noindex", "Cache-Control": "public, max-age=300"})
+    if path in {"admin/reviews/", "admin/announcements/"}:
+        return RedirectResponse("/" + path.rstrip("/"), status_code=308,
+                                headers={"X-Robots-Tag": "noindex, follow", "Cache-Control": "private, no-store"})
+    if path in {"admin/reviews", "admin/announcements"}:
+        return HTMLResponse(seo.render_document(
+            title="Кабинет | Deadlock Contracts", description="Вход в кабинет Deadlock Contracts.",
+            body='<main class="public-document"><h1>Кабинет</h1><a href="/auth/steam">Войти через Steam</a></main>',
+            language="ru", base=settings.app_base_url, path=None, index=False),
+            headers={"X-Robots-Tag": "noindex, follow", "Cache-Control": "private, no-store"})
+    resolved = seo.resolve_public_path("/" + path)
+    if resolved:
+        page, language, redirect = resolved
+        if redirect:
+            return RedirectResponse(redirect, status_code=308)
+        headers = {} if seo.PAGES[page]["index"] else {"X-Robots-Tag": "noindex, follow"}
+        return HTMLResponse(seo.render_public_page(page, language, settings.app_base_url), headers=headers)
+    # Known service URLs with a redundant trailing slash keep working.
+    trimmed = path.rstrip("/")
+    parts = trimmed.split("/")
+    if path != trimmed and (trimmed in seo.LEGAL or len(parts) == 2 and parts[0] in seo.LANGUAGES and parts[1] in seo.LEGAL):
+        return RedirectResponse("/" + trimmed, status_code=308)
+    language = "en" if path.startswith("en/") else "ru"
+    return HTMLResponse(seo.render_not_found(settings.app_base_url, language), status_code=404,
+                        headers={"X-Robots-Tag": "noindex, follow"})

@@ -4,6 +4,7 @@ WORKDIR /frontend
 COPY frontend/package.json frontend/pnpm-lock.yaml ./
 RUN corepack enable \
     && pnpm install --frozen-lockfile
+COPY shared /shared
 COPY frontend ./
 RUN pnpm build
 
@@ -24,6 +25,8 @@ RUN pip install --no-cache-dir --requirement requirements.txt \
     && python -m pip check
 
 COPY --chown=app:app app ./app
+COPY --chown=app:app shared ./shared
+COPY --chown=app:app frontend/src/imports/vnext/brand-hero.jpg ./app/static/social-preview.jpg
 
 COPY --chown=app:app alembic.ini ./alembic.ini
 COPY --chown=app:app alembic ./alembic
@@ -35,6 +38,7 @@ COPY --from=frontend-build --chown=app:app /frontend/dist/index.html ./app/stati
 COPY --from=frontend-build --chown=app:app /frontend/dist/assets ./app/static/assets
 COPY --from=frontend-build --chown=app:app /frontend/dist/licenses ./app/static/licenses
 COPY --chown=app:app app/static/assets/logo-horizontal.svg ./app/static/assets/logo-horizontal.svg
+COPY --chown=app:app app/static/assets/mark.svg ./app/static/assets/mark.svg
 
 USER 10001:10001
 EXPOSE 8080

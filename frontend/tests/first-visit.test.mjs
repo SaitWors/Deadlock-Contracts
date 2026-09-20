@@ -47,9 +47,9 @@ function response(data) {
   return { ok: true, json: async () => data }
 }
 
-function runtime({ hash = "", language = "ru", fetchImpl } = {}) {
+function runtime({ hash = "", pathname = "/", language = "ru", fetchImpl } = {}) {
   const dom = new JSDOM('<main id="mount"></main>', {
-    url: `https://qa.invalid/${hash}`,
+    url: `https://qa.invalid${pathname}${hash}`,
     runScripts: "outside-only",
   })
   environments.push(dom)
@@ -154,7 +154,7 @@ const button = (doc, text) =>
   [...doc.querySelectorAll("button")].find((item) => item.textContent.includes(text))
 
 async function mountGuest(options = {}) {
-  const env = runtime({ hash: "#try", ...options })
+  const env = runtime({ pathname: options?.language === "en" ? "/en/try" : "/ru/try", ...options })
   let root
   await env.api.act(async () => {
     root = env.api.mountLanding(env.doc.getElementById("mount"))
@@ -174,8 +174,8 @@ test("authenticated home production bundle owns its archive stats styles", () =>
   )
 })
 
-test("the real Landing #try route opens a guest cipher instead of falling back home", async () => {
-  const { api, doc } = runtime({ hash: "#try" })
+test("the public trial document opens a guest cipher instead of falling back home", async () => {
+  const { api, doc } = runtime({ pathname: "/ru/try" })
   let root
   await api.act(async () => {
     root = api.mountLanding(doc.getElementById("mount"))
@@ -247,19 +247,17 @@ test("guest can request an early guided explanation in English", async () => {
   await api.act(async () => root.unmount())
 })
 
-test("the prominent home trial reaches #try and guest return restores existing home route", async () => {
-  const { api, doc, w } = runtime({ hash: "#home", language: "en" })
+test("the prominent home trial links to the teaching document", async () => {
+  const { api, doc } = runtime({ pathname: "/en/", language: "en" })
   let root
   await api.act(async () => {
     root = api.mountLanding(doc.getElementById("mount"))
   })
   assert.match(doc.getElementById("mount").textContent, /never asks for your Steam password/)
-  await api.act(async () => button(doc, "Try without signing in").click())
-  assert.equal(w.location.hash, "#try")
-  assert.match(doc.querySelector("main").textContent, /Teaching cipher/)
-  await api.act(async () => button(doc, "Return home").click())
-  assert.equal(w.location.hash, "#home")
-  assert.match(doc.querySelector("h1").textContent, /Every match has a story/)
+  assert.equal(
+    doc.querySelector('.bureau-welcome-actions a[href="/en/try"]').textContent,
+    "Try without signing in",
+  )
   await api.act(async () => root.unmount())
 })
 
