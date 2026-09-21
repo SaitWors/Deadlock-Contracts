@@ -175,7 +175,7 @@ export default function Cipher({
                       }
                     >
                       <Regalia id={art} />
-                      {names[language][id]}
+                      <span>{names[language][id]}</span>
                     </button>
                   ))}
                 </div>

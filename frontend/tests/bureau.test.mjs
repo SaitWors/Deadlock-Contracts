@@ -160,7 +160,7 @@ test("first visit explains the bureau, can skip, remembers this account and reop
 })
 
 for (const language of ["ru", "en"])
-  test(`${language} guide has three manual pages, actual destinations, Escape and focus restoration`, async () => {
+  test(`${language} guide puts match verification before cards across four manual pages, actual destinations, Escape and focus restoration`, async () => {
     const { api, doc, w } = runtime({ language })
     const actions = []
     let root
@@ -169,9 +169,16 @@ for (const language of ["ru", "en"])
     await api.act(async () => {
       root = api.mountGuide(doc.getElementById("mount"), props)
     })
-    assert.equal(doc.querySelectorAll(".bureau-guide-pages button").length, 3)
+    assert.equal(doc.querySelectorAll(".bureau-guide-pages button").length, 4)
     await api.act(async () => doc.querySelector(".bureau-guide-content>.bureau-action").click())
     assert.equal(actions.pop(), "quests")
+    await api.act(async () => button(doc, language === "ru" ? "Дальше" : "Next").click())
+    assert.match(
+      doc.querySelector(".bureau-guide-content").textContent,
+      language === "ru" ? /проверки матча/ : /match verification/,
+    )
+    await api.act(async () => doc.querySelector(".bureau-guide-content>.bureau-action").click())
+    assert.equal(actions.pop(), "active")
     await api.act(async () => button(doc, language === "ru" ? "Дальше" : "Next").click())
     assert.match(
       doc.querySelector(".bureau-guide-note").textContent,

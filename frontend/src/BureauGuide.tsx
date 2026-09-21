@@ -24,7 +24,7 @@ export default function BureauGuide({
   onNavigate,
 }: {
   onClose: () => void
-  onNavigate: (tab: "quests" | "archive" | "bureaus") => void
+  onNavigate: (tab: "quests" | "active" | "archive" | "bureaus") => void
 }) {
   const { language } = useLanguage()
   const ru = language === "ru"
@@ -44,6 +44,14 @@ export default function BureauGuide({
           action: "Выбрать контракт",
         },
         {
+          title: "Сыграйте. Проверьте результат.",
+          text: "Запустите Deadlock и выполните подписанные условия в выбранном режиме. XP, уровни и достижения начисляются после проверки матча.",
+          detail:
+            "Откройте «Активное дело», чтобы увидеть попытки, срок и состояние проверки. На дело — 24 часа и до трёх подходящих матчей; прогресс разных матчей не складывается.",
+          note: "Компаньон проходит QA. Если результат ещё проверяется, дождитесь подтверждения в деле: награда не начисляется сразу после игры.",
+          action: "Открыть активное дело",
+        },
+        {
           title: "Есть дело и без игры.",
           text: "Пока компаньон проходит QA, в браузере уже можно разбирать шифры и собирать карточки героев.",
           detail:
@@ -53,11 +61,11 @@ export default function BureauGuide({
         },
         {
           title: "Оставьте свой след.",
-          text: "Выберите медаль и до трёх карточек для витрины, настройте профиль и найдите своих людей в бюро игроков.",
+          text: "Выберите медаль и до трёх карточек для витрины, настройте профиль и найдите своих людей в разделе «Сообщества».",
           detail:
             "У каждого достижения есть условия и прогресс. Совместные операции дают цель всей команде. Своё место в рейтинге можно посмотреть, оставаясь в аккаунте.",
-          note: "Матчевые награды появляются после проверки результата. Если проверка задержалась, откройте «Дело». Для начала можно просто осмотреться.",
-          action: "Найти бюро",
+          note: "Бюро — сообщество игроков. Вступите в подходящее или создайте своё; личные контракты, карточки и достижения остаются в вашем профиле.",
+          action: "Открыть сообщества",
         },
       ]
     : [
@@ -70,6 +78,14 @@ export default function BureauGuide({
           action: "Choose a contract",
         },
         {
+          title: "Play. Check your result.",
+          text: "Launch Deadlock and complete the signed objectives in your chosen mode. XP, levels and achievements arrive after match verification.",
+          detail:
+            "Open Active case to see attempts, the deadline and verification status. A case lasts 24 hours and allows up to three eligible matches; progress does not add up across matches.",
+          note: "The Companion is in QA. If your result is still being checked, wait for confirmation in your case: rewards do not arrive immediately after a match.",
+          action: "Open active case",
+        },
+        {
           title: "A case without a match.",
           text: "While the Companion is in QA, you can already solve ciphers and collect hero cards in your browser.",
           detail:
@@ -79,11 +95,11 @@ export default function BureauGuide({
         },
         {
           title: "Leave your mark.",
-          text: "Feature a medal and up to three cards, personalise your profile, and find your people in a player bureau.",
+          text: "Feature a medal and up to three cards, personalise your profile, and find your people in Communities.",
           detail:
             "Every achievement has conditions and progress. Joint operations give your team a shared goal. Check your rank without signing out.",
-          note: "Match rewards arrive after verification. If verification is delayed, open Case. You can start by simply exploring.",
-          action: "Find a bureau",
+          note: "A bureau is a player community. Join one or create your own; personal contracts, cards and achievements stay in your profile.",
+          action: "Explore communities",
         },
       ]
   useEffect(() => {
@@ -97,7 +113,7 @@ export default function BureauGuide({
   }, [])
   useEffect(() => {
     heading.current?.focus()
-    dialog.current?.scrollTo?.({ top: 0 })
+    dialog.current?.querySelector(".bureau-guide-content")?.scrollTo?.({ top: 0 })
   }, [step])
   const current = steps[step]
   return (
@@ -133,9 +149,11 @@ export default function BureauGuide({
         ))}
       </div>
       <div className="bureau-guide-content">
-        <Regalia id={(["medal-first", "seal-archive", "seal-team"] as const)[step]} />
+        <Regalia
+          id={(["medal-first", "medal-first", "seal-archive", "seal-team"] as const)[step]}
+        />
         <p className="bureau-guide-index">
-          {ru ? "ЛИСТ" : "PAGE"} 0{step + 1} / 03
+          {ru ? "ШАГ" : "STEP"} 0{step + 1} / 0{steps.length}
         </p>
         <h2 ref={heading} tabIndex={-1} id={titleId}>
           {current.title}
@@ -147,7 +165,7 @@ export default function BureauGuide({
         </div>
         <button
           className="bureau-action bureau-action-secondary"
-          onClick={() => onNavigate((["quests", "archive", "bureaus"] as const)[step])}
+          onClick={() => onNavigate((["quests", "active", "archive", "bureaus"] as const)[step])}
         >
           {current.action}
         </button>
@@ -159,8 +177,17 @@ export default function BureauGuide({
         >
           {step ? (ru ? "Назад" : "Back") : ru ? "Осмотрюсь сам" : "Explore myself"}
         </button>
-        <button className="bureau-action" onClick={step < 2 ? () => setStep(step + 1) : onClose}>
-          {step < 2 ? (ru ? "Дальше →" : "Next →") : ru ? "Открыть бюро" : "Enter the bureau"}
+        <button
+          className="bureau-action"
+          onClick={step < steps.length - 1 ? () => setStep(step + 1) : onClose}
+        >
+          {step < steps.length - 1
+            ? ru
+              ? "Дальше →"
+              : "Next →"
+            : ru
+              ? "Открыть бюро"
+              : "Enter the bureau"}
         </button>
       </footer>
     </dialog>

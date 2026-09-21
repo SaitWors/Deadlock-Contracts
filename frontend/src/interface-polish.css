@@ -291,14 +291,6 @@
   border-radius: 16px;
   border-color: #ffffff1a;
 }
-.bureau-app .contract-card .dc-check {
-  display: grid;
-  place-items: center;
-}
-.bureau-app .contract-card .dc-check svg {
-  width: 16px;
-  height: 16px;
-}
 .bureau-app .dc-category-tabs i,
 .bureau-app .dc-contract i {
   display: inline-flex;
@@ -347,3 +339,23 @@
 .bureau-review-art{display:flex;gap:16px;flex-wrap:wrap}.bureau-review-art figure{max-width:360px;margin:12px 0}.bureau-review-art img{width:100%;max-height:240px;object-fit:contain;border-radius:12px}.bureau-review-art figcaption{font-size:12px;color:var(--color-cream-dim)}
 
 .bureau-profile-section .guild-emblem.shape-circle{border-radius:50%}.bureau-profile-section .guild-emblem.shape-shield{border-radius:22px 22px 48% 48%}
+
+/* Tester review, PR42: consistent controls and readable spacing. */
+.bureau-header .dc-language-switch{height:38px;border-radius:10px;overflow:hidden;flex-shrink:0}
+.bureau-header .dc-language-switch :is(button,a){min-width:38px;padding-inline:9px;font:600 12px/1 var(--font-body);color:#afbeb0;letter-spacing:.02em}
+.bureau-app .dc-command-actions{align-items:stretch}
+.bureau-app .dc-command-actions>button{display:flex;align-items:center;justify-content:center;min-height:48px;height:auto;margin:0;padding:12px 18px;line-height:1.4}
+.bureau-app .dc-curator-dialog{width:min(360px,calc(100% - 32px));left:auto;right:16px;bottom:16px;padding:16px;border-radius:12px}
+.bureau-app .dc-curator-dialog span{font:600 12px/1.4 var(--font-body);letter-spacing:.08em}
+.bureau-app .dc-curator-dialog p{font:400 15px/1.6 var(--font-body);color:#d1d9ca;margin:8px 0 0}
+.bureau-app .dc-motion-reroll>span{font:600 13px/1.4 var(--font-body)!important;letter-spacing:.02em!important;color:#bdc7b4!important}
+.bureau-app .dc-motion-reroll button{min-height:40px;font-size:12px!important;white-space:normal}
+.bureau-app .dc-motion-contract-card .dc-contract-top{flex-wrap:wrap}
+.bureau-app .dc-motion-contract-card .dc-contract-top>span{min-width:0;flex-wrap:wrap;letter-spacing:.06em!important}
+.bureau-app .contract-selected-mark{color:#bde3bd}
+.bureau-app.dc-v3 .dc-motion-contract-card.selected{border:1px solid #7ab384!important;box-shadow:none!important}
+.bureau-app .dc-motion-selection-tray{margin-top:28px}
+.bureau-app .dc-motion-selection-actions{align-items:stretch}
+.bureau-app .dc-motion-total-xp{align-self:center}
+.bureau-app .dc-motion-selection-actions>button{display:flex;align-items:center;justify-content:center;min-height:48px;height:auto;margin:0!important;padding:12px 16px!important;font:700 14px/1.4 var(--font-body)!important}
+.bureau-app .dc-workspace>.community-page{max-width:none;margin-inline:0;padding-top:0}

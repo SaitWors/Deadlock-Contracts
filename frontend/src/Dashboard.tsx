@@ -1399,7 +1399,7 @@ export default function Dashboard({ initialSession }: { initialSession: SessionP
     ["history", language === "ru" ? "ИСТОРИЯ ДЕЛ" : "CASE HISTORY", "case"],
     ["archive", language === "ru" ? "АРХИВ КАРТОЧЕК" : "CARD ARCHIVE", "case"],
     ["achievements", language === "ru" ? "ДОСТИЖЕНИЯ" : "ACHIEVEMENTS", "case"],
-    ["bureaus", language === "ru" ? "БЮРО ИГРОКОВ" : "PLAYER BUREAUS", "hq"],
+    ["bureaus", language === "ru" ? "СООБЩЕСТВА" : "COMMUNITIES", "hq"],
     ["leaderboard", language === "ru" ? "РЕЙТИНГ" : "LEADERBOARD", "case"],
     ["profile", language === "ru" ? "ПРОФИЛЬ" : "PROFILE", "profile"],
   ]
@@ -1829,13 +1829,15 @@ export default function Dashboard({ initialSession }: { initialSession: SessionP
                         >
                           <div className="holo-overlay" />
                           <div className="dc-motion-card-sheen" />
-                          {chosen && (
-                            <div className="dc-check dc-motion-check">
-                              <SvgIcon name="check" size={16} />
-                            </div>
-                          )}
                           <div className="dc-contract-top">
                             <span>
+                              {chosen && (
+                                <SvgIcon
+                                  name="check"
+                                  size={18}
+                                  className="contract-selected-mark"
+                                />
+                              )}
                               <i>{categoryGlyph(option.category)}</i>
                               {categoryLabel(option.category, language).toUpperCase()}
                             </span>

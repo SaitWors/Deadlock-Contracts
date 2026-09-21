@@ -61,7 +61,8 @@
 .archive-symbol-picker .bureau-regalia {
   width: 56px;
   height: 56px;
-  margin: 0 auto 7px;
+  margin: 0;
+  flex-shrink: 0;
 }
 .archive-cipher-symbols {
   display: flex;

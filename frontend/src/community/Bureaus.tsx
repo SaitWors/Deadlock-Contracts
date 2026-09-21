@@ -114,7 +114,7 @@ export default function Bureaus({
   return (
     <section className="community-page guild-directory-page">
       <PageHead
-        number="04 / PLAYER BUREAUS"
+        number="04 / COMMUNITIES"
         title={ru ? "Найдите своих в городе" : "Find your people in the city"}
         text={
           ru
