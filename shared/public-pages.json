@@ -34,7 +34,7 @@
       "sections": [
         {"heading": "Выбор и подписание", "text": "После входа откройте доску нужного режима, прочитайте условия и выберите до трёх контрактов. Подпишите их до начала матча: зафиксированные условия нельзя менять. Standard, Ranked и Street Brawl ведут отдельные дела."},
         {"heading": "Проверка и опыт", "text": "Начисление XP зависит от подтверждённых условий, а не от нажатия кнопки или анимации. Ожидание данных и внутренний разбор отображаются в статусе дела. Условия и доступность отдельных заданий могут меняться в ходе беты."},
-        {"heading": "Пример подписание не сохраняет", "text": "Доска ниже демонстрирует выбор и подписание. Она не создаёт реальное дело и не начисляет опыт. Ваши настоящие контракты, история и награды находятся в кабинете после входа через Steam."}
+        {"heading": "Демонстрация не сохраняет контракт", "text": "Доска ниже демонстрирует выбор и подписание. Она не создаёт реальное дело и не начисляет опыт. Ваши настоящие контракты, история и награды находятся в кабинете после входа через Steam."}
       ]
     },
     "en": {
@@ -60,6 +60,9 @@
         {"heading": "1. Познакомьтесь с бюро", "text": "Откройте учебный шифр без регистрации или пример подписания контракта. Это демонстрации: они не тратят валюту, не сохраняют прогресс и не требуют компаньона."},
         {"heading": "2. Сохраните свой прогресс", "text": "Войдите через Steam. В кабинете можно выполнять задания архива, собирать карточки, настраивать профиль и участвовать в бюро игроков. Жетоны архива и опыт за игровые контракты — разные показатели."},
         {"heading": "3. Подпишите контракт до игры", "text": "Выберите доступный режим и задания, проверьте условия и подпишите дело до матча. Затем следите за его статусом: сервису нужны подходящий матч и достаточные данные для проверки. Задержка статистики не означает мгновенное поражение."},
+        {"heading": "Это мод для Deadlock или отдельный сайт?", "text": "Deadlock Contracts — отдельный сайт с заданиями для матчей Deadlock, игры Valve. Он не заменяет файлы игры и не добавляет боевые способности. Вы выбираете контракт до матча, играете в Deadlock и следите за проверкой результата в кабинете."},
+        {"heading": "Можно ли придумать любое задание?", "text": "Сейчас игрок выбирает задания из доступной доски своего режима. Выполнение проверяется по указанным условиям и доступной статистике матча. Произвольный текст не становится автоматически проверяемым контрактом; ориентируйтесь на условия конкретного задания."},
+        {"heading": "Что можно попробовать без регистрации?", "text": "Публичные страницы, демонстрация подписания и учебный шифр доступны без входа. Для сохранения реальных контрактов, карточек и прогресса нужен вход через Steam. Паки открываются за жетоны архива; карточки остаются внутри сайта и не являются предметами инвентаря Steam."},
         {"heading": "Что с компаньоном?", "text": "Deadlock Contracts Companion находится в разработке и на проверке Overwolf. Его установка не требуется для шифров, коллекции и бюро на сайте. Компаньон передаёт поддерживаемые игровые сигналы, но сам по себе не начисляет опыт. Не передавайте другим доступ к своему аккаунту Overwolf."}
       ]
     },
@@ -72,6 +75,9 @@
         {"heading": "1. Explore the bureau", "text": "Try the teaching cipher without registering, or preview contract signing. These demos spend no currency, save no progress and need no companion."},
         {"heading": "2. Save your progress", "text": "Sign in through Steam. Your dashboard lets you complete archive activities, collect cards, customize a profile and join player bureaus. Archive tokens and XP from match contracts are separate values."},
         {"heading": "3. Sign before playing", "text": "Choose an available mode and objectives, review the conditions and sign your case before the match. Follow its status: verification needs an eligible match and sufficient data. Delayed statistics do not mean an immediate failure."},
+        {"heading": "Is this a Deadlock mod or a separate website?", "text": "Deadlock Contracts is a separate website with match challenges for Deadlock, Valve's game. It does not replace game files or add combat abilities. Choose a contract before a match, play Deadlock and follow result verification in your dashboard."},
+        {"heading": "Can I create any objective I want?", "text": "Players currently select objectives from the available board for their mode. Verification uses each objective's stated conditions and available match statistics. Arbitrary text does not become an automatically verifiable contract; check the conditions of the specific objective."},
+        {"heading": "What can I try without registering?", "text": "Public guides, the signing preview and the teaching cipher work without sign-in. Saving real contracts, cards and progress requires Steam sign-in. Packs use archive tokens; cards stay on the website and are not Steam inventory items."},
         {"heading": "What about the companion?", "text": "Deadlock Contracts Companion is in development and under Overwolf review. It is not required for website ciphers, collections or bureaus. It supplies supported game signals but cannot award XP by itself. Never share access to your Overwolf account."}
       ]
     }

@@ -154,6 +154,17 @@ def test_shared_copy_is_embedded_for_react_and_stays_safe(client):
     assert payload["content"]["heading"] in doc
 
 
+@pytest.mark.parametrize("language,question", [
+    ("ru", "Это мод для Deadlock или отдельный сайт?"),
+    ("en", "Is this a Deadlock mod or a separate website?"),
+])
+def test_common_questions_are_visible_and_shared_with_react(client, language, question):
+    source = client.get(f"/{language}/how-it-works").text
+    assert f"<h2>{question}</h2>" in source
+    payload = json.loads(source.split('id="dc-public-page" type="application/json">')[1].split('</script>')[0])
+    assert any(section["heading"] == question for section in payload["content"]["sections"])
+
+
 def test_profile_document_respects_visibility_without_leaking_data(community):
     factory, player = community
     user_id, client = player("Visible operative", public=True)

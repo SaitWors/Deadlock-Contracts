@@ -1,5 +1,6 @@
 // Build an isolated visual fixture from the real component and production styles.
 // Usage, from frontend: node tests/build-card-layout.mjs /absolute/output/directory
+// Add --packs as the last argument to exercise pack opening and all card ranks.
 import path from "node:path"
 import fs from "node:fs/promises"
 import { build } from "vite"
@@ -14,7 +15,13 @@ const result = await build({
   build: {
     write: false,
     minify: true,
-    lib: { entry: "tests/card-layout-entry.tsx", name: "CardLayout", formats: ["iife"] },
+    lib: {
+      entry: process.argv.includes("--packs")
+        ? "tests/pack-reveal-layout-entry.tsx"
+        : "tests/card-layout-entry.tsx",
+      name: "CardLayout",
+      formats: ["iife"],
+    },
   },
 })
 const code = result[0].output.find((item) => item.type === "chunk").code
