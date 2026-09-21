@@ -12,8 +12,9 @@ LIMITS = {
     # Measured 597 KB total / 305 KB initial; keep the public-entry cap unchanged.
     "javascript_total": 615_000,
     "initial_javascript": 310_000,
-    # New guild layouts plus shared interface polish; measured 316 KB.
-    "css_total": 325_000,
+    # PR42: staged wrapper/fan opening and multilayer card foil; measured 328 KB.
+    # Initial JS and all other limits remain unchanged.
+    "css_total": 330_000,
     "largest_image": 600_000,
     # Removed 1.37 MB of bitmap regalia. New build is 1.94 MB including fonts.
     "assets_total": 2_100_000,

@@ -108,7 +108,7 @@ export default function ArchiveNextStep({
           {ru ? "Моя коллекция" : "My collection"}
         </button>
         <button className="bureau-callout-link" type="button" onClick={() => onNavigate("bureaus")}>
-          {ru ? "Бюро игроков" : "Player bureaus"}
+          {ru ? "Сообщества" : "Communities"}
         </button>
       </div>
     </section>

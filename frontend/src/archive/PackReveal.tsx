@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react"
+import { useEffect, useRef, useState, type CSSProperties } from "react"
 import Icon from "../icons/Icon"
 import { useLanguage } from "../i18n"
 import Regalia from "../regalia/Regalia"
@@ -25,6 +25,7 @@ export default function PackReveal({
   const timerRef = useRef<number | null>(null)
   const session = useRef(0)
   const actionLocked = useRef(false)
+  const opening = useRef(false)
   const [stage, setStage] = useState<Stage>("sealed")
   const [cardIndex, setCardIndex] = useState(0)
   const [faceUp, setFaceUp] = useState(false)
@@ -40,6 +41,7 @@ export default function PackReveal({
   }
   const invalidate = () => {
     ++session.current
+    opening.current = false
     clearTimer()
     actionLocked.current = false
   }
@@ -92,18 +94,23 @@ export default function PackReveal({
     dialogRef.current?.showModal()
     stageActionRef.current?.focus()
   }
+  const finishOpening = () => {
+    if (!opening.current || !dialogRef.current?.open) return
+    opening.current = false
+    clearTimer()
+    actionLocked.current = false
+    setStage(receipt.items.length ? "cards" : "results")
+    if (!receipt.items.length) setCompleted(true)
+  }
   const breakSeal = () => {
     if (actionLocked.current) return
     if (reduced) return results()
     actionLocked.current = true
+    opening.current = true
     setStage("opening")
     clearTimer()
-    timerRef.current = window.setTimeout(() => {
-      timerRef.current = null
-      actionLocked.current = false
-      setStage(receipt.items.length ? "cards" : "results")
-      if (!receipt.items.length) setCompleted(true)
-    }, 550)
+    // animationend owns the transition; recover if CSS or the event is unavailable.
+    timerRef.current = window.setTimeout(finishOpening, 3600)
   }
   const next = async (direction: "left" | "right") => {
     if (stage !== "cards" || !faceUp || actionLocked.current) return
@@ -202,17 +209,52 @@ export default function PackReveal({
 
           {(stage === "sealed" || stage === "opening") && (
             <div className="pack-reveal-envelope" aria-live="polite">
-              <div className="pack-envelope-art" aria-hidden="true">
-                <div className="pack-tear-strip">
-                  <span>DEADLOCK CONTRACTS</span>
-                  <Icon name="arrow-up-right" />
+              <div
+                className="pack-opening-scene"
+                aria-hidden="true"
+                onAnimationEnd={(event) => {
+                  if (event.target === event.currentTarget && event.animationName === "pack-scene")
+                    finishOpening()
+                }}
+              >
+                <div className="pack-opening-fan">
+                  {receipt.items.slice(0, 4).map((item, index, items) => (
+                    <div
+                      key={item.id}
+                      className="pack-fan-back"
+                      style={{ "--fan-offset": index - (items.length - 1) / 2 } as CSSProperties}
+                    >
+                      <Regalia id="seal-archive" />
+                      <span>
+                        DEADLOCK
+                        <br />
+                        CONTRACTS
+                      </span>
+                    </div>
+                  ))}
                 </div>
-                <div className="pack-envelope-body">
-                  <Regalia id="seal-archive" />
-                  <span>THE ARCHIVE</span>
-                  <small>{String(receipt.items.length).padStart(2, "0")} · COLLECTION FILES</small>
+                <div className="pack-envelope-art">
+                  <div className="pack-tear-strip">
+                    <b>DEAD</b>
+                    <span>
+                      <b>LOCK</b>
+                      <span>
+                        <b>CON</b>
+                        <span>
+                          <b>TRACTS</b>
+                        </span>
+                      </span>
+                    </span>
+                  </div>
+                  <div className="pack-envelope-body">
+                    <Regalia id="seal-archive" />
+                    <span>THE ARCHIVE</span>
+                    <small>
+                      {String(receipt.items.length).padStart(2, "0")} · COLLECTION FILES
+                    </small>
+                  </div>
+                  <span className="pack-open-light" />
                 </div>
-                <span className="pack-open-light" />
               </div>
               <p>
                 {ru

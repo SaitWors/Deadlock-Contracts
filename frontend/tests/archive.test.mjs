@@ -131,6 +131,73 @@ function pointer(w, element, type, x, y = 100) {
   element.dispatchEvent(event)
 }
 
+function animationEnd(doc, element, name = "pack-scene") {
+  const event = new doc.defaultView.Event("animationend", { bubbles: true })
+  Object.defineProperty(event, "animationName", { value: name })
+  element.dispatchEvent(event)
+}
+
+test("opening waits for the complete tear and fan sequence, ignores child animations and can skip", async () => {
+  const { api, doc } = runtime(async () => {
+    throw new Error("reveal must not buy again")
+  }, "en")
+  let root
+  await api.act(async () => {
+    root = api.mount(doc.getElementById("mount"), "receipt", {
+      receipt: packReceipt("timeline", [receiptItem("one", "One"), receiptItem("two", "Two")]),
+      cinematic: true,
+    })
+  })
+  await api.act(async () => button(doc, "Reveal cards").click())
+  await api.act(async () => button(doc, "Break the seal").click())
+  await api.act(async () => await new Promise((resolve) => setTimeout(resolve, 650)))
+  assert.equal(doc.querySelector(".pack-reveal-shell").dataset.stage, "opening")
+  assert.equal(doc.querySelectorAll(".pack-fan-back").length, 2)
+  await api.act(async () => animationEnd(doc, doc.querySelector(".pack-tear-strip"), "pack-rip"))
+  assert.equal(doc.querySelector(".pack-reveal-shell").dataset.stage, "opening")
+  await api.act(async () => animationEnd(doc, doc.querySelector(".pack-opening-scene")))
+  assert.ok(doc.querySelector("button[aria-label='Reveal card']"))
+  await api.act(async () => button(doc, "Skip to results").click())
+  assert.equal(doc.querySelectorAll("dialog .archive-card").length, 2)
+  await api.act(async () => root.unmount())
+})
+
+test("a revealed card responds to touch with a moving highlight and resets it on cancel", async () => {
+  const { api, doc, w } = runtime(async () => response({}), "en")
+  let root
+  await api.act(async () => {
+    root = api.mount(doc.getElementById("mount"), "receipt", {
+      receipt: packReceipt("touch-shine", [receiptItem("one", "Foil", "SSS")]),
+      cinematic: true,
+    })
+  })
+  await api.act(async () => button(doc, "Reveal cards").click())
+  await api.act(async () => button(doc, "Break the seal").click())
+  await api.act(async () => animationEnd(doc, doc.querySelector(".pack-opening-scene")))
+  await api.act(async () => doc.querySelector(".card-surface-control").click())
+  const surface = doc.querySelector(".card-surface")
+  surface.getBoundingClientRect = () => ({ left: 0, top: 0, width: 200, height: 300 })
+  const control = doc.querySelector(".card-surface-control")
+  await api.act(async () => {
+    pointer(w, control, "pointerdown", 100, 100)
+    pointer(w, control, "pointermove", 150, 100)
+  })
+  assert.equal(surface.style.getPropertyValue("--shine-x"), "75%")
+  assert.ok(surface.querySelector(".card-surface-glare"))
+  await api.act(async () => pointer(w, control, "pointercancel", 150, 100))
+  assert.equal(surface.style.getPropertyValue("--shine-x"), "")
+  await api.act(async () => button(doc, "Skip to results").click())
+  const resultSurface = doc.querySelector(".pack-reveal-results .card-surface")
+  resultSurface.getBoundingClientRect = () => ({ left: 0, top: 0, width: 200, height: 300 })
+  assert.equal(resultSurface.querySelector("button"), null)
+  await api.act(async () => {
+    pointer(w, resultSurface, "pointerdown", 100, 100)
+    pointer(w, resultSurface, "pointermove", 150, 100)
+  })
+  assert.equal(resultSurface.style.getPropertyValue("--shine-x"), "75%")
+  await api.act(async () => root.unmount())
+})
+
 test("stacked cards require a flip and only a horizontal revealed swipe advances", async () => {
   const calls = []
   const { api, doc, w } = runtime(async (...args) => {
@@ -149,7 +216,7 @@ test("stacked cards require a flip and only a horizontal revealed swipe advances
   })
   await api.act(async () => button(doc, "Reveal cards").click())
   await api.act(async () => button(doc, "Break the seal").click())
-  await api.act(async () => await new Promise((resolve) => setTimeout(resolve, 600)))
+  await api.act(async () => animationEnd(doc, doc.querySelector(".pack-opening-scene")))
   const flip = () => doc.querySelector("button[aria-label='Reveal card']")
   assert.ok(flip(), "a face-down card must offer a named flip control")
   assert.equal(doc.querySelector(".card-surface-front").getAttribute("aria-hidden"), "true")
@@ -325,7 +392,7 @@ test("a pending favorite swipe cannot advance after skipping and never buys agai
   })
   await api.act(async () => button(doc, "Reveal cards").click())
   await api.act(async () => button(doc, "Break the seal").click())
-  await api.act(async () => await new Promise((resolve) => setTimeout(resolve, 600)))
+  await api.act(async () => animationEnd(doc, doc.querySelector(".pack-opening-scene")))
   await api.act(async () => doc.querySelector("button[aria-label='Reveal card']").click())
   await api.act(async () => {
     const control = doc.querySelector(".card-surface-control")
@@ -584,7 +651,7 @@ test("opening stages move focus to the available keyboard action", async () => {
   })
   await api.act(async () => button(doc, "Reveal cards")?.click())
   await api.act(async () => button(doc, "Break the seal").click())
-  await api.act(async () => await new Promise((resolve) => setTimeout(resolve, 600)))
+  await api.act(async () => animationEnd(doc, doc.querySelector(".pack-opening-scene")))
   const flip = doc.querySelector("button[aria-label='Reveal card']")
   assert.equal(doc.activeElement, flip)
   await api.act(async () => flip.click())
@@ -610,7 +677,7 @@ test("close, cancel and unmount each clear the pending opening timer", async () 
   const clearedOpeningTimers = new Set()
   w.setTimeout = (callback, delay, ...args) => {
     const timer = nativeSetTimeout(callback, delay, ...args)
-    if (delay === 550) openingTimers.push(timer)
+    if (delay === 3600) openingTimers.push(timer)
     return timer
   }
   w.clearTimeout = (timer) => {
