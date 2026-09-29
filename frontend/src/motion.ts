@@ -1,6 +1,7 @@
 import { useCallback } from "react"
 
 export const prefersReducedMotion = () =>
+  document.documentElement.dataset.motion === "reduced" ||
   window.matchMedia("(prefers-reduced-motion: reduce)").matches
 
 export function useRipple() {

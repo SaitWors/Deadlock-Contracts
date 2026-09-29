@@ -1,3 +1,4 @@
+import { useAdminCopy } from "./admin-copy"
 import { useCallback, useEffect, useMemo, useState } from "react"
 import {
   cancelAnnouncement,
@@ -119,33 +120,8 @@ function toIso(value: string) {
   return Number.isFinite(timestamp) ? new Date(timestamp).toISOString() : ""
 }
 
-function fmt(value: string | null) {
-  if (!value) return "—"
-  const date = new Date(value)
-  return Number.isFinite(date.getTime()) ? date.toLocaleString() : "—"
-}
-
 function hasPermission(permissions: string[], permission: string) {
   return permissions.includes("*") || permissions.includes(permission)
-}
-
-function phaseLabel(phase: string) {
-  const labels: Record<string, string> = {
-    DRAFT: "Черновик",
-    SCHEDULED: "Запланировано",
-    ACTIVE: "Активно",
-    EXPIRED: "Истекло",
-    CANCELLED: "Отменено",
-    ARCHIVED: "Архив",
-  }
-  return labels[phase] || phase
-}
-
-function durationText(start: string, end: string) {
-  const duration = Date.parse(end) - Date.parse(start)
-  if (!Number.isFinite(duration) || duration <= 0) return "Некорректный интервал"
-  const hours = duration / 3_600_000
-  return hours < 48 ? `${hours.toFixed(hours % 1 ? 1 : 0)} ч` : `${(hours / 24).toFixed(1)} дн`
 }
 
 export default function AnnouncementCenter({
@@ -159,6 +135,34 @@ export default function AnnouncementCenter({
   setError: (value: string) => void
   setNotice: (value: string) => void
 }) {
+  const { copy, language, locale } = useAdminCopy()
+  function fmt(value: string | null) {
+    if (!value) return "—"
+    const date = new Date(value)
+    return Number.isFinite(date.getTime()) ? date.toLocaleString(locale) : "—"
+  }
+
+  function phaseLabel(phase: string) {
+    const labels: Record<string, string> = {
+      DRAFT: copy("Черновик"),
+      SCHEDULED: copy("Запланировано"),
+      ACTIVE: copy("Активно"),
+      EXPIRED: copy("Истекло"),
+      CANCELLED: copy("Отменено"),
+      ARCHIVED: copy("Архив"),
+    }
+    return labels[phase] || phase
+  }
+
+  function durationText(start: string, end: string) {
+    const duration = Date.parse(end) - Date.parse(start)
+    if (!Number.isFinite(duration) || duration <= 0) return copy("Некорректный интервал")
+    const hours = duration / 3_600_000
+    return hours < 48
+      ? copy("{0} ч", { 0: hours.toFixed(hours % 1 ? 1 : 0) })
+      : copy("{0} дн", { 0: (hours / 24).toFixed(1) })
+  }
+
   const [data, setData] = useState<AnnouncementListResponse | null>(null)
   const [phase, setPhase] = useState("ALL")
   const [severity, setSeverity] = useState("ALL")
@@ -171,7 +175,7 @@ export default function AnnouncementCenter({
   const [endsAt, setEndsAt] = useState(() => localInput(null, 4))
   const [reason, setReason] = useState("")
   const [confirmText, setConfirmText] = useState("")
-  const [previewLocale, setPreviewLocale] = useState<"ru" | "en">("ru")
+  const [previewLocale, setPreviewLocale] = useState<"ru" | "en">(language)
   const [previewDevice, setPreviewDevice] = useState<
     "desktop" | "mobile" | "companion" | "overlay"
   >("desktop")
@@ -234,7 +238,7 @@ export default function AnnouncementCenter({
   const startNew = () => {
     if (
       hasUnsavedDraft &&
-      !window.confirm("Несохранённые изменения будут потеряны. Создать новый черновик?")
+      !window.confirm(copy("Несохранённые изменения будут потеряны. Создать новый черновик?"))
     ) {
       return
     }
@@ -251,7 +255,7 @@ export default function AnnouncementCenter({
     if (!canManage || locked) return
     if (selected && !draftDirty) return
     if (draft.title_ru.trim().length < 3 || draft.body_ru.trim().length < 3) {
-      setError("Русские заголовок и текст должны содержать минимум 3 символа.")
+      setError(copy("Русские заголовок и текст должны содержать минимум 3 символа."))
       return
     }
     setBusy(true)
@@ -260,7 +264,7 @@ export default function AnnouncementCenter({
         ? await updateAnnouncement(csrf, selected, draft)
         : await createAnnouncement(csrf, draft)
       choose(response.item)
-      setNotice(selected ? "Черновик сохранён." : "Черновик создан.")
+      setNotice(selected ? copy("Черновик сохранён.") : copy("Черновик создан."))
       await load()
     } catch (error) {
       setError((error as Error).message)
@@ -273,15 +277,15 @@ export default function AnnouncementCenter({
     const starts_at = toIso(startsAt)
     const ends_at = toIso(endsAt)
     if (!starts_at || !ends_at || Date.parse(ends_at) <= Date.parse(starts_at)) {
-      setError("Окончание показа должно быть позже начала.")
+      setError(copy("Окончание показа должно быть позже начала."))
       return null
     }
     if (reason.trim().length < 3) {
-      setError("Укажите причину публикации минимум из 3 символов.")
+      setError(copy("Укажите причину публикации минимум из 3 символов."))
       return null
     }
     if (confirmText !== "PUBLISH") {
-      setError("Для публикации введите PUBLISH.")
+      setError(copy("Для публикации введите PUBLISH."))
       return null
     }
     return { starts_at, ends_at, reason: reason.trim() }
@@ -290,7 +294,7 @@ export default function AnnouncementCenter({
   const publish = async (asReplacement: boolean) => {
     if (!selected || selected.status !== "DRAFT" || !canPublish) return
     if (draftDirty) {
-      setError("Сначала сохраните изменения черновика, затем публикуйте проверенную версию.")
+      setError(copy("Сначала сохраните изменения черновика, затем публикуйте проверенную версию."))
       return
     }
     const input = publicationInput()
@@ -302,16 +306,16 @@ export default function AnnouncementCenter({
           ? (await getAnnouncement(csrf, selected.supersedes_id)).item
           : null
         if (!previous || previous.status !== "PUBLISHED") {
-          setError("Исходное опубликованное уведомление не найдено в текущем списке.")
+          setError(copy("Исходное опубликованное уведомление не найдено в текущем списке."))
           return
         }
         const response = await replaceAnnouncement(csrf, previous, selected, input)
         choose(response.replacement)
-        setNotice("Старое уведомление отменено, исправленная версия опубликована.")
+        setNotice(copy("Старое уведомление отменено, исправленная версия опубликована."))
       } else {
         const response = await publishAnnouncement(csrf, selected, input)
         choose(response.item)
-        setNotice("Уведомление опубликовано или поставлено в расписание.")
+        setNotice(copy("Уведомление опубликовано или поставлено в расписание."))
       }
       await load()
     } catch (error) {
@@ -324,15 +328,15 @@ export default function AnnouncementCenter({
   const cancel = async () => {
     if (!selected || selected.status !== "PUBLISHED" || !canCancel) return
     if (reason.trim().length < 3) {
-      setError("Укажите причину отмены минимум из 3 символов.")
+      setError(copy("Укажите причину отмены минимум из 3 символов."))
       return
     }
-    if (!window.confirm(`Отменить «${selected.title_ru}» немедленно?`)) return
+    if (!window.confirm(copy("Отменить «{0}» немедленно?", { 0: selected.title_ru }))) return
     setBusy(true)
     try {
       const response = await cancelAnnouncement(csrf, selected, reason.trim())
       choose(response.item)
-      setNotice("Уведомление отменено.")
+      setNotice(copy("Уведомление отменено."))
       await load()
     } catch (error) {
       setError((error as Error).message)
@@ -347,7 +351,9 @@ export default function AnnouncementCenter({
     try {
       const response = await duplicateAnnouncement(csrf, selected)
       choose(response.item)
-      setNotice("Создана редактируемая копия. После проверки её можно опубликовать как замену.")
+      setNotice(
+        copy("Создана редактируемая копия. После проверки её можно опубликовать как замену."),
+      )
       await load()
     } catch (error) {
       setError((error as Error).message)
@@ -360,14 +366,14 @@ export default function AnnouncementCenter({
     if (!selected || selected.status !== "PUBLISHED" || !canCancel) return
     const ends_at = toIso(endsAt)
     if (!ends_at || reason.trim().length < 3) {
-      setError("Проверьте новое окончание и укажите причину.")
+      setError(copy("Проверьте новое окончание и укажите причину."))
       return
     }
     setBusy(true)
     try {
       const response = await changeAnnouncementEndTime(csrf, selected, ends_at, reason.trim())
       choose(response.item)
-      setNotice("Время окончания изменено.")
+      setNotice(copy("Время окончания изменено."))
       await load()
     } catch (error) {
       setError((error as Error).message)
@@ -419,31 +425,35 @@ export default function AnnouncementCenter({
     startTimestamp < Date.now() - 60_000
   const summary = useMemo(
     () => ({
-      audience: draft.audiences.join(", ") || "не выбрана",
-      surfaces: draft.surfaces.join(", ") || "не выбраны",
+      audience: draft.audiences.map((value) => copy(value)).join(", ") || copy("не выбрана"),
+      surfaces: draft.surfaces.map((value) => copy(value)).join(", ") || copy("не выбраны"),
       duration: durationText(startsAt, endsAt),
     }),
-    [draft.audiences, draft.surfaces, endsAt, startsAt],
+    [copy, draft.audiences, draft.surfaces, endsAt, startsAt],
   )
 
   return (
     <section className="dc-announcement-admin">
       <header className="dc-announcement-admin__head">
         <div>
-          <p className="dc-eyebrow">SYSTEM ANNOUNCEMENTS / CONTROL PLANE</p>
-          <h2>Центр уведомлений</h2>
-          <p>Черновики, расписание, безопасный preview, аудит публикаций и базовые метрики.</p>
+          <p className="dc-eyebrow">{copy("SYSTEM ANNOUNCEMENTS / CONTROL PLANE")}</p>
+          <h2>{copy("Центр уведомлений")}</h2>
+          <p>
+            {copy("Черновики, расписание, безопасный preview, аудит публикаций и базовые метрики.")}
+          </p>
         </div>
         {canManage && (
           <button className="dc-primary" type="button" onClick={startNew}>
-            + СОЗДАТЬ УВЕДОМЛЕНИЕ
+            {copy("+ СОЗДАТЬ УВЕДОМЛЕНИЕ")}
           </button>
         )}
       </header>
 
       {data && (!data.feature_flags.enabled || !data.feature_flags.site) && (
         <div className="dc-announcement-admin__flag-warning" role="status">
-          Публичный показ выключен feature flags: записи сохраняются, но сайт их пока не отдаёт.
+          {copy(
+            "Публичный показ выключен feature flags: записи сохраняются, но сайт их пока не отдаёт.",
+          )}
         </div>
       )}
 
@@ -460,38 +470,58 @@ export default function AnnouncementCenter({
         <input
           value={query}
           onChange={(event) => setQuery(event.target.value)}
-          placeholder="Заголовок, текст или ID"
+          placeholder={copy("Заголовок, текст или ID")}
         />
         <input
           value={author}
           onChange={(event) => setAuthor(event.target.value)}
-          placeholder="Автор или ID автора"
+          placeholder={copy("Автор или ID автора")}
         />
-        <select value={phase} onChange={(event) => setPhase(event.target.value)}>
+        <select
+          aria-label={copy("Статус")}
+          value={phase}
+          onChange={(event) => setPhase(event.target.value)}
+        >
           {PHASES.map((value) => (
-            <option key={value}>{value}</option>
+            <option key={value} value={value}>
+              {copy(value)}
+            </option>
           ))}
         </select>
-        <select value={severity} onChange={(event) => setSeverity(event.target.value)}>
-          <option>ALL</option>
+        <select
+          aria-label={copy("Severity")}
+          value={severity}
+          onChange={(event) => setSeverity(event.target.value)}
+        >
+          <option value="ALL">{copy("ALL")}</option>
           {SEVERITIES.map((value) => (
-            <option key={value}>{value}</option>
+            <option key={value} value={value}>
+              {copy(value)}
+            </option>
           ))}
         </select>
-        <select value={surface} onChange={(event) => setSurface(event.target.value)}>
-          <option>ALL</option>
+        <select
+          aria-label={copy("Поверхности")}
+          value={surface}
+          onChange={(event) => setSurface(event.target.value)}
+        >
+          <option value="ALL">{copy("ALL")}</option>
           {SURFACES.map((value) => (
-            <option key={value}>{value}</option>
+            <option key={value} value={value}>
+              {copy(value)}
+            </option>
           ))}
         </select>
         <button className="dc-ghost" type="button" onClick={() => void load()}>
-          ОБНОВИТЬ
+          {copy("ОБНОВИТЬ")}
         </button>
       </div>
 
       <div className="dc-announcement-admin__workspace">
-        <aside className="dc-announcement-admin__list" aria-label="Список уведомлений">
-          <small>{data?.total || 0} записей</small>
+        <aside className="dc-announcement-admin__list" aria-label={copy("Список уведомлений")}>
+          <small>
+            {data?.total || 0} {copy(" записей")}
+          </small>
           {data?.items.map((item) => (
             <button
               type="button"
@@ -500,7 +530,9 @@ export default function AnnouncementCenter({
               onClick={() => {
                 if (
                   hasUnsavedDraft &&
-                  !window.confirm("Несохранённые изменения будут потеряны. Открыть другую запись?")
+                  !window.confirm(
+                    copy("Несохранённые изменения будут потеряны. Открыть другую запись?"),
+                  )
                 ) {
                   return
                 }
@@ -510,9 +542,10 @@ export default function AnnouncementCenter({
               <span className={`phase phase-${item.phase.toLowerCase()}`}>
                 {phaseLabel(item.phase)}
               </span>
-              <b>{item.title_ru}</b>
+              <b>{language === "en" && item.title_en ? item.title_en : item.title_ru}</b>
               <em>
-                {item.severity} · {item.presentation} · P{item.priority}
+                {item.severity} · {item.presentation} {copy(" · P")}
+                {item.priority}
               </em>
               <small>
                 {fmt(item.starts_at)} → {fmt(item.ends_at)}
@@ -521,11 +554,14 @@ export default function AnnouncementCenter({
                 {item.effect} · {item.surfaces.join(", ")} · {item.audiences.join(", ")}
               </small>
               <small>
-                {item.created_by?.display_name || "—"} · rev {item.revision}
+                {item.created_by?.display_name || "—"} {copy(" · rev ")}
+                {item.revision}
               </small>
             </button>
           ))}
-          {!data?.items.length && <div className="dc-admin-empty">Ничего не найдено.</div>}
+          {!data?.items.length && (
+            <div className="dc-admin-empty">{copy("Ничего не найдено.")}</div>
+          )}
         </aside>
 
         <div className="dc-announcement-admin__editor">
@@ -533,10 +569,10 @@ export default function AnnouncementCenter({
             <section>
               <header>
                 <span>01</span>
-                <h3>Содержание</h3>
+                <h3>{copy("Содержание")}</h3>
               </header>
               <label>
-                <span>Заголовок RU *</span>
+                <span>{copy("Заголовок RU *")}</span>
                 <input
                   maxLength={160}
                   disabled={locked}
@@ -545,7 +581,7 @@ export default function AnnouncementCenter({
                 />
               </label>
               <label>
-                <span>Текст RU *</span>
+                <span>{copy("Текст RU *")}</span>
                 <textarea
                   rows={5}
                   maxLength={2000}
@@ -556,7 +592,7 @@ export default function AnnouncementCenter({
               </label>
               <div className="dc-announcement-admin__two">
                 <label>
-                  <span>Заголовок EN</span>
+                  <span>{copy("Заголовок EN")}</span>
                   <input
                     maxLength={160}
                     disabled={locked}
@@ -565,18 +601,18 @@ export default function AnnouncementCenter({
                   />
                 </label>
                 <label>
-                  <span>CTA URL</span>
+                  <span>{copy("CTA URL")}</span>
                   <input
                     maxLength={500}
                     disabled={locked}
-                    placeholder="/status или HTTPS текущего сайта"
+                    placeholder={copy("/status или HTTPS текущего сайта")}
                     value={draft.cta_url}
                     onChange={(event) => setDraft({ ...draft, cta_url: event.target.value })}
                   />
                 </label>
               </div>
               <label>
-                <span>Текст EN</span>
+                <span>{copy("Текст EN")}</span>
                 <textarea
                   rows={4}
                   maxLength={2000}
@@ -587,7 +623,7 @@ export default function AnnouncementCenter({
               </label>
               <div className="dc-announcement-admin__two">
                 <label>
-                  <span>CTA RU</span>
+                  <span>{copy("CTA RU")}</span>
                   <input
                     maxLength={64}
                     disabled={locked}
@@ -596,7 +632,7 @@ export default function AnnouncementCenter({
                   />
                 </label>
                 <label>
-                  <span>CTA EN</span>
+                  <span>{copy("CTA EN")}</span>
                   <input
                     maxLength={64}
                     disabled={locked}
@@ -610,11 +646,11 @@ export default function AnnouncementCenter({
             <section>
               <header>
                 <span>02</span>
-                <h3>Вид и поведение</h3>
+                <h3>{copy("Вид и поведение")}</h3>
               </header>
               <div className="dc-announcement-admin__three">
                 <label>
-                  <span>Severity</span>
+                  <span>{copy("Severity")}</span>
                   <select
                     disabled={locked}
                     value={draft.severity}
@@ -626,12 +662,14 @@ export default function AnnouncementCenter({
                     }
                   >
                     {SEVERITIES.map((value) => (
-                      <option key={value}>{value}</option>
+                      <option key={value} value={value}>
+                        {copy(value)}
+                      </option>
                     ))}
                   </select>
                 </label>
                 <label>
-                  <span>Presentation</span>
+                  <span>{copy("Presentation")}</span>
                   <select
                     disabled={locked}
                     value={draft.presentation}
@@ -643,12 +681,14 @@ export default function AnnouncementCenter({
                     }
                   >
                     {PRESENTATIONS.map((value) => (
-                      <option key={value}>{value}</option>
+                      <option key={value} value={value}>
+                        {copy(value)}
+                      </option>
                     ))}
                   </select>
                 </label>
                 <label>
-                  <span>Effect</span>
+                  <span>{copy("Effect")}</span>
                   <select
                     disabled={locked}
                     value={draft.effect}
@@ -660,14 +700,16 @@ export default function AnnouncementCenter({
                     }
                   >
                     {EFFECTS.map((value) => (
-                      <option key={value}>{value}</option>
+                      <option key={value} value={value}>
+                        {copy(value)}
+                      </option>
                     ))}
                   </select>
                 </label>
               </div>
               <div className="dc-announcement-admin__two">
                 <label>
-                  <span>Закрытие</span>
+                  <span>{copy("Закрытие")}</span>
                   <select
                     disabled={locked}
                     value={draft.dismiss_policy}
@@ -680,12 +722,17 @@ export default function AnnouncementCenter({
                     }
                   >
                     {DISMISS_POLICIES.map((value) => (
-                      <option key={value}>{value}</option>
+                      <option key={value} value={value}>
+                        {copy(value)}
+                      </option>
                     ))}
                   </select>
                 </label>
                 <label>
-                  <span>Priority: {draft.priority}</span>
+                  <span>
+                    {copy("Priority: ")}
+                    {draft.priority}
+                  </span>
                   <input
                     type="range"
                     min="0"
@@ -705,16 +752,16 @@ export default function AnnouncementCenter({
                   checked={draft.show_countdown}
                   onChange={(event) => setDraft({ ...draft, show_countdown: event.target.checked })}
                 />
-                <span>Показывать обратный отсчёт</span>
+                <span>{copy("Показывать обратный отсчёт")}</span>
               </label>
             </section>
 
             <section>
               <header>
                 <span>03</span>
-                <h3>Кому и где</h3>
+                <h3>{copy("Кому и где")}</h3>
               </header>
-              <p className="dc-announcement-admin__label">Поверхности</p>
+              <p className="dc-announcement-admin__label">{copy("Поверхности")}</p>
               <div className="dc-announcement-admin__checks">
                 {SURFACES.map((value) => (
                   <label key={value}>
@@ -724,11 +771,11 @@ export default function AnnouncementCenter({
                       checked={draft.surfaces.includes(value)}
                       onChange={() => toggleSurface(value)}
                     />
-                    <span>{value}</span>
+                    <span>{copy(value)}</span>
                   </label>
                 ))}
               </div>
-              <p className="dc-announcement-admin__label">Аудитории</p>
+              <p className="dc-announcement-admin__label">{copy("Аудитории")}</p>
               <div className="dc-announcement-admin__checks">
                 {AUDIENCES.map((value) => (
                   <label key={value}>
@@ -738,24 +785,25 @@ export default function AnnouncementCenter({
                       checked={draft.audiences.includes(value)}
                       onChange={() => toggleAudience(value)}
                     />
-                    <span>{value}</span>
+                    <span>{copy(value)}</span>
                   </label>
                 ))}
               </div>
               <small>
-                Фильтрация выполняется сервером: STAFF/TESTERS никогда не отдаются посторонним
-                клиентам.
+                {copy(
+                  "Фильтрация выполняется сервером: STAFF/TESTERS никогда не отдаются посторонним клиентам.",
+                )}
               </small>
             </section>
 
             <section>
               <header>
                 <span>04</span>
-                <h3>Расписание и подтверждение</h3>
+                <h3>{copy("Расписание и подтверждение")}</h3>
               </header>
               <div className="dc-announcement-admin__two">
                 <label>
-                  <span>Начало (ваше локальное время)</span>
+                  <span>{copy("Начало (ваше локальное время)")}</span>
                   <input
                     type="datetime-local"
                     disabled={selected?.status === "PUBLISHED"}
@@ -764,7 +812,7 @@ export default function AnnouncementCenter({
                   />
                 </label>
                 <label>
-                  <span>Окончание (ваше локальное время)</span>
+                  <span>{copy("Окончание (ваше локальное время)")}</span>
                   <input
                     type="datetime-local"
                     value={endsAt}
@@ -774,12 +822,13 @@ export default function AnnouncementCenter({
               </div>
               <div className="dc-announcement-admin__utc">
                 <span>
-                  UTC: {toIso(startsAt) || "—"} → {toIso(endsAt) || "—"}
+                  {copy("UTC: ")}
+                  {toIso(startsAt) || "—"} → {toIso(endsAt) || "—"}
                 </span>
                 <b>{summary.duration}</b>
               </div>
               <label>
-                <span>Причина для AuditLog *</span>
+                <span>{copy("Причина для AuditLog *")}</span>
                 <textarea
                   rows={2}
                   maxLength={300}
@@ -789,7 +838,7 @@ export default function AnnouncementCenter({
               </label>
               {selected?.status === "DRAFT" && canPublish && (
                 <label>
-                  <span>Введите PUBLISH</span>
+                  <span>{copy("Введите PUBLISH")}</span>
                   <input
                     autoComplete="off"
                     value={confirmText}
@@ -798,20 +847,32 @@ export default function AnnouncementCenter({
                 </label>
               )}
               <div className="dc-announcement-admin__summary">
-                <b>Проверка перед публикацией</b>
-                <span>Увидят: {summary.audience}</span>
-                <span>Поверхности: {summary.surfaces}</span>
+                <b>{copy("Проверка перед публикацией")}</b>
                 <span>
-                  Формат: {draft.severity} / {draft.presentation} / {draft.effect}
+                  {copy("Увидят: ")}
+                  {summary.audience}
                 </span>
-                <span>Закрытие: {draft.dismiss_policy}</span>
+                <span>
+                  {copy("Поверхности: ")}
+                  {summary.surfaces}
+                </span>
+                <span>
+                  {copy("Формат: ")}
+                  {draft.severity} / {draft.presentation} / {draft.effect}
+                </span>
+                <span>
+                  {copy("Закрытие: ")}
+                  {draft.dismiss_policy}
+                </span>
                 {startsInPast && (
                   <strong>
-                    Начало уже прошло — после публикации сообщение станет активным сразу.
+                    {copy("Начало уже прошло — после публикации сообщение станет активным сразу.")}
                   </strong>
                 )}
                 {draftDirty && (
-                  <strong>Есть несохранённые изменения — публикация заблокирована.</strong>
+                  <strong>
+                    {copy("Есть несохранённые изменения — публикация заблокирована.")}
+                  </strong>
                 )}
               </div>
             </section>
@@ -824,7 +885,7 @@ export default function AnnouncementCenter({
                   type="button"
                   onClick={() => void save()}
                 >
-                  {selected ? "СОХРАНИТЬ ЧЕРНОВИК" : "СОЗДАТЬ ЧЕРНОВИК"}
+                  {selected ? copy("СОХРАНИТЬ ЧЕРНОВИК") : copy("СОЗДАТЬ ЧЕРНОВИК")}
                 </button>
               )}
               {selected?.status === "DRAFT" && canPublish && (
@@ -834,7 +895,7 @@ export default function AnnouncementCenter({
                   type="button"
                   onClick={() => void publish(false)}
                 >
-                  ОПУБЛИКОВАТЬ
+                  {copy("ОПУБЛИКОВАТЬ")}
                 </button>
               )}
               {selected?.status === "DRAFT" && canPublish && canReplace && (
@@ -844,7 +905,7 @@ export default function AnnouncementCenter({
                   type="button"
                   onClick={() => void publish(true)}
                 >
-                  ОПУБЛИКОВАТЬ КАК ЗАМЕНУ
+                  {copy("ОПУБЛИКОВАТЬ КАК ЗАМЕНУ")}
                 </button>
               )}
               {selected && canManage && (
@@ -854,7 +915,7 @@ export default function AnnouncementCenter({
                   type="button"
                   onClick={() => void duplicate()}
                 >
-                  СОЗДАТЬ КОПИЮ
+                  {copy("СОЗДАТЬ КОПИЮ")}
                 </button>
               )}
               {selected?.status === "PUBLISHED" && canCancel && (
@@ -864,7 +925,7 @@ export default function AnnouncementCenter({
                   type="button"
                   onClick={() => void changeEnd()}
                 >
-                  ИЗМЕНИТЬ ОКОНЧАНИЕ
+                  {copy("ИЗМЕНИТЬ ОКОНЧАНИЕ")}
                 </button>
               )}
               {selected?.status === "PUBLISHED" && canCancel && (
@@ -874,7 +935,7 @@ export default function AnnouncementCenter({
                   type="button"
                   onClick={() => void cancel()}
                 >
-                  ОТМЕНИТЬ
+                  {copy("ОТМЕНИТЬ")}
                 </button>
               )}
             </div>
@@ -886,24 +947,24 @@ export default function AnnouncementCenter({
                 value={previewDevice}
                 onChange={(event) => setPreviewDevice(event.target.value as typeof previewDevice)}
               >
-                <option value="desktop">Desktop site</option>
-                <option value="mobile">Mobile site</option>
-                <option value="companion">Companion desktop</option>
-                <option value="overlay">Overlay</option>
+                <option value="desktop">{copy("Desktop site")}</option>
+                <option value="mobile">{copy("Mobile site")}</option>
+                <option value="companion">{copy("Companion desktop")}</option>
+                <option value="overlay">{copy("Overlay")}</option>
               </select>
               <button
                 type="button"
                 className={previewLocale === "ru" ? "active" : ""}
                 onClick={() => setPreviewLocale("ru")}
               >
-                RU
+                {copy("RU")}
               </button>
               <button
                 type="button"
                 className={previewLocale === "en" ? "active" : ""}
                 onClick={() => setPreviewLocale("en")}
               >
-                EN
+                {copy("EN")}
               </button>
               <label>
                 <input
@@ -911,7 +972,7 @@ export default function AnnouncementCenter({
                   checked={reducedMotion}
                   onChange={(event) => setReducedMotion(event.target.checked)}
                 />{" "}
-                Reduced motion
+                {copy("Reduced motion")}
               </label>
             </div>
             <div
@@ -921,56 +982,57 @@ export default function AnnouncementCenter({
                 className={`notice severity-${draft.severity.toLowerCase()} effect-${draft.effect.toLowerCase()}`}
               >
                 <span>{draft.severity}</span>
-                <h3>{previewTitle || "Заголовок уведомления"}</h3>
-                <p>{previewBody || "Здесь появится безопасный текстовый preview."}</p>
+                <h3>{previewTitle || copy("Заголовок уведомления")}</h3>
+                <p>{previewBody || copy("Здесь появится безопасный текстовый preview.")}</p>
                 {draft.cta_url && (
                   <button type="button">
                     {previewLocale === "en"
                       ? draft.cta_label_en || draft.cta_label_ru
-                      : draft.cta_label_ru || "Подробнее"}
+                      : draft.cta_label_ru || copy("Подробнее")}
                   </button>
                 )}
               </div>
             </div>
             {selected && (
               <div className="dc-announcement-admin__meta">
-                <span>ID</span>
+                <span>{copy("ID")}</span>
                 <code>{selected.id}</code>
-                <span>Revision</span>
+                <span>{copy("Revision")}</span>
                 <b>{selected.revision}</b>
-                <span>Статус</span>
+                <span>{copy("Статус")}</span>
                 <b>{selected.phase}</b>
-                <span>Создал</span>
+                <span>{copy("Создал")}</span>
                 <b>{selected.created_by?.display_name || "—"}</b>
-                <span>Обновлено</span>
+                <span>{copy("Обновлено")}</span>
                 <b>{fmt(selected.updated_at)}</b>
               </div>
             )}
             {selected && canReadMetrics && (
               <button className="dc-ghost" type="button" onClick={() => void loadMetrics()}>
-                ЗАГРУЗИТЬ МЕТРИКИ
+                {copy("ЗАГРУЗИТЬ МЕТРИКИ")}
               </button>
             )}
             {metrics && (
               <div className="dc-announcement-admin__metrics">
                 <article>
-                  <span>Увидели</span>
+                  <span>{copy("Увидели")}</span>
                   <b>{metrics.totals.seen_users}</b>
                 </article>
                 <article>
-                  <span>Показы</span>
+                  <span>{copy("Показы")}</span>
                   <b>{metrics.totals.impressions}</b>
                 </article>
                 <article>
-                  <span>Закрыли</span>
+                  <span>{copy("Закрыли")}</span>
                   <b>{metrics.totals.dismissed_users}</b>
                 </article>
                 <article>
-                  <span>Подтвердили</span>
+                  <span>{copy("Подтвердили")}</span>
                   <b>{metrics.totals.acknowledged_users}</b>
                 </article>
                 <p>
-                  ACK rate: <b>{metrics.acknowledgement_rate}%</b>
+                  {copy("ACK rate: ")}
+                  <b>{metrics.acknowledgement_rate}%</b>
                 </p>
               </div>
             )}

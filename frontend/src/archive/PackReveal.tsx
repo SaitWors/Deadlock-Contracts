@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type CSSProperties } from "react"
 import Icon from "../icons/Icon"
 import { useLanguage } from "../i18n"
+import { useReducedMotion } from "../Appearance"
 import Regalia from "../regalia/Regalia"
 import CardSurface from "./CardSurface"
 import { FavoriteButton, FavoriteError, type FavoriteControls } from "./favorites"
@@ -33,7 +34,7 @@ export default function PackReveal({
   const [saving, setSaving] = useState(false)
   const [completed, setCompleted] = useState(false)
   const [showInlineResults, setShowInlineResults] = useState(false)
-  const [reduced, setReduced] = useState(false)
+  const reduced = useReducedMotion()
 
   const clearTimer = () => {
     if (timerRef.current !== null) window.clearTimeout(timerRef.current)
@@ -53,18 +54,9 @@ export default function PackReveal({
     setCompleted(true)
   }
   useEffect(() => {
-    const media = matchMedia("(prefers-reduced-motion: reduce)")
-    const update = () => {
-      setReduced(media.matches)
-      if (media.matches && dialogRef.current?.open) results()
-    }
-    update()
-    media.addEventListener("change", update)
-    return () => {
-      invalidate()
-      media.removeEventListener("change", update)
-    }
-  }, [])
+    if (reduced && dialogRef.current?.open) results()
+  }, [reduced])
+  useEffect(() => () => invalidate(), [])
   useEffect(() => {
     invalidate()
     setStage("sealed")

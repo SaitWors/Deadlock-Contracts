@@ -1,3 +1,4 @@
+import { useAdminCopy } from "./admin-copy"
 import "./review-stage3.css"
 import { useCallback, useEffect, useMemo, useState } from "react"
 import { AdminApiError, adminApi } from "./admin-api"
@@ -28,78 +29,10 @@ function reviewIdFromPath(): string | null {
   return match?.[1] || null
 }
 
-function fmt(value: string | null | undefined) {
-  if (!value) return "—"
-  const date = new Date(value)
-  if (Number.isNaN(date.getTime())) return "—"
-  return date.toLocaleString("ru-RU", {
-    day: "2-digit",
-    month: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-  })
-}
-
-function ageLabel(value: string) {
-  const created = new Date(value).getTime()
-  if (!Number.isFinite(created)) return "—"
-  const seconds = Math.max(0, Math.floor((Date.now() - created) / 1000))
-  if (seconds < 60) return `${seconds}с`
-  if (seconds < 3600) return `${Math.floor(seconds / 60)}м`
-  if (seconds < 86400) return `${Math.floor(seconds / 3600)}ч`
-  return `${Math.floor(seconds / 86400)}д`
-}
-
-function metricLabel(metric: string) {
-  const labels: Record<string, string> = {
-    "player.kills": "Kills",
-    "player.deaths": "Deaths",
-    "player.assists": "Assists",
-    "player.kda": "KDA",
-    "player.net_worth.final": "Souls",
-    "player.hero_damage": "Hero damage",
-    "player.object_damage": "Object damage",
-    "player.healing": "Healing",
-    "player.scoreboard_healing": "Scoreboard healing",
-    "match.duration_s": "Duration",
-    "match.win": "Win",
-  }
-  return labels[metric] || metric
-}
-
-function conditionText(metric: string, operator: string, target: number) {
-  const symbol = operator === "lte" ? "≤" : operator === "eq" ? "=" : "≥"
-  if (metric === "match.duration_s") {
-    const minutes = Math.floor(target / 60)
-    const seconds = Math.floor(target % 60)
-    return `${metricLabel(metric)} ${symbol} ${minutes}:${String(seconds).padStart(2, "0")}`
-  }
-  if (metric === "match.win") return `${metricLabel(metric)} = WIN`
-  return `${metricLabel(metric)} ${symbol} ${target.toLocaleString("ru-RU")}`
-}
-
-function actualText(metric: string, value: number | null) {
-  if (value === null || value === undefined || !Number.isFinite(Number(value))) return "—"
-  if (metric === "match.duration_s") {
-    const total = Number(value)
-    return `${Math.floor(total / 60)}:${String(Math.floor(total % 60)).padStart(2, "0")}`
-  }
-  if (metric === "match.win") return Number(value) === 1 ? "WIN" : "LOSS"
-  if (metric === "player.kda") return Number(value).toFixed(2)
-  return Number(value).toLocaleString("ru-RU")
-}
-
 function claimRemaining(review: AdminReview, nowMs: number) {
   const expires = review.claim.expires_at ? new Date(review.claim.expires_at).getTime() : 0
   if (!review.claim.active || !Number.isFinite(expires)) return 0
   return Math.max(0, Math.floor((expires - nowMs) / 1000))
-}
-
-function claimTimeLabel(seconds: number) {
-  if (seconds <= 0) return "истёк"
-  const minutes = Math.floor(seconds / 60)
-  const tail = seconds % 60
-  return `${minutes}:${String(tail).padStart(2, "0")}`
 }
 
 type Props = {
@@ -121,6 +54,75 @@ export default function ReviewDesk({
   setNotice,
   reloadAll,
 }: Props) {
+  const { copy, locale } = useAdminCopy()
+  function fmt(value: string | null | undefined) {
+    if (!value) return "—"
+    const date = new Date(value)
+    if (Number.isNaN(date.getTime())) return "—"
+    return date.toLocaleString(locale, {
+      day: "2-digit",
+      month: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+    })
+  }
+
+  function ageLabel(value: string) {
+    const created = new Date(value).getTime()
+    if (!Number.isFinite(created)) return "—"
+    const seconds = Math.max(0, Math.floor((Date.now() - created) / 1000))
+    if (seconds < 60) return copy("{0}с", { 0: seconds })
+    if (seconds < 3600) return copy("{0}м", { 0: Math.floor(seconds / 60) })
+    if (seconds < 86400) return copy("{0}ч", { 0: Math.floor(seconds / 3600) })
+    return copy("{0}д", { 0: Math.floor(seconds / 86400) })
+  }
+
+  function metricLabel(metric: string) {
+    const labels: Record<string, string> = {
+      "player.kills": "Kills",
+      "player.deaths": "Deaths",
+      "player.assists": "Assists",
+      "player.kda": "KDA",
+      "player.net_worth.final": "Souls",
+      "player.hero_damage": "Hero damage",
+      "player.object_damage": "Object damage",
+      "player.healing": "Healing",
+      "player.scoreboard_healing": "Scoreboard healing",
+      "match.duration_s": "Duration",
+      "match.win": "Win",
+    }
+    return copy(labels[metric] || metric)
+  }
+
+  function conditionText(metric: string, operator: string, target: number) {
+    const symbol = operator === "lte" ? "≤" : operator === "eq" ? "=" : "≥"
+    if (metric === "match.duration_s") {
+      const minutes = Math.floor(target / 60)
+      const seconds = Math.floor(target % 60)
+      return `${metricLabel(metric)} ${symbol} ${minutes}:${String(seconds).padStart(2, "0")}`
+    }
+    if (metric === "match.win") return `${metricLabel(metric)} = ${copy("WIN")}`
+    return `${metricLabel(metric)} ${symbol} ${target.toLocaleString(locale)}`
+  }
+
+  function actualText(metric: string, value: number | null) {
+    if (value === null || value === undefined || !Number.isFinite(Number(value))) return "—"
+    if (metric === "match.duration_s") {
+      const total = Number(value)
+      return `${Math.floor(total / 60)}:${String(Math.floor(total % 60)).padStart(2, "0")}`
+    }
+    if (metric === "match.win") return copy(Number(value) === 1 ? "WIN" : "LOSS")
+    if (metric === "player.kda") return Number(value).toFixed(2)
+    return Number(value).toLocaleString(locale)
+  }
+
+  function claimTimeLabel(seconds: number) {
+    if (seconds <= 0) return copy("истёк")
+    const minutes = Math.floor(seconds / 60)
+    const tail = seconds % 60
+    return `${minutes}:${String(tail).padStart(2, "0")}`
+  }
+
   const [items, setItems] = useState<AdminReview[]>(initialItems)
   const [total, setTotal] = useState(0)
   const [offset, setOffset] = useState(0)
@@ -263,7 +265,11 @@ export default function ReviewDesk({
         body: JSON.stringify({ force }),
       })
       await refreshSelected()
-      setNotice(force ? "Заявка принудительно перехвачена." : "Заявка взята в работу на 10 минут.")
+      setNotice(
+        force
+          ? copy("Заявка принудительно перехвачена.")
+          : copy("Заявка взята в работу на 10 минут."),
+      )
     } catch (reason) {
       setError((reason as Error).message)
       if (reason instanceof AdminApiError && reason.status === 409) {
@@ -283,7 +289,7 @@ export default function ReviewDesk({
         body: JSON.stringify({ force }),
       })
       await refreshSelected()
-      setNotice("Claim освобождён.")
+      setNotice(copy("Claim освобождён."))
     } catch (reason) {
       setError((reason as Error).message)
     } finally {
@@ -294,11 +300,11 @@ export default function ReviewDesk({
   const markNeedsInfo = async () => {
     if (!selected) return
     if (!isMine) {
-      setError("Сначала возьмите заявку в работу.")
+      setError(copy("Сначала возьмите заявку в работу."))
       return
     }
     if (reviewerNote.trim().length < 5) {
-      setError("Для NEEDS_INFO добавьте пояснение минимум из 5 символов.")
+      setError(copy("Для NEEDS_INFO добавьте пояснение минимум из 5 символов."))
       return
     }
     try {
@@ -308,7 +314,7 @@ export default function ReviewDesk({
         body: JSON.stringify({ note: reviewerNote.trim() }),
       })
       const data = await loadInbox(0)
-      setNotice("Заявка отмечена как NEEDS_INFO и освобождена.")
+      setNotice(copy("Заявка отмечена как NEEDS_INFO и освобождена."))
       const next = data.items.find((item) => item.id !== selected.id)
       if (next) await openReview(next.id, true)
       else closeDetail()
@@ -328,11 +334,11 @@ export default function ReviewDesk({
   const buildDecisionPayload = () => {
     if (!selected) return null
     if (!isMine) {
-      setError("Сначала возьмите заявку в работу.")
+      setError(copy("Сначала возьмите заявку в работу."))
       return null
     }
     if (selectedPending.some((item) => !decisions[item.id])) {
-      setError("Выберите решение для каждого REVIEW_REQUIRED контракта.")
+      setError(copy("Выберите решение для каждого REVIEW_REQUIRED контракта."))
       return null
     }
 
@@ -340,11 +346,11 @@ export default function ReviewDesk({
       ["FAILED", "VOID"].includes(decisions[item.id]),
     )
     if (hasNegative && !reasonCode) {
-      setError("Для FAILED/VOID обязательно выберите причину.")
+      setError(copy("Для FAILED/VOID обязательно выберите причину."))
       return null
     }
     if (reasonCode === "OTHER" && reviewerNote.trim().length < 5) {
-      setError("Для OTHER добавьте пояснение минимум из 5 символов.")
+      setError(copy("Для OTHER добавьте пояснение минимум из 5 символов."))
       return null
     }
 
@@ -357,7 +363,9 @@ export default function ReviewDesk({
 
       if (verdict === "COMPLETED" && fact === null) {
         throw new Error(
-          `Для COMPLETED по «${item.title}» укажите факт: автоматическое значение отсутствует.`,
+          copy("Для COMPLETED по «{0}» укажите факт: автоматическое значение отсутствует.", {
+            0: item.title,
+          }),
         )
       }
 
@@ -416,7 +424,9 @@ export default function ReviewDesk({
       })
 
       const data = await loadInbox(0)
-      setNotice(`Review закрыт. В очередь наград отправлено +${preview.reward_xp_total} XP.`)
+      setNotice(
+        copy("Review закрыт. В очередь наград отправлено +{0} XP.", { 0: preview.reward_xp_total }),
+      )
       setPreview(null)
       await reloadAll()
 
@@ -438,7 +448,7 @@ export default function ReviewDesk({
     const url = `${window.location.origin}/admin/reviews/${selected.id}`
     try {
       await navigator.clipboard.writeText(url)
-      setNotice("Прямая ссылка на Review скопирована.")
+      setNotice(copy("Прямая ссылка на Review скопирована."))
     } catch {
       setError(url)
     }
@@ -448,23 +458,24 @@ export default function ReviewDesk({
     <section className="dc-review3">
       <header className="dc-review3-head">
         <div>
-          <p className="dc-eyebrow">REVIEW INBOX / MODERATION DESK</p>
-          <h1>Internal Review</h1>
+          <p className="dc-eyebrow">{copy("REVIEW INBOX / MODERATION DESK")}</p>
+          <h1>{copy("Internal Review")}</h1>
           <p>
-            Claim координирует работу модераторов. Финальное решение всё равно фиксируется
-            транзакционно через ModerationService.
+            {copy(
+              "Claim координирует работу модераторов. Финальное решение всё равно фиксируется транзакционно через ModerationService.",
+            )}
           </p>
         </div>
         <div className="dc-review3-summary">
           <b>{total}</b>
-          <span>в текущем фильтре</span>
+          <span>{copy("в текущем фильтре")}</span>
         </div>
       </header>
 
       <div className="dc-review3-filters">
         <input
           value={query}
-          placeholder="Review ID, Match ID, Board ID, игрок"
+          placeholder={copy("Review ID, Match ID, Board ID, игрок")}
           onChange={(event) => setQuery(event.target.value)}
           onKeyDown={(event) => {
             if (event.key === "Enter") {
@@ -475,59 +486,87 @@ export default function ReviewDesk({
             }
           }}
         />
-        <select value={status} onChange={(event) => setStatus(event.target.value)}>
-          <option value="OPEN">OPEN</option>
-          <option value="PENDING">PENDING</option>
-          <option value="NEEDS_INFO">NEEDS_INFO</option>
-          <option value="RESOLVED">RESOLVED</option>
-          <option value="REJECTED">REJECTED</option>
+        <select
+          aria-label={copy("Статус")}
+          value={status}
+          onChange={(event) => setStatus(event.target.value)}
+        >
+          <option value="OPEN">{copy("OPEN")}</option>
+          <option value="PENDING">{copy("PENDING")}</option>
+          <option value="NEEDS_INFO">{copy("NEEDS_INFO")}</option>
+          <option value="RESOLVED">{copy("RESOLVED")}</option>
+          <option value="REJECTED">{copy("REJECTED")}</option>
         </select>
-        <select value={mode} onChange={(event) => setMode(event.target.value)}>
-          <option value="ALL">Все режимы</option>
-          <option value="STANDARD">STANDARD</option>
-          <option value="RANKED">RANKED</option>
-          <option value="STREET_BRAWL">STREET BRAWL</option>
+        <select
+          aria-label={copy("Режимы матчей")}
+          value={mode}
+          onChange={(event) => setMode(event.target.value)}
+        >
+          <option value="ALL">{copy("Все режимы")}</option>
+          <option value="STANDARD">{copy("STANDARD")}</option>
+          <option value="RANKED">{copy("RANKED")}</option>
+          <option value="STREET_BRAWL">{copy("STREET BRAWL")}</option>
         </select>
-        <select value={claim} onChange={(event) => setClaim(event.target.value)}>
-          <option value="ALL">Все claims</option>
-          <option value="FREE">Свободные</option>
-          <option value="MINE">Мои</option>
-          <option value="CLAIMED">В работе</option>
+        <select
+          aria-label={copy("Все claims")}
+          value={claim}
+          onChange={(event) => setClaim(event.target.value)}
+        >
+          <option value="ALL">{copy("Все claims")}</option>
+          <option value="FREE">{copy("Свободные")}</option>
+          <option value="MINE">{copy("Мои")}</option>
+          <option value="CLAIMED">{copy("В работе")}</option>
         </select>
-        <select value={source} onChange={(event) => setSource(event.target.value)}>
-          <option value="ALL">Любой settlement</option>
-          <option value="OVERWOLF_GEP">OVERWOLF_GEP</option>
-          <option value="DEADLOCK_API">DEADLOCK_API</option>
-          <option value="LEGACY">LEGACY</option>
+        <select
+          aria-label={copy("Любой settlement")}
+          value={source}
+          onChange={(event) => setSource(event.target.value)}
+        >
+          <option value="ALL">{copy("Любой settlement")}</option>
+          <option value="OVERWOLF_GEP">{copy("OVERWOLF_GEP")}</option>
+          <option value="DEADLOCK_API">{copy("DEADLOCK_API")}</option>
+          <option value="LEGACY">{copy("LEGACY")}</option>
         </select>
-        <select value={auditStatus} onChange={(event) => setAuditStatus(event.target.value)}>
-          <option value="ALL">Любой audit</option>
-          <option value="NOT_REQUESTED">NOT_REQUESTED</option>
-          <option value="PENDING">PENDING</option>
-          <option value="CONFIRMED">CONFIRMED</option>
-          <option value="MISMATCH">MISMATCH</option>
-          <option value="UNAVAILABLE">UNAVAILABLE</option>
+        <select
+          aria-label={copy("Любой audit")}
+          value={auditStatus}
+          onChange={(event) => setAuditStatus(event.target.value)}
+        >
+          <option value="ALL">{copy("Любой audit")}</option>
+          <option value="NOT_REQUESTED">{copy("NOT_REQUESTED")}</option>
+          <option value="PENDING">{copy("PENDING")}</option>
+          <option value="CONFIRMED">{copy("CONFIRMED")}</option>
+          <option value="MISMATCH">{copy("MISMATCH")}</option>
+          <option value="UNAVAILABLE">{copy("UNAVAILABLE")}</option>
         </select>
-        <select value={priority} onChange={(event) => setPriority(event.target.value)}>
-          <option value="ALL">Любой приоритет</option>
-          <option value="HIGH">Высокий ≤ 25</option>
-          <option value="NORMAL">Обычный &gt; 25</option>
+        <select
+          aria-label={copy("Любой приоритет")}
+          value={priority}
+          onChange={(event) => setPriority(event.target.value)}
+        >
+          <option value="ALL">{copy("Любой приоритет")}</option>
+          <option value="HIGH">{copy("Высокий ≤ 25")}</option>
+          <option value="NORMAL">{copy("Обычный > 25")}</option>
         </select>
-        <select value={age} onChange={(event) => setAge(event.target.value)}>
-          <option value="ALL">Любой возраст</option>
-          <option value="15M">Старше 15 минут</option>
-          <option value="1H">Старше часа</option>
-          <option value="6H">Старше 6 часов</option>
-          <option value="24H">Старше суток</option>
+        <select
+          aria-label={copy("Любой возраст")}
+          value={age}
+          onChange={(event) => setAge(event.target.value)}
+        >
+          <option value="ALL">{copy("Любой возраст")}</option>
+          <option value="15M">{copy("Старше 15 минут")}</option>
+          <option value="1H">{copy("Старше часа")}</option>
+          <option value="6H">{copy("Старше 6 часов")}</option>
+          <option value="24H">{copy("Старше суток")}</option>
         </select>
         <input
           value={reason}
-          placeholder="Причина Review"
+          placeholder={copy("Причина Review")}
           onChange={(event) => setReason(event.target.value)}
         />
         <input
           value={claimant}
-          placeholder="Модератор claim"
+          placeholder={copy("Модератор claim")}
           onChange={(event) => setClaimant(event.target.value)}
         />
         <button
@@ -540,13 +579,13 @@ export default function ReviewDesk({
               .finally(() => setLoading(false))
           }}
         >
-          ОБНОВИТЬ
+          {copy("ОБНОВИТЬ")}
         </button>
       </div>
 
       <div className={`dc-review3-layout ${selected ? "has-detail" : ""}`}>
         <aside className="dc-review3-inbox">
-          {items.length === 0 && <div className="dc-admin-empty">Очередь пуста.</div>}
+          {items.length === 0 && <div className="dc-admin-empty">{copy("Очередь пуста.")}</div>}
           {items.map((review) => {
             const mine = review.claim.active && review.claim.claimed_by_user_id === currentUserId
             return (
@@ -561,7 +600,8 @@ export default function ReviewDesk({
                 </header>
                 <strong>{review.player.display_name}</strong>
                 <small>
-                  {review.mode} · P{review.priority} · {ageLabel(review.created_at)}
+                  {review.mode} {copy(" · P")}
+                  {review.priority} · {ageLabel(review.created_at)}
                 </small>
                 <small>
                   {review.match_summary.settlement_source || review.match_summary.provider || "—"} ·{" "}
@@ -569,10 +609,12 @@ export default function ReviewDesk({
                 </small>
                 <em className={mine ? "mine" : review.claim.active ? "claimed" : "free"}>
                   {mine
-                    ? `МОЙ CLAIM · ${claimTimeLabel(claimRemaining(review, nowMs))}`
+                    ? copy("МОЙ CLAIM · {0}", { 0: claimTimeLabel(claimRemaining(review, nowMs)) })
                     : review.claim.active
-                      ? `В РАБОТЕ · ${review.claim.claimed_by?.display_name || "staff"}`
-                      : "СВОБОДНО"}
+                      ? copy("В РАБОТЕ · {0}", {
+                          0: review.claim.claimed_by?.display_name || "staff",
+                        })
+                      : copy("СВОБОДНО")}
                 </em>
               </button>
             )
@@ -601,27 +643,33 @@ export default function ReviewDesk({
         <main className="dc-review3-detail">
           {!selected ? (
             <div className="dc-admin-empty">
-              Выберите Review слева или откройте прямую ссылку /admin/reviews/&lt;id&gt;.
+              {copy("Выберите Review слева или откройте прямую ссылку /admin/reviews/<id>.")}
             </div>
           ) : (
             <>
               <button className="dc-admin-mobile-back" type="button" onClick={closeDetail}>
-                ← К очереди
+                {copy("← К очереди")}
               </button>
 
               <div className="dc-review3-detail-head">
                 <div>
                   <p className="dc-eyebrow">
-                    REVIEW #{selected.id.slice(0, 8)} / BOARD {selected.board_id.slice(0, 8)}
+                    {copy("REVIEW #")}
+                    {selected.id.slice(0, 8)} {copy(" / BOARD ")}
+                    {selected.board_id.slice(0, 8)}
                   </p>
-                  <h2>Матч #{selected.match_id || "—"}</h2>
+                  <h2>
+                    {copy("Матч #")}
+                    {selected.match_id || "—"}
+                  </h2>
                   <p>
-                    {selected.player.display_name} · создан {fmt(selected.created_at)}
+                    {selected.player.display_name} {copy(" · создан ")}
+                    {fmt(selected.created_at)}
                   </p>
                 </div>
                 <div className="dc-review3-head-actions">
                   <button className="dc-ghost" onClick={() => void copyDeepLink()}>
-                    СКОПИРОВАТЬ ССЫЛКУ
+                    {copy("СКОПИРОВАТЬ ССЫЛКУ")}
                   </button>
                   {!selected.claim.active &&
                     ["PENDING", "NEEDS_INFO"].includes(selected.status) && (
@@ -630,7 +678,7 @@ export default function ReviewDesk({
                         disabled={loading}
                         onClick={() => void claimSelected(false)}
                       >
-                        ВЗЯТЬ В РАБОТУ
+                        {copy("ВЗЯТЬ В РАБОТУ")}
                       </button>
                     )}
                   {isMine && (
@@ -640,14 +688,14 @@ export default function ReviewDesk({
                         disabled={loading}
                         onClick={() => void claimSelected(false)}
                       >
-                        +10 МИН
+                        {copy("+10 МИН")}
                       </button>
                       <button
                         className="dc-ghost"
                         disabled={loading}
                         onClick={() => void releaseSelected(false)}
                       >
-                        ОСВОБОДИТЬ
+                        {copy("ОСВОБОДИТЬ")}
                       </button>
                     </>
                   )}
@@ -658,14 +706,14 @@ export default function ReviewDesk({
                         disabled={loading}
                         onClick={() => void claimSelected(true)}
                       >
-                        ПЕРЕХВАТИТЬ
+                        {copy("ПЕРЕХВАТИТЬ")}
                       </button>
                       <button
                         className="dc-ghost"
                         disabled={loading}
                         onClick={() => void releaseSelected(true)}
                       >
-                        СНЯТЬ CLAIM
+                        {copy("СНЯТЬ CLAIM")}
                       </button>
                     </>
                   )}
@@ -675,44 +723,48 @@ export default function ReviewDesk({
               <div className="dc-review3-claimbar">
                 <span className={isMine ? "mine" : selected.claim.active ? "claimed" : "free"}>
                   {isMine
-                    ? `МОЙ CLAIM · осталось ${claimTimeLabel(claimRemaining(selected, nowMs))}`
+                    ? copy("МОЙ CLAIM · осталось {0}", {
+                        0: claimTimeLabel(claimRemaining(selected, nowMs)),
+                      })
                     : selectedClaimActive
-                      ? `В работе у ${selected.claim.claimed_by?.display_name || "staff"} · ${claimTimeLabel(
-                          claimRemaining(selected, nowMs),
-                        )}`
-                      : "Заявка свободна"}
+                      ? copy("В работе у {0} · {1}", {
+                          0: selected.claim.claimed_by?.display_name || "staff",
+                          1: claimTimeLabel(claimRemaining(selected, nowMs)),
+                        })
+                      : copy("Заявка свободна")}
                 </span>
                 <b>
-                  {selected.status} · PRIORITY {selected.priority}
+                  {selected.status} {copy(" · PRIORITY ")}
+                  {selected.priority}
                 </b>
               </div>
 
               <div className="dc-review3-facts">
                 <div>
-                  <span>K / D / A</span>
+                  <span>{copy("K / D / A")}</span>
                   <b>
                     {selected.match_summary.kills ?? "—"} / {selected.match_summary.deaths ?? "—"} /{" "}
                     {selected.match_summary.assists ?? "—"}
                   </b>
                 </div>
                 <div>
-                  <span>SOULS</span>
-                  <b>{selected.match_summary.net_worth?.toLocaleString("ru-RU") ?? "—"}</b>
+                  <span>{copy("SOULS")}</span>
+                  <b>{selected.match_summary.net_worth?.toLocaleString(locale) ?? "—"}</b>
                 </div>
                 <div>
-                  <span>HERO DAMAGE</span>
-                  <b>{selected.match_summary.hero_damage?.toLocaleString("ru-RU") ?? "—"}</b>
+                  <span>{copy("HERO DAMAGE")}</span>
+                  <b>{selected.match_summary.hero_damage?.toLocaleString(locale) ?? "—"}</b>
                 </div>
                 <div>
-                  <span>OBJECT DAMAGE</span>
-                  <b>{selected.match_summary.object_damage?.toLocaleString("ru-RU") ?? "—"}</b>
+                  <span>{copy("OBJECT DAMAGE")}</span>
+                  <b>{selected.match_summary.object_damage?.toLocaleString(locale) ?? "—"}</b>
                 </div>
                 <div>
-                  <span>HEALING</span>
-                  <b>{selected.match_summary.healing?.toLocaleString("ru-RU") ?? "—"}</b>
+                  <span>{copy("HEALING")}</span>
+                  <b>{selected.match_summary.healing?.toLocaleString(locale) ?? "—"}</b>
                 </div>
                 <div>
-                  <span>DURATION</span>
+                  <span>{copy("DURATION")}</span>
                   <b>
                     {selected.match_summary.duration_s
                       ? actualText("match.duration_s", selected.match_summary.duration_s)
@@ -723,25 +775,25 @@ export default function ReviewDesk({
 
               <div className="dc-review3-trust">
                 <div>
-                  <span>SETTLEMENT</span>
+                  <span>{copy("SETTLEMENT")}</span>
                   <b>{selected.match_summary.settlement_source || "—"}</b>
                 </div>
                 <div>
-                  <span>INTEGRITY</span>
+                  <span>{copy("INTEGRITY")}</span>
                   <b>{selected.match_summary.integrity_status || "—"}</b>
                 </div>
                 <div>
-                  <span>AUDIT</span>
+                  <span>{copy("AUDIT")}</span>
                   <b>{selected.match_summary.audit_status || "—"}</b>
                 </div>
                 <div>
-                  <span>MODE CONFIDENCE</span>
+                  <span>{copy("MODE CONFIDENCE")}</span>
                   <b>{selected.match_summary.mode_confidence || "—"}</b>
                 </div>
               </div>
 
               <section className="dc-review3-reasons">
-                <h3>Почему создан Review</h3>
+                <h3>{copy("Почему создан Review")}</h3>
                 {selected.reasons.length ? (
                   selected.reasons.map((reason, index) => (
                     <div key={`${reason.option_id}-${index}`}>
@@ -750,16 +802,16 @@ export default function ReviewDesk({
                     </div>
                   ))
                 ) : (
-                  <p>Причина не указана.</p>
+                  <p>{copy("Причина не указана.")}</p>
                 )}
               </section>
 
               <section className="dc-review3-contract-table">
                 <div className="dc-review3-contract-head">
-                  <span>Контракт / требовалось</span>
-                  <span>Получено</span>
-                  <span>Capability / источник</span>
-                  <span>Решение</span>
+                  <span>{copy("Контракт / требовалось")}</span>
+                  <span>{copy("Получено")}</span>
+                  <span>{copy("Capability / источник")}</span>
+                  <span>{copy("Решение")}</span>
                 </div>
                 {selected.contracts.map((contract) => (
                   <article key={contract.id}>
@@ -782,7 +834,9 @@ export default function ReviewDesk({
                           {conditionText(condition.metric, condition.operator, condition.target)}
                         </small>
                       ))}
-                      <em>+{contract.reward_xp} XP</em>
+                      <em>
+                        +{contract.reward_xp} {copy(" XP")}
+                      </em>
                     </div>
 
                     <div>
@@ -809,7 +863,7 @@ export default function ReviewDesk({
                     <div>
                       <small>
                         {contract.missing_capabilities.length
-                          ? `MISSING: ${contract.missing_capabilities.join(", ")}`
+                          ? `${copy("MISSING:")} ${contract.missing_capabilities.join(", ")}`
                           : contract.required_capabilities.join(", ") || "—"}
                       </small>
                       <b>
@@ -840,7 +894,7 @@ export default function ReviewDesk({
                                     setPreview(null)
                                   }}
                                 >
-                                  {value}
+                                  {copy(value)}
                                 </button>
                               ),
                             )}
@@ -849,8 +903,8 @@ export default function ReviewDesk({
                             inputMode="decimal"
                             placeholder={
                               contract.actual === null
-                                ? "Ручной факт"
-                                : `Факт сервера: ${contract.actual}`
+                                ? copy("Ручной факт")
+                                : copy("Факт сервера: {0}", { 0: contract.actual })
                             }
                             value={manualValues[contract.id] || ""}
                             onChange={(event) => {
@@ -869,7 +923,10 @@ export default function ReviewDesk({
 
                     {contract.evaluations.length > 0 && (
                       <details>
-                        <summary>Предыдущие Evaluation · {contract.evaluations.length}</summary>
+                        <summary>
+                          {copy("Предыдущие Evaluation · ")}
+                          {contract.evaluations.length}
+                        </summary>
                         <div className="dc-review3-evaluations">
                           {contract.evaluations.map((evaluation) => (
                             <p key={evaluation.id}>
@@ -892,7 +949,7 @@ export default function ReviewDesk({
                 <section className="dc-review3-decision">
                   <div className="dc-review3-form">
                     <label>
-                      Причина FAILED / VOID
+                      {copy("Причина FAILED / VOID")}
                       <select
                         value={reasonCode}
                         onChange={(event) => {
@@ -900,20 +957,20 @@ export default function ReviewDesk({
                           setPreview(null)
                         }}
                       >
-                        <option value="">Не требуется / не выбрана</option>
+                        <option value="">{copy("Не требуется / не выбрана")}</option>
                         {REASON_OPTIONS.map(([value, label]) => (
                           <option key={value} value={value}>
-                            {value} — {label}
+                            {value} — {copy(label)}
                           </option>
                         ))}
                       </select>
                     </label>
                     <label>
-                      Заметка модератора
+                      {copy("Заметка модератора")}
                       <textarea
                         rows={3}
                         value={reviewerNote}
-                        placeholder="Короткое пояснение решения или запрос данных"
+                        placeholder={copy("Короткое пояснение решения или запрос данных")}
                         onChange={(event) => {
                           setReviewerNote(event.target.value)
                           setPreview(null)
@@ -928,14 +985,14 @@ export default function ReviewDesk({
                       disabled={loading}
                       onClick={() => void markNeedsInfo()}
                     >
-                      НУЖНЫ ДАННЫЕ
+                      {copy("НУЖНЫ ДАННЫЕ")}
                     </button>
                     <button
                       className="dc-primary"
                       disabled={loading}
                       onClick={() => void previewDecision()}
                     >
-                      ПРЕДПРОСМОТР РЕШЕНИЯ
+                      {copy("ПРЕДПРОСМОТР РЕШЕНИЯ")}
                     </button>
                   </div>
                 </section>
@@ -945,32 +1002,38 @@ export default function ReviewDesk({
                 <section className="dc-review3-preview">
                   <header>
                     <div>
-                      <p className="dc-eyebrow">DECISION PREVIEW / NO WRITE YET</p>
-                      <h3>Что будет изменено</h3>
+                      <p className="dc-eyebrow">{copy("DECISION PREVIEW / NO WRITE YET")}</p>
+                      <h3>{copy("Что будет изменено")}</h3>
                     </div>
-                    <b>+{preview.reward_xp_total} XP</b>
+                    <b>
+                      +{preview.reward_xp_total} {copy(" XP")}
+                    </b>
                   </header>
                   {preview.settled_options.map((item) => {
                     const contract = selected.contracts.find((value) => value.id === item.option_id)
                     return (
                       <div key={item.option_id}>
                         <span>{contract?.title || item.option_id}</span>
-                        <b>REVIEW_REQUIRED → {item.status}</b>
+                        <b>
+                          {copy("REVIEW_REQUIRED → ")}
+                          {item.status}
+                        </b>
                         <em>{item.reward_xp ? `+${item.reward_xp} XP` : "0 XP"}</em>
                       </div>
                     )
                   })}
                   <footer>
                     <span>
-                      Board → {preview.board_status_after}
-                      {preview.resume_discovery ? " · discovery будет возобновлён" : ""}
+                      {copy("Board → ")}
+                      {preview.board_status_after}
+                      {preview.resume_discovery ? copy(" · discovery будет возобновлён") : ""}
                     </span>
                     <button
                       className="dc-primary"
                       disabled={loading}
                       onClick={() => void confirmDecision()}
                     >
-                      ПОДТВЕРДИТЬ И ЗАКРЫТЬ
+                      {copy("ПОДТВЕРДИТЬ И ЗАКРЫТЬ")}
                     </button>
                   </footer>
                 </section>
@@ -978,7 +1041,10 @@ export default function ReviewDesk({
 
               {selected.history.length > 0 && (
                 <details className="dc-review3-history">
-                  <summary>История Review · {selected.history.length}</summary>
+                  <summary>
+                    {copy("История Review · ")}
+                    {selected.history.length}
+                  </summary>
                   <div>
                     {selected.history.map((entry, index) => (
                       <p key={`${entry.action}-${entry.created_at}-${index}`}>
@@ -992,7 +1058,7 @@ export default function ReviewDesk({
               )}
 
               <details className="dc-review3-tech">
-                <summary>Технические данные</summary>
+                <summary>{copy("Технические данные")}</summary>
                 <pre>
                   {JSON.stringify(
                     {

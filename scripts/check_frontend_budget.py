@@ -8,16 +8,17 @@ from urllib.parse import urlsplit
 
 
 LIMITS = {
-    # Stage 7: a saved guild editor, shared brand components and Lucide SVG nodes.
-    # Measured 597 KB total / 305 KB initial; keep the public-entry cap unchanged.
-    "javascript_total": 615_000,
+    # Nightshift: appearance controls and complete bilingual staff UI.
+    # Measured 663 KB total / 305 KB initial; public-entry cap stays unchanged.
+    "javascript_total": 690_000,
     "initial_javascript": 310_000,
-    # PR42: staged wrapper/fan opening and multilayer card foil; measured 328 KB.
-    # Initial JS and all other limits remain unchanged.
-    "css_total": 330_000,
+    # Five themes and responsive surfaces retain existing feature styles.
+    # Measured 420 KB. This is the full bundle, including lazy page styles.
+    "css_total": 435_000,
     "largest_image": 600_000,
-    # Removed 1.37 MB of bitmap regalia. New build is 1.94 MB including fonts.
-    "assets_total": 2_100_000,
+    # Three mascot poses + four city/interior WebPs, all < 290 KB individually.
+    # Measured 2.96 MB for every asset including fonts; artwork below fold is lazy.
+    "assets_total": 3_100_000,
 }
 IMAGE_SUFFIXES = {".avif", ".gif", ".jpg", ".jpeg", ".png", ".webp"}
 

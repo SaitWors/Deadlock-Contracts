@@ -1,9 +1,12 @@
+import { useAdminCopy } from "./admin-copy"
 import { useRef, useState } from "react"
 import { request, useResource } from "../community/api"
 import { LoadState } from "../community/Shared"
 import type { Report } from "../community/BureauSafety"
 
 export default function BureauModerationDesk({ csrf }: { csrf: string }) {
+  const { copy } = useAdminCopy()
+
   const [status, setStatus] = useState("OPEN")
   const [offset, setOffset] = useState(0)
   const resource = useResource<{ items: Report[]; total: number }>(
@@ -36,20 +39,21 @@ export default function BureauModerationDesk({ csrf }: { csrf: string }) {
     }
   }
   const kinds: Record<string, string> = {
-    CONTENT: "Жалоба на бюро",
-    BAN_APPEAL: "Апелляция блокировки",
-    BUREAU_APPEAL: "Восстановление бюро",
+    CONTENT: copy("Жалоба на бюро"),
+    BAN_APPEAL: copy("Апелляция блокировки"),
+    BUREAU_APPEAL: copy("Восстановление бюро"),
   }
   return (
     <section className="community-page">
-      <h2>Обращения по бюро</h2>
+      <h2>{copy("Обращения по бюро")}</h2>
       <p>
-        Решение и пояснение получит автор обращения. Приостановка скрывает бюро из каталога и
-        отменяет незавершённые операции.
+        {copy(
+          "Решение и пояснение получит автор обращения. Приостановка скрывает бюро из каталога и отменяет незавершённые операции.",
+        )}
       </p>
       <div className="community-actions">
         <label>
-          Статус
+          {copy("Статус")}
           <select
             value={status}
             disabled={busy}
@@ -59,9 +63,9 @@ export default function BureauModerationDesk({ csrf }: { csrf: string }) {
               setSelected("")
             }}
           >
-            <option value="OPEN">Открытые</option>
-            <option value="RESOLVED">Решённые</option>
-            <option value="DISMISSED">Отклонённые</option>
+            <option value="OPEN">{copy("Открытые")}</option>
+            <option value="RESOLVED">{copy("Решённые")}</option>
+            <option value="DISMISSED">{copy("Отклонённые")}</option>
           </select>
         </label>
         <button
@@ -72,7 +76,7 @@ export default function BureauModerationDesk({ csrf }: { csrf: string }) {
             resource.reload()
           }}
         >
-          Обновить очередь
+          {copy("Обновить очередь")}
         </button>
       </div>
       {error && (
@@ -84,7 +88,9 @@ export default function BureauModerationDesk({ csrf }: { csrf: string }) {
         <LoadState error={resource.error} retry={resource.reload} />
       ) : (
         <>
-          {!resource.data.items.length && <p className="community-empty">Обращений нет.</p>}
+          {!resource.data.items.length && (
+            <p className="community-empty">{copy("Обращений нет.")}</p>
+          )}
           {resource.data.items.map((item) => (
             <article className="community-panel" key={item.id}>
               <p className="community-eyebrow">
@@ -93,21 +99,21 @@ export default function BureauModerationDesk({ csrf }: { csrf: string }) {
               <h3>{item.bureau_name}</h3>
               <p className="community-prose">{item.message}</p>
               <details>
-                <summary>Снимок на момент обращения</summary>
+                <summary>{copy("Снимок на момент обращения")}</summary>
                 {Object.entries(item.snapshot || {}).map(([key, value]) => (
                   <p className="community-prose" key={key}>
                     <b>
                       {{
-                        name: "Название",
-                        description: "Описание",
-                        rules: "Правила",
-                        ban_reason: "Причина блокировки",
-                        moderation_note: "Пояснение сотрудника",
-                        rank_director: "Звание директора",
-                        rank_moderator: "Звание модератора",
-                        rank_operative: "Звание оперативника",
-                        avatar_digest: "Версия эмблемы",
-                        cover_digest: "Версия обложки",
+                        name: copy("Название"),
+                        description: copy("Описание"),
+                        rules: copy("Правила"),
+                        ban_reason: copy("Причина блокировки"),
+                        moderation_note: copy("Пояснение сотрудника"),
+                        rank_director: copy("Звание директора"),
+                        rank_moderator: copy("Звание модератора"),
+                        rank_operative: copy("Звание оперативника"),
+                        avatar_digest: copy("Версия эмблемы"),
+                        cover_digest: copy("Версия обложки"),
                       }[key] || key}
                       :{" "}
                     </b>
@@ -117,16 +123,18 @@ export default function BureauModerationDesk({ csrf }: { csrf: string }) {
               </details>
               {!!Object.keys(item.current_artwork || {}).length && (
                 <details>
-                  <summary>Текущее оформление · может отличаться от снимка</summary>
+                  <summary>{copy("Текущее оформление · может отличаться от снимка")}</summary>
                   <div className="bureau-review-art">
                     {Object.entries(item.current_artwork || {}).map(([kind, url]) => (
                       <figure key={kind}>
                         <img
                           src={url}
-                          alt={kind === "avatar" ? "Эмблема бюро" : "Обложка бюро"}
+                          alt={kind === "avatar" ? copy("Эмблема бюро") : copy("Обложка бюро")}
                           loading="lazy"
                         />
-                        <figcaption>{kind === "avatar" ? "Эмблема" : "Обложка"}</figcaption>
+                        <figcaption>
+                          {kind === "avatar" ? copy("Эмблема") : copy("Обложка")}
+                        </figcaption>
                       </figure>
                     ))}
                   </div>
@@ -144,7 +152,7 @@ export default function BureauModerationDesk({ csrf }: { csrf: string }) {
                       setNote("")
                     }}
                   >
-                    Рассмотреть
+                    {copy("Рассмотреть")}
                   </button>
                 ) : (
                   <form
@@ -156,25 +164,27 @@ export default function BureauModerationDesk({ csrf }: { csrf: string }) {
                   >
                     <fieldset disabled={busy}>
                       <label>
-                        Решение
+                        {copy("Решение")}
                         <select value={action} onChange={(event) => setAction(event.target.value)}>
-                          <option value="DISMISS">Отклонить обращение</option>
+                          <option value="DISMISS">{copy("Отклонить обращение")}</option>
                           {item.bureau_status !== "DELETED" && (
                             <>
-                              <option value="WARN">Предупредить бюро</option>
-                              <option value="FREEZE">Приостановить бюро</option>
+                              <option value="WARN">{copy("Предупредить бюро")}</option>
+                              <option value="FREEZE">{copy("Приостановить бюро")}</option>
                               {item.kind === "BAN_APPEAL" && (
-                                <option value="LIFT_BAN">Снять блокировку вступления</option>
+                                <option value="LIFT_BAN">
+                                  {copy("Снять блокировку вступления")}
+                                </option>
                               )}
                               {item.kind === "BUREAU_APPEAL" && item.bureau_status === "FROZEN" && (
-                                <option value="RESTORE">Восстановить бюро</option>
+                                <option value="RESTORE">{copy("Восстановить бюро")}</option>
                               )}
                             </>
                           )}
                         </select>
                       </label>
                       <label>
-                        Пояснение для автора обращения
+                        {copy("Пояснение для автора обращения")}
                         <textarea
                           required
                           minLength={10}
@@ -185,15 +195,16 @@ export default function BureauModerationDesk({ csrf }: { csrf: string }) {
                         />
                       </label>
                       <p className="community-footnote">
-                        Предупреждение или причина приостановки также видны в бюро. Не цитируйте
-                        личные сведения заявителя. Собственное бюро проверяет другой сотрудник.
+                        {copy(
+                          "Предупреждение или причина приостановки также видны в бюро. Не цитируйте личные сведения заявителя. Собственное бюро проверяет другой сотрудник.",
+                        )}
                       </p>
                       <div className="community-actions">
                         <button className="dc-primary" disabled={busy}>
-                          Подтвердить решение
+                          {copy("Подтвердить решение")}
                         </button>
                         <button type="button" className="dc-ghost" onClick={() => setSelected("")}>
-                          Отмена
+                          {copy("Отмена")}
                         </button>
                       </div>
                     </fieldset>
@@ -210,7 +221,7 @@ export default function BureauModerationDesk({ csrf }: { csrf: string }) {
                 setSelected("")
               }}
             >
-              Назад
+              {copy("Назад")}
             </button>
             <span>
               {resource.data.total
@@ -225,7 +236,7 @@ export default function BureauModerationDesk({ csrf }: { csrf: string }) {
                 setSelected("")
               }}
             >
-              Дальше
+              {copy("Дальше")}
             </button>
           </div>
         </>

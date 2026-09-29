@@ -1,6 +1,7 @@
 import React, { act } from "react"
 import { createRoot } from "react-dom/client"
 import { LanguageProvider } from "../src/i18n"
+import { AppearanceProvider } from "../src/Appearance"
 import AccountMenu from "../src/AccountMenu"
 import ArchivePage from "../src/archive/ArchivePage"
 import CardStudio from "../src/archive/CardStudio"
@@ -77,7 +78,9 @@ export function mount(element: HTMLElement, page: string, props: Record<string, 
   const render = (nextProps: Record<string, unknown>) =>
     root.render(
       <LanguageProvider>
-        <Component {...nextProps} />
+        <AppearanceProvider>
+          <Component {...nextProps} />
+        </AppearanceProvider>
       </LanguageProvider>,
     )
   render(props)

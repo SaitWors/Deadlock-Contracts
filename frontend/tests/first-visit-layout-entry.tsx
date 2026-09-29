@@ -1,3 +1,4 @@
+import { AppearanceProvider } from "../src/Appearance"
 import React, { useState } from "react"
 import { createRoot } from "react-dom/client"
 import GuestCipher from "../src/archive/GuestCipher"
@@ -44,19 +45,21 @@ function Fixture() {
   const [destination, setDestination] = useState("none")
   return (
     <LanguageProvider>
-      <div className="bureau-app">
-        <div style={{ position: "fixed", zIndex: 20, top: 12, right: 12 }}>
-          <LanguageSwitch />
+      <AppearanceProvider>
+        <div className="bureau-app">
+          <div style={{ position: "fixed", zIndex: 20, top: 12, right: 12 }}>
+            <LanguageSwitch />
+          </div>
+          <GuestCipher onHome={() => setDestination("home")} />
+          <section style={{ maxWidth: 1180, margin: "auto", padding: "36px 12px 80px" }}>
+            <h1>Archive next-step states</h1>
+            <p>Last callback: {destination}</p>
+            {[101, 102, 103].map((revision) => (
+              <ArchiveNextStep key={revision} revision={revision} onNavigate={setDestination} />
+            ))}
+          </section>
         </div>
-        <GuestCipher onHome={() => setDestination("home")} />
-        <section style={{ maxWidth: 1180, margin: "auto", padding: "36px 12px 80px" }}>
-          <h1>Archive next-step states</h1>
-          <p>Last callback: {destination}</p>
-          {[101, 102, 103].map((revision) => (
-            <ArchiveNextStep key={revision} revision={revision} onNavigate={setDestination} />
-          ))}
-        </section>
-      </div>
+      </AppearanceProvider>
     </LanguageProvider>
   )
 }

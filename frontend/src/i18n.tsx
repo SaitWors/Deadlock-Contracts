@@ -124,6 +124,7 @@ export function LanguageSwitch({ compact = false }: { compact?: boolean }) {
             href={publicUrl(publicRoute.page, lang)}
             hrefLang={lang}
             lang={lang}
+            onClick={() => setMode(lang)}
             aria-current={language === lang ? "page" : undefined}
             className={language === lang ? "active" : ""}
           >

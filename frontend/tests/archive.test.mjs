@@ -573,6 +573,50 @@ test("reduced motion opens a pack reveal directly at complete results", async ()
   await api.act(async () => root.unmount())
 })
 
+test("manual motion off opens pack results immediately and disables pointer tilt", async () => {
+  const { api, doc, w } = runtime(async () => response({}), "en")
+  w.localStorage.setItem("dc.ui.appearance", JSON.stringify({ motion: false }))
+  let root
+  await api.act(async () => {
+    root = api.mount(doc.getElementById("mount"), "receipt", {
+      receipt: packReceipt("manual-reduced", [receiptItem("one", "Still card")]),
+      cinematic: true,
+    })
+  })
+  await api.act(async () => button(doc, "Reveal cards").click())
+  assert.equal(doc.querySelector(".pack-reveal-shell").dataset.stage, "results")
+  const surface = doc.querySelector("dialog .card-surface")
+  assert.equal(surface.dataset.reduced, "true")
+  surface.getBoundingClientRect = () => ({ left: 0, top: 0, width: 200, height: 300 })
+  await api.act(async () => {
+    pointer(w, surface, "pointerdown", 50, 50)
+    pointer(w, surface, "pointermove", 150, 150)
+  })
+  assert.equal(surface.style.getPropertyValue("--tilt-x"), "")
+  await api.act(async () => root.unmount())
+})
+
+test("manual motion change during opening cancels the animation wait", async () => {
+  const { api, doc, w } = runtime(async () => response({}), "en")
+  let root
+  await api.act(async () => {
+    root = api.mount(doc.getElementById("mount"), "receipt", {
+      receipt: packReceipt("manual-change", [receiptItem("one", "Immediate result")]),
+      cinematic: true,
+    })
+  })
+  await api.act(async () => button(doc, "Reveal cards").click())
+  await api.act(async () => button(doc, "Break the seal").click())
+  assert.equal(doc.querySelector(".pack-reveal-shell").dataset.stage, "opening")
+  await api.act(async () => {
+    w.localStorage.setItem("dc.ui.appearance", JSON.stringify({ motion: false }))
+    w.dispatchEvent(new w.StorageEvent("storage", { key: "dc.ui.appearance" }))
+  })
+  assert.equal(doc.querySelector(".pack-reveal-shell").dataset.stage, "results")
+  assert.match(doc.querySelector("dialog").textContent, /Immediate result/)
+  await api.act(async () => root.unmount())
+})
+
 test("receipt identity resets reveal state while the same identity preserves it", async () => {
   const { api, doc } = runtime(async () => response({}), "en")
   let root

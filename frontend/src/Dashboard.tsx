@@ -1,7 +1,9 @@
+import { useAdminCopy } from "./admin/admin-copy"
 import SvgIcon, { type IconName } from "./icons/Icon"
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react"
 import markImage from "@/imports/mark.svg"
-import curatorImage from "@/imports/curator-optimized.webp"
+import Mascot from "./Mascot"
+import { NightshiftNav, WorldGallery } from "./nightshift-layout"
 import ProfileStudio from "./ProfileStudio"
 import BureauHeader from "./BureauHeader"
 import AccountMenu from "./AccountMenu"
@@ -1406,7 +1408,7 @@ export default function Dashboard({ initialSession }: { initialSession: SessionP
   if (user.is_staff) nav.push(["admin", "ADMIN", "admin"])
 
   return (
-    <div className="dc-dashboard dc-redesign dc-v3 dc-vnext bureau-app min-h-screen community-dashboard">
+    <div className="dc-dashboard dc-redesign dc-v3 dc-vnext bureau-app ns-private min-h-screen community-dashboard">
       {guideOpen && !signing && !announcements.some((item) => item.presentation === "MODAL") && (
         <BureauGuide
           onClose={closeGuide}
@@ -1482,11 +1484,19 @@ export default function Dashboard({ initialSession }: { initialSession: SessionP
               <span>
                 {companion?.online
                   ? companion.game_running
-                    ? "IN GAME"
-                    : "ONLINE"
+                    ? language === "ru"
+                      ? "В ИГРЕ"
+                      : "IN GAME"
+                    : language === "ru"
+                      ? "В СЕТИ"
+                      : "ONLINE"
                   : companion?.paired
-                    ? "OFFLINE"
-                    : "COMPANION"}
+                    ? language === "ru"
+                      ? "НЕ В СЕТИ"
+                      : "OFFLINE"
+                    : language === "ru"
+                      ? "КОМПАНЬОН"
+                      : "COMPANION"}
               </span>
             </button>
             <AccountMenu
@@ -1501,6 +1511,11 @@ export default function Dashboard({ initialSession }: { initialSession: SessionP
         }
       />
 
+      <NightshiftNav
+        active={tab}
+        staff={user.is_staff}
+        onNavigate={(next) => setTab(next as Tab)}
+      />
       <BureauBottomNav active={tab} onNavigate={(next) => setTab(next as Tab)} />
 
       <div className="dc-app-shell dc-app-shell-topnav">
@@ -1530,7 +1545,6 @@ export default function Dashboard({ initialSession }: { initialSession: SessionP
 
           {tab === "home" && (
             <>
-              <ArchiveNextStep revision={archiveRevision} onNavigate={(next) => setTab(next)} />
               <section className="dc-command-hero dc-v3-hero">
                 <div className="dc-command-copy">
                   <p className="dc-eyebrow">
@@ -1569,7 +1583,7 @@ export default function Dashboard({ initialSession }: { initialSession: SessionP
                 </div>
                 <div className="dc-curator-stage">
                   <div className="dc-curator-grid" />
-                  <img src={curatorImage} alt="Curator" />
+                  <Mascot initialPose="dossier" priority />
                   <div className="dc-curator-dialog">
                     <span>{language === "ru" ? "КУРАТОР" : "CURATOR"}</span>
                     <p>
@@ -1597,6 +1611,7 @@ export default function Dashboard({ initialSession }: { initialSession: SessionP
                   <img className="dc-curator-mark" src={markImage} alt="" />
                 </div>
               </section>
+              <ArchiveNextStep revision={archiveRevision} onNavigate={(next) => setTab(next)} />
               <section className="dc-v3-mode-overview">
                 {MODES.map((item) => {
                   const b = boards.find((x) => x.game_match_mode === item)
@@ -1667,6 +1682,7 @@ export default function Dashboard({ initialSession }: { initialSession: SessionP
                   <small>{t(language, "бесплатно сегодня")}</small>
                 </article>
               </section>
+              <WorldGallery onNavigate={(next) => setTab(next as Tab)} />
             </>
           )}
 
@@ -2539,10 +2555,11 @@ const ADAPTIVE_METRICS: Array<[string, string]> = [
   ["match.duration_s", "DURATION"],
 ]
 
-function adaptiveValue(metric: string, value: number | undefined) {
+function adaptiveValue(metric: string, value: number | undefined, language: Language = "ru") {
   if (value === undefined || value === null) return "—"
-  if (metric === "match.duration_s") return `${Math.round(value / 60)}m`
-  return number(Math.round(value))
+  if (metric === "match.duration_s")
+    return `${Math.round(value / 60)}${language === "ru" ? "м" : "m"}`
+  return number(Math.round(value), language)
 }
 
 function adaptiveMeta(option: Record<string, unknown>) {
@@ -2569,6 +2586,8 @@ function AdminConsole({
   setError: (value: string) => void
   setNotice: (value: string) => void
 }) {
+  const { copy, language } = useAdminCopy()
+
   const [auth, setAuth] = useState<AdminAuthStatus | null>(null)
   const [code, setCode] = useState("")
   const [section, setSection] = useState<AdminSection>(() =>
@@ -2803,7 +2822,7 @@ function AdminConsole({
 
   const unlock = async () => {
     if (!/^\d{6}$/.test(code)) {
-      setError("Введите одноразовый код из приложения-аутентификатора.")
+      setError(copy("Введите одноразовый код из приложения-аутентификатора."))
       return
     }
     setBusy(true)
@@ -2819,7 +2838,7 @@ function AdminConsole({
           : firstAdminSectionForPermissions(data.permissions),
       )
       setCode("")
-      setNotice(`Staff-доступ подтверждён на ${data.ttl_minutes} минут.`)
+      setNotice(copy("Staff-доступ подтверждён на {0} минут.", { 0: data.ttl_minutes }))
     } catch (reason) {
       setError((reason as Error).message)
     } finally {
@@ -2834,7 +2853,7 @@ function AdminConsole({
         previous ? { ...previous, elevated: false, expires_at: null } : previous,
       )
       setDetail(null)
-      setNotice("Административная сессия заблокирована.")
+      setNotice(copy("Административная сессия заблокирована."))
     } catch (reason) {
       setError((reason as Error).message)
     }
@@ -2866,7 +2885,10 @@ function AdminConsole({
 
   const saveIdentity = async () => {
     if (!detail || !auth?.can_manage_roles || detail.user.access_role === "OWNER") return
-    if (!confirm(`Сохранить роль и публичные бейджи для ${detail.user.display_name}?`)) return
+    if (
+      !confirm(copy("Сохранить роль и публичные бейджи для {0}?", { 0: detail.user.display_name }))
+    )
+      return
     setBusy(true)
     try {
       await api(`/api/admin/users/${detail.user.id}/identity`, csrf, {
@@ -2876,7 +2898,7 @@ function AdminConsole({
           badges: identityBadges,
         }),
       })
-      setNotice("Роль и публичные бейджи обновлены. Изменение записано в аудит.")
+      setNotice(copy("Роль и публичные бейджи обновлены. Изменение записано в аудит."))
       await openUser(detail.user.id)
       await loadSection("users")
       await reloadAll()
@@ -2888,12 +2910,12 @@ function AdminConsole({
   }
 
   const revokeCompanionFor = async (item: AdminUserSummary) => {
-    if (!confirm(`Отозвать все токены Companion у ${item.display_name}?`)) return
+    if (!confirm(copy("Отозвать все токены Companion у {0}?", { 0: item.display_name }))) return
     try {
       await api(`/api/admin/users/${item.id}/revoke-companion`, csrf, {
         method: "POST",
       })
-      setNotice("Companion пользователя отозван.")
+      setNotice(copy("Companion пользователя отозван."))
       await openUser(item.id)
       await loadSection("users")
     } catch (reason) {
@@ -2902,12 +2924,13 @@ function AdminConsole({
   }
 
   const terminateSessionsFor = async (item: AdminUserSummary) => {
-    if (!confirm(`Завершить все веб-сессии пользователя ${item.display_name}?`)) return
+    if (!confirm(copy("Завершить все веб-сессии пользователя {0}?", { 0: item.display_name })))
+      return
     try {
       await api(`/api/admin/users/${item.id}/terminate-sessions`, csrf, {
         method: "POST",
       })
-      setNotice("Веб-сессии пользователя завершены.")
+      setNotice(copy("Веб-сессии пользователя завершены."))
       await openUser(item.id)
       await loadSection("users")
     } catch (reason) {
@@ -2919,8 +2942,10 @@ function AdminConsole({
     if (!auth?.can_manage_roles || item.access_role === "OWNER") return
     const next = item.status === "ACTIVE" ? "SUSPENDED" : "ACTIVE"
     const reason = prompt(
-      `Причина изменения статуса ${item.display_name} → ${next}:`,
-      next === "SUSPENDED" ? "Временная блокировка администратором" : "Разблокировка владельцем",
+      copy("Причина изменения статуса {0} → {1}:", { 0: item.display_name, 1: next }),
+      next === "SUSPENDED"
+        ? copy("Временная блокировка администратором")
+        : copy("Разблокировка владельцем"),
     )?.trim()
     if (!reason) return
     try {
@@ -2928,7 +2953,7 @@ function AdminConsole({
         method: "POST",
         body: JSON.stringify({ status: next, reason }),
       })
-      setNotice(`Статус пользователя: ${next}`)
+      setNotice(copy("Статус пользователя: {0}", { 0: next }))
       await openUser(item.id)
       await loadSection("users")
     } catch (reasonValue) {
@@ -2939,23 +2964,26 @@ function AdminConsole({
   const adjustXp = async (item: AdminUserSummary) => {
     if (!auth?.can_manage_roles) return
     const raw = prompt(
-      `Изменение XP для ${item.display_name}. Допустимо от -100000 до 100000:`,
+      copy("Изменение XP для {0}. Допустимо от -100000 до 100000:", { 0: item.display_name }),
       "100",
     )?.trim()
     if (!raw) return
     const delta = Number(raw)
     if (!Number.isInteger(delta) || delta === 0) {
-      setError("Введите ненулевое целое изменение XP.")
+      setError(copy("Введите ненулевое целое изменение XP."))
       return
     }
-    const reason = prompt("Причина корректировки XP:", "Ручная корректировка владельцем")?.trim()
+    const reason = prompt(
+      copy("Причина корректировки XP:"),
+      copy("Ручная корректировка владельцем"),
+    )?.trim()
     if (!reason) return
     try {
       await api(`/api/admin/users/${item.id}/xp-adjust`, csrf, {
         method: "POST",
         body: JSON.stringify({ delta, reason }),
       })
-      setNotice("XP скорректирован с записью в ledger и audit.")
+      setNotice(copy("XP скорректирован с записью в ledger и audit."))
       await openUser(item.id)
       await loadSection("users")
       await reloadAll()
@@ -2966,8 +2994,8 @@ function AdminConsole({
 
   const retryJob = async (job: AdminJob) => {
     const reason = prompt(
-      "Причина повторного запуска задачи:",
-      "Повтор после проверки администратора",
+      copy("Причина повторного запуска задачи:"),
+      copy("Повтор после проверки администратора"),
     )?.trim()
     if (!reason) return
     try {
@@ -2975,7 +3003,7 @@ function AdminConsole({
         method: "POST",
         body: JSON.stringify({ reason }),
       })
-      setNotice("FAILED-задача возвращена в очередь.")
+      setNotice(copy("FAILED-задача возвращена в очередь."))
       await loadSection("jobs")
     } catch (reasonValue) {
       setError((reasonValue as Error).message)
@@ -2984,17 +3012,18 @@ function AdminConsole({
 
   const replayOutbox = async (event: AdminOutboxEvent) => {
     const reason = prompt(
-      `Причина replay ${event.event_type} / ${event.id.slice(0, 8)}:`,
-      "Причина устранена; повторная доставка подтверждена администратором",
+      copy("Причина replay {0} / {1}:", { 0: event.event_type, 1: event.id.slice(0, 8) }),
+      copy("Причина устранена; повторная доставка подтверждена администратором"),
     )?.trim()
     if (!reason) return
-    if (!confirm("Вернуть dead-letter событие в очередь? Доставка останется идемпотентной.")) return
+    if (!confirm(copy("Вернуть dead-letter событие в очередь? Доставка останется идемпотентной.")))
+      return
     try {
       await api(`/api/admin/outbox/${event.id}/replay`, csrf, {
         method: "POST",
         body: JSON.stringify({ reason }),
       })
-      setNotice("Outbox event возвращён в очередь; причина записана в аудит.")
+      setNotice(copy("Outbox event возвращён в очередь; причина записана в аудит."))
       await loadSection("outbox")
       await loadSection("system")
     } catch (reasonValue) {
@@ -3019,7 +3048,9 @@ function AdminConsole({
   const retryBoardVerification = async (boardId: string) => {
     if (
       !confirm(
-        "Поставить это VERIFYING-дело на повторную автоматическую проверку? XP и статусы по-прежнему определяет серверный evaluator.",
+        copy(
+          "Поставить это VERIFYING-дело на повторную автоматическую проверку? XP и статусы по-прежнему определяет серверный evaluator.",
+        ),
       )
     )
       return
@@ -3031,8 +3062,8 @@ function AdminConsole({
       }>(`/api/admin/boards/${boardId}/retry-verification`, csrf, { method: "POST" })
       setNotice(
         result.already_queued
-          ? `Проверка матча #${result.match_id} уже находится в очереди.`
-          : `Матч #${result.match_id} поставлен на повторную проверку.`,
+          ? copy("Проверка матча #{0} уже находится в очереди.", { 0: result.match_id })
+          : copy("Матч #{0} поставлен на повторную проверку.", { 0: result.match_id }),
       )
       await openBoard(boardId)
       await loadSection("overview")
@@ -3043,13 +3074,20 @@ function AdminConsole({
     }
   }
   const revokeDevice = async (item: AdminCompanion) => {
-    if (!confirm(`Отозвать устройство ${item.device_id} пользователя ${item.user.display_name}?`))
+    if (
+      !confirm(
+        copy("Отозвать устройство {0} пользователя {1}?", {
+          0: item.device_id,
+          1: item.user.display_name,
+        }),
+      )
+    )
       return
     try {
       await api(`/api/admin/companions/${item.id}/revoke`, csrf, {
         method: "POST",
       })
-      setNotice("Устройство отозвано.")
+      setNotice(copy("Устройство отозвано."))
       await loadSection("companions")
     } catch (reason) {
       setError((reason as Error).message)
@@ -3081,12 +3119,15 @@ function AdminConsole({
     for (const field of fields)
       if (missionDraft[field] !== selectedMission[field]) body[field] = missionDraft[field]
     if (!Object.keys(body).length) {
-      setNotice("Изменений шаблона нет.")
+      setNotice(copy("Изменений шаблона нет."))
       return
     }
     if (
       !confirm(
-        `Сохранить изменения шаблона ${selectedMission.key}? Новые доски будут использовать обновлённые параметры.`,
+        copy(
+          "Сохранить изменения шаблона {0}? Новые доски будут использовать обновлённые параметры.",
+          { 0: selectedMission.key },
+        ),
       )
     )
       return
@@ -3101,8 +3142,10 @@ function AdminConsole({
       setMissionDraft({ ...data.mission })
       setNotice(
         data.created_as_draft
-          ? "Создана новая DRAFT-версия. Опубликуйте её после RU/EN preview; текущая PUBLISHED-версия не изменена."
-          : "Версия обновлена. Существующие уже выданные карточки не переписаны.",
+          ? copy(
+              "Создана новая DRAFT-версия. Опубликуйте её после RU/EN preview; текущая PUBLISHED-версия не изменена.",
+            )
+          : copy("Версия обновлена. Существующие уже выданные карточки не переписаны."),
       )
       await loadSection("missions")
     } catch (reason) {
@@ -3115,7 +3158,7 @@ function AdminConsole({
   const runGenerator = async () => {
     const count = Number(generatorBoards)
     if (!Number.isInteger(count) || count < 1 || count > 40) {
-      setError("Количество preview-досок: от 1 до 40.")
+      setError(copy("Количество preview-досок: от 1 до 40."))
       return
     }
     setBusy(true)
@@ -3141,7 +3184,7 @@ function AdminConsole({
     return (
       <section className="dc-admin-shell">
         <article className="dc-panel">
-          <h2>Проверяем административную сессию…</h2>
+          <h2>{copy("Проверяем административную сессию…")}</h2>
         </article>
       </section>
     )
@@ -3149,11 +3192,12 @@ function AdminConsole({
     return (
       <section className="dc-admin-shell">
         <article className="dc-admin-unlock">
-          <p className="dc-eyebrow">SECURE ZONE / TOTP</p>
-          <h1>Admin console</h1>
+          <p className="dc-eyebrow">{copy("SECURE ZONE / TOTP")}</p>
+          <h1>{copy("Admin console")}</h1>
           <p>
-            SteamID уже проверен. Для доступа к данным игроков требуется отдельное
-            TOTP-подтверждение. Код не сохраняется и не передаётся клиентам.
+            {copy(
+              "SteamID уже проверен. Для доступа к данным игроков требуется отдельное TOTP-подтверждение. Код не сохраняется и не передаётся клиентам.",
+            )}
           </p>
           <div className="dc-admin-unlock-form">
             <input
@@ -3161,7 +3205,7 @@ function AdminConsole({
               inputMode="numeric"
               autoComplete="one-time-code"
               maxLength={6}
-              placeholder="000000"
+              placeholder={copy("000000")}
               value={code}
               onChange={(event) => setCode(event.target.value.replace(/\D/g, ""))}
               onKeyDown={(event) => {
@@ -3169,13 +3213,13 @@ function AdminConsole({
               }}
             />
             <button className="dc-primary" disabled={busy} onClick={() => void unlock()}>
-              {busy ? "Проверяем…" : "Разблокировать"}
+              {busy ? copy("Проверяем…") : copy("Разблокировать")}
             </button>
           </div>
           <small>
             {auth.configured
-              ? "TOTP настроен."
-              : "TOTP на сервере не настроен — выполните scripts/init-admin-totp.sh."}
+              ? copy("TOTP настроен.")
+              : copy("TOTP на сервере не настроен — выполните scripts/init-admin-totp.sh.")}
           </small>
         </article>
       </section>
@@ -3196,22 +3240,22 @@ function AdminConsole({
     <section className="dc-admin-shell">
       <div className="dc-admin-head">
         <div>
-          <p className="dc-eyebrow">OPERATIONS CONSOLE / ADMIN MAX</p>
-          <h1>Operations console</h1>
+          <p className="dc-eyebrow">{copy("OPERATIONS CONSOLE / ADMIN MAX")}</p>
+          <h1>{copy("Operations console")}</h1>
           <p>
-            Control plane для пользователей, матчей, дел, Companion, очередей и каталога контрактов.
-            Прямого SQL, shell-доступа и отображения секретов нет. Опасные изменения доступны только
-            OWNER и всегда попадают в audit.
+            {copy(
+              "Control plane для пользователей, матчей, дел, Companion, очередей и каталога контрактов. Прямого SQL, shell-доступа и отображения секретов нет. Опасные изменения доступны только OWNER и всегда попадают в audit.",
+            )}
           </p>
         </div>
         <div className="dc-admin-session">
-          <span>SESSION UNTIL</span>
-          <b>{auth.expires_at ? fmt(auth.expires_at) : "—"}</b>
+          <span>{copy("SESSION UNTIL")}</span>
+          <b>{auth.expires_at ? fmt(auth.expires_at, language) : "—"}</b>
           <small>
             {auth.admin.access_role} · {auth.admin.steam_id64}
           </small>
           <button className="dc-ghost" onClick={() => void lockAdmin()}>
-            LOCK SESSION
+            {copy("LOCK SESSION")}
           </button>
         </div>
       </div>
@@ -3222,19 +3266,19 @@ function AdminConsole({
             className={section === key ? "active" : ""}
             onClick={() => setSection(key)}
           >
-            {label}
+            {copy(label)}
           </button>
         ))}
       </nav>
       <label className="dc-admin-mobile-section">
-        <span>РАЗДЕЛ КОНСОЛИ</span>
+        <span>{copy("РАЗДЕЛ КОНСОЛИ")}</span>
         <select
           value={section}
           onChange={(event) => setSection(event.target.value as AdminSection)}
         >
           {sections.map(([key, label]) => (
             <option key={key} value={key}>
-              {label}
+              {copy(label)}
             </option>
           ))}
         </select>
@@ -3246,71 +3290,80 @@ function AdminConsole({
             <>
               <div className="dc-admin-grid dc-admin-grid-max">
                 <article>
-                  <span>ИГРОКИ</span>
+                  <span>{copy("ИГРОКИ")}</span>
                   <b>{overview.users}</b>
                   <small>
-                    +{overview.users_new_24h} за 24ч · +{overview.users_new_7d} за 7д
+                    +{overview.users_new_24h} {copy(" за 24ч · +")}
+                    {overview.users_new_7d} {copy(" за 7д")}
                   </small>
                 </article>
                 <article>
-                  <span>АКТИВНЫЕ ДЕЛА</span>
+                  <span>{copy("АКТИВНЫЕ ДЕЛА")}</span>
                   <b>{overview.active_boards}</b>
-                  <small>{overview.boards_24h} новых за 24ч</small>
+                  <small>
+                    {overview.boards_24h} {copy(" новых за 24ч")}
+                  </small>
                 </article>
                 <article>
-                  <span>МАТЧИ / 24Ч</span>
+                  <span>{copy("МАТЧИ / 24Ч")}</span>
                   <b>{overview.matches_24h}</b>
-                  <small>{overview.matches_7d} за 7 дней</small>
+                  <small>
+                    {overview.matches_7d} {copy(" за 7 дней")}
+                  </small>
                 </article>
                 <article>
-                  <span>COMPANION ONLINE</span>
+                  <span>{copy("COMPANION ONLINE")}</span>
                   <b>{overview.companion_online}</b>
-                  <small>{overview.companion_paired} активных привязок</small>
+                  <small>
+                    {overview.companion_paired} {copy(" активных привязок")}
+                  </small>
                 </article>
                 <article className={overview.pending_reviews ? "warn" : ""}>
-                  <span>REVIEW</span>
+                  <span>{copy("REVIEW")}</span>
                   <b>{overview.pending_reviews}</b>
-                  <small>требуют внимания</small>
+                  <small>{copy("требуют внимания")}</small>
                 </article>
                 <article className={overview.failed_jobs ? "warn" : ""}>
-                  <span>FAILED JOBS</span>
+                  <span>{copy("FAILED JOBS")}</span>
                   <b>{overview.failed_jobs}</b>
-                  <small>{overview.pending_jobs} pending</small>
+                  <small>
+                    {overview.pending_jobs} {copy(" pending")}
+                  </small>
                 </article>
                 <article className={overview.verification_health.stuck_15m ? "warn" : ""}>
-                  <span>VERIFYING</span>
+                  <span>{copy("VERIFYING")}</span>
                   <b>{overview.verification_health.verifying_options}</b>
                   <small>
-                    {overview.verification_health.stuck_15m} ждут &gt;15 мин ·{" "}
-                    {overview.verification_health.final_match_waiting} уже final
+                    {overview.verification_health.stuck_15m} {copy(" ждут >15 мин ·")}{" "}
+                    {overview.verification_health.final_match_waiting} {copy(" уже final")}
                   </small>
                 </article>
                 <article>
-                  <span>XP ВЫДАНО</span>
-                  <b>{number(overview.xp_issued)}</b>
-                  <small>положительные ledger entries</small>
+                  <span>{copy("XP ВЫДАНО")}</span>
+                  <b>{number(overview.xp_issued, language)}</b>
+                  <small>{copy("положительные ledger entries")}</small>
                 </article>
                 <article>
-                  <span>ПОСЛЕДНИЙ MATCH</span>
+                  <span>{copy("ПОСЛЕДНИЙ MATCH")}</span>
                   <b>{overview.latest_match_id || "—"}</b>
-                  <small>{fmt(overview.server_time)}</small>
+                  <small>{fmt(overview.server_time, language)}</small>
                 </article>
               </div>
               <div className="dc-admin-panel-grid">
                 <article className="dc-panel">
-                  <h3>Статусы дел</h3>
+                  <h3>{copy("Статусы дел")}</h3>
                   {kv(overview.board_statuses)}
                 </article>
                 <article className="dc-panel">
-                  <h3>Режимы матчей</h3>
+                  <h3>{copy("Режимы матчей")}</h3>
                   {kv(overview.match_modes)}
                 </article>
                 <article className="dc-panel">
-                  <h3>Очередь</h3>
+                  <h3>{copy("Очередь")}</h3>
                   {kv(overview.job_statuses)}
                 </article>
                 <article className="dc-panel">
-                  <h3>Версии Companion</h3>
+                  <h3>{copy("Версии Companion")}</h3>
                   {kv(overview.companion_versions)}
                 </article>
                 <article
@@ -3318,28 +3371,28 @@ function AdminConsole({
                     overview.verification_health.stuck_15m ? "dc-admin-health-warn" : ""
                   }`}
                 >
-                  <h3>Verification health</h3>
+                  <h3>{copy("Verification health")}</h3>
                   <div className="dc-admin-kv">
-                    <span>VERIFYING</span>
+                    <span>{copy("VERIFYING")}</span>
                     <b>{overview.verification_health.verifying_options}</b>
                   </div>
                   <div className="dc-admin-kv">
-                    <span>FINAL MATCH WAITING</span>
+                    <span>{copy("FINAL MATCH WAITING")}</span>
                     <b>{overview.verification_health.final_match_waiting}</b>
                   </div>
                   <div className="dc-admin-kv">
-                    <span>STUCK &gt; 15M</span>
+                    <span>{copy("STUCK > 15M")}</span>
                     <b>{overview.verification_health.stuck_15m}</b>
                   </div>
                   {Object.keys(overview.verification_health.missing_capabilities).length > 0 && (
                     <details>
-                      <summary>Missing capabilities</summary>
+                      <summary>{copy("Missing capabilities")}</summary>
                       {kv(overview.verification_health.missing_capabilities)}
                     </details>
                   )}
                   {overview.verification_health.examples.length > 0 && (
                     <details>
-                      <summary>Последние VERIFYING на final-матчах</summary>
+                      <summary>{copy("Последние VERIFYING на final-матчах")}</summary>
                       <div className="dc-admin-health-list">
                         {overview.verification_health.examples.map((item) => (
                           <button
@@ -3354,7 +3407,7 @@ function AdminConsole({
                             </b>
                             <small>
                               {item.missing_capabilities.join(", ") ||
-                                "facts present / ожидает evaluator"}
+                                copy("facts present / ожидает evaluator")}
                             </small>
                           </button>
                         ))}
@@ -3364,13 +3417,16 @@ function AdminConsole({
                 </article>
               </div>
               <article className="dc-panel dc-admin-timeline">
-                <h3>14 дней</h3>
+                <h3>{copy("14 дней")}</h3>
                 <div>
                   {overview.timeline.map((day) => (
                     <span key={day.date}>
                       <b>{day.date.slice(5)}</b>
                       <small>
-                        U {day.registrations} · M {day.matches} · B {day.boards}
+                        {copy("U ")}
+                        {day.registrations} {copy(" · M ")}
+                        {day.matches} {copy(" · B ")}
+                        {day.boards}
                       </small>
                     </span>
                   ))}
@@ -3379,7 +3435,7 @@ function AdminConsole({
             </>
           ) : (
             <article className="dc-panel">
-              <h2>Загрузка…</h2>
+              <h2>{copy("Загрузка…")}</h2>
             </article>
           )}
         </>
@@ -3389,41 +3445,43 @@ function AdminConsole({
         <>
           <div className="dc-admin-filterbar">
             <input
-              placeholder="Ник, SteamID64 или Account ID"
+              placeholder={copy("Ник, SteamID64 или Account ID")}
               value={query}
               onChange={(event) => setQuery(event.target.value)}
             />
             <select value={userRole} onChange={(event) => setUserRole(event.target.value)}>
-              <option value="ALL">Все роли</option>
-              <option>OWNER</option>
-              <option>ADMIN</option>
-              <option>MODERATOR</option>
-              <option>TESTER</option>
-              <option>PLAYER</option>
+              <option value="ALL">{copy("Все роли")}</option>
+              <option value="OWNER">{copy("OWNER")}</option>
+              <option value="ADMIN">{copy("ADMIN")}</option>
+              <option value="MODERATOR">{copy("MODERATOR")}</option>
+              <option value="TESTER">{copy("TESTER")}</option>
+              <option value="PLAYER">{copy("PLAYER")}</option>
             </select>
             <select value={userStatus} onChange={(event) => setUserStatus(event.target.value)}>
-              <option value="ALL">Все статусы</option>
-              <option>ACTIVE</option>
-              <option>SUSPENDED</option>
+              <option value="ALL">{copy("Все статусы")}</option>
+              <option value="ACTIVE">{copy("ACTIVE")}</option>
+              <option value="SUSPENDED">{copy("SUSPENDED")}</option>
             </select>
             <select
               value={userCompanion}
               onChange={(event) => setUserCompanion(event.target.value)}
             >
-              <option value="ALL">Любой Companion</option>
-              <option value="ONLINE">Online</option>
-              <option value="PAIRED">Paired</option>
-              <option value="NONE">Нет</option>
+              <option value="ALL">{copy("Любой Companion")}</option>
+              <option value="ONLINE">{copy("Online")}</option>
+              <option value="PAIRED">{copy("Paired")}</option>
+              <option value="NONE">{copy("Нет")}</option>
             </select>
             <select value={userSort} onChange={(event) => setUserSort(event.target.value)}>
-              <option value="NEWEST">Новые</option>
-              <option value="XP">По XP</option>
-              <option value="NAME">По имени</option>
+              <option value="NEWEST">{copy("Новые")}</option>
+              <option value="XP">{copy("По XP")}</option>
+              <option value="NAME">{copy("По имени")}</option>
             </select>
             <button className="dc-ghost" onClick={() => void loadSection("users")}>
-              Применить
+              {copy("Применить")}
             </button>
-            <small>{userTotal} найдено</small>
+            <small>
+              {userTotal} {copy(" найдено")}
+            </small>
           </div>
           <div className={`dc-admin-users-layout ${detail ? "has-detail" : ""}`}>
             <div className="dc-admin-users-list">
@@ -3437,19 +3495,21 @@ function AdminConsole({
                     <b>{item.display_name}</b>
                     <RoleBadgeList badges={item.badges} compact />
                     <small>
-                      {item.steam_id64} · XP {item.xp} · {item.status}
+                      {item.steam_id64} {copy(" · XP ")}
+                      {item.xp} · {item.status}
                     </small>
                   </div>
                   <div>
                     <span className={item.companion.online ? "ok" : ""}>
                       {item.companion.online
-                        ? "COMPANION ONLINE"
+                        ? copy("COMPANION ONLINE")
                         : item.companion.paired
-                          ? "PAIRED"
-                          : "NO COMPANION"}
+                          ? copy("PAIRED")
+                          : copy("NO COMPANION")}
                     </span>
                     <small>
-                      {item.active_boards} активных дел · {item.sessions} сессий
+                      {item.active_boards} {copy(" активных дел · ")}
+                      {item.sessions} {copy(" сессий")}
                     </small>
                   </div>
                 </button>
@@ -3466,7 +3526,7 @@ function AdminConsole({
                       setSelectedUserId(null)
                     }}
                   >
-                    ← К списку игроков
+                    {copy("← К списку игроков")}
                   </button>
                   <header>
                     <div>
@@ -3476,8 +3536,10 @@ function AdminConsole({
                       <h2>{detail.user.display_name}</h2>
                       <RoleBadgeList badges={detail.user.badges} />
                       <small>
-                        Account ID {detail.user.account_id ?? "—"} · XP {detail.user.xp} ·{" "}
-                        {detail.user.status} · с нами с {joinLabel(detail.user.created_at)}
+                        {copy("Account ID ")}
+                        {detail.user.account_id ?? "—"} {copy(" · XP ")}
+                        {detail.user.xp} · {detail.user.status} {copy(" · с нами с ")}
+                        {joinLabel(detail.user.created_at, language)}
                       </small>
                     </div>
                     <div className="dc-admin-user-actions">
@@ -3485,14 +3547,14 @@ function AdminConsole({
                         className="dc-ghost"
                         onClick={() => void revokeCompanionFor(detail.user)}
                       >
-                        Отозвать Companion
+                        {copy("Отозвать Companion")}
                       </button>
                       {detail.user.id !== auth.admin.id && (
                         <button
                           className="dc-ghost"
                           onClick={() => void terminateSessionsFor(detail.user)}
                         >
-                          Завершить сессии
+                          {copy("Завершить сессии")}
                         </button>
                       )}
                       {auth.can_manage_roles && detail.user.access_role !== "OWNER" && (
@@ -3500,12 +3562,14 @@ function AdminConsole({
                           className="dc-ghost"
                           onClick={() => void changeUserStatus(detail.user)}
                         >
-                          {detail.user.status === "ACTIVE" ? "Приостановить" : "Активировать"}
+                          {detail.user.status === "ACTIVE"
+                            ? copy("Приостановить")
+                            : copy("Активировать")}
                         </button>
                       )}
                       {auth.can_manage_roles && (
                         <button className="dc-ghost" onClick={() => void adjustXp(detail.user)}>
-                          Корректировать XP
+                          {copy("Корректировать XP")}
                         </button>
                       )}
                     </div>
@@ -3514,27 +3578,29 @@ function AdminConsole({
                     <section className="dc-admin-identity-editor">
                       <div className="dc-admin-identity-title">
                         <div>
-                          <span>ДОСТУП И ПУБЛИЧНЫЕ БЕЙДЖИ</span>
+                          <span>{copy("ДОСТУП И ПУБЛИЧНЫЕ БЕЙДЖИ")}</span>
                           <p>
-                            Права проверяются сервером. Бейджи меняют только отображение профиля.
+                            {copy(
+                              "Права проверяются сервером. Бейджи меняют только отображение профиля.",
+                            )}
                           </p>
                         </div>
                         {detail.user.access_role === "OWNER" ? (
-                          <b>OWNER защищён server allowlist</b>
+                          <b>{copy("OWNER защищён server allowlist")}</b>
                         ) : (
                           <button
                             className="dc-primary"
                             disabled={busy}
                             onClick={() => void saveIdentity()}
                           >
-                            {busy ? "Сохраняем…" : "Сохранить"}
+                            {busy ? copy("Сохраняем…") : copy("Сохранить")}
                           </button>
                         )}
                       </div>
                       {detail.user.access_role !== "OWNER" && (
                         <>
                           <label>
-                            ACCESS ROLE
+                            {copy("ACCESS ROLE")}
                             <select
                               value={identityRole}
                               onChange={(event) =>
@@ -3543,10 +3609,16 @@ function AdminConsole({
                                 )
                               }
                             >
-                              <option value="PLAYER">PLAYER — обычный игрок</option>
-                              <option value="TESTER">TESTER — участник тестирования</option>
-                              <option value="MODERATOR">MODERATOR — только Review + TOTP</option>
-                              <option value="ADMIN">ADMIN — административный доступ + TOTP</option>
+                              <option value="PLAYER">{copy("PLAYER — обычный игрок")}</option>
+                              <option value="TESTER">
+                                {copy("TESTER — участник тестирования")}
+                              </option>
+                              <option value="MODERATOR">
+                                {copy("MODERATOR — только Review + TOTP")}
+                              </option>
+                              <option value="ADMIN">
+                                {copy("ADMIN — административный доступ + TOTP")}
+                              </option>
                             </select>
                           </label>
                           <div className="dc-admin-badge-picker">
@@ -3565,8 +3637,9 @@ function AdminConsole({
                             ))}
                           </div>
                           <small className="dc-admin-identity-warning">
-                            OWNER через веб назначить нельзя. Снятие ADMIN автоматически сбрасывает
-                            MFA elevation его сессий.
+                            {copy(
+                              "OWNER через веб назначить нельзя. Снятие ADMIN автоматически сбрасывает MFA elevation его сессий.",
+                            )}
                           </small>
                         </>
                       )}
@@ -3574,29 +3647,29 @@ function AdminConsole({
                   )}
                   <div className="dc-admin-mini-grid">
                     <div>
-                      <span>COMPANION</span>
+                      <span>{copy("COMPANION")}</span>
                       <b>
                         {detail.user.companion.online
-                          ? "ONLINE"
+                          ? copy("ONLINE")
                           : detail.user.companion.paired
-                            ? "OFFLINE"
+                            ? copy("OFFLINE")
                             : "—"}
                       </b>
                     </div>
                     <div>
-                      <span>DEADLOCK</span>
-                      <b>{detail.user.companion.game_running ? "RUNNING" : "—"}</b>
+                      <span>{copy("DEADLOCK")}</span>
+                      <b>{detail.user.companion.game_running ? copy("RUNNING") : "—"}</b>
                     </div>
                     <div>
-                      <span>PHASE</span>
+                      <span>{copy("PHASE")}</span>
                       <b>{detail.user.companion.phase || "—"}</b>
                     </div>
                     <div>
-                      <span>MATCH ID</span>
+                      <span>{copy("MATCH ID")}</span>
                       <b>{detail.user.companion.current_match_id || "—"}</b>
                     </div>
                   </div>
-                  <h3>Adaptive Contracts profile</h3>
+                  <h3>{copy("Adaptive Contracts profile")}</h3>
                   <div className="dc-admin-adaptive-grid">
                     {(["STANDARD", "RANKED", "STREET_BRAWL"] as Mode[]).map((mode) => {
                       const profile = detail.adaptive_profiles[mode]
@@ -3605,7 +3678,9 @@ function AdminConsole({
                           <header>
                             <div>
                               <b>{mode}</b>
-                              <small>{profile.sample_size} verified matches</small>
+                              <small>
+                                {profile.sample_size} {copy(" verified matches")}
+                              </small>
                             </div>
                             <span
                               className={`dc-admin-confidence ${profile.confidence.toLowerCase()}`}
@@ -3619,11 +3694,12 @@ function AdminConsole({
                               if (!row) return null
                               return (
                                 <div key={metric}>
-                                  <span>{label}</span>
-                                  <b>{adaptiveValue(metric, row.median)}</b>
+                                  <span>{copy(label)}</span>
+                                  <b>{adaptiveValue(metric, row.median, language)}</b>
                                   <small>
-                                    P75 {adaptiveValue(metric, row.p75)} · best{" "}
-                                    {adaptiveValue(metric, row.best)}
+                                    {copy("P75 ")}
+                                    {adaptiveValue(metric, row.p75, language)} {copy(" · best")}{" "}
+                                    {adaptiveValue(metric, row.best, language)}
                                   </small>
                                 </div>
                               )
@@ -3633,7 +3709,7 @@ function AdminConsole({
                       )
                     })}
                   </div>
-                  <h3>Последние дела</h3>
+                  <h3>{copy("Последние дела")}</h3>
                   <div className="dc-admin-table">
                     {detail.boards.slice(0, 12).map((board) => (
                       <button
@@ -3652,12 +3728,12 @@ function AdminConsole({
                         <span>
                           {board.contracts
                             .map((item) => `${item.title}: ${item.status}`)
-                            .join(" · ") || "Без выбранных контрактов"}
+                            .join(" · ") || copy("Без выбранных контрактов")}
                         </span>
                       </button>
                     ))}
                   </div>
-                  <h3>Последние матчи</h3>
+                  <h3>{copy("Последние матчи")}</h3>
                   <div className="dc-admin-table">
                     {detail.matches.slice(0, 12).map((match) => (
                       <button
@@ -3671,41 +3747,55 @@ function AdminConsole({
                         <span>#{match.match_id}</span>
                         <span>{match.mode}</span>
                         <span>
-                          {match.duration_s ? `${Math.round(match.duration_s / 60)} мин` : "—"}
+                          {match.duration_s
+                            ? copy("{0} мин", { 0: Math.round(match.duration_s / 60) })
+                            : "—"}
                         </span>
                         <span>
-                          K/D/A {match.kills ?? "—"}/{match.deaths ?? "—"}/{match.assists ?? "—"} ·
-                          dmg {match.hero_damage ?? "—"} · souls {match.souls ?? "—"}
+                          {copy("K/D/A ")}
+                          {match.kills ?? "—"}/{match.deaths ?? "—"}/{match.assists ?? "—"}{" "}
+                          {copy(" · dmg ")}
+                          {match.hero_damage ?? "—"} {copy(" · souls ")}
+                          {match.souls ?? "—"}
                         </span>
                       </button>
                     ))}
                   </div>
                   <div className="dc-admin-two-col">
                     <div>
-                      <h3>Reward ledger</h3>
+                      <h3>{copy("Reward ledger")}</h3>
                       <div className="dc-admin-compact-list">
                         {detail.rewards.slice(0, 12).map((item) => (
                           <div key={item.id}>
                             <b>
                               {item.delta > 0 ? "+" : ""}
-                              {item.delta} XP
+                              {item.delta} {copy(" XP")}
                             </b>
                             <span>
-                              {item.source_type} · balance {item.balance_after}
+                              {item.source_type} {copy(" · balance ")}
+                              {item.balance_after}
                             </span>
-                            <small>{fmt(item.created_at)}</small>
+                            <small>{fmt(item.created_at, language)}</small>
                           </div>
                         ))}
                       </div>
                     </div>
                     <div>
-                      <h3>Сессии</h3>
+                      <h3>{copy("Сессии")}</h3>
                       <div className="dc-admin-compact-list">
                         {detail.sessions.map((item, index) => (
                           <div key={index}>
-                            <b>{item.admin_elevated ? "ADMIN ELEVATED" : "WEB SESSION"}</b>
-                            <span>last {fmt(item.last_seen_at)}</span>
-                            <small>expires {fmt(item.expires_at)}</small>
+                            <b>
+                              {item.admin_elevated ? copy("ADMIN ELEVATED") : copy("WEB SESSION")}
+                            </b>
+                            <span>
+                              {copy("last ")}
+                              {fmt(item.last_seen_at, language)}
+                            </span>
+                            <small>
+                              {copy("expires ")}
+                              {fmt(item.expires_at, language)}
+                            </small>
                           </div>
                         ))}
                       </div>
@@ -3713,7 +3803,7 @@ function AdminConsole({
                   </div>
                   <div className="dc-admin-two-col">
                     <div>
-                      <h3>Companion events</h3>
+                      <h3>{copy("Companion events")}</h3>
                       <div className="dc-admin-compact-list">
                         {detail.events.slice(0, 12).map((item, index) => (
                           <div key={index}>
@@ -3721,13 +3811,13 @@ function AdminConsole({
                             <span>
                               #{item.match_id || "—"} · {item.mode || "—"} · {item.phase || "—"}
                             </span>
-                            <small>{fmt(item.created_at)}</small>
+                            <small>{fmt(item.created_at, language)}</small>
                           </div>
                         ))}
                       </div>
                     </div>
                     <div>
-                      <h3>Audit пользователя</h3>
+                      <h3>{copy("Audit пользователя")}</h3>
                       <div className="dc-admin-compact-list">
                         {detail.audit.slice(0, 12).map((item) => (
                           <div key={item.id}>
@@ -3735,7 +3825,7 @@ function AdminConsole({
                             <span>
                               {item.entity_type}:{item.entity_id}
                             </span>
-                            <small>{fmt(item.created_at)}</small>
+                            <small>{fmt(item.created_at, language)}</small>
                           </div>
                         ))}
                       </div>
@@ -3743,7 +3833,7 @@ function AdminConsole({
                   </div>
                 </>
               ) : (
-                <div className="dc-admin-empty">Выберите игрока слева.</div>
+                <div className="dc-admin-empty">{copy("Выберите игрока слева.")}</div>
               )}
             </div>
           </div>
@@ -3763,17 +3853,17 @@ function AdminConsole({
       )}
 
       {section === "packs" && (
-        <Suspense fallback={<p role="status">Конверты / Packs…</p>}>
+        <Suspense fallback={<p role="status">{copy("Конверты / Packs…")}</p>}>
           <OwnerArchiveDesk csrf={csrf} permissions={auth.permissions} />
         </Suspense>
       )}
       {section === "cards" && (
-        <Suspense fallback={<p role="status">Карточки / Cards…</p>}>
+        <Suspense fallback={<p role="status">{copy("Карточки / Cards…")}</p>}>
           <CardReviewDesk csrf={csrf} />
         </Suspense>
       )}
       {section === "bureau_reports" && (
-        <Suspense fallback={<p role="status">Открываем обращения…</p>}>
+        <Suspense fallback={<p role="status">{copy("Открываем обращения…")}</p>}>
           <BureauModerationDesk csrf={csrf} />
         </Suspense>
       )}
@@ -3792,24 +3882,24 @@ function AdminConsole({
           <div className="dc-admin-filterbar">
             <input
               inputMode="numeric"
-              placeholder="Match ID"
+              placeholder={copy("Match ID")}
               value={matchQuery}
               onChange={(event) => setMatchQuery(event.target.value.replace(/\D/g, ""))}
             />
             <select value={matchMode} onChange={(event) => setMatchMode(event.target.value)}>
-              <option value="ALL">Все режимы</option>
-              <option>STANDARD</option>
-              <option>RANKED</option>
-              <option>STREET_BRAWL</option>
-              <option>UNKNOWN</option>
+              <option value="ALL">{copy("Все режимы")}</option>
+              <option value="STANDARD">{copy("STANDARD")}</option>
+              <option value="RANKED">{copy("RANKED")}</option>
+              <option value="STREET_BRAWL">{copy("STREET_BRAWL")}</option>
+              <option value="UNKNOWN">{copy("UNKNOWN")}</option>
             </select>
             <select value={matchScoring} onChange={(event) => setMatchScoring(event.target.value)}>
-              <option value="ALL">Любой scoring</option>
-              <option>SCORED</option>
-              <option>NOT_SCORED</option>
+              <option value="ALL">{copy("Любой scoring")}</option>
+              <option value="SCORED">{copy("SCORED")}</option>
+              <option value="NOT_SCORED">{copy("NOT_SCORED")}</option>
             </select>
             <button className="dc-ghost" onClick={() => void loadSection("matches")}>
-              Найти
+              {copy("Найти")}
             </button>
           </div>
           <div className={`dc-admin-master-detail ${matchDetail ? "has-detail" : ""}`}>
@@ -3821,8 +3911,9 @@ function AdminConsole({
                     {item.mode} · {item.scoring_status}
                   </span>
                   <small>
-                    {fmt(item.started_at)} · {item.participants} игроков · {item.bound_contracts}{" "}
-                    contracts · {item.reviews} review
+                    {fmt(item.started_at, language)} · {item.participants} {copy(" игроков · ")}
+                    {item.bound_contracts} {copy("contracts · ")}
+                    {item.reviews} {copy(" review")}
                   </small>
                 </button>
               ))}
@@ -3835,36 +3926,39 @@ function AdminConsole({
                     className="dc-admin-mobile-back"
                     onClick={() => setMatchDetail(null)}
                   >
-                    ← К списку матчей
+                    {copy("← К списку матчей")}
                   </button>
-                  <h2>Матч #{matchDetail.match.match_id}</h2>
+                  <h2>
+                    {copy("Матч #")}
+                    {matchDetail.match.match_id}
+                  </h2>
                   <div className="dc-admin-mini-grid">
                     <div>
-                      <span>MODE</span>
+                      <span>{copy("MODE")}</span>
                       <b>{matchDetail.match.mode}</b>
                     </div>
                     <div>
-                      <span>PROVIDER</span>
+                      <span>{copy("PROVIDER")}</span>
                       <b>{matchDetail.match.provider}</b>
                     </div>
                     <div>
-                      <span>CONFIDENCE</span>
+                      <span>{copy("CONFIDENCE")}</span>
                       <b>{matchDetail.match.mode_confidence}</b>
                     </div>
                     <div>
-                      <span>FINAL</span>
-                      <b>{matchDetail.match.is_final ? "YES" : "NO"}</b>
+                      <span>{copy("FINAL")}</span>
+                      <b>{matchDetail.match.is_final ? copy("YES") : copy("NO")}</b>
                     </div>
                   </div>
-                  <h3>Capabilities</h3>
+                  <h3>{copy("Capabilities")}</h3>
                   <p className="dc-admin-code-line">
                     {matchDetail.match.capabilities.join(" · ") || "—"}
                   </p>
-                  <h3>Участники</h3>
+                  <h3>{copy("Участники")}</h3>
                   <pre>{JSON.stringify(matchDetail.participants, null, 2)}</pre>
-                  <h3>Привязанные контракты</h3>
+                  <h3>{copy("Привязанные контракты")}</h3>
                   <pre>{JSON.stringify(matchDetail.contracts, null, 2)}</pre>
-                  <h3>Review / Companion evidence</h3>
+                  <h3>{copy("Review / Companion evidence")}</h3>
                   <pre>
                     {JSON.stringify(
                       {
@@ -3877,7 +3971,7 @@ function AdminConsole({
                   </pre>
                 </>
               ) : (
-                <div className="dc-admin-empty">Выберите матч.</div>
+                <div className="dc-admin-empty">{copy("Выберите матч.")}</div>
               )}
             </div>
           </div>
@@ -3888,27 +3982,27 @@ function AdminConsole({
         <>
           <div className="dc-admin-filterbar">
             <input
-              placeholder="Board ID, игрок, SteamID, baseline"
+              placeholder={copy("Board ID, игрок, SteamID, baseline")}
               value={boardQuery}
               onChange={(event) => setBoardQuery(event.target.value)}
             />
             <select value={boardMode} onChange={(event) => setBoardMode(event.target.value)}>
-              <option value="ALL">Все режимы</option>
-              <option>STANDARD</option>
-              <option>RANKED</option>
-              <option>STREET_BRAWL</option>
+              <option value="ALL">{copy("Все режимы")}</option>
+              <option value="STANDARD">{copy("STANDARD")}</option>
+              <option value="RANKED">{copy("RANKED")}</option>
+              <option value="STREET_BRAWL">{copy("STREET_BRAWL")}</option>
             </select>
             <select value={boardStatus} onChange={(event) => setBoardStatus(event.target.value)}>
-              <option value="ALL">Все статусы</option>
-              <option>OFFERED</option>
-              <option>LOCKED</option>
-              <option>VERIFYING</option>
-              <option>REVIEW_REQUIRED</option>
-              <option>SETTLED</option>
-              <option>EXPIRED</option>
+              <option value="ALL">{copy("Все статусы")}</option>
+              <option value="OFFERED">{copy("OFFERED")}</option>
+              <option value="LOCKED">{copy("LOCKED")}</option>
+              <option value="VERIFYING">{copy("VERIFYING")}</option>
+              <option value="REVIEW_REQUIRED">{copy("REVIEW_REQUIRED")}</option>
+              <option value="SETTLED">{copy("SETTLED")}</option>
+              <option value="EXPIRED">{copy("EXPIRED")}</option>
             </select>
             <button className="dc-ghost" onClick={() => void loadSection("boards")}>
-              Найти
+              {copy("Найти")}
             </button>
           </div>
           <div className={`dc-admin-master-detail ${boardDetail ? "has-detail" : ""}`}>
@@ -3934,14 +4028,17 @@ function AdminConsole({
                     className="dc-admin-mobile-back"
                     onClick={() => setBoardDetail(null)}
                   >
-                    ← К списку дел
+                    {copy("← К списку дел")}
                   </button>
                   <div className="dc-admin-detail-head">
                     <div>
                       <p className="dc-eyebrow">
-                        {boardDetail.board.generator_version || "LEGACY GENERATOR"}
+                        {boardDetail.board.generator_version || copy("LEGACY GENERATOR")}
                       </p>
-                      <h2>Дело {boardDetail.board.id.slice(0, 8)}</h2>
+                      <h2>
+                        {copy("Дело ")}
+                        {boardDetail.board.id.slice(0, 8)}
+                      </h2>
                       <p>
                         {boardDetail.user?.display_name} · {boardDetail.user?.steam_id64}
                       </p>
@@ -3952,31 +4049,31 @@ function AdminConsole({
                         disabled={busy}
                         onClick={() => void retryBoardVerification(boardDetail.board.id)}
                       >
-                        {busy ? "Ставим в очередь…" : "RECHECK VERIFYING"}
+                        {busy ? copy("Ставим в очередь…") : copy("RECHECK VERIFYING")}
                       </button>
                     )}
                   </div>
                   <div className="dc-admin-mini-grid">
                     <div>
-                      <span>MODE</span>
+                      <span>{copy("MODE")}</span>
                       <b>{boardDetail.board.mode}</b>
                     </div>
                     <div>
-                      <span>STATUS</span>
+                      <span>{copy("STATUS")}</span>
                       <b>{boardDetail.board.status}</b>
                     </div>
                     <div>
-                      <span>BASELINE MATCH</span>
+                      <span>{copy("BASELINE MATCH")}</span>
                       <b>{boardDetail.board.baseline_match_id || "—"}</b>
                     </div>
                     <div>
-                      <span>ATTEMPTS</span>
+                      <span>{copy("ATTEMPTS")}</span>
                       <b>
                         {boardDetail.board.attempts_used}/{boardDetail.board.max_attempts}
                       </b>
                     </div>
                   </div>
-                  <h3>Контракты / Adaptive trace</h3>
+                  <h3>{copy("Контракты / Adaptive trace")}</h3>
                   <div className="dc-admin-option-stack">
                     {boardDetail.options.map((option) => {
                       const row = option as Record<string, unknown>
@@ -3990,38 +4087,41 @@ function AdminConsole({
                         >
                           <header>
                             <div>
-                              <b>{String(row.title || "Contract")}</b>
+                              <b>{String(row.title || copy("Contract"))}</b>
                               <small>
-                                {String(row.metric)} · target {String(row.target)} ·{" "}
-                                {String(row.reward_xp)} XP
+                                {String(row.metric)} {copy(" · target ")}
+                                {String(row.target)} · {String(row.reward_xp)} {copy(" XP")}
                               </small>
                             </div>
                             <span>{String(row.status)}</span>
                           </header>
                           <div className="dc-admin-mini-grid">
                             <div>
-                              <span>ADAPTIVE</span>
-                              <b>{adaptive.enabled ? adaptive.kind : "WILDCARD / OFF"}</b>
+                              <span>{copy("ADAPTIVE")}</span>
+                              <b>{adaptive.enabled ? adaptive.kind : copy("WILDCARD / OFF")}</b>
                             </div>
                             <div>
-                              <span>CONFIDENCE</span>
+                              <span>{copy("CONFIDENCE")}</span>
                               <b>{adaptive.confidence}</b>
                             </div>
                             <div>
-                              <span>SAMPLE</span>
+                              <span>{copy("SAMPLE")}</span>
                               <b>{adaptive.sample}</b>
                             </div>
                             <div>
-                              <span>BOUND MATCH</span>
+                              <span>{copy("BOUND MATCH")}</span>
                               <b>{String(row.bound_match_id || "—")}</b>
                             </div>
                           </div>
                           {adaptive.weakest && (
-                            <p className="dc-admin-code-line">weakest: {adaptive.weakest}</p>
+                            <p className="dc-admin-code-line">
+                              {copy("weakest: ")}
+                              {adaptive.weakest}
+                            </p>
                           )}
                           {adaptive.basis.length > 0 && (
                             <details>
-                              <summary>Why this contract / basis</summary>
+                              <summary>{copy("Why this contract / basis")}</summary>
                               <pre>{JSON.stringify(adaptive.basis, null, 2)}</pre>
                             </details>
                           )}
@@ -4031,7 +4131,7 @@ function AdminConsole({
                     })}
                   </div>
                   <details>
-                    <summary>Raw board payload</summary>
+                    <summary>{copy("Raw board payload")}</summary>
                     <pre>
                       {JSON.stringify(
                         {
@@ -4043,9 +4143,9 @@ function AdminConsole({
                       )}
                     </pre>
                   </details>
-                  <h3>Evaluations</h3>
+                  <h3>{copy("Evaluations")}</h3>
                   <pre>{JSON.stringify(boardDetail.evaluations, null, 2)}</pre>
-                  <h3>Jobs / Reviews</h3>
+                  <h3>{copy("Jobs / Reviews")}</h3>
                   <pre>
                     {JSON.stringify(
                       { jobs: boardDetail.jobs, reviews: boardDetail.reviews },
@@ -4055,7 +4155,7 @@ function AdminConsole({
                   </pre>
                 </>
               ) : (
-                <div className="dc-admin-empty">Выберите дело.</div>
+                <div className="dc-admin-empty">{copy("Выберите дело.")}</div>
               )}
             </div>
           </div>
@@ -4066,7 +4166,7 @@ function AdminConsole({
         <>
           <div className="dc-admin-filterbar">
             <input
-              placeholder="Игрок, device ID, SteamID, Match ID"
+              placeholder={copy("Игрок, device ID, SteamID, Match ID")}
               value={companionQuery}
               onChange={(event) => setCompanionQuery(event.target.value)}
             />
@@ -4074,16 +4174,16 @@ function AdminConsole({
               value={companionState}
               onChange={(event) => setCompanionState(event.target.value)}
             >
-              <option value="ALL">Все устройства</option>
-              <option value="ONLINE">Online</option>
-              <option value="ACTIVE">Активные</option>
-              <option value="REVOKED">Отозванные</option>
+              <option value="ALL">{copy("Все устройства")}</option>
+              <option value="ONLINE">{copy("Online")}</option>
+              <option value="ACTIVE">{copy("Активные")}</option>
+              <option value="REVOKED">{copy("Отозванные")}</option>
             </select>
             <select
               value={companionVersion}
               onChange={(event) => setCompanionVersion(event.target.value)}
             >
-              <option value="ALL">Все версии</option>
+              <option value="ALL">{copy("Все версии")}</option>
               {Object.keys(companionVersions)
                 .sort()
                 .map((value) => (
@@ -4091,7 +4191,7 @@ function AdminConsole({
                 ))}
             </select>
             <button className="dc-ghost" onClick={() => void loadSection("companions")}>
-              Применить
+              {copy("Применить")}
             </button>
           </div>
           <div className="dc-admin-companion-grid">
@@ -4103,35 +4203,40 @@ function AdminConsole({
                     <small>{item.user.steam_id64}</small>
                   </div>
                   <span>
-                    {item.status.online ? "ONLINE" : item.revoked_at ? "REVOKED" : "OFFLINE"}
+                    {item.status.online
+                      ? copy("ONLINE")
+                      : item.revoked_at
+                        ? copy("REVOKED")
+                        : copy("OFFLINE")}
                   </span>
                 </header>
                 <p className="dc-admin-code-line">{item.device_id}</p>
                 <div className="dc-admin-mini-grid">
                   <div>
-                    <span>VERSION</span>
+                    <span>{copy("VERSION")}</span>
                     <b>{item.status.version || "—"}</b>
                   </div>
                   <div>
-                    <span>GEP</span>
+                    <span>{copy("GEP")}</span>
                     <b>{item.status.gep_version || "—"}</b>
                   </div>
                   <div>
-                    <span>MODE</span>
+                    <span>{copy("MODE")}</span>
                     <b>{item.status.game_match_mode || "—"}</b>
                   </div>
                   <div>
-                    <span>MATCH</span>
+                    <span>{copy("MATCH")}</span>
                     <b>{item.status.current_match_id || "—"}</b>
                   </div>
                 </div>
                 <small>
-                  last seen {fmt(item.status.last_seen_at)} · identity{" "}
+                  {copy("last seen ")}
+                  {fmt(item.status.last_seen_at, language)} {copy(" · identity")}{" "}
                   {String(item.status.identity_ok ?? "—")}
                 </small>
                 {!item.revoked_at && (
                   <button className="dc-ghost" onClick={() => void revokeDevice(item)}>
-                    Отозвать устройство
+                    {copy("Отозвать устройство")}
                   </button>
                 )}
               </article>
@@ -4144,26 +4249,26 @@ function AdminConsole({
         <>
           <div className="dc-admin-filterbar">
             <input
-              placeholder="Key, название или metric"
+              placeholder={copy("Key, название или metric")}
               value={missionQuery}
               onChange={(event) => setMissionQuery(event.target.value)}
             />
             <select value={missionMode} onChange={(event) => setMissionMode(event.target.value)}>
-              <option value="ALL">Все режимы</option>
-              <option>STANDARD</option>
-              <option>RANKED</option>
-              <option>STREET_BRAWL</option>
+              <option value="ALL">{copy("Все режимы")}</option>
+              <option value="STANDARD">{copy("STANDARD")}</option>
+              <option value="RANKED">{copy("RANKED")}</option>
+              <option value="STREET_BRAWL">{copy("STREET_BRAWL")}</option>
             </select>
             <select
               value={missionStatus}
               onChange={(event) => setMissionStatus(event.target.value)}
             >
-              <option value="ALL">Все статусы</option>
-              <option>PUBLISHED</option>
-              <option>DISABLED</option>
+              <option value="ALL">{copy("Все статусы")}</option>
+              <option value="PUBLISHED">{copy("PUBLISHED")}</option>
+              <option value="DISABLED">{copy("DISABLED")}</option>
             </select>
             <button className="dc-ghost" onClick={() => void loadSection("missions")}>
-              Найти
+              {copy("Найти")}
             </button>
           </div>
           <div className={`dc-admin-master-detail ${missionDraft ? "has-detail" : ""}`}>
@@ -4179,8 +4284,9 @@ function AdminConsole({
                     {item.game_match_mode} · {item.rarity} · {item.difficulty}
                   </span>
                   <small>
-                    {item.key} v{item.version} · {item.metric} {item.operator} {item.target} ·{" "}
-                    {item.reward_xp} XP
+                    {item.key} {copy(" v")}
+                    {item.version} · {item.metric} {item.operator} {item.target} · {item.reward_xp}{" "}
+                    {copy(" XP")}
                   </small>
                 </button>
               ))}
@@ -4196,12 +4302,13 @@ function AdminConsole({
                       setMissionDraft(null)
                     }}
                   >
-                    ← К каталогу контрактов
+                    {copy("← К каталогу контрактов")}
                   </button>
                   <div className="dc-admin-detail-head">
                     <div>
                       <p className="dc-eyebrow">
-                        {missionDraft.key} / V{missionDraft.version}
+                        {missionDraft.key} {copy(" / V")}
+                        {missionDraft.version}
                       </p>
                       <h2>{missionDraft.title}</h2>
                     </div>
@@ -4211,13 +4318,13 @@ function AdminConsole({
                         disabled={busy}
                         onClick={() => void saveMission()}
                       >
-                        Сохранить
+                        {copy("Сохранить")}
                       </button>
                     )}
                   </div>
                   <div className="dc-admin-form-grid">
                     <label>
-                      Название (RU)
+                      {copy("Название (RU)")}
                       <input
                         disabled={!auth.can_manage_roles}
                         value={missionDraft.title}
@@ -4230,7 +4337,7 @@ function AdminConsole({
                       />
                     </label>
                     <label>
-                      Title (EN)
+                      {copy("Title (EN)")}
                       <input
                         disabled={!auth.can_manage_roles}
                         value={missionDraft.title_en || ""}
@@ -4243,7 +4350,7 @@ function AdminConsole({
                       />
                     </label>
                     <label>
-                      Status
+                      {copy("Status")}
                       <select
                         disabled={!auth.can_manage_roles}
                         value={missionDraft.status}
@@ -4254,13 +4361,13 @@ function AdminConsole({
                           })
                         }
                       >
-                        <option>PUBLISHED</option>
-                        <option>DRAFT</option>
-                        <option>DISABLED</option>
+                        <option value="PUBLISHED">{copy("PUBLISHED")}</option>
+                        <option value="DRAFT">{copy("DRAFT")}</option>
+                        <option value="DISABLED">{copy("DISABLED")}</option>
                       </select>
                     </label>
                     <label>
-                      Target
+                      {copy("Target")}
                       <input
                         disabled={!auth.can_manage_roles}
                         type="number"
@@ -4274,7 +4381,7 @@ function AdminConsole({
                       />
                     </label>
                     <label>
-                      Reward XP
+                      {copy("Reward XP")}
                       <input
                         disabled={!auth.can_manage_roles}
                         type="number"
@@ -4288,7 +4395,7 @@ function AdminConsole({
                       />
                     </label>
                     <label>
-                      Base XP
+                      {copy("Base XP")}
                       <input
                         disabled={!auth.can_manage_roles}
                         type="number"
@@ -4302,7 +4409,7 @@ function AdminConsole({
                       />
                     </label>
                     <label>
-                      Difficulty
+                      {copy("Difficulty")}
                       <select
                         disabled={!auth.can_manage_roles}
                         value={missionDraft.difficulty}
@@ -4313,14 +4420,14 @@ function AdminConsole({
                           })
                         }
                       >
-                        <option>LIGHT</option>
-                        <option>FOCUSED</option>
-                        <option>HARD</option>
-                        <option>EXTREME</option>
+                        <option value="LIGHT">{copy("LIGHT")}</option>
+                        <option value="FOCUSED">{copy("FOCUSED")}</option>
+                        <option value="HARD">{copy("HARD")}</option>
+                        <option value="EXTREME">{copy("EXTREME")}</option>
                       </select>
                     </label>
                     <label>
-                      Rarity
+                      {copy("Rarity")}
                       <select
                         disabled={!auth.can_manage_roles}
                         value={missionDraft.rarity}
@@ -4331,14 +4438,14 @@ function AdminConsole({
                           })
                         }
                       >
-                        <option>COMMON</option>
-                        <option>UNCOMMON</option>
-                        <option>RARE</option>
-                        <option>EPIC</option>
+                        <option value="COMMON">{copy("COMMON")}</option>
+                        <option value="UNCOMMON">{copy("UNCOMMON")}</option>
+                        <option value="RARE">{copy("RARE")}</option>
+                        <option value="EPIC">{copy("EPIC")}</option>
                       </select>
                     </label>
                     <label>
-                      Category
+                      {copy("Category")}
                       <select
                         disabled={!auth.can_manage_roles}
                         value={missionDraft.category}
@@ -4349,14 +4456,14 @@ function AdminConsole({
                           })
                         }
                       >
-                        <option>COMBAT</option>
-                        <option>SUPPORT</option>
-                        <option>ECONOMY</option>
-                        <option>SURVIVAL</option>
+                        <option value="COMBAT">{copy("COMBAT")}</option>
+                        <option value="SUPPORT">{copy("SUPPORT")}</option>
+                        <option value="ECONOMY">{copy("ECONOMY")}</option>
+                        <option value="SURVIVAL">{copy("SURVIVAL")}</option>
                       </select>
                     </label>
                     <label>
-                      Drop weight
+                      {copy("Drop weight")}
                       <input
                         disabled={!auth.can_manage_roles}
                         type="number"
@@ -4371,7 +4478,7 @@ function AdminConsole({
                       />
                     </label>
                     <label>
-                      Chance %
+                      {copy("Chance %")}
                       <input
                         disabled={!auth.can_manage_roles}
                         type="number"
@@ -4387,7 +4494,7 @@ function AdminConsole({
                     </label>
                   </div>
                   <label className="dc-admin-full-field">
-                    Описание (RU)
+                    {copy("Описание (RU)")}
                     <textarea
                       disabled={!auth.can_manage_roles}
                       rows={4}
@@ -4401,7 +4508,7 @@ function AdminConsole({
                     />
                   </label>
                   <label className="dc-admin-full-field">
-                    Description (EN)
+                    {copy("Description (EN)")}
                     <textarea
                       disabled={!auth.can_manage_roles}
                       rows={4}
@@ -4415,27 +4522,23 @@ function AdminConsole({
                     />
                   </label>
                   <div className="dc-admin-kv">
-                    <span>METRIC</span>
+                    <span>{copy("METRIC")}</span>
                     <b>
                       {missionDraft.metric} {missionDraft.operator} {missionDraft.target}
                     </b>
                   </div>
                   <div className="dc-admin-kv">
-                    <span>CAPABILITIES</span>
+                    <span>{copy("CAPABILITIES")}</span>
                     <b>{missionDraft.required_capabilities.join(", ") || "—"}</b>
                   </div>
                   <small>
-                    Изменение PUBLISHED создаёт новую DRAFT-версию: проверьте RU/EN preview и только
-                    потом переключите её в PUBLISHED. Предыдущая версия автоматически отключается,
-                    но остаётся доступной для rollback. Contracts 2.0 использует Status, Drop
-                    weight, Category, Metric и Capabilities как атомы генерации. Target / Reward XP
-                    / Base XP остаются reference/legacy-полями: цели и награда новых динамических
-                    контрактов рассчитываются генератором. Уже выданные BoardOption хранят
-                    собственные snapshot-поля.
+                    {copy(
+                      "Изменение PUBLISHED создаёт новую DRAFT-версию: проверьте RU/EN preview и только потом переключите её в PUBLISHED. Предыдущая версия автоматически отключается, но остаётся доступной для rollback. Contracts 2.0 использует Status, Drop weight, Category, Metric и Capabilities как атомы генерации. Target / Reward XP / Base XP остаются reference/legacy-полями: цели и награда новых динамических контрактов рассчитываются генератором. Уже выданные BoardOption хранят собственные snapshot-поля.",
+                    )}
                   </small>
                 </>
               ) : (
-                <div className="dc-admin-empty">Выберите шаблон контракта.</div>
+                <div className="dc-admin-empty">{copy("Выберите шаблон контракта.")}</div>
               )}
             </div>
           </div>
@@ -4446,11 +4549,12 @@ function AdminConsole({
         <>
           <article className="dc-panel dc-admin-generator-head">
             <div>
-              <p className="dc-eyebrow">CONTRACT FACTORY / DRY RUN</p>
-              <h2>Generator Lab</h2>
+              <p className="dc-eyebrow">{copy("CONTRACT FACTORY / DRY RUN")}</p>
+              <h2>{copy("Generator Lab")}</h2>
               <p>
-                Contracts 2.0 собирает новые цели и составные условия детерминированно. Preview
-                ничего не пишет в БД и показывает реальное разнообразие будущих досок.
+                {copy(
+                  "Contracts 2.0 собирает новые цели и составные условия детерминированно. Preview ничего не пишет в БД и показывает реальное разнообразие будущих досок.",
+                )}
               </p>
             </div>
             <div className="dc-admin-filterbar">
@@ -4458,9 +4562,9 @@ function AdminConsole({
                 value={generatorMode}
                 onChange={(event) => setGeneratorMode(event.target.value as Mode)}
               >
-                <option>STANDARD</option>
-                <option>RANKED</option>
-                <option>STREET_BRAWL</option>
+                <option value="STANDARD">{copy("STANDARD")}</option>
+                <option value="RANKED">{copy("RANKED")}</option>
+                <option value="STREET_BRAWL">{copy("STREET_BRAWL")}</option>
               </select>
               <input
                 type="number"
@@ -4476,7 +4580,7 @@ function AdminConsole({
                 }
               />
               <button className="dc-primary" disabled={busy} onClick={() => void runGenerator()}>
-                {busy ? "Генерируем…" : "Сгенерировать preview"}
+                {busy ? copy("Генерируем…") : copy("Сгенерировать preview")}
               </button>
             </div>
           </article>
@@ -4484,44 +4588,44 @@ function AdminConsole({
             <>
               <div className="dc-admin-grid">
                 <article>
-                  <span>ШАБЛОНОВ / МЕТРИК</span>
+                  <span>{copy("ШАБЛОНОВ / МЕТРИК")}</span>
                   <b>
                     {generator.stats.templates_available} /{" "}
                     {generator.stats.metrics_available ?? "—"}
                   </b>
                 </article>
                 <article>
-                  <span>ДОСОК</span>
+                  <span>{copy("ДОСОК")}</span>
                   <b>{generator.stats.boards_generated}</b>
                 </article>
                 <article>
-                  <span>УНИКАЛЬНЫХ</span>
+                  <span>{copy("УНИКАЛЬНЫХ")}</span>
                   <b>{generator.stats.unique_boards}</b>
                 </article>
                 <article className={generator.stats.duplicate_boards ? "warn" : ""}>
-                  <span>ДУБЛЕЙ</span>
+                  <span>{copy("ДУБЛЕЙ")}</span>
                   <b>{generator.stats.duplicate_boards}</b>
                 </article>
               </div>
               <div className="dc-admin-panel-grid">
                 <article className="dc-panel">
-                  <h3>Категории</h3>
+                  <h3>{copy("Категории")}</h3>
                   {kv(generator.stats.categories)}
                 </article>
                 <article className="dc-panel">
-                  <h3>Редкости</h3>
+                  <h3>{copy("Редкости")}</h3>
                   {kv(generator.stats.rarities)}
                 </article>
                 <article className="dc-panel">
-                  <h3>Сложность</h3>
+                  <h3>{copy("Сложность")}</h3>
                   {kv(generator.stats.difficulties)}
                 </article>
                 <article className="dc-panel">
-                  <h3>Число условий</h3>
+                  <h3>{copy("Число условий")}</h3>
                   {kv(generator.stats.condition_counts || {})}
                 </article>
                 <article className="dc-panel">
-                  <h3>Частые базовые атомы</h3>
+                  <h3>{copy("Частые базовые атомы")}</h3>
                   {generator.stats.contract_frequency.slice(0, 8).map((item) => (
                     <div className="dc-admin-kv" key={item.key}>
                       <span>{item.key}</span>
@@ -4542,7 +4646,8 @@ function AdminConsole({
                         <span>{item.title}</span>
                         <small>
                           {item.rarity} · {item.difficulty} · {item.category} ·{" "}
-                          {item.conditions?.length || 1} усл. · {item.reward_xp} XP
+                          {item.conditions?.length || 1} {copy(" усл. · ")}
+                          {item.reward_xp} {copy(" XP")}
                         </small>
                       </div>
                     ))}
@@ -4558,27 +4663,29 @@ function AdminConsole({
         <>
           <div className="dc-admin-filterbar">
             <input
-              placeholder="type, idempotency key, error"
+              placeholder={copy("type, idempotency key, error")}
               value={jobQuery}
               onChange={(event) => setJobQuery(event.target.value)}
             />
             <select value={jobStatus} onChange={(event) => setJobStatus(event.target.value)}>
-              <option value="ALL">Все статусы</option>
-              <option>PENDING</option>
-              <option>RUNNING</option>
-              <option>DONE</option>
-              <option>FAILED</option>
+              <option value="ALL">{copy("Все статусы")}</option>
+              <option value="PENDING">{copy("PENDING")}</option>
+              <option value="RUNNING">{copy("RUNNING")}</option>
+              <option value="DONE">{copy("DONE")}</option>
+              <option value="FAILED">{copy("FAILED")}</option>
             </select>
             <select value={jobType} onChange={(event) => setJobType(event.target.value)}>
-              <option value="ALL">Все типы</option>
-              <option>discover_match</option>
-              <option>resolve_companion_match</option>
-              <option>resolve_companion_match_auto</option>
-              <option>evaluate_match</option>
-              <option>refresh_review_match</option>
+              <option value="ALL">{copy("Все типы")}</option>
+              <option value="discover_match">{copy("discover_match")}</option>
+              <option value="resolve_companion_match">{copy("resolve_companion_match")}</option>
+              <option value="resolve_companion_match_auto">
+                {copy("resolve_companion_match_auto")}
+              </option>
+              <option value="evaluate_match">{copy("evaluate_match")}</option>
+              <option value="refresh_review_match">{copy("refresh_review_match")}</option>
             </select>
             <button className="dc-ghost" onClick={() => void loadSection("jobs")}>
-              Применить
+              {copy("Применить")}
             </button>
           </div>
           <div className="dc-admin-list">
@@ -4591,7 +4698,7 @@ function AdminConsole({
                   <div>
                     <b>{job.type}</b>
                     <small>
-                      {job.id.slice(0, 8)} · {fmt(job.created_at)}
+                      {job.id.slice(0, 8)} · {fmt(job.created_at, language)}
                     </small>
                   </div>
                   <span>
@@ -4601,12 +4708,12 @@ function AdminConsole({
                 {job.last_error && <pre>{job.last_error}</pre>}
                 <small>{job.idempotency_key}</small>
                 <details>
-                  <summary>Payload</summary>
+                  <summary>{copy("Payload")}</summary>
                   <pre>{JSON.stringify(job.payload || {}, null, 2)}</pre>
                 </details>
                 {job.status === "FAILED" && (
                   <button className="dc-ghost" onClick={() => void retryJob(job)}>
-                    Повторить безопасно
+                    {copy("Повторить безопасно")}
                   </button>
                 )}
               </article>
@@ -4619,21 +4726,23 @@ function AdminConsole({
         <>
           <div className="dc-admin-filterbar">
             <input
-              placeholder="event id, aggregate, type, error"
+              placeholder={copy("event id, aggregate, type, error")}
               value={outboxQuery}
               onChange={(event) => setOutboxQuery(event.target.value)}
             />
             <select value={outboxState} onChange={(event) => setOutboxState(event.target.value)}>
-              <option value="ALL">Все состояния</option>
-              <option>PENDING</option>
-              <option>RETRYING</option>
-              <option>DEAD_LETTER</option>
-              <option>PUBLISHED</option>
+              <option value="ALL">{copy("Все состояния")}</option>
+              <option value="PENDING">{copy("PENDING")}</option>
+              <option value="RETRYING">{copy("RETRYING")}</option>
+              <option value="DEAD_LETTER">{copy("DEAD_LETTER")}</option>
+              <option value="PUBLISHED">{copy("PUBLISHED")}</option>
             </select>
             <button className="dc-ghost" onClick={() => void loadSection("outbox")}>
-              Применить
+              {copy("Применить")}
             </button>
-            <small>{outboxTotal} событий</small>
+            <small>
+              {outboxTotal} {copy(" событий")}
+            </small>
           </div>
           <div className="dc-admin-list">
             {outbox.map((event) => (
@@ -4645,23 +4754,27 @@ function AdminConsole({
                   <div>
                     <b>{event.event_type}</b>
                     <small>
-                      {event.id.slice(0, 8)} · aggregate {event.aggregate_id} ·{" "}
-                      {fmt(event.created_at)}
+                      {event.id.slice(0, 8)} {copy(" · aggregate ")}
+                      {event.aggregate_id} · {fmt(event.created_at, language)}
                     </small>
                   </div>
                   <span>
-                    {event.state} · attempts {event.attempts}
+                    {event.state} {copy(" · attempts ")}
+                    {event.attempts}
                   </span>
                 </header>
                 {event.last_error && <pre>{event.last_error}</pre>}
-                <small>next: {fmt(event.run_after)}</small>
+                <small>
+                  {copy("next: ")}
+                  {fmt(event.run_after, language)}
+                </small>
                 <details>
-                  <summary>Immutable payload</summary>
+                  <summary>{copy("Immutable payload")}</summary>
                   <pre>{JSON.stringify(event.payload, null, 2)}</pre>
                 </details>
                 {event.state === "DEAD_LETTER" && (
                   <button className="dc-ghost" onClick={() => void replayOutbox(event)}>
-                    Replay с audit reason
+                    {copy("Replay с audit reason")}
                   </button>
                 )}
               </article>
@@ -4674,21 +4787,23 @@ function AdminConsole({
         <>
           <div className="dc-admin-filterbar">
             <input
-              placeholder="action, entity type, entity id"
+              placeholder={copy("action, entity type, entity id")}
               value={auditQuery}
               onChange={(event) => setAuditQuery(event.target.value)}
             />
             <button className="dc-ghost" onClick={() => void loadSection("audit")}>
-              Найти
+              {copy("Найти")}
             </button>
-            <small>{auditTotal} событий</small>
+            <small>
+              {auditTotal} {copy(" событий")}
+            </small>
           </div>
           <div className="dc-admin-list">
             {audit.map((item) => (
               <article key={item.id} className="dc-admin-audit">
                 <header>
                   <b>{item.action}</b>
-                  <span>{fmt(item.created_at)}</span>
+                  <span>{fmt(item.created_at, language)}</span>
                 </header>
                 <p>
                   {item.actor || "system"} → {item.entity_type}:{item.entity_id}
@@ -4706,48 +4821,49 @@ function AdminConsole({
             <>
               <div className="dc-admin-system-grid">
                 <article className="dc-panel">
-                  <h3>Release</h3>
+                  <h3>{copy("Release")}</h3>
                   {kv(system.release)}
                 </article>
                 <article className="dc-panel">
-                  <h3>Provider</h3>
+                  <h3>{copy("Provider")}</h3>
                   {kv(system.provider)}
                 </article>
                 <article className="dc-panel">
-                  <h3>Contracts</h3>
+                  <h3>{copy("Contracts")}</h3>
                   {kv(system.contracts)}
                 </article>
                 <article className="dc-panel">
-                  <h3>Companion</h3>
+                  <h3>{copy("Companion")}</h3>
                   {kv(system.companion)}
                 </article>
                 <article className="dc-panel">
-                  <h3>Security</h3>
+                  <h3>{copy("Security")}</h3>
                   {kv(system.security)}
                 </article>
                 <article className="dc-panel">
-                  <h3>Rate limits</h3>
+                  <h3>{copy("Rate limits")}</h3>
                   {kv(system.limits)}
                 </article>
                 <article className="dc-panel">
-                  <h3>Database</h3>
+                  <h3>{copy("Database")}</h3>
                   {kv(system.database)}
                 </article>
                 <article className="dc-panel">
-                  <h3>Counts</h3>
+                  <h3>{copy("Counts")}</h3>
                   {kv(system.counts)}
                 </article>
               </div>
               <article className="dc-panel">
                 <small>
-                  Секреты, токены, пароли и значения Docker secrets намеренно не доступны через этот
-                  endpoint.
+                  {copy(
+                    "Секреты, токены, пароли и значения Docker secrets намеренно не доступны через этот endpoint.",
+                  )}
                 </small>
               </article>
             </>
           ) : (
             <article className="dc-panel">
-              <h2>Загрузка…</h2>
+              <h2>{copy("Загрузка…")}</h2>
             </article>
           )}
         </>

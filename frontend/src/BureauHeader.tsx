@@ -1,6 +1,6 @@
 import Icon from "./icons/Icon"
 import { useEffect, useId, useRef, useState, type ReactNode } from "react"
-import logo from "@/imports/logo-horizontal.svg"
+import { AppearanceButton } from "./Appearance"
 import { LanguageSwitch, useLanguage } from "./i18n"
 
 type HeaderItem = { id: string; label: string; badge?: string; href?: string }
@@ -72,7 +72,12 @@ export default function BureauHeader({
               language === "ru" ? "Deadlock Contracts — главная" : "Deadlock Contracts — home"
             }
           >
-            <img src={logo} alt="Deadlock Contracts" width="144" height="44" />
+            <span className="ns-brand-icon">
+              <Icon name="eye" size={23} />
+            </span>
+            <span className="ns-brand-wordmark">
+              DEADLOCK<small>CONTRACTS</small>
+            </span>
           </a>
         ) : (
           <button
@@ -82,7 +87,12 @@ export default function BureauHeader({
               language === "ru" ? "Deadlock Contracts — главная" : "Deadlock Contracts — home"
             }
           >
-            <img src={logo} alt="Deadlock Contracts" width="144" height="44" />
+            <span className="ns-brand-icon">
+              <Icon name="eye" size={23} />
+            </span>
+            <span className="ns-brand-wordmark">
+              DEADLOCK<small>CONTRACTS</small>
+            </span>
           </button>
         )}
         <nav
@@ -92,6 +102,7 @@ export default function BureauHeader({
           {items.map(itemLink)}
         </nav>
         <div className="bureau-account">
+          <AppearanceButton />
           <LanguageSwitch compact />
           {actions}
         </div>

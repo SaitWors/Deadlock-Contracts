@@ -5,6 +5,8 @@ import Leaderboard from "./community/Leaderboard"
 import ContractSigning from "./ContractSigning"
 import { useRipple, useTilt } from "./motion"
 import logoImage from "@/imports/brand-hero.webp"
+import Mascot from "./Mascot"
+import { WorldGallery } from "./nightshift-layout"
 import { MCGCredit, t, useLanguage } from "./i18n"
 import PublicContent, { readPublicCopy } from "./PublicContent"
 import { publicUrl, resolvePublicRoute, legacyPublicUrl, type PublicPage } from "./publicRoutes"
@@ -396,29 +398,18 @@ export default function Landing() {
               </p>
             </div>
             <div className="bureau-welcome-art">
-              <div className="bureau-welcome-caption">
-                <span>{language === "ru" ? "ГОРОДСКОЙ АРХИВ" : "CITY ARCHIVE"}</span>
-                <Icon name="archive" size={18} />
-              </div>
-              <img
-                src={logoImage}
-                alt="Deadlock Contracts"
-                width="800"
-                height="400"
-                fetchPriority="high"
-              />
-              <div className="bureau-welcome-file">
-                <Icon name="file-text" size={26} />
-                <div>
-                  <b>{language === "ru" ? "Ваше следующее дело" : "Your next case"}</b>
-                  <p>
-                    {language === "ru"
-                      ? "Выбрать цель. Сыграть матч. Забрать награду."
-                      : "Choose a goal. Play a match. Claim the reward."}
-                  </p>
-                </div>
-              </div>
+              <Mascot initialPose="idle" priority />
             </div>
+            <a className="bureau-welcome-file" href={publicUrl("contracts", language)}>
+              <Icon name="file-text" size={26} />
+              <div>
+                <small>{language === "ru" ? "БЮРО ПРИНИМАЕТ ДЕЛА" : "THE BUREAU IS OPEN"}</small>
+                <b>
+                  {language === "ru" ? "Следующий матч — с целью." : "Your next match. A new goal."}
+                </b>
+              </div>
+              <Icon name="arrow-up-right" size={22} />
+            </a>
           </section>
           <section
             className="bureau-paths"
@@ -459,6 +450,7 @@ export default function Landing() {
               </div>
             </article>
           </section>
+          <WorldGallery />
         </>
       )}
       {page === "contracts" && (

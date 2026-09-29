@@ -9,6 +9,12 @@ import "./announcements/announcements.css"
 import "./bureau-stage6.css"
 import "./community/guilds.css"
 import "./interface-polish.css"
+import "./appearance.css"
+import "./nightshift-layout.css"
+import "./nightshift-surfaces.css"
+import { applyAppearance, readAppearance } from "./appearance-state"
+
+applyAppearance(readAppearance())
 
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>

@@ -1,3 +1,4 @@
+import { AppearanceProvider } from "../src/Appearance"
 // Offline review fixture. Real components with explicit, in-memory demo data.
 import React, { useState } from "react"
 import { createRoot } from "react-dom/client"
@@ -261,7 +262,9 @@ export function mount(element: HTMLElement) {
   const root = createRoot(element)
   root.render(
     <LanguageProvider>
-      <Fixture />
+      <AppearanceProvider>
+        <Fixture />
+      </AppearanceProvider>
     </LanguageProvider>,
   )
   return root

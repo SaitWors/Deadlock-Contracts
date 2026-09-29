@@ -1,4 +1,5 @@
 import Icon from "../icons/Icon"
+import { ArchiveScene } from "../nightshift-layout"
 import { useState } from "react"
 import { request, useResource } from "../community/api"
 import { useLanguage } from "../i18n"
@@ -90,6 +91,7 @@ export default function ArchivePage({
     )
   return (
     <section className="archive-page">
+      <ArchiveScene />
       <header className="archive-heading">
         <div>
           <small>DEADLOCK CONTRACTS / ARCHIVE BUREAU</small>

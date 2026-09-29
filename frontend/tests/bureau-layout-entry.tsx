@@ -1,3 +1,4 @@
+import { AppearanceProvider } from "../src/Appearance"
 import React, { useState } from "react"
 import { createRoot } from "react-dom/client"
 import BureauGuide from "../src/BureauGuide"
@@ -136,7 +137,9 @@ function Fixture() {
 export function mount(element: HTMLElement) {
   createRoot(element).render(
     <LanguageProvider>
-      <Fixture />
+      <AppearanceProvider>
+        <Fixture />
+      </AppearanceProvider>
     </LanguageProvider>,
   )
 }

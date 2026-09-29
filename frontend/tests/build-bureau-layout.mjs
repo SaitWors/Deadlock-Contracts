@@ -119,9 +119,7 @@ for (const [name, entry, title] of [
     `<!doctype html><html lang="ru"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${title}</title><link rel="stylesheet" href="fixture.css"><body style="margin:0"><div id="root"></div><script src="${name}.js"></script><script>DesignPreview.mount(document.getElementById("root"));</script></body></html>`,
   )
 }
-const demoArt = files.find(
-  (name) => name.startsWith("curator-optimized-") && name.endsWith(".webp"),
-)
+const demoArt = files.find((name) => name.startsWith("mascot-idle-") && name.endsWith(".webp"))
 if (!demoArt) throw new Error("Missing local demo artwork")
 await fs.copyFile(path.join(assets, demoArt), path.join(target, "art.webp"))
 await fs.writeFile(
