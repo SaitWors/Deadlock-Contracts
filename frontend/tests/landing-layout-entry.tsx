@@ -1,3 +1,4 @@
+import { AppearanceProvider } from "../src/Appearance"
 import { createRoot } from "react-dom/client"
 import { useState } from "react"
 import Landing from "../src/Landing"
@@ -48,7 +49,9 @@ function Fixture() {
 export function mount(element: HTMLElement) {
   createRoot(element).render(
     <LanguageProvider>
-      <Fixture />
+      <AppearanceProvider>
+        <Fixture />
+      </AppearanceProvider>
     </LanguageProvider>,
   )
 }

@@ -1,3 +1,4 @@
+import { AppearanceProvider } from "../src/Appearance"
 import { createRoot } from "react-dom/client"
 import { useState } from "react"
 import { LanguageProvider, LanguageSwitch } from "../src/i18n"
@@ -171,7 +172,9 @@ export function mount(element: HTMLElement) {
   const root = createRoot(element)
   root.render(
     <LanguageProvider>
-      <Fixture />
+      <AppearanceProvider>
+        <Fixture />
+      </AppearanceProvider>
     </LanguageProvider>,
   )
   return { unmount: () => root.unmount() }
