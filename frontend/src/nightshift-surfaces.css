@@ -1,0 +1,1311 @@
+/* Nightshift surfaces for the existing production workspace.
+ * The theme provider owns the palette. These rules deliberately leave collectible
+ * artwork, bureau covers/emblems, profile cover choices, and signing paper alone.
+ * html[data-theme] keeps lazy feature styles from restoring the old dark palette.
+ */
+
+html[data-theme] {
+  --ns-surface-soft: color-mix(in srgb, var(--ns-accent) 10%, var(--ns-surface));
+  --ns-status-good: color-mix(in srgb, #67b080 58%, var(--ns-text));
+  --ns-status-warning: color-mix(in srgb, #c49242 65%, var(--ns-text));
+  --ns-status-danger: color-mix(in srgb, #cc655d 68%, var(--ns-text));
+  --ns-status-info: color-mix(in srgb, #6aabc6 60%, var(--ns-text));
+  --ns-status-special: color-mix(in srgb, #ad86d1 62%, var(--ns-text));
+  --ns-surface-shadow: 0 8px 28px rgb(0 0 0 / 7%);
+}
+
+/* Shared panels and controls. Layout and visibility remain feature-owned. */
+html[data-theme] :is(
+  .dc-panel, .dc-system-card, .dc-identity-card, .dc-case-file, .dc-policy,
+  .dc-hq-card, .dc-profile-studio, .dc-status-card, .dc-provider-card,
+  .dc-board-toolbar, .dc-evidence, .dc-history, .dc-settings, .dc-review-card,
+  .dc-active-case-card, .dc-active-empty, .dc-method-grid article,
+  .community-panel, .community-empty, .community-collection-summary,
+  .achievement-card, .leaderboard-mine, .leaderboard-table-wrap,
+  .profile-editor, .profile-account-settings, .bureau-editor,
+  .bureau-directory-card, .dossier-view, .archive-panel, .archive-form,
+  .archive-cipher, .archive-pack-tile, .archive-receipt,
+  .archive-owner-packs > article, .archive-review-grid > article,
+  .guest-cipher-board, .guest-cipher-record
+) {
+  border-color: var(--ns-line);
+  border-radius: var(--ns-radius);
+  background: var(--ns-surface);
+  color: var(--ns-text);
+  box-shadow: var(--ns-surface-shadow);
+}
+
+html[data-theme] :is(.community-page, .archive-page, .dc-admin-shell, .guest-cipher) {
+  color: var(--ns-text);
+}
+
+html[data-theme] :is(.community-page, .archive-page) :is(h1, h2, h3) {
+  color: var(--ns-text);
+  font-family: var(--font-body);
+  letter-spacing: -.035em;
+}
+
+html[data-theme] :is(.community-page, .archive-page) :is(p, small, label):not(:where(.archive-card *, .card-surface-back *, .pack-envelope-art *, .pack-fan-back *)),
+html[data-theme] .community-muted {
+  color: var(--ns-muted);
+}
+
+html[data-theme] :is(.community-page, .archive-page) .community-eyebrow,
+html[data-theme] .dc-vnext .dc-eyebrow,
+html[data-theme] :is(.community-back, .community-footnote button) {
+  color: var(--ns-accent);
+}
+
+html[data-theme] :is(.dc-vnext, .community-page, .archive-page, .guest-cipher, .bureau-guide)
+  :is(.dc-primary, .dc-ghost, .bureau-action),
+html[data-theme] .archive-page button:not(.card-surface-control) {
+  min-height: 44px;
+  border-radius: var(--ns-small);
+  font-family: var(--font-body);
+  font-size: 13px;
+  font-weight: 650;
+  line-height: 1.4;
+  letter-spacing: 0;
+  text-shadow: none;
+  box-shadow: none;
+}
+
+html[data-theme] :is(.dc-vnext, .community-page, .guest-cipher, .bureau-guide)
+  :is(.dc-primary, .bureau-action):not(:where(.bureau-action-secondary)),
+html[data-theme] .archive-page .archive-primary {
+  border-color: transparent;
+  background: var(--ns-fill);
+  color: var(--ns-on-accent);
+}
+
+html[data-theme] :is(.dc-vnext, .community-page, .guest-cipher, .bureau-guide)
+  :is(.dc-primary, .bureau-action):not(:where(.bureau-action-secondary)):hover:not(:disabled),
+html[data-theme] .archive-page .archive-primary:hover:not(:disabled) {
+  border-color: transparent;
+  background: color-mix(in srgb, var(--ns-fill) 87%, white);
+  color: var(--ns-on-accent);
+  box-shadow: 0 4px 18px color-mix(in srgb, var(--ns-fill) 12%, transparent);
+}
+
+html[data-theme] :is(.dc-vnext, .community-page, .guest-cipher, .bureau-guide)
+  :is(.dc-ghost, .bureau-action-secondary),
+html[data-theme] .archive-page button:not(.archive-primary):not(.card-surface-control) {
+  border-color: var(--ns-line);
+  background: var(--ns-elevated);
+  color: var(--ns-text);
+}
+
+html[data-theme] :is(.dc-vnext, .community-page, .guest-cipher, .bureau-guide)
+  :is(.dc-ghost, .bureau-action-secondary):hover:not(:disabled),
+html[data-theme] .archive-page button:not(.archive-primary):not(.card-surface-control):hover:not(:disabled) {
+  border-color: var(--ns-accent);
+  background: var(--ns-surface-soft);
+  color: var(--ns-text);
+  box-shadow: none;
+}
+
+html[data-theme] :is(.dc-workspace, .community-page, .archive-page, .guest-cipher)
+  :is(input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]):not([type="file"]), select, textarea) {
+  min-height: 44px;
+  border: 1px solid var(--ns-line);
+  border-radius: var(--ns-small);
+  background: var(--ns-deep);
+  color: var(--ns-text);
+  color-scheme: inherit;
+  font-family: var(--font-body);
+  font-size: 13px;
+  font-weight: 450;
+  line-height: 1.5;
+  letter-spacing: 0;
+  padding: 10px 12px;
+  box-shadow: none;
+}
+
+html[data-theme] :is(.dc-workspace, .community-page, .archive-page, .guest-cipher)
+  :is(input, textarea)::placeholder {
+  color: var(--ns-muted);
+  opacity: .8;
+}
+
+html[data-theme] :is(.dc-workspace, .community-page, .archive-page, .guest-cipher) select option {
+  background: var(--ns-surface);
+  color: var(--ns-text);
+}
+
+html[data-theme] :is(.dc-workspace, .community-page, .archive-page, .guest-cipher)
+  :is(input[type="checkbox"], input[type="radio"], input[type="range"]) {
+  accent-color: var(--ns-accent);
+}
+
+html[data-theme] :is(.dc-vnext, .community-page, .archive-page, .guest-cipher,
+  .dc-announcement-center, .bureau-profile-popover, .bureau-guide)
+  :is(button, a, input, select, textarea, summary):focus-visible {
+  outline: 2px solid var(--ns-accent);
+  outline-offset: 3px;
+  box-shadow: none;
+}
+
+html[data-theme] :is(.community-page, .archive-page, .dc-workspace) input[type="file"] {
+  color: var(--ns-muted);
+}
+
+html[data-theme] :is(.community-page, .archive-page, .dc-workspace) input::file-selector-button {
+  border: 1px solid var(--ns-line);
+  border-radius: 8px;
+  background: var(--ns-elevated);
+  color: var(--ns-text);
+  padding: 8px 12px;
+  margin-right: 10px;
+}
+
+html[data-theme] .dc-toast,
+html[data-theme] .community-page :is(.community-notice, .profile-preview-note) {
+  border: 1px solid color-mix(in srgb, var(--ns-status-good) 45%, var(--ns-line));
+  border-radius: var(--ns-small);
+  background: color-mix(in srgb, var(--ns-status-good) 10%, var(--ns-surface));
+  color: var(--ns-status-good);
+}
+
+html[data-theme] .dc-error,
+html[data-theme] .community-page .community-error,
+html[data-theme] .archive-page [role="alert"] {
+  border-color: color-mix(in srgb, var(--ns-status-danger) 45%, var(--ns-line));
+  border-radius: var(--ns-small);
+  background: color-mix(in srgb, var(--ns-status-danger) 10%, var(--ns-surface));
+  color: var(--ns-status-danger);
+}
+
+html[data-theme] :is(.dc-danger-zone, .dc-settings .danger) {
+  border-color: color-mix(in srgb, var(--ns-status-danger) 35%, var(--ns-line));
+  border-radius: var(--ns-radius);
+  background: color-mix(in srgb, var(--ns-status-danger) 5%, var(--ns-surface));
+  color: var(--ns-text);
+}
+
+html[data-theme] :is(.dc-vnext .dc-danger, .dc-danger-zone button, .dc-settings .danger button) {
+  border: 1px solid color-mix(in srgb, var(--ns-status-danger) 45%, var(--ns-line));
+  border-radius: var(--ns-small);
+  background: color-mix(in srgb, var(--ns-status-danger) 10%, var(--ns-surface));
+  color: var(--ns-status-danger);
+}
+
+/* Contracts retain difficulty and rarity meanings. The !important declarations
+ * here only replace older !important paint rules on these exact components. */
+html[data-theme] .dc-v3 .dc-motion-contract-card {
+  border-color: var(--ns-line) !important;
+  border-radius: var(--ns-radius) !important;
+  background: var(--ns-surface) !important;
+  color: var(--ns-text) !important;
+  padding: 24px !important;
+  box-shadow: var(--ns-surface-shadow) !important;
+}
+
+html[data-theme] .dc-v3 .dc-motion-contract-card::before {
+  background: linear-gradient(135deg, color-mix(in srgb, var(--ns-accent) 8%, transparent), transparent 65%) !important;
+}
+
+html[data-theme] .dc-v3 .dc-motion-contract-card:hover:not(:disabled) {
+  border-color: var(--ns-accent) !important;
+  background: var(--ns-elevated) !important;
+  box-shadow: 0 10px 28px rgb(0 0 0 / 10%) !important;
+}
+
+html[data-theme] .dc-v3 .dc-motion-contract-card.selected,
+html[data-theme] .dc-v3 .dc-motion-contract-card.selected:is(.rarity-rare, .rarity-epic) {
+  border-color: var(--ns-accent) !important;
+  background: var(--ns-surface-soft) !important;
+  box-shadow: inset 0 0 0 1px var(--ns-accent) !important;
+}
+
+html[data-theme] .dc-v3 .dc-motion-contract-card:is(.rarity-rare, .rarity-epic):not(.selected) {
+  border-color: color-mix(in srgb, var(--ns-status-special) 42%, var(--ns-line)) !important;
+}
+
+html[data-theme] .dc-v3 .dc-motion-contract-card h3 {
+  max-width: 100% !important;
+  color: var(--ns-text) !important;
+  font-family: var(--font-body) !important;
+  font-size: 21px !important;
+  font-weight: 650 !important;
+  line-height: 1.25 !important;
+  letter-spacing: -.03em !important;
+  text-transform: none;
+}
+
+html[data-theme] .dc-v3 .dc-motion-contract-card > p {
+  color: var(--ns-muted) !important;
+  font-size: 14px !important;
+  line-height: 1.65 !important;
+}
+
+html[data-theme] .dc-v3 .dc-motion-contract-card .dc-contract-top em,
+html[data-theme] .dc-v3 .dc-motion-contract-card .dc-v3-tags span {
+  border-color: var(--ns-line) !important;
+  border-radius: 7px !important;
+  background: var(--ns-elevated) !important;
+  color: var(--ns-muted) !important;
+  font-family: var(--font-body) !important;
+  font-size: 10px !important;
+  letter-spacing: .03em !important;
+  padding: 5px 7px !important;
+}
+
+html[data-theme] .dc-v3 .dc-motion-contract-card .dc-contract-top span {
+  color: color-mix(in srgb, var(--card-accent) 60%, var(--ns-text)) !important;
+  font-family: var(--font-body) !important;
+  font-size: 11px !important;
+  letter-spacing: .08em !important;
+}
+
+html[data-theme] .dc-v3 .dc-motion-contract-card:is(.rarity-rare, .rarity-epic) .dc-v3-tags span:nth-child(2) {
+  border-color: color-mix(in srgb, var(--ns-status-special) 35%, var(--ns-line)) !important;
+  color: var(--ns-status-special) !important;
+}
+
+html[data-theme] .dc-v3 .dc-motion-contract-card.diff-hard .dc-v3-tags span:first-child {
+  color: var(--ns-status-warning) !important;
+}
+
+html[data-theme] .dc-v3 .dc-motion-contract-card.diff-extreme .dc-v3-tags span:first-child {
+  color: var(--ns-status-danger) !important;
+}
+
+html[data-theme] .dc-v3 .dc-motion-card-meta,
+html[data-theme] .dc-v3 .dc-motion-contract-card .dc-contract-foot {
+  border-top-color: var(--ns-line) !important;
+}
+
+html[data-theme] .dc-v3 .dc-motion-card-meta span,
+html[data-theme] .dc-v3 .dc-motion-contract-card .dc-contract-foot :is(span, strong) {
+  color: var(--ns-muted) !important;
+  font-family: var(--font-body) !important;
+  font-size: 11px !important;
+  letter-spacing: .025em !important;
+}
+
+html[data-theme] .dc-v3 .dc-motion-card-meta b {
+  color: var(--ns-text) !important;
+  font-family: var(--font-body) !important;
+  font-size: 15px !important;
+  text-shadow: none;
+}
+
+html[data-theme] .dc-v3 .dc-motion-card-meta span:last-child b,
+html[data-theme] .dc-v3 .dc-motion-contract-card .dc-contract-foot strong.chosen {
+  color: var(--ns-accent) !important;
+  text-shadow: none;
+}
+
+html[data-theme] .dc-v3 .dc-v3-mode-tabs {
+  border-color: var(--ns-line);
+  border-radius: var(--ns-small);
+  background: var(--ns-surface);
+  box-shadow: none;
+}
+
+html[data-theme] .dc-v3 .dc-v3-mode-tabs button {
+  color: var(--ns-muted) !important;
+  border-right-color: var(--ns-line) !important;
+  border-bottom-color: var(--ns-line) !important;
+}
+
+html[data-theme] .dc-v3 :is(.dc-motion-contract-card, .dc-v3-mode-tabs button,
+  .dc-motion-selection-tray button, .dc-motion-reroll button):focus-visible {
+  outline: 2px solid var(--ns-accent) !important;
+}
+
+html[data-theme] .dc-v3 .dc-v3-mode-tabs button:hover {
+  background: var(--ns-elevated) !important;
+  color: var(--ns-text) !important;
+}
+
+html[data-theme] .dc-v3 .dc-v3-mode-tabs button.active {
+  background: var(--ns-surface-soft) !important;
+  color: var(--ns-accent) !important;
+  box-shadow: inset 0 -2px var(--ns-accent) !important;
+}
+
+html[data-theme] .dc-v3 .dc-v3-mode-tabs button.active span {
+  text-shadow: none;
+}
+
+html[data-theme] .dc-v3 .dc-v3-mode-tabs span {
+  font-family: var(--font-body) !important;
+  letter-spacing: .015em !important;
+}
+
+html[data-theme] .dc-v3 .dc-motion-filter-row button {
+  min-height: 38px !important;
+  border-radius: 10px !important;
+  border-color: var(--ns-line) !important;
+  background: var(--ns-surface) !important;
+  color: var(--ns-muted);
+}
+
+html[data-theme] .dc-v3 .dc-motion-filter-row button:hover,
+html[data-theme] .dc-v3 .dc-motion-filter-row button.active {
+  border-color: var(--ns-accent) !important;
+  background: var(--ns-surface-soft) !important;
+  color: var(--ns-accent) !important;
+  box-shadow: none;
+}
+
+html[data-theme] .dc-v3 .dc-motion-reroll,
+html[data-theme] .dc-v3 .dc-board-command {
+  border-color: var(--ns-line) !important;
+  border-radius: var(--ns-small);
+  background: var(--ns-surface) !important;
+  box-shadow: none;
+}
+
+html[data-theme] .dc-v3 .dc-motion-reroll > span,
+html[data-theme] .dc-v3 .dc-motion-contract-head > div:first-child > p:last-child,
+html[data-theme] .dc-v3 .dc-board-command p {
+  color: var(--ns-muted) !important;
+}
+
+html[data-theme] .dc-v3 .dc-motion-reroll > span { font-size: 11px !important; }
+html[data-theme] .dc-v3 .dc-motion-reroll button { font-size: 11px !important; }
+html[data-theme] .dc-v3 .dc-motion-contract-head > div:first-child > p:last-child { font-size: 14px !important; }
+html[data-theme] .dc-v3 .dc-motion-reroll > strong,
+html[data-theme] .dc-v3 .dc-board-command strong { color: var(--ns-text) !important; }
+html[data-theme] .dc-v3 .dc-board-command .dc-board-count strong,
+html[data-theme] .dc-v3 .dc-board-locked { color: var(--ns-accent) !important; }
+
+html[data-theme] .dc-v3 .dc-motion-mode-note,
+html[data-theme] .dc-v3 .dc-v3-mode-brief,
+html[data-theme] .dc-v3 .dc-motion-selection-tray {
+  border-color: var(--ns-line);
+  border-radius: var(--ns-radius);
+  background: var(--ns-surface);
+  box-shadow: none;
+}
+
+html[data-theme] .dc-v3 .dc-motion-selection-tray {
+  padding: 20px 24px;
+  background: color-mix(in srgb, var(--ns-surface) 94%, transparent);
+  backdrop-filter: blur(20px);
+  box-shadow: 0 12px 36px rgb(0 0 0 / 15%);
+}
+
+html[data-theme] .dc-v3 .dc-motion-selection-tray.has-selection {
+  border-color: color-mix(in srgb, var(--ns-accent) 55%, var(--ns-line));
+  background: color-mix(in srgb, var(--ns-surface) 94%, transparent);
+}
+
+html[data-theme] .dc-v3 .dc-motion-selected-pills > span {
+  border-color: var(--ns-line);
+  border-radius: 8px;
+  background: var(--ns-elevated);
+  color: var(--ns-muted);
+}
+
+html[data-theme] .dc-v3 :is(.dc-motion-selection-copy > strong, .dc-motion-mode-note b, .dc-v3-mode-brief h2) {
+  color: var(--ns-text);
+}
+
+html[data-theme] .dc-v3 :is(.dc-motion-selection-copy > p, .dc-motion-mode-note small,
+  .dc-v3-mode-brief p:not(.dc-eyebrow), .dc-v3-mode-tabs small, .dc-filter-row button span) {
+  color: var(--ns-muted);
+}
+
+html[data-theme] .dc-v3 :is(.dc-motion-total-xp, .dc-motion-selected-pills b) {
+  color: var(--ns-accent);
+  text-shadow: none;
+}
+
+html[data-theme] .dc-v3 :is(.dc-motion-mode-note em, .dc-v3-mode-brief > span, .dc-board-locked) {
+  border-color: var(--ns-line);
+  border-radius: 7px;
+  background: var(--ns-elevated);
+  color: var(--ns-status-warning);
+}
+
+/* Cases, history, companion, and shared workspace summaries. */
+html[data-theme] .dc-vnext :is(.dc-v3-mode-overview > button, .dc-kpi-grid article,
+  .dc-home-archive-callout, .dc-deadline-strip > div, .dc-v3-auto-review-banner) {
+  border-color: var(--ns-line);
+  border-radius: var(--ns-radius);
+  background: var(--ns-surface);
+  color: var(--ns-text);
+  box-shadow: none;
+}
+
+html[data-theme] .dc-vnext .dc-home-archive-callout {
+  background: linear-gradient(120deg, var(--ns-surface-soft), var(--ns-surface));
+}
+
+html[data-theme] .dc-vnext :is(.dc-v3-mode-overview > button:hover, .dc-kpi-grid article:hover) {
+  border-color: var(--ns-accent);
+  background: var(--ns-elevated);
+}
+
+html[data-theme] .dc-vnext :is(.dc-v3-mode-overview h3, .dc-kpi-grid strong,
+  .dc-home-archive-callout strong, .dc-deadline-strip strong,
+  .dc-case-contracts button b, .dc-last-case-id b, .dc-last-results b,
+  .dc-identity-stats b, .dc-v3-hardest b) {
+  color: var(--ns-text);
+}
+
+html[data-theme] .dc-vnext .dc-v3-mode-overview h3 {
+  font: 650 22px/1.3 var(--font-body);
+  letter-spacing: -.025em;
+  text-transform: none;
+}
+
+html[data-theme] .dc-vnext :is(.dc-v3-mode-overview p, .dc-v3-mode-overview header em,
+  .dc-v3-mode-overview > button > div small, .dc-v3-mode-overview strong i,
+  .dc-kpi-grid span, .dc-kpi-grid small, .dc-kpi-grid strong i,
+  .dc-home-archive-callout p, .dc-deadline-strip span, .dc-deadline-strip small,
+  .dc-case-contracts button small, .dc-last-case-id small, .dc-last-results small,
+  .dc-active-case > footer, .dc-identity-stats span, .dc-v3-hardest small,
+  .dc-companion-state, .dc-empty) {
+  color: var(--ns-muted);
+}
+
+html[data-theme] .dc-vnext .dc-v3-mode-overview p { font-size: 13px; line-height: 1.65; }
+html[data-theme] .dc-vnext .dc-v3-mode-overview > button > div small { font-size: 11px; }
+html[data-theme] .dc-vnext :is(.dc-v3-mode-overview header span, .dc-v3-mode-overview strong,
+  .dc-v3-mode-overview > button > div b, .dc-kpi-grid .dc-kpi-status,
+  .dc-deadline-strip > div.active strong, .dc-case-contracts button em,
+  .dc-last-results em, .dc-active-case > footer button, .dc-v3-level-progress span) { color: var(--ns-accent); }
+html[data-theme] .dc-vnext .dc-deadline-strip > div.active { border-color: var(--ns-accent); }
+html[data-theme] .dc-vnext :is(.dc-v3-mode-overview > button > div,
+  .dc-case-contracts button, .dc-last-results > div, .dc-active-case > footer) { border-color: var(--ns-line); }
+html[data-theme] .dc-vnext .dc-case-contracts button:hover { background: var(--ns-surface-soft); }
+html[data-theme] .dc-vnext .dc-last-case-id img { border-radius: var(--ns-small); background: var(--ns-elevated); }
+html[data-theme] .dc-vnext .dc-v3-level-progress > i { background: var(--ns-line); border-radius: 20px; }
+html[data-theme] .dc-vnext .dc-v3-level-progress > i > span { background: var(--ns-accent); box-shadow: none; }
+html[data-theme] .dc-vnext .dc-v3-level-progress b { color: var(--ns-muted); }
+html[data-theme] .dc-vnext .dc-v3-auto-review-banner { border-color: color-mix(in srgb, var(--ns-status-warning) 40%, var(--ns-line)); background: color-mix(in srgb, var(--ns-status-warning) 7%, var(--ns-surface)); }
+html[data-theme] .dc-vnext .dc-v3-auto-review-banner b,
+html[data-theme] .dc-vnext .dc-v3-auto-review-banner > span { color: var(--ns-status-warning); border-color: var(--ns-status-warning); }
+html[data-theme] .dc-vnext .dc-v3-auto-review-banner p { color: var(--ns-muted); font-size: 12px; }
+html[data-theme] .dc-vnext .dc-status-card > span { border-color: var(--ns-line); border-radius: 8px; background: var(--ns-surface-soft); color: var(--ns-accent); }
+
+html[data-theme] .dc-vnext :is(.dc-work-head h1, .dc-page-head h1) {
+  color: var(--ns-text);
+  font-family: var(--font-body);
+  font-weight: 650;
+  letter-spacing: -.045em;
+  line-height: 1.1;
+}
+
+html[data-theme] .dc-vnext :is(.dc-work-head > div > p:last-child,
+  .dc-active-contract p, .dc-active-meta span, .dc-active-empty p,
+  .dc-case-file-results small, .dc-case-file-results em, .dc-case-file-main > footer,
+  .dc-case-file.empty p, .dc-history-summary span, .dc-case-result-row > span,
+  .dc-system-line small, .dc-danger-zone p:not(.dc-eyebrow), .dc-companion-footnote,
+  .dc-companion-card-head p, .dc-companion-devices small, .dc-companion-devices > span,
+  .dc-companion-telemetry span, .dc-pairing-code > small, .dc-pairing-code > code,
+  .dc-empty-state p, .dc-provider-card p, .dc-provider-card small, .dc-policy p,
+  .dc-method-grid p, .dc-method-grid li, .dc-method-grid label) {
+  color: var(--ns-muted);
+}
+
+html[data-theme] .dc-vnext :is(.dc-panel > header h2, .dc-case-file-main h2,
+  .dc-case-file-results b, .dc-history-summary b, .dc-active-meta b,
+  .dc-case-file.empty h2, .dc-system-card h2, .dc-danger-zone h2,
+  .dc-companion-card-head h2, .dc-companion-telemetry b, .dc-companion-devices b,
+  .dc-pairing-code > strong, .dc-system-line b, .dc-identity-head h2,
+  .dc-empty-state b, .dc-policy h2, .dc-review-card h2, .dc-method-grid h2) {
+  color: var(--ns-text);
+}
+
+html[data-theme] .dc-vnext :is(.dc-active-contract strong, .dc-case-file-main > footer strong,
+  .dc-pairing-code > span, .dc-system-line em, .dc-panel > header button) {
+  color: var(--ns-accent);
+}
+
+html[data-theme] .dc-vnext :is(.dc-case-file-results .ok, .dc-last-results .ok) { color: var(--ns-status-good); }
+html[data-theme] .dc-vnext :is(.dc-case-file-results .bad, .dc-last-results .bad) { color: var(--ns-status-danger); }
+html[data-theme] .dc-vnext .dc-case-file-no { color: var(--ns-muted); }
+html[data-theme] .dc-vnext .dc-case-file::after { border-color: var(--ns-line); box-shadow: none; }
+
+html[data-theme] .dc-vnext :is(.dc-active-case-card header, .dc-active-contract,
+  .dc-case-file-main > header, .dc-case-file-main > footer, .dc-system-line,
+  .dc-panel > header, .dc-contract-data) {
+  border-color: var(--ns-line);
+}
+
+html[data-theme] .dc-vnext :is(.dc-v3-history-filter button, .dc-history-summary span,
+  .dc-attempt-log li, .dc-companion-telemetry > div, .dc-companion-devices > div,
+  .dc-pairing-code, .dc-identity-stats > div, .dc-v3-level-progress, .dc-v3-hardest) {
+  border-color: var(--ns-line);
+  border-radius: var(--ns-small);
+  background: var(--ns-elevated);
+}
+
+html[data-theme] .dc-vnext .dc-v3-history-filter button {
+  min-height: 40px;
+  padding: 9px 14px;
+  color: var(--ns-muted);
+  font: 600 12px/1.4 var(--font-body);
+}
+
+html[data-theme] .dc-vnext .dc-v3-history-filter button.active {
+  border-color: var(--ns-accent);
+  background: var(--ns-surface-soft);
+  color: var(--ns-accent);
+}
+
+html[data-theme] .dc-vnext .dc-attempt-log summary { color: var(--ns-accent); }
+html[data-theme] .dc-vnext .dc-attempt-log :is(span, time) { color: var(--ns-muted); }
+html[data-theme] .dc-vnext .dc-companion-card::before { opacity: .35; }
+
+html[data-theme] .dc-vnext .dc-badge {
+  border-color: var(--ns-line);
+  border-radius: 8px;
+  background: var(--ns-elevated);
+  color: var(--ns-muted);
+  padding: 6px 9px;
+}
+
+html[data-theme] .dc-vnext :is(.dc-badge.completed, .dc-companion-state.online) {
+  border-color: color-mix(in srgb, var(--ns-status-good) 45%, var(--ns-line));
+  background: color-mix(in srgb, var(--ns-status-good) 10%, var(--ns-surface));
+  color: var(--ns-status-good);
+}
+
+html[data-theme] .dc-vnext .dc-badge.failed {
+  border-color: color-mix(in srgb, var(--ns-status-danger) 45%, var(--ns-line));
+  background: color-mix(in srgb, var(--ns-status-danger) 10%, var(--ns-surface));
+  color: var(--ns-status-danger);
+}
+
+html[data-theme] .dc-vnext :is(.dc-badge.unverifiable, .dc-companion-state.paired) {
+  border-color: color-mix(in srgb, var(--ns-status-warning) 45%, var(--ns-line));
+  background: color-mix(in srgb, var(--ns-status-warning) 10%, var(--ns-surface));
+  color: var(--ns-status-warning);
+}
+
+/* Collection, pack shop, card studio, and cipher. Card faces stay art-directed. */
+html[data-theme] .archive-page :is(a, details > summary, .archive-ledger b,
+  .archive-balance strong, .archive-pack-tile > footer > b,
+  .archive-pack-tile > small:first-of-type, .archive-week b) {
+  color: var(--ns-accent);
+}
+
+html[data-theme] .archive-page :is(.archive-heading, .archive-ledger li,
+  .archive-opening-history, .archive-selected-pool > div, .archive-owner-tools,
+  .archive-guesses li) {
+  border-color: var(--ns-line);
+}
+
+html[data-theme] .archive-page :is(.archive-balance, .archive-empty,
+  .archive-cipher-board, .archive-price-advice, .archive-pending, .archive-review-note) {
+  border-color: var(--ns-line);
+  border-radius: var(--ns-radius);
+  background: var(--ns-surface-soft);
+  color: var(--ns-text);
+}
+
+html[data-theme] .archive-page .archive-tabs {
+  gap: 6px;
+  padding: 6px;
+  border: 1px solid var(--ns-line);
+  border-radius: calc(var(--ns-small) + 6px);
+  background: var(--ns-deep);
+}
+
+html[data-theme] .archive-page .archive-tabs button[aria-current] {
+  border-color: color-mix(in srgb, var(--ns-accent) 30%, var(--ns-line));
+  background: var(--ns-surface-soft);
+  color: var(--ns-accent);
+}
+
+html[data-theme] .archive-page :is(.archive-coverage span, .archive-status,
+  .archive-pack-odds > div > span, .archive-choice span) {
+  border-color: var(--ns-line);
+  border-radius: 8px;
+  background: var(--ns-elevated);
+  color: var(--ns-muted);
+}
+
+html[data-theme] .archive-page .archive-coverage span[data-filled="true"] {
+  border-color: color-mix(in srgb, var(--ns-accent) 45%, var(--ns-line));
+  color: var(--ns-accent);
+}
+
+html[data-theme] .archive-page :is(.archive-status[data-status="PENDING"], .archive-pending, .archive-price-advice) {
+  border-color: color-mix(in srgb, var(--ns-status-warning) 40%, var(--ns-line));
+  color: var(--ns-status-warning);
+}
+
+html[data-theme] .archive-page .archive-status[data-status="REJECTED"] {
+  border-color: color-mix(in srgb, var(--ns-status-danger) 45%, var(--ns-line));
+  color: var(--ns-status-danger);
+}
+
+html[data-theme] .archive-page :is(.archive-cipher-symbols, .archive-guesses li > span, .archive-empty > span) {
+  color: var(--ns-accent);
+}
+
+html[data-theme] .archive-page :is(.archive-week span, .archive-review-note, .archive-guesses small) {
+  color: var(--ns-muted);
+}
+
+html[data-theme] .archive-page .archive-favorite[aria-pressed="true"] { color: var(--ns-status-special); }
+html[data-theme] .archive-page [role="status"] { color: var(--ns-accent); }
+html[data-theme] .archive-page .archive-symbol-picker button { border-radius: var(--ns-small); }
+html[data-theme] .archive-page .archive-envelope-art {
+  border-radius: calc(var(--ns-radius) - 6px);
+  background: radial-gradient(ellipse at 50% 70%, color-mix(in srgb, var(--ns-accent) 14%, transparent), transparent 75%), var(--ns-deep);
+}
+html[data-theme] .archive-page .archive-envelope-art > span {
+  border-color: var(--ns-line);
+  background: var(--ns-surface);
+  color: var(--ns-accent);
+}
+
+html[data-theme] .pack-reveal[data-theme="archive"] {
+  --paper: var(--ns-text);
+  --ink: var(--ns-on-accent);
+  --mint: var(--ns-fill);
+  border-color: var(--ns-line);
+  border-radius: calc(var(--ns-radius) + 4px);
+  background: radial-gradient(ellipse at 50% 30%, var(--ns-surface-soft), var(--ns-surface));
+  color: var(--ns-text);
+}
+
+html[data-theme] .pack-reveal[data-theme="archive"] header small { color: var(--ns-accent); }
+html[data-theme] .pack-reveal[data-theme="archive"] button:not(.card-surface-control) {
+  border-color: var(--ns-line);
+  border-radius: var(--ns-small);
+  background: var(--ns-elevated);
+  color: var(--ns-text);
+}
+html[data-theme] .pack-reveal[data-theme="archive"] .archive-primary {
+  background: var(--ns-fill);
+  border-color: transparent;
+  color: var(--ns-on-accent);
+}
+
+html[data-theme] :is(.guest-choice li, .guest-choice button, .guest-symbol-picker button,
+  .guest-history li, .guest-demo-note, .guest-solution) {
+  border-color: var(--ns-line);
+  border-radius: var(--ns-small);
+  background: var(--ns-elevated);
+  color: var(--ns-text);
+}
+html[data-theme] :is(.guest-lead, .guest-cipher-record > p, .guest-history small) { color: var(--ns-muted); }
+html[data-theme] :is(.guest-eyebrow, .guest-solution > span, .guest-result) { color: var(--ns-accent); }
+
+/* Community, leaderboards, achievements, and profile modules. */
+html[data-theme] .community-page .community-head { border-color: var(--ns-line); }
+html[data-theme] .community-page .community-tabs {
+  padding: 6px;
+  gap: 6px;
+  border: 1px solid var(--ns-line);
+  border-radius: calc(var(--ns-small) + 6px);
+  background: var(--ns-deep);
+}
+html[data-theme] .community-page .community-tabs button {
+  border-radius: var(--ns-small);
+  border: 1px solid transparent;
+  color: var(--ns-muted);
+  font: 600 13px/1.4 var(--font-body);
+}
+html[data-theme] .community-page .community-tabs button[aria-pressed="true"] {
+  border-color: color-mix(in srgb, var(--ns-accent) 30%, var(--ns-line));
+  background: var(--ns-surface-soft);
+  color: var(--ns-accent);
+}
+html[data-theme] .community-page .achievement-card.earned,
+html[data-theme] .community-page .leaderboard-mine {
+  border-color: color-mix(in srgb, var(--ns-accent) 35%, var(--ns-line));
+  background: linear-gradient(130deg, var(--ns-surface-soft), var(--ns-surface));
+}
+html[data-theme] .community-page :is(.leaderboard-table caption, .leaderboard-table th) {
+  background: var(--ns-elevated);
+  color: var(--ns-muted);
+}
+html[data-theme] .community-page .leaderboard-table td { color: var(--ns-text); }
+html[data-theme] .community-page .leaderboard-table :is(td, th) { border-color: var(--ns-line); }
+html[data-theme] .community-page .leaderboard-table tr:hover,
+html[data-theme] .community-page .leaderboard-table tr.is-me { background: var(--ns-surface-soft); }
+html[data-theme] .community-page .leaderboard-table td:last-child { color: var(--ns-accent); }
+html[data-theme] .community-page .leaderboard-table td:first-child { color: var(--ns-muted); }
+html[data-theme] .community-page :is(.leaderboard-player img, .community-avatar) {
+  border-color: var(--ns-line);
+  border-radius: var(--ns-small);
+}
+html[data-theme] .community-page :is(.community-big-number, .achievement-progress span) { color: var(--ns-accent); }
+html[data-theme] .community-page progress { height: 7px; border-radius: 20px; background: var(--ns-line); }
+html[data-theme] .community-page progress::-webkit-progress-bar { background: var(--ns-line); }
+html[data-theme] .community-page progress::-webkit-progress-value { border-radius: 20px; background: var(--ns-accent); }
+html[data-theme] .community-page progress::-moz-progress-bar { border-radius: 20px; background: var(--ns-accent); }
+
+html[data-theme] .community-page :is(.dossier-module, .dossier-sidebar > section,
+  .dossier-cases article:not(.featured-case), .profile-theme-options button,
+  .profile-module-order button) {
+  border-color: var(--ns-line);
+  border-radius: calc(var(--ns-radius) - 6px);
+  background: var(--ns-surface);
+  color: var(--ns-text);
+}
+html[data-theme] .community-page .dossier-module > header {
+  border-color: var(--ns-line);
+  background: var(--ns-elevated);
+}
+html[data-theme] .community-page :is(.dossier-toolbar, .dossier-sidebar dl > div,
+  .dossier-cases footer, .profile-module-order li, .bureau-card-copy footer,
+  .bureau-members li, .bureau-journal li, details) { border-color: var(--ns-line); }
+html[data-theme] .community-page :is(.dossier-module > header > span, .dossier-cases footer b,
+  .dossier-bureau a, .dossier-bureau button, .dossier-links a, .profile-module-order button) { color: var(--ns-accent); }
+html[data-theme] .community-page .dossier-avatar { border-color: var(--ns-surface); }
+html[data-theme] .community-page .dossier-badges > span {
+  border-color: var(--ns-line);
+  border-radius: 7px;
+  color: color-mix(in srgb, var(--cover-accent) 55%, var(--ns-text));
+}
+html[data-theme] .community-page .profile-theme-options button {
+  padding: 10px;
+  text-align: left;
+}
+html[data-theme] .community-page .profile-theme-options button[aria-pressed="true"] {
+  border-color: var(--ns-accent);
+  background: var(--ns-surface-soft);
+}
+html[data-theme] .community-page .profile-theme-options i { border-radius: 8px; }
+
+/* These covers are user-selected artwork, so their ink stays light in light mode. */
+html[data-theme] :is(.dossier-cover, .bureau-card-cover, .bureau-detail-cover) {
+  --color-cream: #f0f2e8;
+  --color-cream-dim: #c1cbbf;
+  color: #f0f2e8;
+}
+html[data-theme] .community-page :is(.dossier-cover, .bureau-detail-cover) :is(h1, h2, h3, p) { color: #f0f2e8; }
+html[data-theme] .community-page :is(.dossier-cover-id, .dossier-cover > p span, .bureau-detail-cover p) { color: #c1cbbf; }
+html[data-theme] .community-page .dossier-cases article.featured-case :is(h3, .community-eyebrow, footer, footer b) { color: #343a2c; }
+
+/* Guild appearance accents and cover gradients remain local to each bureau. */
+html[data-theme] :is(.guild-page, .guild-directory-page, .guild-editor) {
+  --guild-surface: var(--ns-surface);
+  --guild-border: var(--ns-line);
+  --guild-muted: var(--ns-muted);
+  --guild-text: var(--ns-text);
+}
+html[data-theme] :is(.guild-page, .guild-directory-page, .guild-editor) .dc-primary {
+  background: var(--guild-accent);
+  color: #162218;
+}
+html[data-theme] :is(.guild-page, .guild-directory-page, .guild-editor) .dc-primary:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--guild-accent) 86%, white);
+  color: #162218;
+}
+html[data-theme] .guild-page :is(.guild-identity .guild-kicker, .guild-custom-rank),
+html[data-theme] .guild-directory-card .bureau-card-copy .community-eyebrow {
+  color: color-mix(in srgb, var(--guild-accent) 48%, var(--ns-text));
+}
+html[data-theme] :is(.guild-tabs, .guild-directory-page .bureau-search,
+  .guild-settings-nav button, .guild-upload, .guild-rank-fields > label,
+  .guild-emblem-options button, .guild-page .guild-members > li, .guild-invite) {
+  border-color: var(--ns-line);
+  border-radius: var(--ns-small);
+  background: var(--ns-elevated);
+  color: var(--ns-text);
+}
+html[data-theme] .guild-page .community-panel { border-radius: var(--ns-radius); }
+html[data-theme] .guild-page .community-prose,
+html[data-theme] :is(.guild-settings-panel label, .guild-choice-group legend) { color: var(--ns-muted); }
+html[data-theme] .guild-page .guild-welcome {
+  border-color: color-mix(in srgb, var(--guild-accent) 25%, var(--ns-line));
+  background: color-mix(in srgb, var(--guild-accent) 8%, var(--ns-surface));
+}
+html[data-theme] .guild-tabs button[aria-pressed="true"] { background: var(--guild-accent); color: #162218; }
+html[data-theme] .guild-tabs button:hover:not([aria-pressed="true"]) { background: var(--ns-surface-soft); color: var(--ns-text); }
+html[data-theme] .guild-settings-nav button[aria-pressed="true"],
+html[data-theme] .guild-emblem-options button[aria-pressed="true"] {
+  border-color: var(--guild-accent);
+  background: color-mix(in srgb, var(--guild-accent) 12%, var(--ns-surface));
+  color: var(--ns-text);
+}
+html[data-theme] .guild-facts > span { border-color: var(--ns-line); background: var(--ns-elevated); }
+html[data-theme] .guild-page .bureau-safety { border-color: var(--ns-line); }
+html[data-theme] .community-page .operation-card { border-color: var(--ns-line); }
+
+/* All sixteen administration sections share the same readable console chrome. */
+html[data-theme] .dc-v3 .dc-admin-shell { gap: 18px; font-family: var(--font-body); }
+html[data-theme] .dc-v3 :is(.dc-admin-head, .dc-admin-unlock, .dc-admin-grid article,
+  .dc-admin-users-list, .dc-admin-user-detail, .dc-admin-master-list, .dc-admin-detail-pane,
+  .dc-admin-job, .dc-admin-audit, .dc-admin-identity-editor,
+  .dc-admin-panel-grid > .dc-panel, .dc-admin-system-grid > .dc-panel) {
+  border-color: var(--ns-line);
+  border-radius: var(--ns-radius);
+  background: var(--ns-surface);
+  color: var(--ns-text);
+  box-shadow: none;
+}
+html[data-theme] .dc-v3 :is(.dc-admin-head, .dc-admin-unlock) { padding: 24px; }
+html[data-theme] .dc-v3 :is(.dc-admin-user-detail, .dc-admin-detail-pane) { padding: 22px; }
+html[data-theme] .dc-v3 :is(.dc-admin-grid, .dc-admin-panel-grid, .dc-admin-mini-grid,
+  .dc-admin-system-grid, .dc-admin-companion-grid, .dc-admin-generator-boards,
+  .dc-admin-adaptive-grid, .dc-admin-two-col) { gap: 12px; }
+html[data-theme] .dc-v3 :is(.dc-admin-grid article, .dc-admin-panel-grid > .dc-panel,
+  .dc-admin-system-grid > .dc-panel, .dc-admin-companion-grid > .dc-panel,
+  .dc-admin-generator-boards > .dc-panel, .dc-admin-adaptive-grid > .dc-panel) { padding: 18px; }
+
+html[data-theme] .dc-v3 :is(.dc-admin-head h1, .dc-admin-unlock h1,
+  .dc-admin-user-detail h2, .dc-admin-detail-pane h2, .dc-admin-generator-head h2) {
+  color: var(--ns-text);
+  font-family: var(--font-body);
+  font-size: clamp(26px, 3vw, 36px);
+  font-weight: 650;
+  line-height: 1.2;
+  letter-spacing: -.04em;
+  text-transform: none;
+}
+
+html[data-theme] .dc-v3 :is(.dc-admin-panel-grid h3, .dc-admin-system-grid h3,
+  .dc-admin-timeline h3, .dc-admin-user-detail h3, .dc-admin-detail-pane h3,
+  .dc-admin-section-title) {
+  color: var(--ns-text);
+  font: 650 14px/1.45 var(--font-body);
+  letter-spacing: -.01em;
+  text-transform: none;
+}
+
+html[data-theme] .dc-v3 :is(.dc-admin-head p, .dc-admin-unlock p,
+  .dc-admin-generator-head p, .dc-admin-identity-title p, .dc-admin-audit p) {
+  color: var(--ns-muted);
+  font-size: 13px;
+  line-height: 1.65;
+}
+
+html[data-theme] .dc-v3 :is(.dc-admin-tabs, .dc-admin-filterbar, .dc-admin-mobile-section) {
+  border-color: var(--ns-line);
+  border-radius: calc(var(--ns-small) + 6px);
+  background: var(--ns-deep);
+  padding: 8px;
+  gap: 7px;
+}
+
+html[data-theme] .dc-v3 .dc-admin-tabs button {
+  min-height: 40px;
+  padding: 9px 13px;
+  border-radius: var(--ns-small);
+  color: var(--ns-muted);
+  font: 600 12px/1.4 var(--font-body);
+  letter-spacing: 0;
+  text-transform: none;
+}
+html[data-theme] .dc-v3 .dc-admin-tabs button:hover { border-color: var(--ns-line); color: var(--ns-text); }
+html[data-theme] .dc-v3 .dc-admin-tabs button.active {
+  border-color: color-mix(in srgb, var(--ns-accent) 30%, var(--ns-line));
+  background: var(--ns-surface-soft);
+  color: var(--ns-accent);
+}
+
+html[data-theme] .dc-v3 :is(.dc-admin-mini-grid > div, .dc-admin-adaptive-metrics > div,
+  .dc-admin-timeline > div > span, .dc-admin-health-list button,
+  .dc-admin-code-line, .dc-admin-detail-pane > pre, .dc-admin-job pre, .dc-admin-audit pre) {
+  border-color: var(--ns-line);
+  border-radius: var(--ns-small);
+  background: var(--ns-deep);
+  color: var(--ns-muted);
+}
+html[data-theme] .dc-v3 :is(.dc-admin-user-row, .dc-admin-master-list > button) {
+  border-color: var(--ns-line);
+  background: transparent;
+  color: var(--ns-text);
+  padding: 16px;
+}
+html[data-theme] .dc-v3 :is(.dc-admin-user-row:hover, .dc-admin-user-row.active,
+  .dc-admin-master-list > button:hover, .dc-admin-master-list > button.active) {
+  background: var(--ns-surface-soft);
+  box-shadow: inset 3px 0 var(--ns-accent);
+}
+html[data-theme] .dc-v3 :is(.dc-admin-users-list, .dc-admin-master-list) { overflow: hidden auto; }
+html[data-theme] .dc-v3 :is(.dc-admin-table, .dc-admin-compact-list) {
+  border-color: var(--ns-line);
+  border-radius: var(--ns-small);
+  overflow: hidden;
+}
+html[data-theme] .dc-v3 :is(.dc-admin-table-row, .dc-admin-compact-list > div,
+  .dc-admin-kv, .dc-admin-session, .dc-admin-search, .dc-admin-user-detail > header,
+  .dc-admin-adaptive-grid header, .dc-admin-option-stack header,
+  .dc-admin-generator-boards header, .dc-admin-generator-boards article > div) { border-color: var(--ns-line); }
+
+html[data-theme] .dc-v3 :is(.dc-admin-session b, .dc-admin-grid article b,
+  .dc-admin-mini-grid b, .dc-admin-user-row b, .dc-admin-master-list b,
+  .dc-admin-kv b, .dc-admin-table-row span:first-child, .dc-admin-compact-list b,
+  .dc-admin-companion-grid header b, .dc-admin-adaptive-grid header b,
+  .dc-admin-option-stack header b, .dc-admin-adaptive-metrics b,
+  .dc-admin-job b, .dc-admin-audit b, .dc-admin-timeline b,
+  .dc-admin-generator-boards header b, .dc-admin-generator-boards span) {
+  color: var(--ns-text);
+  font-family: var(--font-body);
+}
+
+html[data-theme] .dc-v3 :is(.dc-admin-session span, .dc-admin-grid span,
+  .dc-admin-mini-grid span, .dc-admin-user-row span, .dc-admin-master-list span,
+  .dc-admin-kv span, .dc-admin-table-row, .dc-admin-compact-list span,
+  .dc-admin-adaptive-metrics span, .dc-admin-identity-title span,
+  .dc-admin-mobile-section > span, .dc-admin-job > header span, .dc-admin-audit > header span) {
+  color: var(--ns-muted);
+  font-family: var(--font-body);
+  font-size: 11px;
+  line-height: 1.55;
+  letter-spacing: .025em;
+}
+
+html[data-theme] .dc-v3 :is(.dc-admin-unlock small, .dc-admin-user-row small,
+  .dc-admin-user-detail header small, .dc-admin-master-list small,
+  .dc-admin-job small, .dc-admin-audit small, .dc-admin-grid-max article small,
+  .dc-admin-compact-list small, .dc-admin-filterbar small,
+  .dc-admin-companion-grid header small, .dc-admin-companion-grid > article > small,
+  .dc-admin-generator-boards small, .dc-admin-timeline small, .dc-admin-health-list small,
+  .dc-admin-adaptive-grid header small, .dc-admin-option-stack header small,
+  .dc-admin-adaptive-metrics small, .dc-admin-identity-warning) {
+  color: var(--ns-muted);
+  font-size: 11px;
+  line-height: 1.6;
+}
+
+html[data-theme] .dc-v3 :is(.dc-admin-form-grid label, .dc-admin-full-field,
+  .dc-admin-identity-editor label) {
+  color: var(--ns-muted);
+  gap: 8px;
+  font: 500 12px/1.5 var(--font-body);
+  letter-spacing: 0;
+  text-transform: none;
+}
+html[data-theme] .dc-v3 .dc-admin-form-grid { gap: 16px; }
+html[data-theme] .dc-v3 .dc-admin-full-field { margin: 16px 0; }
+html[data-theme] .dc-v3 :is(.dc-admin-detail-pane > pre, .dc-admin-job pre,
+  .dc-admin-audit pre, .dc-admin-job code, .dc-admin-audit code, .dc-admin-code-line) {
+  color: var(--ns-muted);
+  font-size: 11px;
+  line-height: 1.65;
+}
+html[data-theme] .dc-v3 .dc-admin-empty {
+  border-color: var(--ns-line);
+  border-radius: var(--ns-small);
+  color: var(--ns-muted);
+  font-size: 13px;
+  line-height: 1.6;
+}
+html[data-theme] .dc-v3 .dc-admin-list summary { color: var(--ns-muted); font-size: 11px; }
+html[data-theme] .dc-v3 .dc-admin-mobile-back { border-color: var(--ns-line); border-radius: var(--ns-small); background: var(--ns-elevated); color: var(--ns-accent); }
+html[data-theme] .dc-v3 :is(.dc-admin-user-row span.ok, .dc-admin-companion-grid header > span,
+  .dc-admin-confidence.high, .dc-admin-confidence.medium) { color: var(--ns-status-good); }
+html[data-theme] .dc-v3 :is(.dc-admin-confidence, .dc-admin-option-stack header > span) {
+  border-color: var(--ns-line);
+  border-radius: 7px;
+  padding: 5px 8px;
+  font-size: 10px;
+}
+html[data-theme] .dc-v3 .dc-admin-confidence.cold_start { color: var(--ns-muted); }
+html[data-theme] .dc-v3 .dc-admin-confidence.low { color: var(--ns-status-warning); }
+html[data-theme] .dc-v3 .dc-admin-grid article.warn {
+  border-color: color-mix(in srgb, var(--ns-status-warning) 45%, var(--ns-line));
+  background: color-mix(in srgb, var(--ns-status-warning) 7%, var(--ns-surface));
+}
+html[data-theme] .dc-v3 .dc-admin-grid article.warn b { color: var(--ns-status-warning); }
+html[data-theme] .dc-v3 .dc-admin-job.failed { border-color: color-mix(in srgb, var(--ns-status-danger) 45%, var(--ns-line)); }
+html[data-theme] .dc-v3 .dc-admin-health-warn { border-color: var(--ns-status-warning); box-shadow: inset 3px 0 var(--ns-status-warning); }
+html[data-theme] .dc-v3 .dc-admin-companion-grid > .dc-panel.online { border-color: var(--ns-status-good); box-shadow: inset 3px 0 var(--ns-status-good); }
+
+/* Moderation desk: legible information density without changing its workflow. */
+html[data-theme] .dc-v3 :is(.dc-review3-filters, .dc-review3-layout,
+  .dc-review3-detail, .dc-review3-inbox, .dc-review3-decision,
+  .dc-review3-reasons, .dc-review3-preview, .dc-review3-contract-table,
+  .dc-review3-tech, .dc-review3-history) {
+  border-color: var(--ns-line);
+  border-radius: var(--ns-radius);
+  background: var(--ns-surface);
+  color: var(--ns-text);
+}
+html[data-theme] .dc-v3 .dc-review3-filters { padding: 14px; gap: 10px; }
+html[data-theme] .dc-v3 .dc-review3-layout { overflow: hidden; }
+html[data-theme] .dc-v3 .dc-review3-inbox { border-radius: 0; background: var(--ns-deep); }
+html[data-theme] .dc-v3 .dc-review3-detail { padding: 24px; }
+html[data-theme] .dc-v3 :is(.dc-review3-head h1, .dc-review3-detail-head h2) {
+  color: var(--ns-text);
+  font: 650 clamp(25px, 3vw, 34px)/1.2 var(--font-body);
+  letter-spacing: -.035em;
+}
+html[data-theme] .dc-v3 :is(.dc-review3-head p, .dc-review3-detail-head p) { color: var(--ns-muted); font-size: 12px; line-height: 1.6; }
+html[data-theme] .dc-v3 :is(.dc-review3-detail-head, .dc-review3-summary,
+  .dc-review3-contract-table > article, .dc-review3-contract-table > article > div,
+  .dc-review3-contract-table details, .dc-review3-preview > header,
+  .dc-review3-preview > div) { border-color: var(--ns-line); }
+html[data-theme] .dc-v3 .dc-review3-inbox > button {
+  border-color: var(--ns-line);
+  background: transparent;
+  color: var(--ns-text);
+  padding: 16px;
+  gap: 7px;
+}
+html[data-theme] .dc-v3 .dc-review3-inbox > button:hover,
+html[data-theme] .dc-v3 .dc-review3-inbox > button.active { background: var(--ns-surface-soft); }
+html[data-theme] .dc-v3 .dc-review3-inbox > button.active { box-shadow: inset 3px 0 var(--ns-accent); }
+html[data-theme] .dc-v3 .dc-review3-inbox > button header b { color: var(--ns-text); font: 650 15px/1.4 var(--font-body); }
+html[data-theme] .dc-v3 .dc-review3-inbox > button strong { color: var(--ns-text); font: 600 13px/1.5 var(--font-body); }
+html[data-theme] .dc-v3 .dc-review3-inbox > button small { color: var(--ns-muted); font-size: 11px; line-height: 1.5; }
+html[data-theme] .dc-v3 :is(.dc-review3-inbox > button em, .dc-review3-claimbar span, .dc-review3-claimbar b) {
+  border-color: var(--ns-line);
+  border-radius: 7px;
+  color: var(--ns-muted);
+  font: 600 10px/1.4 var(--font-body);
+  letter-spacing: .025em;
+}
+html[data-theme] .dc-v3 :is(.dc-review3-inbox > button em.mine, .dc-review3-claimbar .mine) { color: var(--ns-status-good); border-color: var(--ns-status-good); background: color-mix(in srgb, var(--ns-status-good) 10%, var(--ns-surface)); }
+html[data-theme] .dc-v3 :is(.dc-review3-inbox > button em.claimed, .dc-review3-claimbar .claimed) { color: var(--ns-status-warning); border-color: var(--ns-status-warning); background: color-mix(in srgb, var(--ns-status-warning) 10%, var(--ns-surface)); }
+html[data-theme] .dc-v3 .dc-review3-pagination { border-color: var(--ns-line); background: var(--ns-deep); }
+html[data-theme] .dc-v3 :is(.dc-review3-pagination span, .dc-review3-summary span) { color: var(--ns-muted); font-size: 11px; }
+html[data-theme] .dc-v3 .dc-review3-summary b { color: var(--ns-accent); }
+html[data-theme] .dc-v3 :is(.dc-review3-facts > div, .dc-review3-trust > div,
+  .dc-review3-evaluations p, .dc-review3-history p) {
+  border-color: var(--ns-line);
+  border-radius: var(--ns-small);
+  background: var(--ns-deep);
+  padding: 12px;
+}
+html[data-theme] .dc-v3 :is(.dc-review3-facts span, .dc-review3-trust span,
+  .dc-review3-reasons span, .dc-review3-reasons p, .dc-review3-contract-table small,
+  .dc-review3-evaluations span, .dc-review3-history span, .dc-review3-evaluations small,
+  .dc-review3-history small, .dc-review3-preview > footer span) {
+  color: var(--ns-muted);
+  font-size: 11px;
+  line-height: 1.5;
+  letter-spacing: .02em;
+}
+html[data-theme] .dc-v3 :is(.dc-review3-facts b, .dc-review3-trust b,
+  .dc-review3-contract-table > article > div:first-child b, .dc-review3-preview > div b) {
+  color: var(--ns-text);
+  font: 650 13px/1.5 var(--font-body);
+}
+html[data-theme] .dc-v3 :is(.dc-review3-reasons h3, .dc-review3-decision h3, .dc-review3-preview h3) { color: var(--ns-text); font: 650 16px/1.4 var(--font-body); }
+html[data-theme] .dc-v3 .dc-review3-reasons b { color: var(--ns-status-warning); font: 600 12px/1.5 var(--font-body); }
+html[data-theme] .dc-v3 .dc-review3-contract-head { border-color: var(--ns-line); background: var(--ns-elevated); }
+html[data-theme] .dc-v3 .dc-review3-contract-head span { color: var(--ns-muted); font: 600 10px/1.5 var(--font-body); letter-spacing: .04em; }
+html[data-theme] .dc-v3 .dc-review3-contract-table em { color: var(--ns-accent); font-size: 11px; }
+html[data-theme] .dc-v3 :is(.dc-review3-contract-table summary, .dc-review3-tech summary, .dc-review3-history summary) { color: var(--ns-muted); font: 600 11px/1.5 var(--font-body); }
+html[data-theme] .dc-v3 .dc-review3-verdict button {
+  min-height: 36px;
+  border-color: var(--ns-line);
+  border-radius: 8px;
+  background: var(--ns-elevated);
+  color: var(--ns-muted);
+  font: 600 11px/1.4 var(--font-body);
+}
+html[data-theme] .dc-v3 .dc-review3-verdict button.active.completed { border-color: var(--ns-status-good); background: color-mix(in srgb, var(--ns-status-good) 12%, var(--ns-surface)); color: var(--ns-status-good); }
+html[data-theme] .dc-v3 .dc-review3-verdict button.active.failed { border-color: var(--ns-status-danger); background: color-mix(in srgb, var(--ns-status-danger) 12%, var(--ns-surface)); color: var(--ns-status-danger); }
+html[data-theme] .dc-v3 .dc-review3-verdict button.active.void { border-color: var(--ns-status-warning); background: color-mix(in srgb, var(--ns-status-warning) 12%, var(--ns-surface)); color: var(--ns-status-warning); }
+html[data-theme] .dc-v3 .dc-review3-form label { color: var(--ns-muted); font: 500 12px/1.5 var(--font-body); letter-spacing: 0; }
+html[data-theme] .dc-v3 .dc-review3-preview { border-color: color-mix(in srgb, var(--ns-accent) 40%, var(--ns-line)); background: var(--ns-surface-soft); }
+html[data-theme] .dc-v3 .dc-review3-preview > div { color: var(--ns-muted); font-size: 12px; }
+html[data-theme] .dc-v3 :is(.dc-review3-preview > header > b, .dc-review3-preview > div em) { color: var(--ns-accent); }
+html[data-theme] .dc-v3 :is(.dc-review3-evaluations b, .dc-review3-history b) { color: var(--ns-text); font-size: 11px; }
+html[data-theme] .dc-v3 .dc-review3-tech pre { color: var(--ns-muted); font-size: 11px; line-height: 1.65; }
+
+/* Announcement editor retains its live preview severity and animation choices. */
+html[data-theme] .dc-v3 :is(.dc-announcement-admin__head, .dc-announcement-admin__list,
+  .dc-announcement-admin__form > section, .dc-announcement-admin__actions,
+  .dc-announcement-admin__preview-controls, .dc-announcement-admin__meta,
+  .dc-announcement-admin__metrics, .dc-announcement-admin__preview) {
+  border-color: var(--ns-line);
+  border-radius: var(--ns-radius);
+  background: var(--ns-surface);
+  color: var(--ns-text);
+  padding: 18px;
+}
+html[data-theme] .dc-v3 .dc-announcement-admin__head h2 { color: var(--ns-text); font: 650 28px/1.2 var(--font-body); letter-spacing: -.035em; text-transform: none; }
+html[data-theme] .dc-v3 .dc-announcement-admin__head p:last-child { color: var(--ns-muted); font-size: 13px; line-height: 1.6; }
+html[data-theme] .dc-v3 :is(.dc-announcement-admin__counters button,
+  .dc-announcement-admin__list > button, .dc-announcement-admin__checks label,
+  .dc-announcement-admin__preview-controls button, .dc-announcement-admin__metrics article) {
+  border-color: var(--ns-line);
+  border-radius: var(--ns-small);
+  background: var(--ns-deep);
+  color: var(--ns-muted);
+}
+html[data-theme] .dc-v3 .dc-announcement-admin__list { padding: 10px; gap: 8px; }
+html[data-theme] .dc-v3 .dc-announcement-admin__list > button { padding: 14px; gap: 7px; }
+html[data-theme] .dc-v3 .dc-announcement-admin__list > button:hover,
+html[data-theme] .dc-v3 .dc-announcement-admin__list > button.active,
+html[data-theme] .dc-v3 .dc-announcement-admin__preview-controls button.active {
+  border-color: var(--ns-accent);
+  background: var(--ns-surface-soft);
+  color: var(--ns-accent);
+}
+html[data-theme] .dc-v3 :is(.dc-announcement-admin__list b,
+  .dc-announcement-admin__form section > header h3) {
+  color: var(--ns-text);
+  font: 650 15px/1.45 var(--font-body);
+  text-transform: none;
+}
+html[data-theme] .dc-v3 :is(.dc-announcement-admin__counters b, .dc-announcement-admin__metrics article b) { color: var(--ns-text); font-family: var(--font-body); }
+html[data-theme] .dc-v3 :is(.dc-announcement-admin__list small,
+  .dc-announcement-admin__list > small, .dc-announcement-admin__list em,
+  .dc-announcement-admin__counters span, .dc-announcement-admin__form label > span,
+  .dc-announcement-admin__label, .dc-announcement-admin__form section > small,
+  .dc-announcement-admin__preview-controls label, .dc-announcement-admin__meta span,
+  .dc-announcement-admin__metrics span, .dc-announcement-admin__metrics p) {
+  color: var(--ns-muted);
+  font-family: var(--font-body);
+  font-size: 11px;
+  line-height: 1.55;
+  letter-spacing: .025em;
+}
+html[data-theme] .dc-v3 .dc-announcement-admin__form section > header { border-color: var(--ns-line); }
+html[data-theme] .dc-v3 .dc-announcement-admin__form section > header span { color: var(--ns-accent); font-size: 11px; }
+html[data-theme] .dc-v3 :is(.dc-announcement-admin__utc, .dc-announcement-admin__summary) {
+  border-color: var(--ns-line);
+  border-radius: var(--ns-small);
+  background: var(--ns-surface-soft);
+  color: var(--ns-muted);
+  font-size: 12px;
+  line-height: 1.6;
+}
+html[data-theme] .dc-v3 :is(.dc-announcement-admin__utc b, .dc-announcement-admin__summary b) { color: var(--ns-text); }
+html[data-theme] .dc-v3 .dc-announcement-admin__summary strong { color: var(--ns-status-warning); }
+html[data-theme] .dc-v3 :is(.dc-announcement-admin__meta b, .dc-announcement-admin__meta code) { color: var(--ns-text); font-size: 11px; }
+html[data-theme] .dc-v3 .dc-announcement-admin__flag-warning { border-color: var(--ns-status-warning); border-radius: var(--ns-small); background: color-mix(in srgb, var(--ns-status-warning) 8%, var(--ns-surface)); color: var(--ns-status-warning); font-size: 12px; }
+html[data-theme] .dc-v3 .dc-announcement-admin__actions .dc-danger { border-color: var(--ns-status-danger); border-radius: var(--ns-small); background: color-mix(in srgb, var(--ns-status-danger) 10%, var(--ns-surface)); color: var(--ns-status-danger); font: 600 12px/1.4 var(--font-body); }
+html[data-theme] .dc-v3 .dc-announcement-admin__preview-controls button { min-height: 38px; font: 600 11px/1.4 var(--font-body); }
+html[data-theme] .dc-v3 .dc-announcement-admin__list .phase { border-color: var(--ns-line); border-radius: 6px; color: var(--ns-muted); font-size: 10px; }
+html[data-theme] .dc-v3 .dc-announcement-admin__list .phase-active { border-color: var(--ns-status-good); color: var(--ns-status-good); }
+html[data-theme] .dc-v3 .dc-announcement-admin__list .phase-scheduled { border-color: var(--ns-status-warning); color: var(--ns-status-warning); }
+html[data-theme] .dc-v3 .dc-announcement-admin__list .phase-cancelled { border-color: var(--ns-status-danger); color: var(--ns-status-danger); }
+html[data-theme] .dc-v3 .dc-announcement-admin__preview .notice {
+  --accent: var(--ns-status-info);
+  border-color: color-mix(in srgb, var(--accent) 45%, var(--ns-line));
+  border-left-color: var(--accent);
+  border-radius: var(--ns-small);
+  background: var(--ns-surface);
+  box-shadow: var(--ns-surface-shadow);
+}
+html[data-theme] .dc-v3 .dc-announcement-admin__preview .severity-success { --accent: var(--ns-status-good); }
+html[data-theme] .dc-v3 .dc-announcement-admin__preview :is(.severity-warning, .severity-maintenance) { --accent: var(--ns-status-warning); }
+html[data-theme] .dc-v3 .dc-announcement-admin__preview .severity-critical { --accent: var(--ns-status-danger); }
+html[data-theme] .dc-v3 .dc-announcement-admin__preview .severity-event { --accent: var(--ns-status-special); }
+html[data-theme] .dc-v3 .dc-announcement-admin__preview .notice > span { font-size: 10px; }
+html[data-theme] .dc-v3 .dc-announcement-admin__preview .notice h3 { color: var(--ns-text); font: 650 19px/1.3 var(--font-body); text-transform: none; }
+html[data-theme] .dc-v3 .dc-announcement-admin__preview .notice p { color: var(--ns-muted); font-size: 12px; line-height: 1.6; }
+html[data-theme] .dc-v3 .dc-announcement-admin__preview .notice button { border-color: var(--accent); border-radius: 8px; background: var(--ns-elevated); color: var(--ns-text); font: 600 11px/1.4 var(--font-body); }
+
+/* Delivered notifications, account popover, and existing help dialog. */
+html[data-theme] .dc-announcement {
+  --dc-notice-info: var(--ns-status-info);
+  --dc-notice-success: var(--ns-status-good);
+  --dc-notice-warning: var(--ns-status-warning);
+  --dc-notice-critical: var(--ns-status-danger);
+  --dc-notice-event: var(--ns-status-special);
+  border-color: color-mix(in srgb, var(--dc-announcement-accent) 45%, var(--ns-line));
+  border-left-color: var(--dc-announcement-accent);
+  border-radius: var(--ns-radius);
+  background: var(--ns-surface);
+  color: var(--ns-text);
+  padding: 18px;
+  gap: 12px;
+  font-family: var(--font-body);
+  box-shadow: 0 12px 36px rgb(0 0 0 / 16%);
+}
+html[data-theme] .dc-announcement__icon { border-radius: 9px; }
+html[data-theme] .dc-announcement__meta { font: 600 10px/1.5 var(--font-body); letter-spacing: .07em; }
+html[data-theme] .dc-announcement__meta time { color: var(--ns-muted); }
+html[data-theme] .dc-announcement h2 { color: var(--ns-text); font: 650 18px/1.3 var(--font-body); letter-spacing: -.025em; text-transform: none; }
+html[data-theme] .dc-announcement p { color: var(--ns-muted); font-size: 12px; line-height: 1.65; }
+html[data-theme] .dc-announcement__actions :is(a, button) {
+  min-height: 36px;
+  border-color: color-mix(in srgb, var(--dc-announcement-accent) 40%, var(--ns-line));
+  border-radius: 9px;
+  background: var(--ns-elevated);
+  color: var(--ns-text);
+  padding: 9px 12px;
+  font: 600 11px/1.4 var(--font-body);
+  letter-spacing: 0;
+}
+html[data-theme] .dc-announcement__close { border-radius: 8px; color: var(--ns-muted); }
+html[data-theme] .dc-announcement__close:hover { color: var(--ns-text); background: var(--ns-elevated); }
+html[data-theme] .dc-announcement-center-toggle {
+  min-height: 42px;
+  border-color: var(--ns-line);
+  border-radius: var(--ns-small);
+  background: var(--ns-surface);
+  color: var(--ns-muted);
+  font: 600 11px/1.4 var(--font-body);
+  letter-spacing: .015em;
+}
+html[data-theme] .dc-announcement-center-toggle b { background: var(--ns-fill); color: var(--ns-on-accent); }
+html[data-theme] .dc-announcement-center {
+  width: min(490px, calc(100% - 24px));
+  height: calc(100dvh - 24px);
+  top: 12px;
+  right: 12px;
+  border: 1px solid var(--ns-line);
+  border-radius: calc(var(--ns-radius) + 2px);
+  overflow: hidden;
+  background: var(--ns-surface);
+  color: var(--ns-text);
+}
+html[data-theme] .dc-announcement-center > header { padding: 24px; border-color: var(--ns-line); }
+html[data-theme] .dc-announcement-center > header span { color: var(--ns-accent); font-size: 10px; }
+html[data-theme] .dc-announcement-center > header h2 { color: var(--ns-text); font: 650 26px/1.2 var(--font-body); text-transform: none; }
+html[data-theme] .dc-announcement-center > header button { color: var(--ns-muted); }
+html[data-theme] .dc-announcement-center__list { padding: 14px; gap: 12px; }
+html[data-theme] .dc-announcement-center__list .dc-announcement { background: var(--ns-deep); }
+
+html[data-theme] .bureau-app .bureau-profile-popover {
+  border-color: var(--ns-line);
+  border-radius: var(--ns-radius);
+  background: var(--ns-surface);
+  color: var(--ns-text);
+  box-shadow: 0 18px 54px rgb(0 0 0 / 22%);
+}
+html[data-theme] .bureau-app .bureau-profile-popover header > strong { color: var(--ns-text); }
+html[data-theme] .bureau-app .bureau-profile-popover header > :is(small, span) { color: var(--ns-muted); }
+html[data-theme] .bureau-app :is(.bureau-wallet-strip, .bureau-studio-callout) {
+  border-color: var(--ns-line);
+  border-radius: var(--ns-small);
+  background: var(--ns-surface-soft);
+  color: var(--ns-text);
+}
+html[data-theme] .bureau-app :is(.bureau-wallet-strip small, .bureau-studio-callout small, .bureau-studio-callout span, .bureau-profile-section > small) { color: var(--ns-muted); }
+html[data-theme] .bureau-app .bureau-wallet-strip b { color: var(--ns-accent); }
+html[data-theme] .bureau-app .bureau-wallet-strip button { border-color: transparent; border-radius: 9px; background: var(--ns-fill); color: var(--ns-on-accent); }
+html[data-theme] .bureau-app :is(.bureau-profile-links, .bureau-profile-section button) { border-color: var(--ns-line); }
+html[data-theme] .bureau-app :is(.bureau-profile-links button, .bureau-profile-section button) { border-radius: var(--ns-small); background: transparent; color: var(--ns-text); }
+html[data-theme] .bureau-app :is(.bureau-profile-links button, .bureau-profile-section button):hover { background: var(--ns-elevated); color: var(--ns-text); }
+html[data-theme] .bureau-app :is(.bureau-profile-links svg, .bureau-profile-section svg, .bureau-profile-links button span, .bureau-profile-section button span) { color: var(--ns-accent); }
+html[data-theme] .bureau-app .bureau-profile-logout { color: var(--ns-status-danger); }
+html[data-theme] .bureau-app .bureau-profile-popover [role="alert"] { color: var(--ns-status-danger); }
+
+html[data-theme] .bureau-guide {
+  border-color: var(--ns-line);
+  border-radius: calc(var(--ns-radius) + 4px);
+  background: var(--ns-surface);
+  color: var(--ns-text);
+  color-scheme: inherit;
+}
+html[data-theme] .bureau-guide h2 { color: var(--ns-text); }
+html[data-theme] .bureau-guide :is(p, .bureau-guide-note small) { color: var(--ns-muted); }
+html[data-theme] .bureau-guide :is(.bureau-guide-top > span, .bureau-guide-index) { color: var(--ns-accent); }
+html[data-theme] .bureau-guide .bureau-guide-top > button { border-radius: var(--ns-small); color: var(--ns-text); }
+html[data-theme] .bureau-guide :is(.bureau-guide-note, .bureau-guide-footer) { background: var(--ns-elevated); border-color: var(--ns-line); }
+html[data-theme] .bureau-guide .bureau-guide-note p { color: var(--ns-text); }
+html[data-theme] .bureau-guide .bureau-guide-pages span { background: var(--ns-line); }
+html[data-theme] .bureau-guide .bureau-guide-pages button[aria-current] span { background: var(--ns-accent); }
+
+/* The signing folder follows the app; its paper document keeps its own palette. */
+html[data-theme] .signing-dialog { border-color: var(--ns-line); border-radius: var(--ns-radius); background: var(--ns-surface); }
+html[data-theme] .signing-folder-bar { background: var(--ns-surface); color: var(--ns-text); }
+html[data-theme] .signing-folder-bar .signing-close { border-radius: 9px; background: var(--ns-elevated); color: var(--ns-text); }
+html[data-theme] .signing-folder-bar .signing-close:hover:not(:disabled) { background: var(--ns-surface-soft); }
+
+@media (max-width: 760px) {
+  html[data-theme] .dc-v3 .dc-motion-contract-card { padding: 20px !important; }
+  html[data-theme] .dc-v3 .dc-motion-selection-tray { padding: 16px; }
+  html[data-theme] .dc-v3 :is(.dc-admin-head, .dc-admin-unlock, .dc-admin-user-detail, .dc-admin-detail-pane, .dc-review3-detail) { padding: 16px; }
+  html[data-theme] .dc-v3 :is(.dc-admin-grid, .dc-admin-panel-grid, .dc-admin-mini-grid, .dc-admin-adaptive-grid) { gap: 8px; }
+  html[data-theme] .dc-v3 .dc-admin-grid article { padding: 14px; }
+  html[data-theme] .dc-v3 .dc-review3-filters { gap: 8px; padding: 10px; }
+  html[data-theme] .dc-v3 .dc-review3-filters :is(input, select) { min-width: 0; }
+  html[data-theme] .dc-v3 .dc-announcement-admin__head { padding: 16px; }
+  html[data-theme] .dc-announcement { padding: 14px; gap: 9px; }
+  html[data-theme] .dc-announcement-center > header { padding: 20px; }
+  html[data-theme] :is(.community-page, .archive-page) :is(input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]), select, textarea) { font-size: 16px; }
+}

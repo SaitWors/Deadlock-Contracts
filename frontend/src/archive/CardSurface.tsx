@@ -1,5 +1,6 @@
 import { useEffect, useRef, type PointerEvent, type Ref } from "react"
 import { useLanguage } from "../i18n"
+import { useReducedMotion } from "../Appearance"
 import Regalia from "../regalia/Regalia"
 import CardPreview from "./CardPreview"
 import { RANKS, type Card } from "./types"
@@ -18,7 +19,7 @@ type Gesture = {
 export default function CardSurface({
   card,
   revealed = true,
-  reduced = false,
+  reduced: forceReduced = false,
   disabled = false,
   actionRef,
   onFlip,
@@ -33,6 +34,8 @@ export default function CardSurface({
   onSwipe?: (direction: "left" | "right") => void
 }) {
   const { language } = useLanguage()
+  const reducedPreference = useReducedMotion()
+  const reduced = forceReduced || reducedPreference
   const ru = language === "ru"
   const surface = useRef<HTMLDivElement>(null)
   const gesture = useRef<Gesture | null>(null)

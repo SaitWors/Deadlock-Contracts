@@ -1,5 +1,6 @@
 import { lazy, Suspense, useEffect, useState } from "react"
 import Landing from "./Landing"
+import { AppearanceProvider } from "./Appearance"
 import { legacyPublicUrl, resolvePublicRoute } from "./publicRoutes"
 const Dashboard = lazy(() => import("./Dashboard"))
 const PublicDossier = lazy(() => import("./PublicDossier"))
@@ -165,18 +166,20 @@ export default function App() {
     window.location.pathname === "/" && privateSession ? undefined : route || undefined
   return (
     <LanguageProvider publicRoute={publicRoute}>
-      <AnnouncementProvider>
-        <AnnouncementLayer />
-        <Suspense
-          fallback={
-            <main className="community-page" role="status">
-              <div className="dc-loader" />
-            </main>
-          }
-        >
-          <AppRoutes onSession={setPrivateSession} />
-        </Suspense>
-      </AnnouncementProvider>
+      <AppearanceProvider>
+        <AnnouncementProvider>
+          <AnnouncementLayer />
+          <Suspense
+            fallback={
+              <main className="community-page" role="status">
+                <div className="dc-loader" />
+              </main>
+            }
+          >
+            <AppRoutes onSession={setPrivateSession} />
+          </Suspense>
+        </AnnouncementProvider>
+      </AppearanceProvider>
     </LanguageProvider>
   )
 }

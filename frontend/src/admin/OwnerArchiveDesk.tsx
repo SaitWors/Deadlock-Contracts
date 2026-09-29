@@ -65,7 +65,7 @@ function OwnerContent({ csrf }: { csrf: string }) {
   }
   return (
     <section className="archive-page owner-archive-desk">
-      <small>OWNER / ARCHIVE CONTROL</small>
+      <small>{ru ? "OWNER / УПРАВЛЕНИЕ АРХИВОМ" : "OWNER / ARCHIVE CONTROL"}</small>
       <h2>{ru ? "Конверты и инструменты владельца" : "Packs & owner tools"}</h2>
       <p>
         {ru

@@ -136,5 +136,7 @@ def test_frontend_uses_permissions_and_open_review_inbox() -> None:
     assert "user.is_staff" in src
     assert "user.is_admin &&" not in src
     assert "/api/admin/auto-reviews?status=OPEN" in src
-    assert '<option>MODERATOR</option>' in src
-    assert 'value="MODERATOR">MODERATOR — только Review + TOTP' in src
+    # Localized labels must retain the API role value in both selectors.
+    assert '<option value="MODERATOR">{copy("MODERATOR")}</option>' in src
+    assert '<option value="MODERATOR">\n' in src
+    assert '{copy("MODERATOR — только Review + TOTP")}' in src
