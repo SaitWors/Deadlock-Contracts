@@ -5,6 +5,7 @@ The first Nightshift update left feature screens using the previous design. This
 ## Scope
 
 - Public landing, demo contract selection, signing preview, documents and help.
+- Standalone legal documents, support, service status and the authorized reviewer gateway. These pages inherit the saved website appearance; document content and access rules are preserved.
 - Signed-in home, contracts, active cases, history, personal dossier, account settings and Companion pairing.
 - Archive, cipher, envelopes, collection, card preview, card studio and token history.
 - Player bureaus, bureau editing, achievements and leaderboard. Existing player artwork and customization remain visible.
@@ -25,6 +26,8 @@ Screenshots use an isolated local database populated for design review.
 ![Archive and collection](archive.jpg)
 ![Companion desktop, Russian, dark theme](companion.jpg)
 ![Mobile home](mobile.jpg)
+![Standalone documents, light theme](documents.jpg)
+![Authorized reviewer gateway](reviewer.jpg)
 
 ## Verification — 2026-10-02
 
@@ -43,6 +46,8 @@ Screenshots use an isolated local database populated for design review.
 Chromium verification covered all 14 workspace destinations, all 16 loaded admin sections, desktop and 360/768 px layouts, five themes, guest and signed-in states, and persisted RU/EN changes. It completed a real local login, TOTP elevation, signing cancellation, server-confirmed signing and navigation to the active case. There were no page errors, HTTP errors, broken images or document-level horizontal overflows in those journeys.
 
 Populated feature fixtures additionally covered admin review details, player details, announcement editing, bureau customization, archive interactions and Companion desktop/overlay states. The signing tests include delayed confirmation, retries, stale selections, keyboard handling and visible focus restoration on desktop and mobile.
+
+The standalone pages were also checked in all five themes and at 360 px. Document language switching, shared theme persistence in both directions with the React application and reading with JavaScript disabled passed. The original document articles were compared byte-for-byte with the baseline; their wording is unchanged.
 
 The local sandbox required an unrestricted local process for browser and backend tests. Companion packaging tests used file-based subprocess output capture because pipe capture was denied; test commands, exit statuses and assertions were unchanged. GitHub CI also runs the normal test and packaging commands.
 
