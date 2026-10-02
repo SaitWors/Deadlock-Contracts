@@ -291,6 +291,86 @@ test("review exposes actual terms, potential XP, and escaped titles before confi
   assert.equal(env.document.activeElement, env.trigger)
   assert.equal(env.document.body.style.overflow, "")
 })
+for (const layout of ["desktop", "mobile"]) {
+  test(`closing a confirmed contract restores visible ${layout} navigation when its trigger is disabled`, async () => {
+    const env = await mount()
+    const header = env.document.createElement("header")
+    header.innerHTML = '<button class="bureau-brand">Header home</button>'
+    const sidebar = env.document.createElement("aside")
+    sidebar.innerHTML = '<button class="ns-sidebar-brand">Sidebar home</button>'
+    env.document.body.append(header, sidebar)
+    const headerBrand = header.querySelector("button")
+    const sidebarBrand = sidebar.querySelector("button")
+    if (layout === "desktop") headerBrand.style.display = "none"
+    else sidebar.style.display = "none"
+    await env.api.act(async () => env.button("Поставить печать").click())
+    assert.ok(env.document.querySelector(".signing-seal"))
+    env.trigger.disabled = true
+    await env.api.act(async () => env.instance.unmount())
+    assert.equal(env.document.activeElement, layout === "desktop" ? sidebarBrand : headerBrand)
+  })
+}
+test("the optional autograph previews escaped text and falls back to the operator when blank", async () => {
+  const env = await mount({}, "en")
+  const input = env.document.querySelector('input[name="signature"]')
+  assert.ok(input, "An optional signature input is available during review")
+  assert.ok(env.document.querySelector(`label[for="${input.id}"]`))
+  assert.equal(input.required, false)
+  assert.equal(input.value, "Тестовый исполнитель")
+  const edit = async (value) => {
+    await env.api.act(async () => {
+      Object.getOwnPropertyDescriptor(env.w.HTMLInputElement.prototype, "value").set.call(
+        input,
+        value,
+      )
+      input.dispatchEvent(new env.w.Event("input", { bubbles: true }))
+    })
+  }
+  await edit('<img src=x onerror="alert(1)">')
+  assert.equal(
+    env.document.querySelector(".signing-autograph").textContent,
+    '<img src=x onerror="alert(1)">',
+  )
+  assert.equal(env.document.querySelector(".signing-autograph img"), null)
+  await edit("   ")
+  assert.equal(env.document.querySelector(".signing-autograph").textContent, "Тестовый исполнитель")
+  assert.equal(env.button("Place seal").disabled, false)
+  await env.api.act(async () => env.button("Place seal").click())
+  assert.ok(env.button("Open case"))
+  await env.api.act(async () => env.instance.unmount())
+})
+test("pending freezes the autograph and a failed confirmation keeps it available for retry", async () => {
+  let reject
+  const env = await mount(
+    {
+      onSign: () =>
+        new Promise((_, fail) => {
+          reject = fail
+        }),
+    },
+    "en",
+  )
+  const input = env.document.querySelector('input[name="signature"]')
+  assert.ok(input, "The operator can personalize the autograph before signing")
+  await env.api.act(async () => {
+    Object.getOwnPropertyDescriptor(env.w.HTMLInputElement.prototype, "value").set.call(
+      input,
+      "Night operator",
+    )
+    input.dispatchEvent(new env.w.Event("input", { bubbles: true }))
+  })
+  await env.api.act(async () => env.button("Place seal").click())
+  assert.equal(input.disabled, true)
+  assert.equal(env.document.querySelector(".signing-autograph").textContent, "Night operator")
+  assert.equal(env.document.querySelectorAll(".signing-seal").length, 0)
+  await env.api.act(async () => reject(new Error("offline")))
+  assert.equal(input.disabled, false)
+  assert.equal(input.value, "Night operator")
+  assert.equal(env.document.querySelector(".signing-autograph").textContent, "Night operator")
+  assert.equal(env.button("Place seal").disabled, false)
+  assert.match(env.document.querySelector('[role="alert"]').textContent, /selection is preserved/)
+  await env.api.act(async () => env.instance.unmount())
+})
 test("cancel preserves selection and never signs", async () => {
   let closes = 0
   let signs = 0

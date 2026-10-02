@@ -3,6 +3,7 @@ import Regalia from "../regalia/Regalia"
 import { ACHIEVEMENT_ART } from "../regalia/catalog"
 import { useLanguage } from "../i18n"
 import type { Achievement } from "./types"
+import "./nightshift-community.css"
 
 export function PageHead({
   number,

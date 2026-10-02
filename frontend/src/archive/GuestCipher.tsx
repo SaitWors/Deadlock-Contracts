@@ -3,6 +3,7 @@ import { useLanguage } from "../i18n"
 import Regalia from "../regalia/Regalia"
 import { CIPHER_ART } from "../regalia/catalog"
 import "./first-visit.css"
+import "./nightshift-archive.css"
 
 const SOLUTION = [0, 5, 4, 2]
 const SYMBOLS = {

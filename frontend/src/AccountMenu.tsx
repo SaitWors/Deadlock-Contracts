@@ -101,7 +101,7 @@ export default function AccountMenu({
           aria-label={ru ? "Личное досье" : "Account dossier"}
         >
           <header>
-            <small>OPERATIVE DOSSIER</small>
+            <small>{ru ? "Личное досье" : "Personal dossier"}</small>
             <strong>{user.display_name}</strong>
             <span>
               LVL {level} · {user.xp.toLocaleString(locale)} XP

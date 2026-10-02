@@ -2,6 +2,7 @@ import { useState } from "react"
 import { useLanguage } from "../i18n"
 import { useResource } from "./api"
 import { LoadState, PageHead } from "./Shared"
+import Icon from "../icons/Icon"
 
 type Row = {
   rank: number
@@ -126,48 +127,82 @@ export default function Leaderboard({
             </div>
           )}
           {data.rows.length ? (
-            <div className="leaderboard-table-wrap">
-              <table className="leaderboard-table">
-                <caption>
-                  {ru ? "Городской реестр · первые 50 мест" : "City register · top 50"}
-                </caption>
-                <thead>
-                  <tr>
-                    <th scope="col">#</th>
-                    <th scope="col">{ru ? "Оперативник" : "Operative"}</th>
-                    <th scope="col" className="leaderboard-extra">
-                      {ru ? "Дела" : "Cases"}
-                    </th>
-                    <th scope="col">{scoreLabel}</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {data.rows.map((row) => (
-                    <tr key={row.slug} className={row.slug === data.me?.row?.slug ? "is-me" : ""}>
-                      <td>{String(row.rank).padStart(2, "0")}</td>
-                      <td>
-                        <a href={`/u/${row.slug}`} className="leaderboard-player">
-                          {row.avatar_url ? (
-                            <img src={row.avatar_url} alt="" loading="lazy" />
-                          ) : (
-                            <span className="community-avatar">DC</span>
-                          )}
-                          <span>
-                            <b>{row.display_name}</b>
-                            <small>
-                              LVL {row.level}
-                              {row.slug === data.me?.row?.slug ? (ru ? " · ВЫ" : " · YOU") : ""}
-                            </small>
-                          </span>
-                        </a>
-                      </td>
-                      <td className="leaderboard-extra">{row.contracts_completed}</td>
-                      <td>{row.score.toLocaleString(locale)}</td>
+            <>
+              {data.rows.some((row) => row.rank <= 3) && (
+                <div
+                  className="leaderboard-podium"
+                  aria-label={ru ? "Лидеры рейтинга" : "Leading operatives"}
+                >
+                  {data.rows
+                    .filter((row) => row.rank <= 3)
+                    .map((row) => (
+                      <a
+                        className="leaderboard-podium-place"
+                        data-place={row.rank}
+                        key={row.slug}
+                        href={`/u/${row.slug}`}
+                      >
+                        <span className="leaderboard-podium-rank">
+                          {String(row.rank).padStart(2, "0")}
+                        </span>
+                        <Icon name={row.rank === 1 ? "trophy" : "star"} size={24} />
+                        {row.avatar_url ? (
+                          <img src={row.avatar_url} alt="" loading="lazy" />
+                        ) : (
+                          <span className="community-avatar">DC</span>
+                        )}
+                        <small>LVL {row.level}</small>
+                        <h2>{row.display_name}</h2>
+                        <strong>
+                          {row.score.toLocaleString(locale)} <small>{scoreLabel}</small>
+                        </strong>
+                      </a>
+                    ))}
+                </div>
+              )}
+              <div className="leaderboard-table-wrap">
+                <table className="leaderboard-table">
+                  <caption>
+                    {ru ? "Городской реестр · первые 50 мест" : "City register · top 50"}
+                  </caption>
+                  <thead>
+                    <tr>
+                      <th scope="col">#</th>
+                      <th scope="col">{ru ? "Оперативник" : "Operative"}</th>
+                      <th scope="col" className="leaderboard-extra">
+                        {ru ? "Дела" : "Cases"}
+                      </th>
+                      <th scope="col">{scoreLabel}</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+                  </thead>
+                  <tbody>
+                    {data.rows.map((row) => (
+                      <tr key={row.slug} className={row.slug === data.me?.row?.slug ? "is-me" : ""}>
+                        <td>{String(row.rank).padStart(2, "0")}</td>
+                        <td>
+                          <a href={`/u/${row.slug}`} className="leaderboard-player">
+                            {row.avatar_url ? (
+                              <img src={row.avatar_url} alt="" loading="lazy" />
+                            ) : (
+                              <span className="community-avatar">DC</span>
+                            )}
+                            <span>
+                              <b>{row.display_name}</b>
+                              <small>
+                                LVL {row.level}
+                                {row.slug === data.me?.row?.slug ? (ru ? " · ВЫ" : " · YOU") : ""}
+                              </small>
+                            </span>
+                          </a>
+                        </td>
+                        <td className="leaderboard-extra">{row.contracts_completed}</td>
+                        <td>{row.score.toLocaleString(locale)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </>
           ) : (
             <div className="community-empty">
               <h2>{ru ? "В реестре пока тихо" : "The register is quiet"}</h2>

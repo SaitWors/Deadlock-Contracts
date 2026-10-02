@@ -1,7 +1,7 @@
 import { useEffect, useRef, type PointerEvent, type Ref } from "react"
 import { useLanguage } from "../i18n"
 import { useReducedMotion } from "../Appearance"
-import Regalia from "../regalia/Regalia"
+import Icon from "../icons/Icon"
 import CardPreview from "./CardPreview"
 import { RANKS, type Card } from "./types"
 import "./card-surface.css"
@@ -144,7 +144,7 @@ export default function CardSurface({
       <div className="card-surface-tilt">
         <div className="card-surface-turn">
           <div className="card-surface-back" aria-hidden="true">
-            <Regalia id="seal-archive" />
+            <Icon name="layers" size={68} />
             <span>
               DEADLOCK
               <br />

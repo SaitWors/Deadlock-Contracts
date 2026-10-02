@@ -2,11 +2,11 @@ import { useEffect, useRef, useState, type CSSProperties } from "react"
 import Icon from "../icons/Icon"
 import { useLanguage } from "../i18n"
 import { useReducedMotion } from "../Appearance"
-import Regalia from "../regalia/Regalia"
 import CardSurface from "./CardSurface"
 import { FavoriteButton, FavoriteError, type FavoriteControls } from "./favorites"
 import type { Receipt } from "./types"
 import "./pack-reveal.css"
+import "./nightshift-archive.css"
 
 type Stage = "sealed" | "opening" | "cards" | "results"
 
@@ -216,7 +216,7 @@ export default function PackReveal({
                       className="pack-fan-back"
                       style={{ "--fan-offset": index - (items.length - 1) / 2 } as CSSProperties}
                     >
-                      <Regalia id="seal-archive" />
+                      <Icon name="layers" size={42} />
                       <span>
                         DEADLOCK
                         <br />
@@ -239,8 +239,8 @@ export default function PackReveal({
                     </span>
                   </div>
                   <div className="pack-envelope-body">
-                    <Regalia id="seal-archive" />
-                    <span>THE ARCHIVE</span>
+                    <Icon name="layers" size={70} />
+                    <span>{receipt.pack?.title || "THE ARCHIVE"}</span>
                     <small>
                       {String(receipt.items.length).padStart(2, "0")} · COLLECTION FILES
                     </small>

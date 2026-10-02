@@ -2,7 +2,6 @@ import Icon from "./icons/Icon"
 import React, { Suspense, useState, useEffect, useRef } from "react"
 import BureauHeader from "./BureauHeader"
 import Leaderboard from "./community/Leaderboard"
-import ContractSigning from "./ContractSigning"
 import { useRipple, useTilt } from "./motion"
 import logoImage from "@/imports/brand-hero.webp"
 import Mascot from "./Mascot"
@@ -15,6 +14,7 @@ type ContractCategory = "COMFORT" | "GROWTH" | "HERO" | "VARIETY" | "EVENT"
 type GameMode = "STANDARD" | "RANKED" | "STREET BRAWL"
 
 const GuestCipher = React.lazy(() => import("./archive/GuestCipher"))
+const ContractSigning = React.lazy(() => import("./ContractSigning"))
 
 const NAV_ITEMS: Array<{
   id: Exclude<PublicPage, "home" | "try">
@@ -111,7 +111,7 @@ const CATEGORY_LABEL: Record<ContractCategory, string> = {
 
 const CATEGORY_COLOR: Record<ContractCategory, string> = {
   COMFORT: "#7297A6",
-  GROWTH: "#7AB384",
+  GROWTH: "var(--ns-accent)",
   HERO: "#C49A57",
   VARIETY: "#8A78AE",
   EVENT: "#B65E58",
@@ -120,7 +120,7 @@ const CATEGORY_COLOR: Record<ContractCategory, string> = {
 // ─── Curator typer ─────────────────────────────────────────────────
 function CuratorTyper() {
   const { language } = useLanguage()
-  return <span style={{ color: "#94C28F" }}>{t(language, "Выберите цель до матча.")}</span>
+  return <span style={{ color: "var(--ns-accent)" }}>{t(language, "Выберите цель до матча.")}</span>
 }
 
 // ─── Reveal wrapper ────────────────────────────────────────────────
@@ -232,7 +232,7 @@ function Eyebrow({ children }: { children: React.ReactNode }) {
   return (
     <p
       className="text-xs font-semibold tracking-[0.28em] uppercase mb-3"
-      style={{ color: "#7AB384" }}
+      style={{ color: "var(--ns-accent)" }}
     >
       {children}
     </p>
@@ -252,7 +252,7 @@ function SectionHeading({
       style={{
         fontFamily: "var(--font-body)",
         fontSize: "clamp(28px, 4vw, 42px)",
-        color: "#F1E4C8",
+        color: "var(--ns-text)",
       }}
     >
       {children}
@@ -325,22 +325,30 @@ export default function Landing() {
   return (
     <div className="bureau-public min-h-screen">
       {previewOpen && (
-        <ContractSigning
-          preview
-          mode={gameMode}
-          operator={language === "ru" ? "Гость бюро" : "Bureau guest"}
-          options={contracts
-            .filter((contract) => selected.includes(contract.id))
-            .map((contract) => ({
-              id: String(contract.id),
-              title: contract.title,
-              description: contract.condition,
-              reward: contract.xp,
-            }))}
-          changed={false}
-          onClose={() => setPreviewOpen(false)}
-          onSignIn={() => window.location.assign("/auth/steam")}
-        />
+        <Suspense
+          fallback={
+            <p className="ns-dialog-loading" role="status">
+              {language === "ru" ? "Открываем досье…" : "Opening the dossier…"}
+            </p>
+          }
+        >
+          <ContractSigning
+            preview
+            mode={gameMode}
+            operator={language === "ru" ? "Гость бюро" : "Bureau guest"}
+            options={contracts
+              .filter((contract) => selected.includes(contract.id))
+              .map((contract) => ({
+                id: String(contract.id),
+                title: contract.title,
+                description: contract.condition,
+                reward: contract.xp,
+              }))}
+            changed={false}
+            onClose={() => setPreviewOpen(false)}
+            onSignIn={() => window.location.assign("/auth/steam")}
+          />
+        </Suspense>
       )}
       <BureauHeader
         active={page}
@@ -495,7 +503,7 @@ export default function Landing() {
                     </SectionHeading>
                     <p
                       className="text-xs leading-relaxed mt-3 max-w-[620px]"
-                      style={{ color: "#7F8478" }}
+                      style={{ color: "var(--ns-muted)" }}
                     >
                       {t(
                         language,
@@ -504,9 +512,9 @@ export default function Landing() {
                     </p>
                   </div>
                   <div
-                    className="flex rounded overflow-hidden shrink-0"
+                    className="ns-demo-modes"
                     style={{
-                      border: "1px solid #3B5145",
+                      border: "1px solid var(--ns-line)",
                       boxShadow: "0 0 14px rgba(59,81,69,0.2)",
                     }}
                   >
@@ -524,9 +532,9 @@ export default function Landing() {
                         }`}
                         aria-pressed={gameMode === mode}
                         style={{
-                          backgroundColor: gameMode === mode ? "#1A2F22" : "transparent",
-                          color: gameMode === mode ? "#94C28F" : "#7F8478",
-                          borderRight: i < 2 ? "1px solid #3B5145" : "none",
+                          backgroundColor: gameMode === mode ? "var(--ns-soft)" : "transparent",
+                          color: gameMode === mode ? "var(--ns-accent)" : "var(--ns-muted)",
+                          borderRight: i < 2 ? "1px solid var(--ns-line)" : "none",
                           fontFamily: "var(--font-body)",
                           letterSpacing: "0.06em",
                           textShadow: gameMode === mode ? "0 0 10px rgba(122,179,132,0.5)" : "none",
@@ -548,12 +556,12 @@ export default function Landing() {
                       <button
                         type="button"
                         key={c.id}
-                        className={`contract-card border p-4 flex flex-col cursor-pointer select-none text-left w-full ${
+                        className={`ns-demo-contract contract-card border p-4 flex flex-col cursor-pointer select-none text-left w-full ${
                           isSelected ? "selected" : ""
                         }`}
                         style={{
                           backgroundColor: "var(--color-panel)",
-                          borderColor: isSelected ? "#7AB384" : "#26352E",
+                          borderColor: isSelected ? "var(--ns-accent)" : "var(--ns-line)",
                           borderRadius: "16px",
                         }}
                         onClick={() => toggleContract(c.id)}
@@ -568,9 +576,9 @@ export default function Landing() {
                           <div
                             className="absolute top-2.5 right-2.5 w-5 h-5 rounded-full flex items-center justify-center text-[11px] font-bold"
                             style={{
-                              backgroundColor: "#7AB384",
-                              color: "#05070E",
-                              boxShadow: "0 0 12px rgba(122,179,132,0.8)",
+                              backgroundColor: "var(--ns-accent)",
+                              color: "var(--ns-on-accent)",
+                              boxShadow: "none",
                               zIndex: 2,
                             }}
                           >
@@ -592,10 +600,10 @@ export default function Landing() {
                         <span
                           className="text-[10px] font-semibold tracking-wider mb-2 self-start px-1.5 py-0.5"
                           style={{
-                            backgroundColor: "#151D19",
-                            color: "#7F8478",
+                            backgroundColor: "var(--ns-elevated)",
+                            color: "var(--ns-muted)",
                             borderRadius: "2px",
-                            border: "1px solid #1A2520",
+                            border: "1px solid var(--ns-line)",
                           }}
                         >
                           {c.difficulty}
@@ -613,21 +621,25 @@ export default function Landing() {
                         </h3>
                         <p
                           className="text-xs mb-4 flex-1 leading-relaxed"
-                          style={{ color: "#B6AC94" }}
+                          style={{ color: "var(--ns-muted)" }}
                         >
                           {c.condition}
                         </p>
-                        <div className="mt-auto pt-3" style={{ borderTop: "1px solid #1A2520" }}>
-                          <div className="text-[10px] mb-1.5" style={{ color: "#7F8478" }}>
-                            {gameMode} · 1 MATCH · AUTO VERIFY
+                        <div
+                          className="mt-auto pt-3"
+                          style={{ borderTop: "1px solid var(--ns-line)" }}
+                        >
+                          <div className="text-[10px] mb-1.5" style={{ color: "var(--ns-muted)" }}>
+                            {gameMode} ·{" "}
+                            {language === "ru" ? "1 матч · Автопроверка" : "1 match · Auto verify"}
                           </div>
                           <div
                             className="font-bold"
                             style={{
-                              color: "#7AB384",
+                              color: "var(--ns-accent)",
                               fontFamily: "var(--font-body)",
                               fontSize: "16px",
-                              textShadow: isSelected ? "0 0 12px rgba(122,179,132,0.7)" : "none",
+                              textShadow: "none",
                             }}
                           >
                             +{c.xp} XP
@@ -642,10 +654,10 @@ export default function Landing() {
               {/* Selection tray */}
               <Reveal>
                 <div
-                  className="border p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4 transition-all duration-300"
+                  className="ns-demo-selection border p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4 transition-all duration-300"
                   style={{
-                    backgroundColor: selected.length > 0 ? "#0C1510" : "#080C0B",
-                    borderColor: selected.length > 0 ? "#3B5145" : "#1A2520",
+                    backgroundColor: selected.length > 0 ? "var(--ns-surface)" : "var(--ns-bg)",
+                    borderColor: selected.length > 0 ? "var(--ns-line)" : "var(--ns-line)",
                     borderRadius: "16px",
                     boxShadow: selected.length > 0 ? "0 0 24px rgba(69,127,91,0.14)" : "none",
                   }}
@@ -656,10 +668,10 @@ export default function Landing() {
                       style={{
                         fontFamily: "var(--font-body)",
                         fontSize: "18px",
-                        color: "#F1E4C8",
+                        color: "var(--ns-text)",
                       }}
                     >
-                      {selected.length} / 3 SELECTED
+                      {selected.length} / 3 {language === "ru" ? "выбрано" : "selected"}
                     </div>
                     {selected.length > 0 ? (
                       <div className="flex flex-wrap gap-2">
@@ -670,16 +682,16 @@ export default function Landing() {
                               key={id}
                               className="text-xs px-2.5 py-1"
                               style={{
-                                backgroundColor: "#151D19",
-                                color: "#B6AC94",
+                                backgroundColor: "var(--ns-elevated)",
+                                color: "var(--ns-muted)",
                                 borderRadius: "3px",
-                                border: "1px solid #26352E",
+                                border: "1px solid var(--ns-line)",
                               }}
                             >
                               {c.title}{" "}
                               <span
                                 style={{
-                                  color: "#7AB384",
+                                  color: "var(--ns-accent)",
                                   textShadow: "0 0 6px rgba(122,179,132,0.4)",
                                 }}
                               >
@@ -690,7 +702,7 @@ export default function Landing() {
                         })}
                       </div>
                     ) : (
-                      <p className="text-xs" style={{ color: "#7F8478" }}>
+                      <p className="text-xs" style={{ color: "var(--ns-muted)" }}>
                         {language === "ru"
                           ? "Выберите до 3 из 6 предложений. В реальном кабинете пул меняется по режиму."
                           : "Choose up to 3 of 6 offers. In the live dashboard, the pool changes by mode."}
@@ -706,7 +718,7 @@ export default function Landing() {
                           style={{
                             fontFamily: "var(--font-body)",
                             fontSize: "22px",
-                            color: "#7AB384",
+                            color: "var(--ns-accent)",
                             textShadow:
                               "0 0 16px rgba(122,179,132,0.8), 0 0 35px rgba(122,179,132,0.4)",
                           }}
@@ -720,20 +732,20 @@ export default function Landing() {
                           }}
                           className="text-xs px-3 py-2"
                           style={{
-                            color: "#7F8478",
-                            border: "1px solid #26352E",
+                            color: "var(--ns-muted)",
+                            border: "1px solid var(--ns-line)",
                             borderRadius: "4px",
                             transition: "color 0.2s, border-color 0.2s",
                             position: "relative",
                             overflow: "hidden",
                           }}
                           onMouseEnter={(e) => {
-                            e.currentTarget.style.color = "#B6AC94"
-                            e.currentTarget.style.borderColor = "#3B5145"
+                            e.currentTarget.style.color = "var(--ns-muted)"
+                            e.currentTarget.style.borderColor = "var(--ns-line)"
                           }}
                           onMouseLeave={(e) => {
-                            e.currentTarget.style.color = "#7F8478"
-                            e.currentTarget.style.borderColor = "#26352E"
+                            e.currentTarget.style.color = "var(--ns-muted)"
+                            e.currentTarget.style.borderColor = "var(--ns-line)"
                           }}
                         >
                           {t(language, "Сбросить")}
@@ -743,9 +755,10 @@ export default function Landing() {
                     <button
                       className="btn-primary text-sm font-bold px-5 py-2.5"
                       style={{
-                        backgroundColor: selected.length > 0 ? "#457F5B" : "#151D19",
-                        color: selected.length > 0 ? "#F1E4C8" : "#7F8478",
-                        border: `1px solid ${selected.length > 0 ? "#7AB384" : "#26352E"}`,
+                        backgroundColor:
+                          selected.length > 0 ? "var(--ns-fill)" : "var(--ns-elevated)",
+                        color: selected.length > 0 ? "var(--ns-text)" : "var(--ns-muted)",
+                        border: `1px solid ${selected.length > 0 ? "var(--ns-accent)" : "var(--ns-line)"}`,
                         borderRadius: "4px",
                         fontFamily: "var(--font-body)",
                         letterSpacing: "0.05em",
@@ -784,10 +797,10 @@ export default function Landing() {
       {page === "home" && <PublicContent copy={copy} heading={false} />}
       {/* ── FOOTER ── */}
       <footer
-        className="px-6 lg:px-8 py-12 relative"
+        className="ns-public-footer px-6 lg:px-8 py-12 relative"
         style={{
-          borderTop: "1px solid #26352E",
-          backgroundColor: "#05070E",
+          borderTop: "1px solid var(--ns-line)",
+          backgroundColor: "var(--ns-on-accent)",
           boxShadow: "inset 0 1px 0 rgba(122,179,132,0.04)",
         }}
       >
@@ -799,7 +812,10 @@ export default function Landing() {
               className="logo-container"
               style={{ height: "38px", width: "auto", marginBottom: "14px" }}
             />
-            <p className="text-xs leading-relaxed mb-5 max-w-[260px]" style={{ color: "#7F8478" }}>
+            <p
+              className="text-xs leading-relaxed mb-5 max-w-[260px]"
+              style={{ color: "var(--ns-muted)" }}
+            >
               {t(
                 language,
                 "Неофициальный проект для игроков Deadlock. Не связан с Valve Corporation.",
@@ -827,8 +843,8 @@ export default function Landing() {
                 <a
                   key={item.href}
                   href={item.href}
-                  className="text-xs nav-link transition-colors hover:text-[#7AB384]"
-                  style={{ color: "#7F8478" }}
+                  className="text-xs nav-link transition-colors hover:text-[var(--ns-accent)]"
+                  style={{ color: "var(--ns-muted)" }}
                 >
                   {item.label}
                 </a>
@@ -839,7 +855,7 @@ export default function Landing() {
             <div
               className="text-[10px] font-bold tracking-widest uppercase mb-4"
               style={{
-                color: "#7F8478",
+                color: "var(--ns-muted)",
                 fontFamily: "var(--font-body)",
               }}
             >
@@ -874,8 +890,8 @@ export default function Landing() {
               <a
                 key={item.href}
                 href={item.href}
-                className="nav-link block text-xs mb-3 transition-colors hover:text-[#7AB384]"
-                style={{ color: "#B6AC94" }}
+                className="nav-link block text-xs mb-3 transition-colors hover:text-[var(--ns-accent)]"
+                style={{ color: "var(--ns-muted)" }}
               >
                 {t(language, item.label)}
               </a>
@@ -885,7 +901,7 @@ export default function Landing() {
             <div
               className="text-[10px] font-bold tracking-widest uppercase mb-4"
               style={{
-                color: "#7F8478",
+                color: "var(--ns-muted)",
                 fontFamily: "var(--font-body)",
               }}
             >
@@ -912,8 +928,8 @@ export default function Landing() {
               <a
                 key={item.href}
                 href={item.href}
-                className="nav-link block text-xs mb-3 transition-colors hover:text-[#7AB384]"
-                style={{ color: "#B6AC94" }}
+                className="nav-link block text-xs mb-3 transition-colors hover:text-[var(--ns-accent)]"
+                style={{ color: "var(--ns-muted)" }}
               >
                 {item.label}
               </a>
@@ -922,15 +938,15 @@ export default function Landing() {
         </div>
         <div
           className="max-w-[1320px] mx-auto flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 pt-6"
-          style={{ borderTop: "1px solid #1A2520" }}
+          style={{ borderTop: "1px solid var(--ns-line)" }}
         >
-          <p className="text-[10px]" style={{ color: "#7F8478" }}>
+          <p className="text-[10px]" style={{ color: "var(--ns-muted)" }}>
             © 2026 Deadlock Contracts · Community Project
           </p>
           <MCGCredit language={language} compact />
           <div className="flex items-center gap-2">
             <AnimatedEyeLogo />
-            <p className="text-[10px]" style={{ color: "#7F8478" }}>
+            <p className="text-[10px]" style={{ color: "var(--ns-muted)" }}>
               {t(language, "Данные матчей предоставляют сторонние источники")}
             </p>
           </div>

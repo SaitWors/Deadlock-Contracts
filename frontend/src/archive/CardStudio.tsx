@@ -64,6 +64,7 @@ export default function CardStudio({
   return (
     <section className="archive-editor">
       <div className="archive-editor-preview">
+        <span className="archive-studio-eyebrow">{ru ? "ЖИВОЙ ПРЕДПРОСМОТР" : "LIVE PREVIEW"}</span>
         <CardPreview
           card={{
             ...form,
@@ -124,7 +125,7 @@ export default function CardStudio({
               onChange={(e) => change({ title: e.target.value })}
             />
           </label>
-          <label>
+          <label className="archive-upload">
             {ru ? "Изображение · PNG, JPEG, WebP" : "Artwork · PNG, JPEG, WebP"}
             <input
               type="file"

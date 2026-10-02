@@ -46,37 +46,50 @@ export default function CardReviewDesk({ csrf }: { csrf: string }) {
     }
   }
   return (
-    <section className="archive-page">
-      <h2>{ru ? "Проверка карточек" : "Card review"}</h2>
-      <p>
-        {ru
-          ? "Проверь героя, ранг, композицию и авторство. После публикации дизайн фиксируется. Пояснение увидит автор."
-          : "Check hero, rank, composition and artwork credit. Published designs are locked. The author sees your note."}
-      </p>
-      <label>
-        {ru ? "Состояние" : "Status"}
-        <select
-          value={status}
-          onChange={(e) => {
-            setStatus(e.target.value)
-            setOffset(0)
-            setError("")
-          }}
-        >
-          {(["PENDING", "PUBLISHED", "REJECTED", "ARCHIVED"] as const).map((s) => (
-            <option key={s} value={s}>
-              {STATUS[s][ru ? 0 : 1]}
-            </option>
-          ))}
-        </select>
-      </label>
+    <section className="archive-page dc-admin-card-review">
+      <header className="dc-admin-section-head">
+        <div>
+          <h2>{ru ? "Проверка карточек" : "Card review"}</h2>
+          <p>
+            {ru
+              ? "Проверь героя, ранг, композицию и авторство. После публикации дизайн фиксируется. Пояснение увидит автор."
+              : "Check hero, rank, composition and artwork credit. Published designs are locked. The author sees your note."}
+          </p>
+        </div>
+      </header>
+      <div className="dc-admin-filterbar">
+        <label>
+          {ru ? "Состояние" : "Status"}
+          <select
+            value={status}
+            onChange={(e) => {
+              setStatus(e.target.value)
+              setOffset(0)
+              setError("")
+            }}
+          >
+            {(["PENDING", "PUBLISHED", "REJECTED", "ARCHIVED"] as const).map((s) => (
+              <option key={s} value={s}>
+                {STATUS[s][ru ? 0 : 1]}
+              </option>
+            ))}
+          </select>
+        </label>
+        <button disabled={busy} onClick={data.reload}>
+          {ru ? "Обновить очередь" : "Refresh queue"}
+        </button>
+        {data.data && (
+          <small>
+            {data.data.total} {ru ? "карточек" : "cards"}
+          </small>
+        )}
+      </div>
       {(error || data.error) && <p role="alert">{error || data.error}</p>}
-      <button disabled={busy} onClick={data.reload}>
-        {ru ? "Обновить очередь" : "Refresh queue"}
-      </button>
       {data.loading && <p role="status">{ru ? "Загрузка…" : "Loading…"}</p>}
       {data.data && !data.data.items.length && (
-        <p>{ru ? "В этой очереди пока нет карточек." : "No cards in this queue."}</p>
+        <p className="dc-admin-empty">
+          {ru ? "В этой очереди пока нет карточек." : "No cards in this queue."}
+        </p>
       )}
       <div className="archive-review-grid">
         {data.data?.items.map((card) => (

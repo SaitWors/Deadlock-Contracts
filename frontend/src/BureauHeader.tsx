@@ -13,6 +13,8 @@ export default function BureauHeader({
   mobileActions,
   mobileItems,
   homeHref,
+  breadcrumb,
+  onHelp,
 }: {
   items: HeaderItem[]
   active: string
@@ -21,6 +23,8 @@ export default function BureauHeader({
   mobileActions?: ReactNode
   mobileItems?: HeaderItem[]
   homeHref?: string
+  breadcrumb?: string
+  onHelp?: () => void
 }) {
   const { language } = useLanguage()
   const [open, setOpen] = useState(false)
@@ -93,6 +97,19 @@ export default function BureauHeader({
             <span className="ns-brand-wordmark">
               DEADLOCK<small>CONTRACTS</small>
             </span>
+          </button>
+        )}
+        {breadcrumb && (
+          <div className="ns-header-breadcrumb">
+            <span>{language === "ru" ? "Бюро" : "Bureau"}</span>
+            <i>/</i>
+            <b>{breadcrumb}</b>
+          </div>
+        )}
+        {onHelp && (
+          <button className="ns-header-help" onClick={onHelp}>
+            <Icon name="book-open" size={16} />
+            {language === "ru" ? "Как это работает" : "How it works"}
           </button>
         )}
         <nav
