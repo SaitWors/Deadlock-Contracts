@@ -814,7 +814,7 @@ const number = (value: number, language: Language = "ru") =>
 const operatorSymbol = (value?: string) => (value === "lte" ? "≤" : value === "eq" ? "=" : "≥")
 const targetLabel = (option: Option, language: Language = "ru") => {
   if ((option.conditions?.length || 0) > 1)
-    return `${option.conditions!.length} ${language === "ru" ? "УСЛОВИЯ" : "CONDITIONS"}`
+    return `${option.conditions!.length} ${language === "ru" ? "условия" : "conditions"}`
   return conditionText(
     {
       metric: option.metric,
@@ -822,7 +822,7 @@ const targetLabel = (option: Option, language: Language = "ru") => {
       target: Number(option.target),
     },
     language,
-  ).toUpperCase()
+  )
 }
 const expiryLabel = (value?: string, now = Date.now(), language: Language = "ru") => {
   if (!value) return t(language, "ОБНОВЛЕНИЕ УТОЧНЯЕТСЯ")
@@ -1394,6 +1394,40 @@ export default function Dashboard({ initialSession }: { initialSession: SessionP
   const shownName = safeName(user.display_name, language)
   const level = progression?.level || 1
   const progressPct = progression?.progress_pct || 0
+  const pageLabels: Record<string, string> =
+    language === "ru"
+      ? {
+          home: "Главная",
+          quests: "Контракты",
+          active: "Активное дело",
+          history: "История дел",
+          archive: "Шифры и каталог",
+          collection: "Моя коллекция",
+          packs: "Конверты",
+          studio: "Мастерская",
+          wallet: "История жетонов",
+          bureaus: "Бюро игроков",
+          achievements: "Достижения",
+          leaderboard: "Рейтинг",
+          profile: "Моё досье",
+          admin: "Управление",
+        }
+      : {
+          home: "Home",
+          quests: "Contracts",
+          active: "Active case",
+          history: "Case history",
+          archive: "Ciphers & catalog",
+          collection: "My collection",
+          packs: "Envelopes",
+          studio: "Card studio",
+          wallet: "Token history",
+          bureaus: "Player bureaus",
+          achievements: "Achievements",
+          leaderboard: "Leaderboard",
+          profile: "My dossier",
+          admin: "Staff console",
+        }
   const nav: Array<[Tab, string, "hq" | "contract" | "case" | "profile" | "admin"]> = [
     ["home", language === "ru" ? "ГЛАВНАЯ" : "HOME", "hq"],
     ["quests", language === "ru" ? "КОНТРАКТЫ" : "CONTRACTS", "contract"],
@@ -1454,8 +1488,12 @@ export default function Dashboard({ initialSession }: { initialSession: SessionP
         />
       )}
       <BureauHeader
+        breadcrumb={pageLabels[tab]}
+        onHelp={() => setGuideOpen(true)}
         active={["studio", "wallet", "packs", "collection"].includes(tab) ? "archive" : tab}
-        mobileItems={nav.map(([id, label]) => ({ id, label }))}
+        mobileItems={Object.entries(pageLabels)
+          .filter(([id]) => id !== "admin" || user.is_staff)
+          .map(([id, label]) => ({ id, label }))}
         items={nav
           .filter(([id]) => !["profile", "active", "history", "achievements"].includes(id))
           .map(([id, label]) => ({ id, label }))}
@@ -1514,6 +1552,8 @@ export default function Dashboard({ initialSession }: { initialSession: SessionP
       <NightshiftNav
         active={tab}
         staff={user.is_staff}
+        user={user}
+        level={level}
         onNavigate={(next) => setTab(next as Tab)}
       />
       <BureauBottomNav active={tab} onNavigate={(next) => setTab(next as Tab)} />
@@ -1522,11 +1562,7 @@ export default function Dashboard({ initialSession }: { initialSession: SessionP
         <main className="dc-workspace">
           <div className="bureau-location">
             <span>
-              {language === "ru" ? "ВЫ В БЮРО" : "AT THE BUREAU"} /{" "}
-              <b>
-                {nav.find(([id]) => id === tab)?.[1] ||
-                  (language === "ru" ? "АРХИВ КАРТОЧЕК" : "CARD ARCHIVE")}
-              </b>
+              {language === "ru" ? "ВЫ В БЮРО" : "AT THE BUREAU"} / <b>{pageLabels[tab]}</b>
             </span>
             <button type="button" onClick={() => setGuideOpen(true)}>
               {language === "ru" ? "Как это работает?" : "How does it work?"}
@@ -1545,27 +1581,50 @@ export default function Dashboard({ initialSession }: { initialSession: SessionP
 
           {tab === "home" && (
             <>
+              <section className="ns-home-heading">
+                <div>
+                  <p className="ns-eyebrow">
+                    {language === "ru" ? "Личное бюро / Ночная смена" : "Your bureau / Night shift"}
+                  </p>
+                  <h1>
+                    {language === "ru" ? "На связи, " : "Welcome back, "}
+                    {shownName}.
+                  </h1>
+                  <p>
+                    {language === "ru"
+                      ? "У этого вечера есть потенциал. Выберите, каким он будет."
+                      : "Tonight has potential. Make it yours."}
+                  </p>
+                </div>
+                <button className="dc-ghost" onClick={() => setTab("profile")}>
+                  <SvgIcon name="video" size={18} /> Companion{" "}
+                  <SvgIcon name="arrow-up-right" size={16} />
+                </button>
+              </section>
               <section className="dc-command-hero dc-v3-hero">
                 <div className="dc-command-copy">
                   <p className="dc-eyebrow">
-                    DEADLOCK CONTRACTS / {language === "ru" ? "ВАШЕ БЮРО" : "YOUR HEADQUARTERS"}
+                    {language === "ru"
+                      ? "Ночная смена / Ваше следующее дело"
+                      : "Night shift / Your next case"}
                   </p>
                   <h1>
-                    {language === "ru" ? "НОВОЕ ДЕЛО" : "A NEW CASE"}
+                    {language === "ru" ? "ХОРОШИЙ МАТЧ НАЧИНАЕТСЯ" : "A GREAT MATCH STARTS"}
                     <br />
-                    <span>{language === "ru" ? "ЖДЁТ ВАС." : "AWAITS."}</span>
+                    <span>{language === "ru" ? "С ЦЕЛИ." : "WITH A GOAL."}</span>
                   </h1>
                   <p className="dc-lead">
                     {t(
                       language,
                       language === "ru"
-                        ? "Выберите цель для следующего матча в Deadlock. Подпишите контракт до игры, выполните условия и получите XP после проверки результата."
-                        : "Choose an objective for your next Deadlock match. Sign before playing, meet the terms and earn XP after verification.",
+                        ? "Всего один шаг за пределы привычного. Выберите контракт, сыграйте свой матч и получите XP после проверки результата."
+                        : "One step beyond the familiar. Choose a contract, play your match and earn XP after verification.",
                     )}
                   </p>
                   <div className="dc-command-actions">
                     <button className="dc-primary" onClick={() => setTab("quests")}>
-                      {language === "ru" ? "ВЫБРАТЬ КОНТРАКТЫ" : "CHOOSE CONTRACTS"}
+                      {language === "ru" ? "Выбрать контракт" : "Choose a contract"}
+                      <SvgIcon name="arrow-up-right" size={18} />
                     </button>
                     <button
                       className="dc-ghost"
@@ -1582,36 +1641,114 @@ export default function Dashboard({ initialSession }: { initialSession: SessionP
                   </div>
                 </div>
                 <div className="dc-curator-stage">
-                  <div className="dc-curator-grid" />
                   <Mascot initialPose="dossier" priority />
-                  <div className="dc-curator-dialog">
-                    <span>{language === "ru" ? "КУРАТОР" : "CURATOR"}</span>
-                    <p>
-                      {companion?.online && companion.game_running
-                        ? language === "ru"
-                          ? `Связь установлена. ${
-                              companion.current_match_id
-                                ? `Матч #${companion.current_match_id} обнаружен`
-                                : `Deadlock запущен · ${phaseLabel(companion.phase, language)}`
-                            }.`
-                          : `Link established. ${
-                              companion.current_match_id
-                                ? `Match #${companion.current_match_id} detected`
-                                : `Deadlock running · ${phaseLabel(companion.phase, language)}`
-                            }.`
-                        : companion?.paired
-                          ? language === "ru"
-                            ? "Компаньон привязан, но сейчас не в сети. Сайт продолжит искать матч автоматически."
-                            : "Companion is paired but currently offline. The site will keep looking for the match automatically."
-                          : language === "ru"
-                            ? "Компаньон пока проходит QA. Шифры, жетоны, карточки и бюро уже доступны на сайте. Матчевые награды зависят от проверки результата."
-                            : "The Companion is in QA. Ciphers, tokens, cards and bureaus are already available here. Match rewards depend on verification."}
-                    </p>
-                  </div>
-                  <img className="dc-curator-mark" src={markImage} alt="" />
                 </div>
+                <button className="ns-personal-file" onClick={() => setTab("profile")}>
+                  <span className="ns-file-label">
+                    {language === "ru" ? "Личное дело" : "Personal dossier"}
+                    <SvgIcon name="arrow-up-right" size={18} />
+                  </span>
+                  <span className="ns-file-identity">
+                    {user.avatar_url ? (
+                      <img src={user.avatar_url} alt="" />
+                    ) : (
+                      <span className="ns-file-avatar">
+                        <SvgIcon name="user-round" size={24} />
+                      </span>
+                    )}
+                    <span>
+                      <strong>{shownName}</strong>
+                      <small>
+                        {language === "ru" ? "Оперативник" : "Operative"} / {level}{" "}
+                        {language === "ru" ? "уровень" : "level"}
+                      </small>
+                    </span>
+                  </span>
+                  <span className="ns-file-progress-label">
+                    <span>{user.xp.toLocaleString(language === "ru" ? "ru-RU" : "en-US")} XP</span>
+                    <span>
+                      {language === "ru" ? "Ур." : "Lv."} {level + 1}
+                    </span>
+                  </span>
+                  <progress
+                    value={progressPct}
+                    max="100"
+                    aria-label={language === "ru" ? "Прогресс уровня" : "Level progress"}
+                  />
+                  <span className="ns-file-next">
+                    <small>
+                      {language === "ru" ? "До следующего уровня" : "To the next level"}
+                    </small>
+                    <strong>{progression?.xp_to_next ?? "—"} XP</strong>
+                  </span>
+                </button>
+                <section className="dc-kpi-grid">
+                  <article>
+                    <span>{language === "ru" ? "Уровень" : "Level"}</span>
+                    <strong>{level}</strong>
+                    <small>
+                      {progression?.xp_to_next ?? "—"} XP{" "}
+                      {language === "ru" ? "до следующего уровня" : "to next level"}
+                    </small>
+                  </article>
+                  <article>
+                    <span>{language === "ru" ? "Закрыто контрактов" : "Contracts completed"}</span>
+                    <strong>{progression?.contracts_completed || 0}</strong>
+                    <small>{t(language, "контрактов всего")}</small>
+                  </article>
+                  <article>
+                    <span>{language === "ru" ? "Контракты сегодня" : "Today’s contracts"}</span>
+                    <strong>
+                      {boards.reduce(
+                        (sum, b) => sum + b.options.filter((o) => o.selected).length,
+                        0,
+                      )}
+                      <i>/9</i>
+                    </strong>
+                    <small>{t(language, "контрактов зафиксировано")}</small>
+                  </article>
+                  <article>
+                    <span>{language === "ru" ? "Обновление доски" : "Board refresh"}</span>
+                    <strong>
+                      {boardsPayload?.refresh.remaining ?? 0}
+                      <i>/1</i>
+                    </strong>
+                    <small>{t(language, "бесплатно сегодня")}</small>
+                  </article>
+                </section>
               </section>
+              <div className="dc-curator-dialog ns-curator-note">
+                <span>{language === "ru" ? "КУРАТОР" : "CURATOR"}</span>
+                <p>
+                  {companion?.online && companion.game_running
+                    ? language === "ru"
+                      ? `Связь установлена. ${
+                          companion.current_match_id
+                            ? `Матч #${companion.current_match_id} обнаружен`
+                            : `Deadlock запущен · ${phaseLabel(companion.phase, language)}`
+                        }.`
+                      : `Link established. ${
+                          companion.current_match_id
+                            ? `Match #${companion.current_match_id} detected`
+                            : `Deadlock running · ${phaseLabel(companion.phase, language)}`
+                        }.`
+                    : companion?.paired
+                      ? language === "ru"
+                        ? "Компаньон привязан, но сейчас не в сети. Сайт продолжит искать матч автоматически."
+                        : "Companion is paired but currently offline. The site will keep looking for the match automatically."
+                      : language === "ru"
+                        ? "Компаньон пока проходит QA. Шифры, жетоны, карточки и бюро уже доступны на сайте. Матчевые награды зависят от проверки результата."
+                        : "The Companion is in QA. Ciphers, tokens, cards and bureaus are already available here. Match rewards depend on verification."}
+                </p>
+              </div>
               <ArchiveNextStep revision={archiveRevision} onNavigate={(next) => setTab(next)} />
+              <div className="ns-section-heading">
+                <h2>{language === "ru" ? "На следующую игру" : "For your next match"}</h2>
+                <button onClick={() => setTab("quests")}>
+                  {language === "ru" ? "Все контракты" : "All contracts"}
+                  <SvgIcon name="arrow-up-right" size={17} />
+                </button>
+              </div>
               <section className="dc-v3-mode-overview">
                 {MODES.map((item) => {
                   const b = boards.find((x) => x.game_match_mode === item)
@@ -1651,37 +1788,7 @@ export default function Dashboard({ initialSession }: { initialSession: SessionP
                   )
                 })}
               </section>
-              <section className="dc-kpi-grid">
-                <article>
-                  <span>LEVEL</span>
-                  <strong>{level}</strong>
-                  <small>
-                    {progression?.xp_to_next ?? "—"} XP{" "}
-                    {language === "ru" ? "до следующего уровня" : "to next level"}
-                  </small>
-                </article>
-                <article>
-                  <span>CLOSED</span>
-                  <strong>{progression?.contracts_completed || 0}</strong>
-                  <small>{t(language, "контрактов всего")}</small>
-                </article>
-                <article>
-                  <span>TODAY</span>
-                  <strong>
-                    {boards.reduce((sum, b) => sum + b.options.filter((o) => o.selected).length, 0)}
-                    <i>/9</i>
-                  </strong>
-                  <small>{t(language, "контрактов зафиксировано")}</small>
-                </article>
-                <article>
-                  <span>REROLL</span>
-                  <strong>
-                    {boardsPayload?.refresh.remaining ?? 0}
-                    <i>/1</i>
-                  </strong>
-                  <small>{t(language, "бесплатно сегодня")}</small>
-                </article>
-              </section>
+
               <WorldGallery onNavigate={(next) => setTab(next as Tab)} />
             </>
           )}
@@ -1692,7 +1799,8 @@ export default function Dashboard({ initialSession }: { initialSession: SessionP
               <section className="dc-work-head dc-page-head dc-v3-quest-head dc-motion-contract-head">
                 <div>
                   <p className="dc-eyebrow">
-                    DAILY BOARD · {expiryLabel(board?.expires_at, clock, language)}
+                    {language === "ru" ? "Ежедневная доска" : "Daily board"} ·{" "}
+                    {expiryLabel(board?.expires_at, clock, language)}
                   </p>
                   <h1>{t(language, "Соберите дело")}</h1>
                   <p>
@@ -1712,7 +1820,7 @@ export default function Dashboard({ initialSession }: { initialSession: SessionP
                     boards={boards}
                   />
                   <div className="dc-v3-reroll-box dc-motion-reroll">
-                    <span>FREE REROLL</span>
+                    <span>{language === "ru" ? "Обновление доски" : "Board refresh"}</span>
                     <strong>{boardsPayload?.refresh.remaining ?? 0}/1</strong>
                     <button
                       className="dc-ghost btn-ghost"
@@ -1727,7 +1835,7 @@ export default function Dashboard({ initialSession }: { initialSession: SessionP
                         void reroll()
                       }}
                     >
-                      REROLL 6 CONTRACTS
+                      {language === "ru" ? "Обновить 6 контрактов" : "Refresh 6 contracts"}
                     </button>
                   </div>
                 </div>
@@ -1735,7 +1843,7 @@ export default function Dashboard({ initialSession }: { initialSession: SessionP
 
               <section className="dc-deadline-strip">
                 <div>
-                  <span>BOARD RESET</span>
+                  <span>{language === "ru" ? "Новая доска через" : "Board resets in"}</span>
                   <strong>
                     {countdownHms(board?.daily_reset_at || boardsPayload?.refresh.reset_at, clock)}
                   </strong>
@@ -1749,7 +1857,7 @@ export default function Dashboard({ initialSession }: { initialSession: SessionP
                       : ""
                   }
                 >
-                  <span>CASE TTL</span>
+                  <span>{language === "ru" ? "Время на дело" : "Case time remaining"}</span>
                   <strong>
                     {board && ["LOCKED", "VERIFYING", "REVIEW_REQUIRED"].includes(board.status)
                       ? countdownHms(board.case_expires_at || board.expires_at, clock)
@@ -1761,7 +1869,7 @@ export default function Dashboard({ initialSession }: { initialSession: SessionP
                 </div>
 
                 <div>
-                  <span>ATTEMPTS</span>
+                  <span>{language === "ru" ? "Попытки" : "Attempts"}</span>
                   <strong>
                     {board?.attempts_used ?? 0}/{board?.max_attempts ?? 3}
                   </strong>
@@ -1784,7 +1892,7 @@ export default function Dashboard({ initialSession }: { initialSession: SessionP
                     <section className="dc-v3-auto-review-banner">
                       <span>◌</span>
                       <div>
-                        <b>AUTO REVIEW / VERIFYING</b>
+                        <b>{language === "ru" ? "Автоматическая проверка" : "Automatic review"}</b>
                         <p>
                           {t(
                             language,
@@ -2011,7 +2119,11 @@ export default function Dashboard({ initialSession }: { initialSession: SessionP
             <>
               <section className="dc-work-head dc-page-head">
                 <div>
-                  <p className="dc-eyebrow">ACTIVE CASE / SERVER STATE</p>
+                  <p className="dc-eyebrow">
+                    {language === "ru"
+                      ? "В работе / Подписанные контракты"
+                      : "In progress / Signed contracts"}
+                  </p>
                   <h1>{language === "ru" ? "Активное дело" : "Active case"}</h1>
                   <p>
                     {language === "ru"
@@ -2078,7 +2190,12 @@ export default function Dashboard({ initialSession }: { initialSession: SessionP
                           </span>
                           <span>
                             {language === "ru" ? "ФАЗА" : "PHASE"}
-                            <b>{activeBoard.provider_status?.phase || "SEARCHING"}</b>
+                            <b>
+                              {phaseLabel(
+                                activeBoard.provider_status?.phase || "SEARCHING",
+                                language,
+                              )}
+                            </b>
                           </span>
                           <span>
                             {language === "ru" ? "МАТЧ" : "MATCH"}
@@ -2090,7 +2207,7 @@ export default function Dashboard({ initialSession }: { initialSession: SessionP
                           </span>
                           <span>
                             {language === "ru" ? "ИСТОЧНИК" : "SOURCE"}
-                            <b>SERVER</b>
+                            <b>{language === "ru" ? "Сервер" : "Server"}</b>
                           </span>
                         </div>
                         <button
@@ -2128,7 +2245,9 @@ export default function Dashboard({ initialSession }: { initialSession: SessionP
             <>
               <section className="dc-work-head dc-page-head">
                 <div>
-                  <p className="dc-eyebrow">CASE ARCHIVE / DECISION LOG</p>
+                  <p className="dc-eyebrow">
+                    {language === "ru" ? "Архив / История решений" : "Archive / Decision history"}
+                  </p>
                   <h1>{t(language, "Дела")}</h1>
                   <p>
                     {t(
@@ -2139,13 +2258,13 @@ export default function Dashboard({ initialSession }: { initialSession: SessionP
                 </div>
                 <div className="dc-history-summary">
                   <span>
-                    <b>{historyStats.completed}</b> COMPLETED
+                    <b>{historyStats.completed}</b> {language === "ru" ? "выполнено" : "completed"}
                   </span>
                   <span>
-                    <b>{historyStats.failed}</b> FAILED
+                    <b>{historyStats.failed}</b> {language === "ru" ? "не выполнено" : "failed"}
                   </span>
                   <span>
-                    <b>{historyStats.earned}</b> XP EARNED
+                    <b>{historyStats.earned}</b> {language === "ru" ? "XP получено" : "XP earned"}
                   </span>
                 </div>
               </section>
@@ -2190,7 +2309,8 @@ export default function Dashboard({ initialSession }: { initialSession: SessionP
                         <header>
                           <div>
                             <p className="dc-eyebrow">
-                              ATTEMPTS {group.attemptsUsed}/{group.maxAttempts}
+                              {language === "ru" ? "Попытки" : "Attempts"} {group.attemptsUsed}/
+                              {group.maxAttempts}
                               {group.matchId ? ` · LAST #${group.matchId}` : ""}
                             </p>
                             <h2>
@@ -2208,7 +2328,8 @@ export default function Dashboard({ initialSession }: { initialSession: SessionP
                               hasReview ? "review_required" : done ? "completed" : "failed"
                             }`}
                           >
-                            {done}/{group.items.length} COMPLETED
+                            {done}/{group.items.length}{" "}
+                            {language === "ru" ? "выполнено" : "completed"}
                           </span>
                         </header>
                         <div className="dc-case-file-results">
@@ -2467,11 +2588,13 @@ export default function Dashboard({ initialSession }: { initialSession: SessionP
                           target="_blank"
                           rel="noreferrer"
                         >
-                          INSTALL COMPANION
+                          {language === "ru" ? "Установить Компаньон" : "Install Companion"}
                         </a>
                       ) : (
                         <button className="dc-primary" disabled>
-                          PUBLIC BUILD SOON
+                          {language === "ru"
+                            ? "Публичная сборка скоро"
+                            : "Public build coming soon"}
                         </button>
                       )}
 
@@ -2502,8 +2625,10 @@ export default function Dashboard({ initialSession }: { initialSession: SessionP
                     </p>
                   </article>
                   <article className="dc-danger-zone">
-                    <p className="dc-eyebrow">PRIVACY</p>
-                    <h2>Data controls</h2>
+                    <p className="dc-eyebrow">
+                      {language === "ru" ? "Конфиденциальность" : "Privacy"}
+                    </p>
+                    <h2>{language === "ru" ? "Управление данными" : "Data controls"}</h2>
                     <p>
                       {t(
                         language,
@@ -2519,7 +2644,7 @@ export default function Dashboard({ initialSession }: { initialSession: SessionP
                         }).then(() => location.assign("/"))
                       }
                     >
-                      DELETE MY DATA
+                      {language === "ru" ? "Удалить мои данные" : "Delete my data"}
                     </button>
                   </article>
                 </section>
@@ -3485,6 +3610,9 @@ function AdminConsole({
           </div>
           <div className={`dc-admin-users-layout ${detail ? "has-detail" : ""}`}>
             <div className="dc-admin-users-list">
+              {!users.length && (
+                <div className="dc-admin-empty">{copy("Нет записей по выбранным фильтрам.")}</div>
+              )}
               {users.map((item) => (
                 <button
                   key={item.id}
@@ -3904,6 +4032,9 @@ function AdminConsole({
           </div>
           <div className={`dc-admin-master-detail ${matchDetail ? "has-detail" : ""}`}>
             <div className="dc-admin-master-list">
+              {!matches.length && (
+                <div className="dc-admin-empty">{copy("Нет записей по выбранным фильтрам.")}</div>
+              )}
               {matches.map((item) => (
                 <button key={item.match_id} onClick={() => void openMatch(item.match_id)}>
                   <b>#{item.match_id}</b>
@@ -4007,6 +4138,9 @@ function AdminConsole({
           </div>
           <div className={`dc-admin-master-detail ${boardDetail ? "has-detail" : ""}`}>
             <div className="dc-admin-master-list">
+              {!boards.length && (
+                <div className="dc-admin-empty">{copy("Нет записей по выбранным фильтрам.")}</div>
+              )}
               {boards.map((item) => (
                 <button key={item.board.id} onClick={() => void openBoard(item.board.id)}>
                   <b>{item.user.display_name}</b>
@@ -4195,6 +4329,9 @@ function AdminConsole({
             </button>
           </div>
           <div className="dc-admin-companion-grid">
+            {!companions.length && (
+              <div className="dc-admin-empty">{copy("Нет записей по выбранным фильтрам.")}</div>
+            )}
             {companions.map((item) => (
               <article key={item.id} className={`dc-panel ${item.status.online ? "online" : ""}`}>
                 <header>
@@ -4273,6 +4410,9 @@ function AdminConsole({
           </div>
           <div className={`dc-admin-master-detail ${missionDraft ? "has-detail" : ""}`}>
             <div className="dc-admin-master-list">
+              {!missions.length && (
+                <div className="dc-admin-empty">{copy("Нет записей по выбранным фильтрам.")}</div>
+              )}
               {missions.map((item) => (
                 <button
                   key={item.id}
@@ -4689,6 +4829,9 @@ function AdminConsole({
             </button>
           </div>
           <div className="dc-admin-list">
+            {!jobs.length && (
+              <div className="dc-admin-empty">{copy("Нет записей по выбранным фильтрам.")}</div>
+            )}
             {jobs.map((job) => (
               <article
                 key={job.id}
@@ -4745,6 +4888,9 @@ function AdminConsole({
             </small>
           </div>
           <div className="dc-admin-list">
+            {!outbox.length && (
+              <div className="dc-admin-empty">{copy("Нет записей по выбранным фильтрам.")}</div>
+            )}
             {outbox.map((event) => (
               <article
                 key={event.id}
@@ -4799,6 +4945,9 @@ function AdminConsole({
             </small>
           </div>
           <div className="dc-admin-list">
+            {!audit.length && (
+              <div className="dc-admin-empty">{copy("Нет записей по выбранным фильтрам.")}</div>
+            )}
             {audit.map((item) => (
               <article key={item.id} className="dc-admin-audit">
                 <header>

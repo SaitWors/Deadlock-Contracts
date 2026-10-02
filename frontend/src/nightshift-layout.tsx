@@ -8,10 +8,14 @@ import bureau from "./imports/nightshift/bureau-room.webp"
 export function NightshiftNav({
   active,
   staff,
+  user,
+  level,
   onNavigate,
 }: {
   active: string
   staff: boolean
+  user?: { display_name: string; avatar_url: string | null }
+  level?: number
   onNavigate: (tab: string) => void
 }) {
   const { language } = useLanguage(),
@@ -57,6 +61,19 @@ export function NightshiftNav({
   ]
   return (
     <aside className="ns-sidebar">
+      <button
+        className="ns-sidebar-brand"
+        type="button"
+        onClick={() => onNavigate("home")}
+        aria-label={ru ? "Deadlock Contracts — главная" : "Deadlock Contracts — home"}
+      >
+        <span className="ns-brand-icon">
+          <Icon name="eye" size={25} />
+        </span>
+        <span className="ns-brand-wordmark">
+          DEADLOCK<small>CONTRACTS</small>
+        </span>
+      </button>
       <nav aria-label={ru ? "Разделы кабинета" : "Dashboard sections"}>
         {groups.map((group) => (
           <div className="ns-nav-group" key={group.label}>
@@ -78,11 +95,22 @@ export function NightshiftNav({
         ))}
       </nav>
       <footer>
-        <Icon name="moon" size={19} />
-        <div>
-          <b>{ru ? "Ночная смена" : "Night shift"}</b>
-          <span>DEADLOCK CONTRACTS</span>
-        </div>
+        <button type="button" onClick={() => onNavigate("profile")}>
+          {user?.avatar_url ? (
+            <img src={user.avatar_url} alt="" />
+          ) : (
+            <span className="ns-sidebar-avatar">
+              <Icon name="user-round" size={20} />
+            </span>
+          )}
+          <span>
+            <b>{user?.display_name || (ru ? "Моё досье" : "My dossier")}</b>
+            <small>
+              {ru ? "Оперативник" : "Operative"} / {level ?? 1}
+            </small>
+          </span>
+          <Icon name="arrow-up-right" size={17} />
+        </button>
       </footer>
     </aside>
   )

@@ -44,13 +44,17 @@ export default function BureauModerationDesk({ csrf }: { csrf: string }) {
     BUREAU_APPEAL: copy("Восстановление бюро"),
   }
   return (
-    <section className="community-page">
-      <h2>{copy("Обращения по бюро")}</h2>
-      <p>
-        {copy(
-          "Решение и пояснение получит автор обращения. Приостановка скрывает бюро из каталога и отменяет незавершённые операции.",
-        )}
-      </p>
+    <section className="community-page dc-admin-bureau-reports">
+      <header className="dc-admin-section-head">
+        <div>
+          <h2>{copy("Обращения по бюро")}</h2>
+          <p>
+            {copy(
+              "Решение и пояснение получит автор обращения. Приостановка скрывает бюро из каталога и отменяет незавершённые операции.",
+            )}
+          </p>
+        </div>
+      </header>
       <div className="community-actions">
         <label>
           {copy("Статус")}
@@ -89,7 +93,7 @@ export default function BureauModerationDesk({ csrf }: { csrf: string }) {
       ) : (
         <>
           {!resource.data.items.length && (
-            <p className="community-empty">{copy("Обращений нет.")}</p>
+            <p className="community-empty dc-admin-empty">{copy("Обращений нет.")}</p>
           )}
           {resource.data.items.map((item) => (
             <article className="community-panel" key={item.id}>

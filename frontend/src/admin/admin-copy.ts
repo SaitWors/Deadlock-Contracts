@@ -210,6 +210,7 @@ const translations: ReadonlyArray<readonly [string, string]> = [
   ["Причина Review", "Review reason"],
   ["Модератор claim", "Claim moderator"],
   ["Очередь пуста.", "The queue is empty."],
+  ["Нет записей по выбранным фильтрам.", "No records match the selected filters."],
   ["МОЙ CLAIM · {0}", "MY CLAIM · {0}"],
   ["В РАБОТЕ · {0}", "CLAIMED · {0}"],
   ["СВОБОДНО", "UNCLAIMED"],

@@ -13,6 +13,7 @@ import { TransactionStatus, useTransaction } from "./transactions"
 import { RANKS, type Card, type Meta, type Wallet } from "./types"
 import "./archive.css"
 import "./packs.css"
+import "./nightshift-archive.css"
 
 export default function ArchivePage({
   csrf,
@@ -90,12 +91,24 @@ export default function ArchivePage({
       </section>
     )
   return (
-    <section className="archive-page">
-      <ArchiveScene />
+    <section className="archive-page" data-view={view}>
       <header className="archive-heading">
         <div>
           <small>DEADLOCK CONTRACTS / ARCHIVE BUREAU</small>
-          <h1>{ru ? "Архив бюро" : "Bureau archive"}</h1>
+          <h1>
+            {
+              (
+                {
+                  collection: ru ? "Истории в твоих руках." : "Stories in your hands.",
+                  catalog: ru ? "Каталог карточек." : "The card catalogue.",
+                  mine: ru ? "Студия карточек." : "Card studio.",
+                  packs: ru ? "Что внутри?" : "What's inside?",
+                  cipher: ru ? "У города есть секреты." : "The city has secrets.",
+                  wallet: ru ? "История жетонов." : "Token history.",
+                } as Record<string, string>
+              )[view]
+            }
+          </h1>
           <p>
             {ru
               ? "Расшифровывай документы. Открывай конверты. Собирай свою коллекцию."
@@ -110,6 +123,7 @@ export default function ArchivePage({
           </strong>
         </div>
       </header>
+      {["collection", "catalog"].includes(view) && <ArchiveScene />}
       <nav className="archive-tabs" aria-label={ru ? "Разделы архива" : "Archive sections"}>
         {[
           ["cipher", ru ? "Шифр бюро" : "Cipher"],

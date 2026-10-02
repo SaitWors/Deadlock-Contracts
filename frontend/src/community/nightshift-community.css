@@ -1,0 +1,392 @@
+/* Shared community presentation. Covers, emblems and profile themes keep their selected identity. */
+html[data-theme] .community-page { max-width: 1320px; padding: 8px 0 48px; font: 400 14px/1.65 var(--font-body); color: var(--ns-text); }
+html[data-theme] .community-page :is(h1,h2,h3) { font-family: var(--font-body); color: var(--ns-text); font-weight: 650; letter-spacing: -.035em; line-height: 1.25; }
+html[data-theme] .community-page h1 { font-size: clamp(28px,3vw,40px); }
+html[data-theme] .community-page h2 { font-size: 23px; }
+html[data-theme] .community-page h3 { font-size: 18px; }
+html[data-theme] .community-page p { font-size: 13px; }
+html[data-theme] .community-page :is(.community-muted,small,.community-prose) { color: var(--ns-muted); }
+html[data-theme] .community-head { padding: 18px 0 28px; margin: 0 0 8px; border: 0; align-items: center; gap: 24px; }
+html[data-theme] .community-head > div { max-width: 790px; }
+html[data-theme] .community-head h1 { margin: 0; }
+html[data-theme] .community-head p:not(.community-eyebrow) { margin-top: 12px; max-width: 720px; font-size: 13px; line-height: 1.7; color: var(--ns-muted); }
+html[data-theme] .community-page .community-eyebrow { font: 650 9px/1.5 var(--font-body); letter-spacing: .11em; color: var(--ns-muted); margin-bottom: 12px; }
+html[data-theme] .community-page :is(.dc-primary,.dc-ghost) { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 44px; border-radius: var(--ns-small); padding: 11px 16px; font: 600 12px/1.4 var(--font-body); letter-spacing: 0; box-shadow: none; }
+html[data-theme] .community-page .dc-primary { color: var(--ns-on-accent); border: 1px solid transparent; background: var(--ns-fill); }
+html[data-theme] .community-page .dc-primary:hover:not(:disabled) { background: color-mix(in srgb,var(--ns-fill) 90%,white); }
+html[data-theme] .community-page .dc-ghost { color: var(--ns-text); border: 1px solid var(--ns-line); background: var(--ns-surface); }
+html[data-theme] .community-page .dc-ghost:hover:not(:disabled) { border-color: color-mix(in srgb,var(--ns-accent) 45%,var(--ns-line)); background: var(--ns-elevated); }
+html[data-theme] .community-page :focus-visible { outline: 2px solid var(--ns-accent); outline-offset: 4px; }
+html[data-theme] .community-actions { gap: 10px; }
+html[data-theme] .community-page :is(.community-panel,.profile-editor,.bureau-editor,.leaderboard-table-wrap) { border: 1px solid var(--ns-line); border-radius: var(--ns-radius); background: var(--ns-surface); color: var(--ns-text); box-shadow: 0 6px 24px #00000006; }
+html[data-theme] .community-panel { padding: 26px; margin-bottom: 22px; }
+html[data-theme] .community-panel h2 small { font: 600 18px/1.3 var(--font-body); color: var(--ns-accent); }
+html[data-theme] .community-empty { padding: 48px 26px; border: 1px solid var(--ns-line); border-radius: var(--ns-radius); background: var(--ns-surface); color: var(--ns-muted); margin: 20px 0; }
+html[data-theme] .community-empty p { max-width: 500px; margin: 12px auto; font-size: 13px; }
+html[data-theme] .community-empty > img { width: 44px; height: 44px; opacity: .45; }
+html[data-theme] .community-tabs { display: flex; width: fit-content; max-width: 100%; gap: 5px; padding: 5px; margin: 8px 0 22px; border: 1px solid var(--ns-line); background: var(--ns-surface); border-radius: 14px; }
+html[data-theme] .community-tabs button { min-height: 40px; padding: 9px 16px; border: 0; border-radius: 10px; font: 600 12px/1.4 var(--font-body); background: transparent; color: var(--ns-muted); }
+html[data-theme] .community-tabs button[aria-pressed=true] { background: var(--ns-soft); color: var(--ns-accent); }
+html[data-theme] .community-tabs button:hover:not([aria-pressed=true]) { background: var(--ns-elevated); color: var(--ns-text); }
+html[data-theme] .community-page progress { height: 5px; border-radius: 4px; background: var(--ns-line); }
+html[data-theme] .community-page progress::-webkit-progress-bar { background: var(--ns-line); border-radius: 4px; }
+html[data-theme] .community-page progress::-webkit-progress-value { background: var(--ns-accent); border-radius: 4px; }
+html[data-theme] .community-page progress::-moz-progress-bar { background: var(--ns-accent); border-radius: 4px; }
+html[data-theme] .community-collection-summary { display: flex; align-items: center; gap: 32px; border: 1px solid var(--ns-line); border-radius: var(--ns-radius); background: var(--ns-surface); padding: 28px 32px; margin: 0 0 28px; }
+html[data-theme] .community-big-number { color: var(--ns-accent); font: 650 56px/1 var(--font-body); letter-spacing: -.055em; }
+html[data-theme] .community-big-number small { font-size: 21px; letter-spacing: -.02em; }
+html[data-theme] .community-collection-summary h2 { font-size: 20px; }
+html[data-theme] .community-collection-summary p { color: var(--ns-muted); font-size: 12px; }
+html[data-theme] .community-collection-summary > div { max-width: 560px; }
+html[data-theme] .community-collection-summary > button { margin-left: auto; }
+html[data-theme] .achievement-grid { grid-template-columns: repeat(4,minmax(0,1fr)); gap: 20px; }
+html[data-theme] .achievement-card { position: relative; align-items: flex-start; min-width: 0; padding: 26px 24px; border: 1px solid var(--ns-line); border-radius: var(--ns-radius); background: var(--ns-surface); }
+html[data-theme] .achievement-card.earned { border-color: color-mix(in srgb,var(--ns-accent) 30%,var(--ns-line)); background: linear-gradient(155deg,var(--ns-soft),var(--ns-surface) 65%); }
+html[data-theme] .achievement-card .community-seal { width: 76px; height: 76px; margin: 0 0 26px; padding: 9px; border: 1px solid var(--ns-line); border-radius: 20px; background: var(--ns-deep); filter: none; }
+html[data-theme] .achievement-card.earned .community-seal { border-color: color-mix(in srgb,var(--ns-accent) 28%,var(--ns-line)); background: var(--ns-soft); }
+html[data-theme] .achievement-card .community-eyebrow { font-size: 8px; margin: 0 0 10px; color: var(--ns-muted); }
+html[data-theme] .achievement-card.earned .community-eyebrow { color: var(--ns-accent); }
+html[data-theme] .achievement-card h2 { font: 650 19px/1.3 var(--font-body); }
+html[data-theme] .achievement-card p:not(.community-eyebrow) { font-size: 12px; line-height: 1.7; color: var(--ns-muted); margin-bottom: 22px; }
+html[data-theme] .achievement-card > small { font-size: 10px; line-height: 1.6; }
+html[data-theme] .achievement-progress { gap: 10px; margin: auto 0 14px; }
+html[data-theme] .achievement-progress span { font: 500 10px var(--font-body); color: var(--ns-muted); }
+html[data-theme] .leaderboard-mine { padding: 22px 26px; border: 1px solid color-mix(in srgb,var(--ns-accent) 30%,var(--ns-line)); border-radius: 20px; background: var(--ns-soft); margin: 20px 0; }
+html[data-theme] .leaderboard-mine .community-eyebrow { color: var(--ns-accent); }
+html[data-theme] .leaderboard-mine h2 { font-size: 25px; }
+html[data-theme] .leaderboard-mine h2 span { font-size: 20px; }
+html[data-theme] .leaderboard-mine p:last-child { color: var(--ns-muted); font-size: 12px; }
+html[data-theme] .leaderboard-podium { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); align-items: stretch; gap: 20px; margin: 24px 0; }
+html[data-theme] .leaderboard-podium-place { display: flex; flex-direction: column; align-items: center; position: relative; padding: 24px 20px 26px; border: 1px solid var(--ns-line); border-radius: var(--ns-radius); background: var(--ns-surface); text-decoration: none; color: var(--ns-text); min-width: 0; overflow: hidden; }
+html[data-theme] .leaderboard-podium-place[data-place="1"] { background: linear-gradient(140deg,var(--ns-soft),var(--ns-surface) 80%); border-color: color-mix(in srgb,var(--ns-accent) 40%,var(--ns-line)); }
+html[data-theme] .leaderboard-podium-rank { position: absolute; top: 14px; left: 20px; font: 650 54px/1 var(--font-body); letter-spacing: -.06em; color: var(--ns-line); }
+html[data-theme] .leaderboard-podium-place > svg { align-self: flex-end; color: var(--ns-muted); }
+html[data-theme] .leaderboard-podium-place[data-place="1"] > svg { color: var(--ns-accent); }
+html[data-theme] .leaderboard-podium-place > img,html[data-theme] .leaderboard-podium-place > .community-avatar { width: 68px; height: 68px; border-radius: 19px; object-fit: cover; margin: 8px 0 16px; border: 1px solid var(--ns-line); }
+html[data-theme] .leaderboard-podium-place > small { font-size: 9px; letter-spacing: .08em; }
+html[data-theme] .leaderboard-podium-place h2 { font-size: 19px; margin: 8px 0 16px; max-width: 100%; text-align: center; }
+html[data-theme] .leaderboard-podium-place > strong { font: 650 28px/1.15 var(--font-body); color: var(--ns-accent); letter-spacing: -.04em; margin-top: auto; }
+html[data-theme] .leaderboard-podium-place > strong small { font-size: 10px; letter-spacing: 0; font-weight: 500; }
+html[data-theme] .leaderboard-table { background: var(--ns-surface); }
+html[data-theme] .leaderboard-table caption { background: transparent; padding: 22px 24px; font: 650 10px/1.5 var(--font-body); letter-spacing: .08em; color: var(--ns-muted); border-bottom: 1px solid var(--ns-line); }
+html[data-theme] .leaderboard-table th { background: var(--ns-deep); color: var(--ns-muted); font: 600 10px/1.5 var(--font-body); text-transform: uppercase; letter-spacing: .05em; }
+html[data-theme] .leaderboard-table :is(th,td) { border-color: var(--ns-line); padding: 18px 22px; }
+html[data-theme] .leaderboard-table td { color: var(--ns-muted); font-size: 13px; }
+html[data-theme] .leaderboard-table td:first-child { font: 650 18px var(--font-body); color: var(--ns-muted); }
+html[data-theme] .leaderboard-table td:last-child { font: 650 19px var(--font-body); color: var(--ns-text); }
+html[data-theme] .leaderboard-table tr:hover { background: var(--ns-elevated); }
+html[data-theme] .leaderboard-table tr.is-me { background: var(--ns-soft); }
+html[data-theme] .leaderboard-table tr.is-me td:last-child { color: var(--ns-accent); }
+html[data-theme] .leaderboard-player { color: var(--ns-text); gap: 13px; }
+html[data-theme] .leaderboard-player b { font-size: 13px; font-weight: 600; }
+html[data-theme] .leaderboard-player small { font-size: 10px; }
+html[data-theme] .leaderboard-player img,html[data-theme] .community-avatar { border-radius: 11px; border: 1px solid var(--ns-line); background: var(--ns-elevated); }
+html[data-theme] .community-avatar { font: 650 13px var(--font-body); color: var(--ns-accent); }
+html[data-theme] .community-page .community-footnote { font-size: 11px; color: var(--ns-muted); }
+html[data-theme] .community-footnote button { color: var(--ns-accent); }
+html[data-theme] .community-page :is(.community-error,.community-notice) { border-radius: 14px; padding: 15px 18px; font-size: 13px; }
+html[data-theme] .community-error { background: color-mix(in srgb,var(--ns-danger) 7%,var(--ns-surface)); border-color: color-mix(in srgb,var(--ns-danger) 40%,var(--ns-line)); color: var(--ns-danger); }
+html[data-theme] .community-notice { background: var(--ns-soft); border-color: color-mix(in srgb,var(--ns-accent) 30%,var(--ns-line)); color: var(--ns-accent); }
+html[data-theme] .community-page label { color: var(--ns-muted); font: 500 12px/1.5 var(--font-body); gap: 8px; }
+html[data-theme] .community-page :is(input:not([type=checkbox]):not([type=range]),textarea,select) { min-height: 44px; border: 1px solid var(--ns-line); border-radius: var(--ns-small); background: var(--ns-deep); color: var(--ns-text); font: 400 13px/1.5 var(--font-body); padding: 12px 14px; color-scheme: inherit; }
+html[data-theme] .community-page :is(input[type=checkbox],input[type=range]) { accent-color: var(--ns-accent); }
+html[data-theme] .community-page input[type=range] { padding: 0; border: 0; background: transparent; }
+html[data-theme] .community-page details { border-color: var(--ns-line); }
+html[data-theme] .community-page details > summary { color: var(--ns-text); font: 600 13px/1.5 var(--font-body); padding: 14px 0; }
+html[data-theme] .community-check { font-size: 12px; line-height: 1.65; }
+html[data-theme] .community-check input { width: 18px; height: 18px; }
+html[data-theme] .community-pagination { gap: 16px; margin-block: 26px; }
+html[data-theme] .community-pagination > span { color: var(--ns-muted); font-size: 12px; }
+/* Profiles retain DOSSIER, NOIR and SIGNAL covers; their modules share Nightshift surfaces. */
+html[data-theme] .dossier-view { background: var(--ns-surface); border: 1px solid var(--ns-line); border-radius: var(--ns-radius); }
+html[data-theme] .dossier-cover { height: 230px; border-bottom: 1px solid color-mix(in srgb,var(--cover-accent) 35%,transparent); padding: 28px 30px; background: radial-gradient(ellipse at 80% -15%,color-mix(in srgb,var(--cover-accent) 30%,transparent),transparent 65%),linear-gradient(120deg,var(--cover-start),var(--cover-end)); }
+html[data-theme] .dossier-cover > p { color: #edf0e7; font: 650 10px/1.5 var(--font-body); letter-spacing: .12em; }
+html[data-theme] .dossier-cover > p span { color: #c1cbc0; font-size: 9px; letter-spacing: .08em; }
+html[data-theme] .dossier-cover-id { color: #c1cbc0; font: 500 11px/1.5 var(--font-body); }
+html[data-theme] .dossier-cover > img { opacity: .09; right: 8%; width: 310px; height: 310px; }
+html[data-theme] .dossier-cover::after { opacity: .11; }
+html[data-theme] .dossier-identity { grid-template-columns: 108px minmax(0,1fr) 138px; padding: 0 30px 28px; gap: 24px; margin-top: -40px; }
+html[data-theme] .dossier-avatar { width: 108px; height: 108px; border: 5px solid var(--ns-surface); border-radius: 24px; outline: 1px solid var(--ns-line); }
+html[data-theme] .dossier-avatar-fallback { font: 650 33px var(--font-body); }
+html[data-theme] .dossier-identity > div:not(.dossier-avatar) { padding-top: 58px; }
+html[data-theme] .dossier-identity h1 { font: 650 clamp(25px,2.5vw,34px)/1.18 var(--font-body); margin: 0 0 10px; }
+html[data-theme] .dossier-identity .community-eyebrow { font-size: 9px; color: var(--ns-muted); margin-bottom: 7px; }
+html[data-theme] .dossier-identity p:not(.community-eyebrow) { color: var(--ns-muted); font-size: 12px; }
+html[data-theme] .dossier-level { border-left: 1px solid var(--ns-line); padding-left: 22px; align-self: center; }
+html[data-theme] .dossier-level > b { color: var(--ns-accent); width: auto; height: auto; border: 0; border-radius: 0; font: 650 40px/1 var(--font-body); letter-spacing: -.04em; }
+html[data-theme] .dossier-level > span { font-size: 10px; color: var(--ns-muted); }
+html[data-theme] .dossier-level small { font-size: 9px; }
+html[data-theme] .dossier-badges { gap: 6px; margin-top: 12px; }
+html[data-theme] .dossier-badges > span { font: 650 8px/1.5 var(--font-body); letter-spacing: .06em; color: var(--ns-accent); border: 1px solid var(--ns-line); border-radius: 6px; padding: 4px 7px; background: var(--ns-soft); }
+html[data-theme] .dossier-toolbar { padding: 0 30px 22px; border-color: var(--ns-line); }
+html[data-theme] .dossier-columns { grid-template-columns: minmax(0,1fr) 280px; gap: 24px; padding: 28px 30px 32px; background: var(--ns-bg); }
+html[data-theme] .dossier-main { gap: 22px; }
+html[data-theme] .dossier-bio p { color: var(--ns-muted); font-size: 13px; line-height: 1.8; }
+html[data-theme] .dossier-module { border: 1px solid var(--ns-line); border-radius: 20px; background: var(--ns-surface); }
+html[data-theme] .dossier-module > header { padding: 20px 22px; border-bottom: 1px solid var(--ns-line); background: transparent; gap: 16px; }
+html[data-theme] .dossier-module > header h2 { font: 650 18px/1.3 var(--font-body); margin: 0; }
+html[data-theme] .dossier-module > header > span { flex-shrink: 0; font: 600 11px/1.3 var(--font-body); color: var(--ns-muted); }
+html[data-theme] .dossier-cases { padding: 18px; gap: 14px; }
+html[data-theme] .dossier-cases article { padding: 22px; border: 1px solid var(--ns-line); border-radius: 16px; background: var(--ns-surface); }
+html[data-theme] .dossier-cases article.featured-case { background: var(--ns-soft); color: var(--ns-text); border-color: color-mix(in srgb,var(--ns-accent) 30%,var(--ns-line)); }
+html[data-theme] .dossier-cases article.featured-case :is(h3,footer) { color: var(--ns-text); }
+html[data-theme] .dossier-cases article.featured-case :is(.community-eyebrow,footer b) { color: var(--ns-accent); }
+html[data-theme] .dossier-cases .community-eyebrow { font-size: 8px; }
+html[data-theme] .dossier-cases h3 { font: 650 20px/1.3 var(--font-body); letter-spacing: -.025em; }
+html[data-theme] .dossier-cases footer { border-top: 1px solid var(--ns-line); margin-top: 22px; padding-top: 16px; color: var(--ns-muted); font: 500 10px/1.5 var(--font-body); }
+html[data-theme] .dossier-cases footer b { font: 650 20px/1 var(--font-body); color: var(--ns-accent); }
+html[data-theme] .dossier-cases .community-empty { margin: 0; background: var(--ns-deep); border-radius: 14px; }
+html[data-theme] .dossier-seals { gap: 22px; padding: 24px; }
+html[data-theme] .dossier-seals > div { width: 80px; }
+html[data-theme] .dossier-seals span { color: var(--ns-muted); font-size: 10px; }
+html[data-theme] .dossier-seals .community-seal.bureau-regalia { width: 64px; height: 64px; margin: 0 auto 12px; border: 1px solid var(--ns-line); border-radius: 18px; background: var(--ns-soft); }
+html[data-theme] .dossier-seals .community-seal > svg { width: 29px; height: 29px; margin: 0; padding: 0; border: 0; background: none; filter: none; }
+html[data-theme] .dossier-bureau { gap: 18px; padding: 24px; }
+html[data-theme] .dossier-bureau > .guild-emblem { width: 64px; height: 64px; border: 1px solid var(--ns-line); border-radius: 18px; background: var(--guild-tint); }
+html[data-theme] .dossier-bureau > .guild-emblem > svg { width: 32px; height: 32px; }
+html[data-theme] .dossier-bureau h3 { font-size: 18px; margin-bottom: 8px; }
+html[data-theme] .dossier-bureau p { font-size: 12px; color: var(--ns-muted); }
+html[data-theme] .dossier-bureau :is(a,button) { color: var(--ns-accent); font-size: 12px; min-height: 36px; }
+html[data-theme] .dossier-sidebar > section { border: 1px solid var(--ns-line); border-radius: 20px; background: var(--ns-surface); padding: 24px 22px; margin-bottom: 20px; }
+html[data-theme] .dossier-sidebar h2 { font: 650 18px/1.3 var(--font-body); }
+html[data-theme] .dossier-sidebar dl > div { border-color: var(--ns-line); gap: 12px; padding: 14px 0; }
+html[data-theme] .dossier-sidebar dt { color: var(--ns-muted); font-size: 11px; }
+html[data-theme] .dossier-sidebar dd { font: 650 17px/1.3 var(--font-body); color: var(--ns-text); text-align: right; }
+html[data-theme] .dossier-modes p { color: var(--ns-muted); font-size: 10px; }
+html[data-theme] .dossier-featured-seal > .community-seal.bureau-regalia { padding: 12px; width: 88px; height: 88px; margin: 20px auto; border-radius: var(--ns-radius); background: var(--ns-soft); border: 1px solid var(--ns-line); }
+html[data-theme] .dossier-featured-seal > p:last-child { font-size: 11px; color: var(--ns-muted); }
+html[data-theme] .dossier-links a { color: var(--ns-accent); font-size: 12px; }
+html[data-theme] .profile-studio-heading { margin: 12px 0 18px; }
+html[data-theme] .profile-studio-heading > span { color: var(--ns-muted); font-size: 11px; }
+html[data-theme] .profile-editor { padding: 28px; margin: 24px 0; }
+html[data-theme] .community-section-title { padding-bottom: 20px; border-bottom: 1px solid var(--ns-line); margin-bottom: 24px; }
+html[data-theme] .community-form-grid { gap: 20px; }
+html[data-theme] .profile-theme-options { gap: 14px; margin: 22px 0; }
+html[data-theme] .profile-theme-options button { background: var(--ns-deep); color: var(--ns-muted); border: 1px solid var(--ns-line); border-radius: 14px; padding: 10px; font: 500 12px/1.5 var(--font-body); }
+html[data-theme] .profile-theme-options button[aria-pressed=true] { color: var(--ns-text); border-color: var(--ns-accent); box-shadow: 0 0 0 1px var(--ns-accent); }
+html[data-theme] .profile-theme-options i { height: 72px; border-radius: 9px; margin-bottom: 10px; }
+html[data-theme] .profile-module-order { border: 1px solid var(--ns-line); border-radius: 14px; overflow: hidden; }
+html[data-theme] .profile-module-order li { padding: 12px 16px; border-color: var(--ns-line); font-size: 12px; background: var(--ns-deep); }
+html[data-theme] .profile-module-order li:last-child { border-bottom: 0; }
+html[data-theme] .profile-module-order button { border: 1px solid var(--ns-line); border-radius: 10px; color: var(--ns-text); background: var(--ns-surface); margin-left: 6px; }
+html[data-theme] .profile-pin-list { padding: 16px; border: 1px solid var(--ns-line); border-radius: 14px; background: var(--ns-deep); }
+html[data-theme] .profile-preview-note { border: 1px solid color-mix(in srgb,var(--ns-accent) 30%,var(--ns-line)); border-radius: 14px; background: var(--ns-soft); color: var(--ns-muted); font-size: 12px; }
+html[data-theme] .profile-account-settings { max-width: 1320px; border: 1px solid var(--ns-line); border-radius: var(--ns-radius); background: var(--ns-surface); padding: 20px 24px; }
+html[data-theme] .profile-account-settings > summary { font: 600 16px/1.5 var(--font-body); color: var(--ns-text); }
+/* Bureau choices remain scoped to --guild-accent / --guild-tint. */
+html[data-theme] :is(.guild-page,.guild-directory-page,.guild-editor) { --guild-surface: var(--ns-surface); --guild-border: var(--ns-line); --guild-muted: var(--ns-muted); --guild-text: var(--ns-text); }
+html[data-theme] .community-page:is(.guild-page,.guild-directory-page) .dc-primary,html[data-theme] .community-page .guild-editor .dc-primary { color: #172017; background: var(--guild-accent); border-color: transparent; }
+html[data-theme] .community-page:is(.guild-page,.guild-directory-page) .dc-primary:hover:not(:disabled),html[data-theme] .community-page .guild-editor .dc-primary:hover:not(:disabled) { background: color-mix(in srgb,var(--guild-accent) 90%,white); }
+html[data-theme] :is(.guild-page,.guild-directory-page,.guild-editor) .dc-ghost { color: var(--ns-text); background: var(--ns-surface); border-color: var(--ns-line); }
+html[data-theme] .guild-directory-page .community-head { padding: 18px 0 28px; margin-bottom: 8px; }
+html[data-theme] .guild-directory-page .community-head h1 { font-size: clamp(28px,3vw,40px); }
+html[data-theme] .guild-directory-page .community-head .community-eyebrow { color: var(--ns-muted); font: 650 9px/1.5 var(--font-body); }
+html[data-theme] .guild-directory-page .community-head p:not(.community-eyebrow) { font-size: 13px; }
+html[data-theme] .guild-directory-page .bureau-search { max-width: none; width: 100%; padding: 18px; border: 1px solid var(--ns-line); border-radius: 18px; background: var(--ns-surface); }
+html[data-theme] .bureau-search > label { font-size: 11px; margin-bottom: 9px; }
+html[data-theme] .guild-directory-page .bureau-search input { background: var(--ns-deep); }
+html[data-theme] .guild-directory-count { color: var(--ns-muted); font-size: 11px; margin-bottom: 22px; }
+html[data-theme] .guild-directory-page .bureau-directory { gap: 22px; }
+html[data-theme] .guild-directory-card.bureau-directory-card { border: 1px solid var(--ns-line); border-radius: var(--ns-radius); background: var(--ns-surface); }
+html[data-theme] .guild-directory-card.bureau-directory-card:hover { border-color: color-mix(in srgb,var(--guild-accent) 50%,var(--ns-line)); }
+html[data-theme] .guild-directory-card .guild-cover { height: 158px; }
+html[data-theme] .guild-directory-card .bureau-card-copy { padding: 16px 24px 24px; }
+html[data-theme] .guild-directory-card .bureau-card-copy h2 { font: 650 21px/1.3 var(--font-body); }
+html[data-theme] .guild-directory-card .bureau-card-copy .community-eyebrow { color: color-mix(in srgb,var(--guild-accent) 45%,var(--ns-text)); font: 650 9px/1.5 var(--font-body); }
+html[data-theme] .guild-directory-card .bureau-card-copy > p:not(.community-eyebrow) { color: var(--ns-muted); font-size: 12px; }
+html[data-theme] .guild-directory-card footer { color: var(--ns-muted); border-color: var(--ns-line); font-size: 11px; }
+html[data-theme] .guild-hero { border: 1px solid var(--ns-line); border-radius: var(--ns-radius); background: var(--ns-surface); }
+html[data-theme] .guild-identity h1 { font-family: var(--font-body); font-weight: 650; letter-spacing: -.035em; }
+html[data-theme] .guild-identity .guild-kicker { color: color-mix(in srgb,var(--guild-accent) 45%,var(--ns-text)); font-size: 9px; letter-spacing: .08em; }
+html[data-theme] .guild-identity .guild-tagline { color: var(--ns-muted); font-size: 13px; }
+html[data-theme] .guild-facts > span { border-color: var(--ns-line); background: var(--ns-deep); color: var(--ns-muted); border-radius: 10px; padding: 8px 12px; }
+html[data-theme] .guild-facts b { color: var(--ns-text); }
+html[data-theme] .guild-tabs { background: var(--ns-surface); border-color: var(--ns-line); border-radius: 15px; padding: 5px; gap: 5px; margin-bottom: 24px; }
+html[data-theme] .guild-tabs button { min-height: 42px; padding: 10px 18px; font: 600 12px/1.4 var(--font-body); color: var(--ns-muted); border-radius: 10px; }
+html[data-theme] .guild-tabs button[aria-pressed=true] { background: color-mix(in srgb,var(--guild-accent) 14%,var(--ns-surface)); color: color-mix(in srgb,var(--guild-accent) 50%,var(--ns-text)); }
+html[data-theme] .guild-tabs button:hover:not([aria-pressed=true]) { background: var(--ns-elevated); color: var(--ns-text); }
+html[data-theme] .guild-tabs button > b { background: var(--ns-elevated); color: var(--ns-muted); }
+html[data-theme] .guild-page .community-panel { padding: 26px; border: 1px solid var(--ns-line); border-radius: var(--ns-radius); background: var(--ns-surface); }
+html[data-theme] .guild-page .community-panel h2 { font-size: 21px; }
+html[data-theme] .guild-page .community-prose { font-size: 13px; line-height: 1.85; color: var(--ns-muted); }
+html[data-theme] .guild-page .guild-welcome { background: color-mix(in srgb,var(--guild-accent) 9%,var(--ns-surface)); border-color: color-mix(in srgb,var(--guild-accent) 25%,var(--ns-line)); }
+html[data-theme] .guild-page .guild-welcome h2 { font-size: 17px; }
+html[data-theme] .guild-page .bureau-join { border-top: 1px solid color-mix(in srgb,var(--guild-accent) 40%,var(--ns-line)); }
+html[data-theme] .guild-page .bureau-join :is(p,small) { color: var(--ns-muted); }
+html[data-theme] .guild-page .guild-members > li { border-color: var(--ns-line); border-radius: 16px; background: var(--ns-deep); }
+html[data-theme] .guild-page .guild-members :is(b,a) { color: var(--ns-text); font-size: 12px; }
+html[data-theme] .guild-page .guild-members .community-avatar { border-color: var(--ns-line); background: var(--ns-elevated); color: color-mix(in srgb,var(--guild-accent) 45%,var(--ns-text)); }
+html[data-theme] .guild-page .guild-custom-rank { color: color-mix(in srgb,var(--guild-accent) 45%,var(--ns-text)); font-size: 10px; }
+html[data-theme] .guild-page .guild-role { color: var(--ns-muted); }
+html[data-theme] .guild-page .guild-members select { background: var(--ns-surface); min-height: 44px; }
+html[data-theme] .guild-page .bureau-application { border-color: var(--ns-line); padding: 22px 0; }
+html[data-theme] .bureau-journal li { padding: 16px 0; border-color: var(--ns-line); }
+html[data-theme] .bureau-journal b { color: color-mix(in srgb,var(--guild-accent) 45%,var(--ns-text)); }
+html[data-theme] .bureau-role { border: 1px solid var(--ns-line); border-radius: 9px; color: var(--ns-accent); }
+html[data-theme] .community-back { color: var(--ns-muted); }
+html[data-theme] .guild-page .bureau-safety { border-color: var(--ns-line); background: var(--ns-surface); }
+html[data-theme] .guild-page .bureau-safety > summary { color: var(--ns-muted); font-size: 12px; }
+html[data-theme] .community-report { color: var(--ns-muted); }
+html[data-theme] .guild-editor.bureau-editor { padding: 28px; border: 1px solid var(--ns-line); border-radius: var(--ns-radius); background: var(--ns-surface); }
+html[data-theme] .guild-editor-heading { padding-bottom: 22px; border-bottom: 1px solid var(--ns-line); margin-bottom: 24px; }
+html[data-theme] .guild-editor-heading h2 { font-size: 23px; }
+html[data-theme] .guild-editor-heading p { color: var(--ns-muted); font-size: 12px; }
+html[data-theme] .guild-settings-nav { display: grid; grid-template-columns: repeat(4,minmax(0,1fr)); gap: 10px; margin-bottom: 30px; }
+html[data-theme] .guild-settings-nav button { padding: 15px; min-height: 104px; display: grid; grid-template-columns: minmax(0,1fr) auto; align-content: start; gap: 11px; border: 1px solid var(--ns-line); border-radius: 15px; background: var(--ns-deep); color: var(--ns-text); }
+html[data-theme] .guild-settings-nav button > svg:first-child { color: color-mix(in srgb,var(--guild-accent) 50%,var(--ns-text)); width: 20px; height: 20px; }
+html[data-theme] .guild-settings-nav button > span { grid-column: 1/-1; grid-row: 2; }
+html[data-theme] .guild-settings-nav button > svg:last-child { grid-column: 2; grid-row: 1; width: 17px; height: 17px; color: var(--ns-muted); }
+html[data-theme] .guild-settings-nav b { font: 600 12px/1.4 var(--font-body); }
+html[data-theme] .guild-settings-nav small { font-size: 10px; line-height: 1.6; color: var(--ns-muted); }
+html[data-theme] .guild-settings-nav button[aria-pressed=true] { border-color: color-mix(in srgb,var(--guild-accent) 50%,var(--ns-line)); background: color-mix(in srgb,var(--guild-accent) 10%,var(--ns-surface)); }
+html[data-theme] .guild-editor-body { max-width: none; }
+html[data-theme] .guild-settings-panel h3 { font: 650 21px/1.3 var(--font-body); }
+html[data-theme] .guild-settings-panel :is(label,p),html[data-theme] .guild-choice-group legend { color: var(--ns-muted); font-size: 12px; }
+html[data-theme] .guild-upload { background: var(--ns-deep); border: 1px dashed color-mix(in srgb,var(--guild-accent) 30%,var(--ns-line)); border-radius: 16px; padding: 22px; }
+html[data-theme] .guild-upload input::file-selector-button { background: var(--ns-elevated); color: var(--ns-text); border: 1px solid var(--ns-line); border-radius: 8px; }
+html[data-theme] .guild-upload input[type=file] { font-size: 11px; padding: 8px 0; background: transparent; border: 0; }
+html[data-theme] .guild-swatches button { border: 1px solid var(--ns-line); background: var(--ns-deep); color: var(--ns-text); font: 500 11px/1.4 var(--font-body); }
+html[data-theme] .guild-swatches button[aria-pressed=true] { border-color: var(--guild-accent); background: color-mix(in srgb,var(--guild-accent) 8%,var(--ns-surface)); }
+html[data-theme] .guild-cover-options button { color: #edf0e7; border-color: #ffffff2b; font: 500 12px var(--font-body); }
+html[data-theme] .guild-cover-options button[aria-pressed=true] { border-color: var(--guild-accent); outline: 1px solid var(--guild-accent); outline-offset: 2px; }
+html[data-theme] .guild-emblem-options button { border: 1px solid var(--ns-line); background: var(--ns-deep); color: var(--ns-muted); border-radius: var(--ns-small); min-height: 88px; }
+html[data-theme] .guild-emblem-options button[aria-pressed=true] { border-color: color-mix(in srgb,var(--guild-accent) 55%,var(--ns-line)); background: color-mix(in srgb,var(--guild-accent) 10%,var(--ns-surface)); color: color-mix(in srgb,var(--guild-accent) 45%,var(--ns-text)); }
+html[data-theme] .guild-rank-fields > label { background: var(--ns-deep); border-color: var(--ns-line); border-radius: 16px; padding: 20px; }
+html[data-theme] .guild-preview { padding-top: 22px; margin-top: 28px; }
+html[data-theme] .guild-editor-footer { border-color: var(--ns-line); padding-top: 22px; margin-top: 28px; }
+html[data-theme] .guild-editor-footer p { color: var(--ns-muted); font-size: 11px; }
+html[data-theme] .guild-invite { border: 1px solid var(--ns-line); background: var(--ns-surface); border-radius: 16px; color: var(--ns-muted); }
+html[data-theme] .bureau-operations { margin: 26px 0; }
+html[data-theme] .community-page .operation-card { padding: 24px; margin: 18px 0; border: 1px solid var(--ns-line); border-radius: 18px; background: var(--ns-deep); }
+html[data-theme] .operation-card h3 { font: 650 23px/1.3 var(--font-body); color: var(--ns-text); margin: 8px 0 12px; letter-spacing: -.03em; }
+html[data-theme] .operation-card progress { height: 6px; margin: 20px 0 10px; }
+html[data-theme] .operation-card time { color: var(--ns-muted); font-size: 11px; }
+html[data-theme] .bureau-safety blockquote { border-left: 2px solid var(--ns-line); padding: 12px 16px; margin: 14px 0; }
+html[data-theme] .public-dossier-shell > .community-page { padding: 104px 24px 64px; max-width: 1368px; }
+@media(min-width:900px) {
+  html[data-theme] .leaderboard-podium-place[data-place="2"] { order: -1; margin-top: 18px; }
+  html[data-theme] .leaderboard-podium-place[data-place="3"] { margin-top: 18px; }
+}
+@media(max-width:1100px) {
+  html[data-theme] .achievement-grid { grid-template-columns: repeat(3,minmax(0,1fr)); gap: 16px; }
+  html[data-theme] .dossier-columns { grid-template-columns: minmax(0,1fr) 240px; padding: 24px; gap: 20px; }
+  html[data-theme] .dossier-sidebar > section { padding: 20px; }
+  html[data-theme] .guild-settings-nav { grid-template-columns: repeat(2,minmax(0,1fr)); }
+  html[data-theme] .guild-settings-nav button { min-height: 96px; }
+  html[data-theme] .community-collection-summary { gap: 24px; padding: 24px; }
+}
+@media(max-width:760px) {
+  html[data-theme] .community-page { padding-top: 8px; }
+  html[data-theme] .community-head { align-items: flex-start; gap: 16px; padding: 12px 0 24px; margin-bottom: 8px; }
+  html[data-theme] .community-head > button { width: auto; }
+  html[data-theme] .community-head p:not(.community-eyebrow) { font-size: 12px; }
+  html[data-theme] .community-tabs { width: 100%; flex-wrap: wrap; }
+  html[data-theme] .community-tabs button { flex: 1 1 auto; font-size: 11px; padding: 10px 12px; }
+  html[data-theme] .community-page :is(input:not([type=checkbox]):not([type=range]),textarea,select) { font-size: 16px; }
+  html[data-theme] .community-collection-summary { flex-wrap: wrap; gap: 20px; padding: 24px 20px; }
+  html[data-theme] .community-big-number { font-size: 46px; }
+  html[data-theme] .community-collection-summary > button { width: 100%; }
+  html[data-theme] .community-collection-summary > div { min-width: 150px; }
+  html[data-theme] .achievement-grid { grid-template-columns: repeat(2,minmax(0,1fr)); gap: 14px; }
+  html[data-theme] .achievement-card { padding: 20px 16px; }
+  html[data-theme] .achievement-card .community-seal { width: 62px; height: 62px; border-radius: 17px; margin-bottom: 20px; }
+  html[data-theme] .achievement-card h2 { font-size: 17px; }
+  html[data-theme] .achievement-card p:not(.community-eyebrow) { font-size: 11px; }
+  html[data-theme] .achievement-progress { flex-wrap: wrap; gap: 8px; }
+  html[data-theme] .leaderboard-podium { gap: 12px; }
+  html[data-theme] .leaderboard-podium-place { padding: 18px 12px 20px; border-radius: 18px; }
+  html[data-theme] .leaderboard-podium-rank { top: 16px; left: 12px; font-size: 33px; }
+  html[data-theme] .leaderboard-podium-place > svg { width: 18px; height: 18px; }
+  html[data-theme] .leaderboard-podium-place > img,html[data-theme] .leaderboard-podium-place > .community-avatar { width: 52px; height: 52px; border-radius: 15px; margin-top: 20px; }
+  html[data-theme] .leaderboard-podium-place h2 { font-size: 14px; }
+  html[data-theme] .leaderboard-podium-place > strong { font-size: 20px; }
+  html[data-theme] .leaderboard-podium-place > strong small { display: block; text-align: center; margin-top: 6px; }
+  html[data-theme] .leaderboard-mine { padding: 22px 20px; }
+  html[data-theme] .leaderboard-mine h2 { font-size: 22px; }
+  html[data-theme] .leaderboard-mine h2 span { font-size: 18px; }
+  html[data-theme] .leaderboard-table :is(th,td) { padding: 14px 12px; }
+  html[data-theme] .leaderboard-table th:first-child { width: 45px; }
+  html[data-theme] .leaderboard-table th:last-child { width: 92px; }
+  html[data-theme] .leaderboard-table caption { padding: 18px; font-size: 9px; }
+  html[data-theme] .leaderboard-table td:first-child { font-size: 15px; }
+  html[data-theme] .leaderboard-table td:last-child { font-size: 16px; }
+  html[data-theme] .leaderboard-player { gap: 9px; }
+  html[data-theme] .leaderboard-player b { font-size: 12px; }
+  html[data-theme] .dossier-cover { height: 170px; padding: 22px; }
+  html[data-theme] .dossier-identity { grid-template-columns: 82px minmax(0,1fr); padding: 0 20px 24px; gap: 18px; margin-top: -28px; }
+  html[data-theme] .dossier-avatar { width: 82px; height: 82px; border-width: 4px; border-radius: 20px; }
+  html[data-theme] .dossier-identity > div:not(.dossier-avatar) { padding-top: 44px; }
+  html[data-theme] .dossier-identity h1 { font-size: 25px; }
+  html[data-theme] .dossier-identity .dossier-level { padding: 16px 0 0; border: 0; border-top: 1px solid var(--ns-line); gap: 12px; }
+  html[data-theme] .dossier-level > b { font-size: 24px; }
+  html[data-theme] .dossier-level small { margin-left: auto; }
+  html[data-theme] .dossier-toolbar { padding: 0 20px 22px; }
+  html[data-theme] .dossier-columns { grid-template-columns: 1fr; padding: 20px 16px; gap: 22px; }
+  html[data-theme] .dossier-module > header { padding: 18px; }
+  html[data-theme] .dossier-module > header h2 { font-size: 17px; }
+  html[data-theme] .dossier-cases { padding: 14px; }
+  html[data-theme] .dossier-cases article { padding: 18px; }
+  html[data-theme] .dossier-cases h3 { font-size: 18px; }
+  html[data-theme] .dossier-sidebar { grid-template-columns: repeat(2,minmax(0,1fr)); gap: 14px; }
+  html[data-theme] .dossier-sidebar > section { padding: 20px 16px; margin-bottom: 0; }
+  html[data-theme] .dossier-sidebar h2 { font-size: 16px; }
+  html[data-theme] .dossier-sidebar dl > div { flex-wrap: wrap; gap: 6px; }
+  html[data-theme] .dossier-sidebar dd { font-size: 15px; }
+  html[data-theme] .dossier-bureau { padding: 20px; }
+  html[data-theme] .profile-editor,html[data-theme] .guild-editor.bureau-editor { padding: 22px 18px; }
+  html[data-theme] .profile-theme-options { gap: 9px; }
+  html[data-theme] .profile-theme-options button { padding: 8px; font-size: 10px; }
+  html[data-theme] .community-panel,html[data-theme] .guild-page .community-panel { padding: 22px 20px; border-radius: 20px; }
+  html[data-theme] .guild-directory-page .community-head { padding-top: 12px; }
+  html[data-theme] .guild-directory-page .community-head .dc-primary { margin-top: 18px; }
+  html[data-theme] .guild-tabs button { padding: 10px 14px; }
+  html[data-theme] .guild-directory-card .guild-cover { height: 150px; }
+  html[data-theme] .guild-directory-card .bureau-card-copy { padding: 16px 20px 20px; }
+  html[data-theme] .guild-directory-card .bureau-card-copy h2 { font-size: 19px; }
+  html[data-theme] .guild-settings-nav { gap: 10px; }
+  html[data-theme] .guild-settings-nav button { padding: 14px; min-height: 110px; }
+  html[data-theme] .guild-settings-nav small { font-size: 10px; }
+  html[data-theme] .guild-upload { padding: 20px; }
+  html[data-theme] .community-page .operation-card { padding: 20px; }
+  html[data-theme] .operation-card h3 { font-size: 21px; }
+}
+@media(max-width:480px) {
+  html[data-theme] .leaderboard-podium { grid-template-columns: 1fr; gap: 10px; }
+  html[data-theme] .leaderboard-podium-place { display: grid; grid-template-columns: 45px 48px minmax(0,1fr) auto; gap: 3px 12px; padding: 16px; align-items: center; }
+  html[data-theme] .leaderboard-podium-rank { position: static; grid-row: 1/4; font-size: 31px; }
+  html[data-theme] .leaderboard-podium-place > svg { display: none; }
+  html[data-theme] .leaderboard-podium-place > img,html[data-theme] .leaderboard-podium-place > .community-avatar { grid-row: 1/4; width: 48px; height: 48px; margin: 0; }
+  html[data-theme] .leaderboard-podium-place > small { grid-column: 3; font-size: 8px; }
+  html[data-theme] .leaderboard-podium-place h2 { grid-column: 3; text-align: left; margin: 0; font-size: 13px; }
+  html[data-theme] .leaderboard-podium-place > strong { grid-column: 4; grid-row: 1/4; margin: 0; font-size: 17px; text-align: right; letter-spacing: -.02em; }
+  html[data-theme] .leaderboard-podium-place > strong small { font-size: 8px; text-align: right; }
+  html[data-theme] .achievement-grid { gap: 12px; }
+  html[data-theme] .achievement-card { padding: 20px 14px; border-radius: 19px; }
+  html[data-theme] .achievement-card h2 { font-size: 16px; }
+  html[data-theme] .achievement-card .community-eyebrow { font-size: 7px; }
+  html[data-theme] .achievement-card > small { font-size: 9px; }
+  html[data-theme] .dossier-identity { grid-template-columns: 70px minmax(0,1fr); gap: 14px; padding-inline: 16px; }
+  html[data-theme] .dossier-avatar { width: 70px; height: 70px; border-radius: 18px; }
+  html[data-theme] .dossier-identity h1 { font-size: 22px; }
+  html[data-theme] .dossier-sidebar { grid-template-columns: 1fr; }
+  html[data-theme] .dossier-sidebar dl > div { flex-wrap: nowrap; }
+  html[data-theme] .dossier-toolbar { padding-inline: 16px; }
+  html[data-theme] .dossier-toolbar .dc-primary { width: 100%; }
+  html[data-theme] .community-page .community-panel { padding: 22px 16px; }
+  html[data-theme] .guild-page .guild-members { grid-template-columns: repeat(2,minmax(0,1fr)); }
+  html[data-theme] .guild-page .guild-members.roster-list { grid-template-columns: 1fr; }
+  html[data-theme] .guild-page .guild-members > li { padding: 14px; }
+  html[data-theme] .guild-directory-page .bureau-directory { grid-template-columns: 1fr; }
+  html[data-theme] .guild-settings-nav b { font-size: 11px; }
+  html[data-theme] .guild-settings-nav button { padding: 13px; }
+  html[data-theme] .guild-rank-fields > label { padding: 16px; gap: 12px; }
+  html[data-theme] .guild-preview .guild-identity { padding-inline: 16px; }
+  html[data-theme] .guild-editor-footer { gap: 8px; }
+  html[data-theme] .public-dossier-shell > .community-page { padding: 84px 12px 48px; }
+}
+
+html[data-theme] .community-page .community-seal { color: var(--ns-accent); border-color: var(--ns-line); background: var(--ns-soft); filter: none; }
+html[data-theme] .community-page .community-seal.locked { color: var(--ns-muted); filter: none; opacity: .62; }
+
+/* Icon-based regalia follow the readable accent in every theme. */
+html[data-theme] .community-page .regalia-symbol{color:var(--ns-accent);background:var(--ns-soft);border-color:var(--ns-line)}

@@ -27,9 +27,10 @@ def test_public_and_authenticated_screens_share_the_bureau_header() -> None:
 
 
 def test_active_case_is_server_state_only() -> None:
-    assert "ACTIVE CASE / SERVER STATE" in DASHBOARD
+    assert "Only server-locked conditions appear here." in DASHBOARD
     assert "activeBoards" in DASHBOARD
-    assert "SOURCE" in DASHBOARD and ">SERVER<" in DASHBOARD
+    assert "SOURCE" in DASHBOARD
+    assert 'language === "ru" ? "Сервер" : "Server"' in DASHBOARD
 
 
 def test_fonts_are_self_hosted_and_csp_has_no_google_font_exception() -> None:

@@ -64,14 +64,18 @@ function OwnerContent({ csrf }: { csrf: string }) {
     }
   }
   return (
-    <section className="archive-page owner-archive-desk">
-      <small>{ru ? "OWNER / УПРАВЛЕНИЕ АРХИВОМ" : "OWNER / ARCHIVE CONTROL"}</small>
-      <h2>{ru ? "Конверты и инструменты владельца" : "Packs & owner tools"}</h2>
-      <p>
-        {ru
-          ? "Только владелец из серверного списка SteamID может менять паки и выполнять тестовую выдачу. Обычный ADMIN этого доступа не получает."
-          : "Only the owner in the server SteamID allowlist can change packs and issue test grants. ADMIN has no access."}
-      </p>
+    <section className="archive-page owner-archive-desk dc-admin-packs">
+      <header className="dc-admin-section-head">
+        <div>
+          <small>{ru ? "OWNER / УПРАВЛЕНИЕ АРХИВОМ" : "OWNER / ARCHIVE CONTROL"}</small>
+          <h2>{ru ? "Конверты и инструменты владельца" : "Packs & owner tools"}</h2>
+          <p>
+            {ru
+              ? "Только владелец из серверного списка SteamID может менять паки и выполнять тестовую выдачу. Обычный ADMIN этого доступа не получает."
+              : "Only the owner in the server SteamID allowlist can change packs and issue test grants. ADMIN has no access."}
+          </p>
+        </div>
+      </header>
       {(error || meta.error || packs.error) && (
         <p role="alert">
           {error || meta.error || packs.error}
@@ -142,6 +146,13 @@ function OwnerContent({ csrf }: { csrf: string }) {
                   </article>
                 ))}
               </div>
+              {packs.data && !packs.data.items.length && (
+                <p className="dc-admin-empty">
+                  {ru
+                    ? "Паков пока нет. Создай первый выпуск."
+                    : "No packs yet. Create the first release."}
+                </p>
+              )}
               {packs.data && (
                 <Pager offset={offset} total={packs.data.total} size={8} setOffset={setOffset} />
               )}

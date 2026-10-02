@@ -84,7 +84,7 @@ export default function CollectionPage({
       old.includes(id) ? old.filter((value) => value !== id) : old.length < 3 ? [...old, id] : old,
     )
   return (
-    <section>
+    <section className="archive-collection">
       <h2>{ru ? "Моя коллекция" : "My collection"}</h2>
       <p>
         {ru
@@ -109,12 +109,41 @@ export default function CollectionPage({
       )}
       {notice && <p role="status">{notice}</p>}
       <FavoriteError controls={favorites} />
-      <div className="archive-panel archive-showcase-settings">
-        <h3>
-          {ru
-            ? `Витрина профиля: ${selected.length} / 3`
-            : `Profile showcase: ${selected.length} / 3`}
-        </h3>
+      {coverage.data && (
+        <div className="archive-collection-overview">
+          <div className="archive-collection-count">
+            <strong>{coverage.data.items.reduce((total, item) => total + item.count, 0)}</strong>
+            <span>
+              {ru ? "В твоей коллекции" : "In your collection"}
+              <small>{ru ? "уникальных дизайнов" : "unique designs"}</small>
+            </span>
+          </div>
+          <div className="archive-rarity-summary">
+            {(["S", "SS", "SSS"] as const).map((value) => (
+              <span key={value} data-rank={value}>
+                <b>{value}</b>
+                <small>
+                  {coverage
+                    .data!.items.filter((item) => item.rank === value)
+                    .reduce((total, item) => total + item.count, 0)}{" "}
+                  {ru ? "шт." : "owned"}
+                </small>
+              </span>
+            ))}
+          </div>
+          <p>{ru ? "Твоя коллекция. Твой почерк." : "Your collection. Your signature."}</p>
+        </div>
+      )}
+      <details className="archive-panel archive-showcase-settings">
+        <summary>
+          <Icon name="images" size={20} />
+          <span>
+            {ru
+              ? `Витрина профиля: ${selected.length} / 3`
+              : `Profile showcase: ${selected.length} / 3`}
+          </span>
+          <Icon name="chevron-down" size={18} />
+        </summary>
         <p>
           {ru
             ? "Отметь до трёх карточек ниже. Они появятся в профиле в порядке выбора."
@@ -146,7 +175,7 @@ export default function CollectionPage({
             {ru ? "Снять все отметки" : "Clear selection"}
           </button>
         </div>
-      </div>
+      </details>
       <form
         className="archive-filters"
         onSubmit={(event) => {
@@ -232,6 +261,8 @@ export default function CollectionPage({
       )}
       {inventory.data?.total === 0 && (
         <div className="archive-empty">
+          <Icon name="layers" size={30} />
+          <h3>{ru ? "Место для новой истории" : "Room for a new story"}</h3>
           <p>
             {favoritesOnly
               ? ru
@@ -245,7 +276,11 @@ export default function CollectionPage({
       )}
       <div className="archive-grid">
         {inventory.data?.items.map((item) => (
-          <article key={item.card.id}>
+          <article
+            key={item.card.id}
+            className="archive-collection-item"
+            data-selected={selected.includes(item.card.id)}
+          >
             <CardSurface card={item.card} />
             <h3 className="archive-item-title">{item.card.title}</h3>
             <p>

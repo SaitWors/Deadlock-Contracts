@@ -50,7 +50,7 @@ export default function PackShop({
     `/api/archive/packs?offset=${offset}&refresh=${revision}`,
   )
   return (
-    <section>
+    <section className="archive-pack-shop">
       <h2>{ru ? "Конверты архива" : "Archive envelopes"}</h2>
       <p>
         {ru
@@ -91,7 +91,25 @@ export default function PackShop({
         {data.data?.items.map((pack) => (
           <article className="archive-pack-tile" key={pack.id}>
             <div className="archive-envelope-art" aria-hidden="true">
-              {pack.cover ? <CardPreview card={pack.cover} /> : <Icon name="images" size={54} />}
+              <div className="archive-envelope">
+                <div className="archive-envelope-brand">
+                  <Icon name="layers" size={23} />
+                  <small>
+                    DEADLOCK
+                    <br />
+                    CONTRACTS
+                  </small>
+                </div>
+                <div className="archive-envelope-window">
+                  {pack.cover ? (
+                    <CardPreview card={pack.cover} />
+                  ) : (
+                    <Icon name="images" size={48} />
+                  )}
+                </div>
+                <strong>{pack.title}</strong>
+                <small>ARCHIVE / {String(pack.draws).padStart(2, "0")}</small>
+              </div>
               <span>
                 <Icon name="mail" size={18} />
                 {pack.draws} {ru ? "карт" : "cards"}

@@ -276,28 +276,15 @@
   border-radius: 11px;
   font-family: var(--font-body);
 }
-.bureau-app .dc-command-hero {
-  border-radius: 22px;
-  overflow: hidden;
-  border-color: #ffffff15;
-}
-.bureau-app .dc-command-copy h1 {
-  font-family: var(--font-body);
-  font-size: clamp(32px, 4vw, 52px);
-  line-height: 1.12;
-  letter-spacing: -0.04em;
-}
 .bureau-app .contract-card {
   border-radius: 16px;
   border-color: #ffffff1a;
 }
-.bureau-app .dc-category-tabs i,
-.bureau-app .dc-contract i {
+.bureau-app .dc-category-tabs i {
   display: inline-flex;
   align-items: center;
 }
-.bureau-app .dc-category-tabs svg,
-.bureau-app .dc-contract i svg {
+.bureau-app .dc-category-tabs svg {
   width: 16px;
   height: 16px;
 }
@@ -343,19 +330,5 @@
 /* Tester review, PR42: consistent controls and readable spacing. */
 .bureau-header .dc-language-switch{height:38px;border-radius:10px;overflow:hidden;flex-shrink:0}
 .bureau-header .dc-language-switch :is(button,a){min-width:38px;padding-inline:9px;font:600 12px/1 var(--font-body);color:#afbeb0;letter-spacing:.02em}
-.bureau-app .dc-command-actions{align-items:stretch}
-.bureau-app .dc-command-actions>button{display:flex;align-items:center;justify-content:center;min-height:48px;height:auto;margin:0;padding:12px 18px;line-height:1.4}
-.bureau-app .dc-curator-dialog{width:min(360px,calc(100% - 32px));left:auto;right:16px;bottom:16px;padding:16px;border-radius:12px}
-.bureau-app .dc-curator-dialog span{font:600 12px/1.4 var(--font-body);letter-spacing:.08em}
-.bureau-app .dc-curator-dialog p{font:400 15px/1.6 var(--font-body);color:#d1d9ca;margin:8px 0 0}
-.bureau-app .dc-motion-reroll>span{font:600 13px/1.4 var(--font-body)!important;letter-spacing:.02em!important;color:#bdc7b4!important}
-.bureau-app .dc-motion-reroll button{min-height:40px;font-size:12px!important;white-space:normal}
-.bureau-app .dc-motion-contract-card .dc-contract-top{flex-wrap:wrap}
-.bureau-app .dc-motion-contract-card .dc-contract-top>span{min-width:0;flex-wrap:wrap;letter-spacing:.06em!important}
 .bureau-app .contract-selected-mark{color:#bde3bd}
-.bureau-app.dc-v3 .dc-motion-contract-card.selected{border:1px solid #7ab384!important;box-shadow:none!important}
-.bureau-app .dc-motion-selection-tray{margin-top:28px}
-.bureau-app .dc-motion-selection-actions{align-items:stretch}
-.bureau-app .dc-motion-total-xp{align-self:center}
-.bureau-app .dc-motion-selection-actions>button{display:flex;align-items:center;justify-content:center;min-height:48px;height:auto;margin:0!important;padding:12px 16px!important;font:700 14px/1.4 var(--font-body)!important}
 .bureau-app .dc-workspace>.community-page{max-width:none;margin-inline:0;padding-top:0}

@@ -71,24 +71,7 @@
 @media(max-width:359px){.bureau-guide-footer{grid-template-columns:1fr}.bureau-guide-footer>.bureau-action:last-child{grid-row:1}.bureau-location button{font-size:.8rem}.bureau-guide-content>.bureau-regalia{float:none;width:64px;height:70px;margin:0}}
 
 /* Keep the common dark chrome. Only the document itself is paper. */
-.signing-dialog{width:min(700px,calc(100% - 24px));background:#142119;border:1px solid #657454;border-radius:6px 18px 6px 6px;padding:0 12px 14px;color-scheme:dark}
-.signing-folder-bar{display:flex;justify-content:space-between;align-items:center;gap:12px;position:sticky;top:0;z-index:2;background:#142119;color:#d1cfb3;padding:12px 4px;font:600 .75rem var(--font-display);letter-spacing:.1em}
-.signing-folder-bar .signing-close{margin:0;flex-shrink:0;background:#1f3225;border:1px solid #53684c;color:#ecdfc0}
-.signing-folder-bar .signing-close:hover:not(:disabled){background:#344936}
-.signing-document{position:relative;padding:clamp(22px,4vw,38px);border:0;border-radius:2px 8px 3px 2px;box-shadow:4px 5px 0 #08130ca0,inset -7px 0 12px #8e77432b;color-scheme:light;color:#302819;background:radial-gradient(ellipse at 2% 20%,#b4996660,transparent 46%),radial-gradient(ellipse at 100% 90%,#c1a36d5c,transparent 40%),linear-gradient(96deg,transparent 49.6%,#9e865e18 50%,#fff5d321 50.3%,transparent 51%),#ddcdad}
-.signing-document:after{content:"";display:block;height:8px;margin:24px -6px -12px;background:repeating-linear-gradient(114deg,transparent 0 6px,#92795126 7px 9px,transparent 10px 16px);border-bottom:1px solid #9c86604d;pointer-events:none}
-.signing-document .signing-eyebrow{letter-spacing:.08em;font-size:.75rem}
-.signing-document .signing-heading h2{font-size:clamp(28px,5vw,36px);line-height:1.1}
-.signing-document .signing-identity{border-top:1px dashed #9f8b65;border-bottom:1px solid #9f8b6566;padding:12px 0;gap:12px}
-.signing-document .signing-intro{line-height:1.6}
-.signing-document .signing-terms{margin-top:4px}
-.signing-document .signing-terms li{border-bottom:1px dashed #aa947159;padding-block:12px}
-.signing-document .signing-terms h3{font-size:1.2rem}
-.signing-document .signing-terms p{font-size:.9375rem}
-.signing-document .signing-reward{flex-wrap:wrap;gap:8px}
-.signing-dialog .signing-folder-bar button:focus-visible{outline-color:#d7e4b7}
-@media(max-width:600px){.signing-dialog{width:calc(100% - 16px);padding:0 8px 10px;max-height:calc(100dvh - 16px)}.signing-document{padding:20px}.signing-folder-bar{padding:8px 2px}.signing-document .signing-note{margin-bottom:16px}}
-@media(prefers-reduced-motion:reduce){.bureau-guide *,.signing-dialog *{animation:none!important;transition:none!important;scroll-behavior:auto!important}}
+@media(prefers-reduced-motion:reduce){.bureau-guide *{animation:none!important;transition:none!important;scroll-behavior:auto!important}}
 @media (min-width:1200px) and (max-width:1399px) {
   .bureau-app .bureau-nav{display:none}
   .bureau-app .bureau-menu-toggle{display:block}
