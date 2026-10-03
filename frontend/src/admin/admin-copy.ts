@@ -331,6 +331,7 @@ const translations: ReadonlyArray<readonly [string, string]> = [
   ["Карточки", "Cards"],
   ["Конверты · OWNER", "Packs · OWNER"],
   ["Уведомления", "Announcements"],
+  ["Голосование", "Hero votes"],
   ["Матчи", "Matches"],
   ["Дела", "Cases"],
   ["Контракты", "Contracts"],

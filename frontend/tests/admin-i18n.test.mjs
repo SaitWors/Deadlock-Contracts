@@ -209,7 +209,7 @@ test("review language changes retain queue filters and their API codes", async (
   await api.act(async () => root.unmount())
 })
 
-test("the admin console keeps all 16 sections and the selected user filter when language changes", async () => {
+test("the admin console keeps all 17 sections and the selected user filter when language changes", async () => {
   const requests = []
   const { w, doc, api } = runtime(async (url) => {
     requests.push(url)
@@ -251,6 +251,7 @@ test("the admin console keeps all 16 sections and the selected user filter when 
     "cards",
     "packs",
     "announcements",
+    "hero_votes",
     "matches",
     "boards",
     "companions",
@@ -273,7 +274,8 @@ test("the admin console keeps all 16 sections and the selected user filter when 
   assert.equal(doc.querySelector(".dc-admin-filterbar input").value, "Mandarin")
   assert.equal(doc.querySelector(".dc-admin-filterbar select").value, "MODERATOR")
   assert.deepEqual(sections(), expectedSections)
-  assert.equal(doc.querySelectorAll(".dc-admin-tabs button").length, 16)
+  assert.equal(doc.querySelectorAll(".dc-admin-tabs button").length, 17)
+  assert.ok(button(doc, "Hero votes"))
   await api.act(async () => button(doc, "Apply").click())
   assert.ok(
     requests.some((url) => {

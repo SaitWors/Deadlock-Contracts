@@ -8,12 +8,14 @@ import bureau from "./imports/nightshift/bureau-room.webp"
 export function NightshiftNav({
   active,
   staff,
+  votesEnabled = false,
   user,
   level,
   onNavigate,
 }: {
   active: string
   staff: boolean
+  votesEnabled?: boolean
   user?: { display_name: string; avatar_url: string | null }
   level?: number
   onNavigate: (tab: string) => void
@@ -46,6 +48,15 @@ export function NightshiftNav({
         ["bureaus", ru ? "Бюро игроков" : "Player bureaus", "building-2"],
         ["achievements", ru ? "Достижения" : "Achievements", "medal"],
         ["leaderboard", ru ? "Рейтинг" : "Leaderboard", "trophy"],
+        ...(votesEnabled
+          ? [
+              [
+                "hero-votes",
+                ru ? "Голосование" : "Hero votes",
+                "chart-no-axes-column-increasing",
+              ] as [string, string, IconName],
+            ]
+          : []),
         ["profile", ru ? "Моё досье" : "My dossier", "user-round"],
         ...(staff
           ? [

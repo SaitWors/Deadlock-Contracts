@@ -1335,6 +1335,10 @@ from .community_operations import build_router as build_community_operations_rou
 
 app.include_router(build_community_operations_router(_require_permission))
 
+from .hero_votes import build_router as build_hero_votes_router
+
+app.include_router(build_hero_votes_router(_require_permission))
+
 from .archive import build_router as build_archive_router
 
 from .archive_packs import build_router as build_archive_packs_router
