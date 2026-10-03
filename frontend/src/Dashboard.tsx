@@ -21,6 +21,7 @@ import AnnouncementCenter from "./admin/AnnouncementCenter"
 import ReviewDesk from "./admin/ReviewDesk"
 import type { AdminReview } from "./admin/admin-types"
 import ArchiveNextStep from "./archive/ArchiveNextStep"
+import { useHeroVotes } from "./hero-votes/useHeroVotes"
 import {
   MCGCredit,
   apiLanguage,
@@ -36,6 +37,8 @@ import {
 const ArchivePage = lazy(() => import("./archive/ArchivePage"))
 const CardReviewDesk = lazy(() => import("./admin/CardReviewDesk"))
 const OwnerArchiveDesk = lazy(() => import("./admin/OwnerArchiveDesk"))
+const HeroVotesPage = lazy(() => import("./hero-votes/HeroVotesPage"))
+const HeroVotesDesk = lazy(() => import("./admin/HeroVotesDesk"))
 
 const BureauModerationDesk = lazy(() => import("./admin/BureauModerationDesk"))
 
@@ -586,6 +589,7 @@ type AdminSystem = {
   server_time: string
 }
 type AdminSection =
+  | "hero_votes"
   | "overview"
   | "users"
   | "reviews"
@@ -604,6 +608,7 @@ type AdminSection =
   | "system"
 
 const ADMIN_SECTION_PERMISSIONS: Record<AdminSection, string> = {
+  hero_votes: "hero_votes.read",
   overview: "admin.overview.read",
   users: "users.read",
   reviews: "reviews.read",
@@ -630,6 +635,7 @@ const ADMIN_SECTION_ORDER: Array<[AdminSection, string]> = [
   ["cards", "Карточки"],
   ["packs", "Конверты · OWNER"],
   ["announcements", "Уведомления"],
+  ["hero_votes", "Голосование"],
   ["matches", "Матчи"],
   ["boards", "Дела"],
   ["companions", "Companion"],
@@ -681,6 +687,7 @@ type CompanionPairing = {
   server_url: string
 }
 type Tab =
+  | "hero-votes"
   | "home"
   | "quests"
   | "active"
@@ -1010,6 +1017,7 @@ function ModeTabs({
 
 export default function Dashboard({ initialSession }: { initialSession: SessionPayload }) {
   const { language, locale } = useLanguage()
+  const heroVotes = useHeroVotes()
   const [user, setUser] = useState(initialSession.user)
   const [archiveRevision, setArchiveRevision] = useState(0)
   const [csrf] = useState(initialSession.csrf_token)
@@ -1026,6 +1034,7 @@ export default function Dashboard({ initialSession }: { initialSession: SessionP
         "achievements",
         "bureaus",
         "leaderboard",
+        "hero-votes",
         "archive",
         "studio",
         "wallet",
@@ -1409,6 +1418,7 @@ export default function Dashboard({ initialSession }: { initialSession: SessionP
           bureaus: "Бюро игроков",
           achievements: "Достижения",
           leaderboard: "Рейтинг",
+          "hero-votes": "Голосование",
           profile: "Моё досье",
           admin: "Управление",
         }
@@ -1425,6 +1435,7 @@ export default function Dashboard({ initialSession }: { initialSession: SessionP
           bureaus: "Player bureaus",
           achievements: "Achievements",
           leaderboard: "Leaderboard",
+          "hero-votes": "Hero votes",
           profile: "My dossier",
           admin: "Staff console",
         }
@@ -1440,6 +1451,12 @@ export default function Dashboard({ initialSession }: { initialSession: SessionP
     ["profile", language === "ru" ? "ПРОФИЛЬ" : "PROFILE", "profile"],
   ]
   if (user.is_staff) nav.push(["admin", "ADMIN", "admin"])
+  if (heroVotes.data?.enabled)
+    nav.splice(nav.length - (user.is_staff ? 1 : 0), 0, [
+      "hero-votes",
+      language === "ru" ? "ГОЛОСОВАНИЕ" : "HERO VOTES",
+      "hq",
+    ])
 
   return (
     <div className="dc-dashboard dc-redesign dc-v3 dc-vnext bureau-app ns-private min-h-screen community-dashboard">
@@ -1493,6 +1510,7 @@ export default function Dashboard({ initialSession }: { initialSession: SessionP
         active={["studio", "wallet", "packs", "collection"].includes(tab) ? "archive" : tab}
         mobileItems={Object.entries(pageLabels)
           .filter(([id]) => id !== "admin" || user.is_staff)
+          .filter(([id]) => id !== "hero-votes" || heroVotes.data?.enabled)
           .map(([id, label]) => ({ id, label }))}
         items={nav
           .filter(([id]) => !["profile", "active", "history", "achievements"].includes(id))
@@ -1552,6 +1570,7 @@ export default function Dashboard({ initialSession }: { initialSession: SessionP
       <NightshiftNav
         active={tab}
         staff={user.is_staff}
+        votesEnabled={Boolean(heroVotes.data?.enabled)}
         user={user}
         level={level}
         onNavigate={(next) => setTab(next as Tab)}
@@ -2449,6 +2468,19 @@ export default function Dashboard({ initialSession }: { initialSession: SessionP
           )}
           {tab === "leaderboard" && (
             <Leaderboard authenticated onProfile={() => setTab("profile")} />
+          )}
+          {tab === "hero-votes" && (
+            <Suspense
+              fallback={
+                <p role="status">{language === "ru" ? "Загрузка опроса…" : "Loading poll…"}</p>
+              }
+            >
+              <HeroVotesPage
+                data={heroVotes.data}
+                error={heroVotes.error}
+                onReload={heroVotes.reload}
+              />
+            </Suspense>
           )}
           {tab === "achievements" && <Achievements onProfile={() => setTab("profile")} />}
           {tab === "bureaus" && <Bureaus csrf={csrf} slug={bureauSlug} onSelect={openBureau} />}
@@ -3983,6 +4015,11 @@ function AdminConsole({
       {section === "packs" && (
         <Suspense fallback={<p role="status">{copy("Конверты / Packs…")}</p>}>
           <OwnerArchiveDesk csrf={csrf} permissions={auth.permissions} />
+        </Suspense>
+      )}
+      {section === "hero_votes" && (
+        <Suspense fallback={<p role="status">{copy("Голосование / Hero polls…")}</p>}>
+          <HeroVotesDesk csrf={csrf} permissions={auth.permissions} />
         </Suspense>
       )}
       {section === "cards" && (

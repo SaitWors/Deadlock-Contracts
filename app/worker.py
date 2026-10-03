@@ -3546,6 +3546,11 @@ def run() -> None:
                 bureau_maintenance(SessionLocal)
             except Exception:
                 log.exception("Bureau operation reconciliation failed")
+            try:
+                from .services.hero_votes import maintenance as hero_vote_maintenance
+                hero_vote_maintenance(SessionLocal)
+            except Exception:
+                log.exception("Community hero poll refresh failed")
             next_maintenance_at = time.monotonic() + 60
         with SessionLocal() as db:
             if dispatch_outbox(db):

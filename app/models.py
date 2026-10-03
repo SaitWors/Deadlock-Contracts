@@ -1173,6 +1173,51 @@ class SystemAnnouncementReceipt(Base):
     )
 
 
+class HeroVoteCampaign(Base):
+    __tablename__ = "hero_vote_campaigns"
+    __table_args__ = (CheckConstraint("revision > 0", name="ck_hero_vote_revision"),)
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uuid4)
+    title_ru: Mapped[str] = mapped_column(String(120))
+    title_en: Mapped[str] = mapped_column(String(120))
+    candidates: Mapped[list[dict[str, Any]]] = mapped_column(JSON)
+    starts_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    ends_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    # A nullable unique slot serializes activation without restricting drafts/history.
+    active_slot: Mapped[str | None] = mapped_column(String(8), unique=True, nullable=True)
+    visible: Mapped[bool] = mapped_column(Boolean, default=False)
+    ended_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    revision: Mapped[int] = mapped_column(Integer, default=1)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
+
+
+class HeroVoteSource(Base):
+    __tablename__ = "hero_vote_sources"
+    __table_args__ = (UniqueConstraint("campaign_id", "provider", name="uq_hero_vote_source"),)
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uuid4)
+    campaign_id: Mapped[str] = mapped_column(ForeignKey("hero_vote_campaigns.id", ondelete="CASCADE"), index=True)
+    provider: Mapped[str] = mapped_column(String(24))
+    enabled: Mapped[bool] = mapped_column(Boolean, default=True)
+    status: Mapped[str] = mapped_column(String(24), default="PENDING")
+    next_refresh_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    last_attempt_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    last_success_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    lease_token: Mapped[str | None] = mapped_column(String(36), nullable=True)
+    lease_until: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
+class HeroVoteSnapshot(Base):
+    __tablename__ = "hero_vote_snapshots"
+    __table_args__ = (Index("ix_hero_vote_snapshot_history", "source_id", "observed_at"),)
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uuid4)
+    source_id: Mapped[str] = mapped_column(ForeignKey("hero_vote_sources.id", ondelete="CASCADE"))
+    counts: Mapped[dict[str, int]] = mapped_column(JSON)
+    observed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
 class AuditLog(Base):
     __tablename__ = "audit_logs"
 

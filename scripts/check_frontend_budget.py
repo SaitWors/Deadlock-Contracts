@@ -8,13 +8,13 @@ from urllib.parse import urlsplit
 
 
 LIMITS = {
-    # Nightshift: appearance controls and complete bilingual staff UI.
-    # Measured 663 KB total / 305 KB initial; public-entry cap stays unchanged.
-    "javascript_total": 690_000,
+    # Nightshift + lazy PR44.5 poll/admin pages: ~700 KB total / 300 KB initial.
+    # Hero portraits stay separate assets; the public-entry cap stays unchanged.
+    "javascript_total": 715_000,
     "initial_javascript": 310_000,
     # Five themes and responsive surfaces retain existing feature styles.
-    # Measured 420 KB. This is the full bundle, including lazy page styles.
-    "css_total": 435_000,
+    # ~441 KB including the lazy poll/editor stylesheet.
+    "css_total": 450_000,
     "largest_image": 600_000,
     # Three mascot poses + four city/interior WebPs, all < 290 KB individually.
     # Measured 2.96 MB for every asset including fonts; artwork below fold is lazy.
