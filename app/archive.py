@@ -7,6 +7,7 @@ from urllib.parse import urlsplit
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Response
+from fastapi.responses import FileResponse
 from pydantic import Field, field_validator
 from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session
@@ -16,6 +17,7 @@ from .db import get_db
 from .models import ArchiveCard, ArchiveCipher, ArchiveLedger, User, utcnow
 from .services import archive as service
 from .services import archive_packs as packs
+from .services.archive_seed import release_artwork_path
 from .services.auth import require_csrf, require_user
 
 Rank = Literal["F", "E", "D", "C", "B", "A", "S", "SS", "SSS"]
@@ -70,6 +72,15 @@ class Guess(Revision):
 
 def build_router(require_permission, effective_role):
     router = APIRouter(prefix="/api", tags=["Archive"])
+
+    @router.get("/archive/releases/city-never-sleeps/{hero_key}.webp")
+    def release_image(hero_key: str):
+        image = release_artwork_path(hero_key)
+        if image is None or not image.is_file():
+            raise HTTPException(404, "Image not found")
+        return FileResponse(image, media_type="image/webp", headers={
+            "Cache-Control": "public, max-age=86400", "X-Content-Type-Options": "nosniff",
+        })
 
     @router.get("/archive/meta")
     def meta(response: Response, user: User = Depends(require_user)):

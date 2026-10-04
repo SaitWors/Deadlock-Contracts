@@ -2,9 +2,11 @@ Deadlock Contracts Companion 0.5.2-alpha.18
 
 This package includes self-hosted font software distributed under the SIL Open Font License 1.1:
 
-- Inter
-- Roboto Condensed
-- Cormorant Garamond
-- Barlow Condensed
+- Jost — Copyright 2020 The Jost Project Authors.
+- Ruslan Display — Copyright 2011 Oleg Snarsky, Denis Masharov, Vladimir Rabdu.
 
-The corresponding license texts are included in the licenses directory.
+The corresponding license texts are included in the licenses directory and assets/city-fonts.
+
+The three city images are official Valve artwork copied unchanged from https://www.playdeadlock.com/cityneversleeps. Their provenance is recorded in the repository at docs/design/city-never-sleeps/city-artwork.json. These images are not covered by the font licenses. Deadlock Contracts is an unofficial community project; no Valve affiliation, ownership or separate redistribution license is claimed.
+
+The existing Contracts mascot is preserved. Oracle and Pulp fonts are not bundled.

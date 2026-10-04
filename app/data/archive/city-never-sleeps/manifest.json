@@ -1,0 +1,69 @@
+{
+  "release": "City Never Sleeps",
+  "artist": "Valve",
+  "source_url": "https://www.playdeadlock.com/cityneversleeps",
+  "observed_on": "2026-10-02",
+  "note": "Official poster bytes copied unchanged and identities verified against their visible titles. Several Valve CDN basenames do not match the printed hero name; original_url records the actual source, not a guessed basename. Fan project; no Valve affiliation or ownership claimed.",
+  "assets": [
+    {
+      "hero_key": "nurse-harrow",
+      "name": "Nurse Harrow",
+      "file": "nurse-harrow.webp",
+      "original_url": "https://cdn.akamai.steamstatic.com/apps/deadlock/images/react/cityneversleeps/hero_nurse_harrow.webp",
+      "sha256": "3340f62e2e74e4362f59c16f4cb358dbc5f26f20126ec8e3c270db61d78be567",
+      "bytes": 156252,
+      "width": 1663,
+      "height": 1253
+    },
+    {
+      "hero_key": "rat-king",
+      "name": "Rat King",
+      "file": "rat-king.webp",
+      "original_url": "https://cdn.akamai.steamstatic.com/apps/deadlock/images/react/cityneversleeps/hero_deadman_danny.webp",
+      "sha256": "0706f55412fd3668f7bf3c19abb688fcbdcda23d1f490ab027dccd314e4efb04",
+      "bytes": 233180,
+      "width": 1745,
+      "height": 1333
+    },
+    {
+      "hero_key": "solomon",
+      "name": "Solomon",
+      "file": "solomon.webp",
+      "original_url": "https://cdn.akamai.steamstatic.com/apps/deadlock/images/react/cityneversleeps/hero_baba.webp?v=2",
+      "sha256": "ab96ffb022725e5d167dcc7719ca6996156bcc265af5dd17ac9e140735b50df5",
+      "bytes": 287802,
+      "width": 1658,
+      "height": 1346
+    },
+    {
+      "hero_key": "deadman-danny",
+      "name": "Deadman Danny",
+      "file": "deadman-danny.webp",
+      "original_url": "https://cdn.akamai.steamstatic.com/apps/deadlock/images/react/cityneversleeps/hero_solomon.webp",
+      "sha256": "49fb35a1b797dbfe43d448b80c5df369771a6d16b964c08d01de75f2586efebc",
+      "bytes": 175976,
+      "width": 1883,
+      "height": 1435
+    },
+    {
+      "hero_key": "baba",
+      "name": "Baba",
+      "file": "baba.webp",
+      "original_url": "https://cdn.akamai.steamstatic.com/apps/deadlock/images/react/cityneversleeps/hero_rat_king.webp",
+      "sha256": "51948a6035eb3af9f207cd84749514d5e4a78d8e17c0a03cf5d30337a065415e",
+      "bytes": 266108,
+      "width": 1934,
+      "height": 1431
+    },
+    {
+      "hero_key": "violet",
+      "name": "Violet",
+      "file": "violet.webp",
+      "original_url": "https://cdn.akamai.steamstatic.com/apps/deadlock/images/react/cityneversleeps/hero_violet.webp",
+      "sha256": "7d585cc09c5c129eb39a7707610e176e7c661dd090cfa8130c05e578f460ad74",
+      "bytes": 267876,
+      "width": 1767,
+      "height": 1322
+    }
+  ]
+}

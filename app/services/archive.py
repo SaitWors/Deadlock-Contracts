@@ -15,14 +15,15 @@ from sqlalchemy import func, select
 from ..models import ArchiveCard, ArchiveCipher, ArchiveLedger, AuditLog, User, utcnow
 
 RANKS = ("F", "E", "D", "C", "B", "A", "S", "SS", "SSS")
-# Roster snapshot: https://deadlock-api.com/heroes, 2026-09-08.
+# Roster snapshot: https://deadlock-api.com/heroes, 2026-09-08, plus the six
+# City Never Sleeps posters: https://www.playdeadlock.com/cityneversleeps.
 # These are catalogue keys, deliberately not Valve numeric hero IDs.
 HEROES = {name.lower().replace(" & ", "-").replace(" ", "-"): name for name in (
-    "Abrams", "Apollo", "Bebop", "Billy", "Calico", "Celeste", "Drifter", "Dynamo",
+    "Abrams", "Apollo", "Baba", "Bebop", "Billy", "Calico", "Celeste", "Deadman Danny", "Drifter", "Dynamo",
     "Graves", "Grey Talon", "Haze", "Holliday", "Infernus", "Ivy", "Kelvin", "Lady Geist",
-    "Lash", "McGinnis", "Mina", "Mirage", "Mo & Krill", "Paige", "Paradox", "Pocket",
-    "Rem", "Seven", "Shiv", "Silver", "Sinclair", "The Doorman", "Venator", "Victor",
-    "Vindicta", "Viscous", "Vyper", "Warden", "Wraith", "Yamato",
+    "Lash", "McGinnis", "Mina", "Mirage", "Mo & Krill", "Nurse Harrow", "Paige", "Paradox", "Pocket",
+    "Rat King", "Rem", "Seven", "Shiv", "Silver", "Sinclair", "Solomon", "The Doorman", "Venator", "Victor",
+    "Vindicta", "Violet", "Viscous", "Vyper", "Warden", "Wraith", "Yamato",
 )}
 MAX_IMAGE_BYTES = 300_000
 
@@ -70,9 +71,11 @@ def image_bytes(encoded):
 
 
 def card_payload(card, *, private=False, staff=False):
+    from .archive_seed import is_release_poster
     result = {key: getattr(card, key) for key in (
         "id", "hero", "rank", "title", "description", "artist", "source_url", "crop_x", "crop_y", "zoom", "frame_version", "status", "revision")}
     result["hero_name"] = HEROES.get(card.hero, card.hero)
+    result["release_poster"] = is_release_poster(card)
     prefix = "/api/admin/archive/cards" if staff else "/api/archive/cards"
     result["image_url"] = f"{prefix}/{card.id}/image?r={card.revision}" if card.image_digest else None
     result["published_at"] = aware(card.published_at).isoformat() if card.published_at else None

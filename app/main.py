@@ -85,6 +85,7 @@ from .services.contract_factory import GENERATOR_VERSION, generate_contracts_v2,
 from .services.boards import GAME_MODES, ensure_daily_board, ensure_daily_boards, lock_board, normalize_mode, refresh_summary, reroll_board, serialize_board, today_utc
 from .services.jobs import enqueue_job
 from .services.seed import seed_missions
+from .services.archive_seed import seed_archive_cards
 from .services.totp import verify_totp
 from .services.progression import user_progression
 from .services.adaptive_profile import build_adaptive_profile
@@ -492,6 +493,7 @@ async def lifespan(_: FastAPI):
     now = datetime.now(timezone.utc)
     with SessionLocal() as db:
         seed_missions(db)
+        seed_archive_cards(db)
         db.execute(delete(SessionToken).where(SessionToken.expires_at <= now))
         db.execute(delete(OpenIDState).where(OpenIDState.expires_at <= now))
         db.execute(delete(CompanionPairing).where(CompanionPairing.expires_at <= now))

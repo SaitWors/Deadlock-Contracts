@@ -1,0 +1,26 @@
+{
+  "source_url": "https://www.playdeadlock.com/cityneversleeps",
+  "artist": "Valve",
+  "observed_on": "2026-10-02",
+  "note": "Official city images copied unchanged; used by the frontend, standalone documents and Companion. No Valve affiliation or ownership claimed.",
+  "assets": [
+    {
+      "file": "central_park_01.webp",
+      "original_url": "https://cdn.akamai.steamstatic.com/apps/deadlock/images/react/cityneversleeps/central_park_01.webp",
+      "sha256": "a7f880312bc7795f1ae07088cd6d90b6ac0c1e4c59589179b9dcbd1c4fb28ce7",
+      "bytes": 128414
+    },
+    {
+      "file": "header_city.webp",
+      "original_url": "https://cdn.akamai.steamstatic.com/apps/deadlock/images/react/cityneversleeps/header_city.webp",
+      "sha256": "0f6ab03f907e99082e80567edd9c63c2b903943c1102c5161675dba02f151fdd",
+      "bytes": 356200
+    },
+    {
+      "file": "uptown_02.webp",
+      "original_url": "https://cdn.akamai.steamstatic.com/apps/deadlock/images/react/cityneversleeps/uptown_02.webp",
+      "sha256": "ad1ab2bc61dc5e06dff21638ffc856920285f8f1dafd12c8425c246772f76577",
+      "bytes": 194802
+    }
+  ]
+}

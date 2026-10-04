@@ -5,7 +5,7 @@ import Leaderboard from "./community/Leaderboard"
 import { useRipple, useTilt } from "./motion"
 import logoImage from "@/imports/brand-hero.webp"
 import Mascot from "./Mascot"
-import { WorldGallery } from "./nightshift-layout"
+import { WorldGallery, CityLocals } from "./nightshift-layout"
 import { MCGCredit, t, useLanguage } from "./i18n"
 import PublicContent, { readPublicCopy } from "./PublicContent"
 import { publicUrl, resolvePublicRoute, legacyPublicUrl, type PublicPage } from "./publicRoutes"
@@ -274,8 +274,6 @@ export default function Landing() {
   const [previewOpen, setPreviewOpen] = useState(false)
   const [gameMode, setGameMode] = useState<GameMode>("STANDARD")
   const xpRef = useRef<HTMLSpanElement>(null)
-  const boardRef = useRef<HTMLDivElement>(null)
-  const [spotlight, setSpotlight] = useState({ x: 50, y: 50 })
   const ripple = useRipple()
   const cardTilt = useTilt(2)
 
@@ -313,14 +311,6 @@ export default function Landing() {
     (sum, id) => sum + (contracts.find((contract) => contract.id === id)?.xp ?? 0),
     0,
   )
-
-  const handleBoardMouseMove = (event: React.MouseEvent<HTMLDivElement>) => {
-    const rect = event.currentTarget.getBoundingClientRect()
-    setSpotlight({
-      x: ((event.clientX - rect.left) / rect.width) * 100,
-      y: ((event.clientY - rect.top) / rect.height) * 100,
-    })
-  }
 
   return (
     <div className="bureau-public min-h-screen">
@@ -372,18 +362,29 @@ export default function Landing() {
         actions={<SteamButton compact />}
       />
       {page !== "home" && page !== "try" && <PublicContent copy={copy} />}
+      {page === "cards" && <CityLocals showCatalogLink={false} />}
       {page === "home" && (
         <>
           <section className="bureau-welcome" aria-labelledby="welcome-title">
             <div className="bureau-welcome-copy">
               <p className="bureau-welcome-eyebrow">
-                DEADLOCK CONTRACTS · {language === "ru" ? "ОТКРЫТОЕ БЮРО" : "OPEN BUREAU"}
+                CITY NEVER SLEEPS · {language === "ru" ? "ГОРОДСКОЕ БЮРО" : "CITY BUREAU"}
               </p>
               <h1 id="welcome-title">
-                {copy?.heading ||
-                  (language === "ru"
-                    ? "Deadlock Contracts: у каждого матча своя цель"
-                    : "Deadlock Contracts: give every match a goal")}
+                <span className="sr-only">Deadlock Contracts: </span>
+                {language === "ru" ? (
+                  <>
+                    У города
+                    <br />
+                    есть <em>дело к тебе.</em>
+                  </>
+                ) : (
+                  <>
+                    The city
+                    <br />
+                    has a <em>case for you.</em>
+                  </>
+                )}
               </h1>
               <p className="bureau-welcome-lead">
                 {copy?.intro ||
@@ -458,37 +459,14 @@ export default function Landing() {
               </div>
             </article>
           </section>
+          <CityLocals />
           <WorldGallery />
         </>
       )}
       {page === "contracts" && (
         <>
           {/* ── INTERACTIVE BOARD ── */}
-          <section
-            className="bureau-contract-preview pt-32 pb-24 px-6 lg:px-8 relative overflow-hidden"
-            ref={boardRef}
-            onMouseMove={handleBoardMouseMove}
-          >
-            {/* Mouse spotlight */}
-            <div
-              className="absolute inset-0 pointer-events-none"
-              style={{
-                background: `radial-gradient(circle 350px at ${spotlight.x}% ${spotlight.y}%, rgba(122,179,132,0.055) 0%, transparent 60%)`,
-                transition: "background 0.05s",
-              }}
-            />
-            <div
-              className="absolute pointer-events-none"
-              style={{
-                width: "600px",
-                height: "400px",
-                background: "radial-gradient(ellipse, rgba(38,84,61,0.07) 0%, transparent 70%)",
-                top: "50%",
-                left: "50%",
-                transform: "translate(-50%,-50%)",
-              }}
-            />
-
+          <section className="bureau-contract-preview pt-32 pb-24 px-6 lg:px-8 relative overflow-hidden">
             <div className="relative max-w-[1320px] mx-auto">
               <Reveal>
                 <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-5 mb-10">
@@ -515,7 +493,7 @@ export default function Landing() {
                     className="ns-demo-modes"
                     style={{
                       border: "1px solid var(--ns-line)",
-                      boxShadow: "0 0 14px rgba(59,81,69,0.2)",
+                      boxShadow: "none",
                     }}
                   >
                     {(["STANDARD", "RANKED", "STREET BRAWL"] as GameMode[]).map((mode, i) => (
@@ -537,7 +515,7 @@ export default function Landing() {
                           borderRight: i < 2 ? "1px solid var(--ns-line)" : "none",
                           fontFamily: "var(--font-body)",
                           letterSpacing: "0.06em",
-                          textShadow: gameMode === mode ? "0 0 10px rgba(122,179,132,0.5)" : "none",
+                          textShadow: "none",
                         }}
                       >
                         {mode}
@@ -571,7 +549,6 @@ export default function Landing() {
                         onMouseMove={cardTilt.onMouseMove}
                         onMouseLeave={cardTilt.onMouseLeave}
                       >
-                        <div className="holo-overlay" />
                         {isSelected && (
                           <div
                             className="absolute top-2.5 right-2.5 w-5 h-5 rounded-full flex items-center justify-center text-[11px] font-bold"
@@ -659,7 +636,7 @@ export default function Landing() {
                     backgroundColor: selected.length > 0 ? "var(--ns-surface)" : "var(--ns-bg)",
                     borderColor: selected.length > 0 ? "var(--ns-line)" : "var(--ns-line)",
                     borderRadius: "16px",
-                    boxShadow: selected.length > 0 ? "0 0 24px rgba(69,127,91,0.14)" : "none",
+                    boxShadow: selected.length > 0 ? "var(--ns-shadow)" : "none",
                   }}
                 >
                   <div className="min-w-0">
@@ -692,7 +669,7 @@ export default function Landing() {
                               <span
                                 style={{
                                   color: "var(--ns-accent)",
-                                  textShadow: "0 0 6px rgba(122,179,132,0.4)",
+                                  textShadow: "none",
                                 }}
                               >
                                 +{c.xp} XP
@@ -719,8 +696,7 @@ export default function Landing() {
                             fontFamily: "var(--font-body)",
                             fontSize: "22px",
                             color: "var(--ns-accent)",
-                            textShadow:
-                              "0 0 16px rgba(122,179,132,0.8), 0 0 35px rgba(122,179,132,0.4)",
+                            textShadow: "none",
                           }}
                         >
                           +{totalXP} XP
@@ -762,7 +738,7 @@ export default function Landing() {
                         borderRadius: "4px",
                         fontFamily: "var(--font-body)",
                         letterSpacing: "0.05em",
-                        boxShadow: selected.length > 0 ? "0 0 14px rgba(122,179,132,0.3)" : "none",
+                        boxShadow: selected.length > 0 ? "var(--ns-shadow)" : "none",
                       }}
                       disabled={selected.length === 0}
                       onClick={() => setPreviewOpen(true)}
@@ -801,7 +777,7 @@ export default function Landing() {
         style={{
           borderTop: "1px solid var(--ns-line)",
           backgroundColor: "var(--ns-on-accent)",
-          boxShadow: "inset 0 1px 0 rgba(122,179,132,0.04)",
+          boxShadow: "none",
         }}
       >
         <div className="max-w-[1320px] mx-auto grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8 mb-10">

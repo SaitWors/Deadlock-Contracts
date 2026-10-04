@@ -1,6 +1,6 @@
-/* Base geometry and state rules not replaced by Nightshift feature styles. */
+/* Base geometry and state rules not replaced by the archive presentation. */
 .pack-reveal[data-theme=archive]{margin:auto;max-height:94dvh;width:min(940px,calc(100% - 24px));padding:0;overflow:auto;overscroll-behavior:contain}
-.pack-reveal-shell{box-sizing:border-box;min-height:min(850px,92dvh);padding:clamp(12px,3vw,28px);display:grid;grid-template-rows:auto auto auto;font-family:Inter,system-ui,sans-serif}
+.pack-reveal-shell{box-sizing:border-box;min-height:min(850px,92dvh);padding:clamp(12px,3vw,28px);display:grid;grid-template-rows:auto auto auto;font-family:var(--font-body)}
 .pack-reveal[data-theme=archive] header{display:flex;align-items:center;justify-content:space-between;gap:16px}
 .pack-reveal[data-theme=archive] header>div{min-width:0}
 .pack-reveal[data-theme=archive] h2{overflow-wrap:anywhere}
@@ -11,7 +11,7 @@
 .pack-reveal-card{min-height:0;display:grid;justify-items:center;align-content:start;align-content:safe center;gap:12px;text-align:center;overflow-x:clip;padding:24px 16px}
 .pack-reveal-results{min-height:0;display:grid;justify-items:center;align-content:start;align-content:safe center;gap:12px;text-align:center;overflow-x:clip;padding:24px 16px}
 .pack-card-stack{position:relative;width:min(280px,64vw);margin:10px 0}
-.pack-stack-back{position:absolute;inset:0;border:1px solid #857148;border-radius:16px;transform:translate(9px,-6px) rotate(4deg)}
+.pack-stack-back{position:absolute;inset:0;border:1px solid var(--ns-paper-line);border-radius:16px;transform:translate(9px,-6px) rotate(4deg)}
 .pack-stack-back:nth-child(2){transform:translate(-8px,4px) rotate(-4deg)}
 .pack-card-moving{position:relative;animation:pack-arrive .35s ease-out both}
 .pack-card-moving[data-departure=left]{animation:pack-left .24s ease-in both}
@@ -37,10 +37,10 @@
 .pack-tear-strip span{display:flex;width:75%;transform-origin:left bottom}
 .pack-tear-strip span span{width:66.666%}
 .pack-tear-strip span span span{width:50%}
-.pack-tear-strip b{display:grid;place-items:center;flex:1;font:700 clamp(7px, 1.8vw, 10px)/1 Inter, sans-serif;letter-spacing:.08em;border-top:5px solid #a08853;border-bottom:2px dashed #274435}
+.pack-tear-strip b{display:grid;place-items:center;flex:1;font:700 clamp(7px, 1.8vw, 10px)/1 var(--font-body);letter-spacing:.08em;border-top:5px solid var(--ns-ink);border-bottom:2px dashed var(--ns-ink)}
 .pack-open-light{position:absolute;width:60px;height:60px;left:0;top:15%;margin:-30px;border-radius:50%;opacity:0;z-index:4;background:radial-gradient(ellipse, #fffce4, #ffe0a199 12%, #ffc56744 32%, transparent 70%)}
 .pack-opening-fan{position:absolute;inset:0}
-.pack-fan-back{position:absolute;width:min(156px, 30%);aspect-ratio:2 / 3;left:50%;top:50%;display:grid;align-content:center;justify-items:center;gap:12px;border:1px solid #c4a666;border-radius:10px;transform:translate(-50%, -50%);opacity:0;font-size:8px;letter-spacing:.16em}
+.pack-fan-back{position:absolute;width:min(156px, 30%);aspect-ratio:2 / 3;left:50%;top:50%;display:grid;align-content:center;justify-items:center;gap:12px;border:1px solid var(--ns-paper-line);border-radius:10px;transform:translate(-50%, -50%);opacity:0;font-size:8px;letter-spacing:.16em}
 .pack-fan-back [data-regalia]{width:42%;height:auto}
 .pack-reveal-shell[data-stage=opening] .pack-opening-scene{animation:pack-scene 3.2s linear both}
 .pack-reveal-shell[data-stage=opening] .pack-open-light{animation:pack-cut .8s ease-in-out both}

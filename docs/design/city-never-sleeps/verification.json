@@ -1,0 +1,57 @@
+{
+  "observed_on": "2026-10-04",
+  "base_commit": "3f45f61494f072538530e262a2ba89c765a29559",
+  "frontend_tests": 133,
+  "backend_tests": 453,
+  "backend_subtests": 1188,
+  "companion_tests": 120,
+  "companion_contrast_pairs": 204,
+  "companion_packaging_tests": 2,
+  "browser": {
+    "account_routes": 15,
+    "admin_tabs": 17,
+    "checks": 29,
+    "screenshots": 69,
+    "errors": 0,
+    "http_errors": 0,
+    "overflows": 0,
+    "broken_images": 0
+  },
+  "staff_browser": {
+    "checks": 97,
+    "screenshots": 23,
+    "errors": 0,
+    "overflows": 0
+  },
+  "companion_and_documents_browser": {
+    "checks": 399,
+    "screenshots": 32,
+    "errors": 0,
+    "overflows": 0
+  },
+  "populated_companion_browser": {
+    "checks": 89,
+    "screenshots": 23,
+    "errors": 0,
+    "overflows": 0
+  },
+  "archive_community_browser": {
+    "screenshots": 30,
+    "errors": 0,
+    "failed_requests": 0,
+    "document_overflows": 0
+  },
+  "frontend_budget_bytes": {
+    "javascript_total": 701165,
+    "initial_javascript": 301364,
+    "css_total": 415413,
+    "largest_image": 356200,
+    "assets_total": 2472182
+  },
+  "limitations": [
+    "Windows Overwolf live-game execution unavailable in Linux QA.",
+    "Steam login redirect not exercised with a real Steam account.",
+    "Vote snapshots and populated browser data are disposable local QA fixtures.",
+    "Docker and PostgreSQL execution are verified by the PR CI, not a local Docker daemon."
+  ]
+}

@@ -22,7 +22,7 @@
 .dc-announcement-toast,
 .dc-announcement-modal,
 .dc-announcement-center {
-  font-family: "Roboto Condensed", "Barlow Condensed", sans-serif;
+  font-family: var(--font-body);
 }
 
 .dc-announcement-banner,
@@ -59,7 +59,7 @@
   place-items: center;
   border: 1px solid color-mix(in srgb, var(--dc-announcement-accent) 58%, transparent);
   color: var(--dc-announcement-accent);
-  font: 800 14px/1 "Barlow Condensed", sans-serif;
+  font: 800 14px/1 var(--font-display);
 }
 
 .dc-announcement__copy { min-width: 0; }
@@ -69,14 +69,14 @@
   justify-content: space-between;
   gap: 5px 14px;
   color: var(--dc-announcement-accent);
-  font: 750 8px/1.2 "Roboto Condensed", sans-serif;
+  font: 750 8px/1.2 var(--font-body);
   letter-spacing: .13em;
 }
 .dc-announcement__meta time { color: #919d94; letter-spacing: .05em; }
 .dc-announcement h2 {
   margin: 5px 0 3px;
   color: #eadfc8;
-  font: 800 18px/1.08 "Barlow Condensed", sans-serif;
+  font: 800 18px/1.08 var(--font-display);
   text-transform: uppercase;
 }
 .dc-announcement p {
@@ -100,7 +100,7 @@
   background: #101f17;
   color: #c7d8c9;
   padding: 6px 9px;
-  font: 750 9px/1 "Roboto Condensed", sans-serif;
+  font: 750 9px/1 var(--font-body);
   letter-spacing: .06em;
   text-decoration: none;
   cursor: pointer;
@@ -161,7 +161,7 @@
   background: #0a1510;
   color: #aab6ad;
   padding: 8px 11px;
-  font: 750 9px/1 "Roboto Condensed", sans-serif;
+  font: 750 9px/1 var(--font-body);
   letter-spacing: .08em;
   cursor: pointer;
   box-shadow: 0 8px 24px rgb(0 0 0 / 30%);
@@ -198,7 +198,7 @@
   border-bottom: 1px solid #21342a;
 }
 .dc-announcement-center > header span { color: #6f9d79; font-size: 8px; letter-spacing: .14em; }
-.dc-announcement-center > header h2 { margin: 4px 0 0; color: #e2d7bf; font: 800 25px/1 "Barlow Condensed", sans-serif; text-transform: uppercase; }
+.dc-announcement-center > header h2 { margin: 4px 0 0; color: #e2d7bf; font: 800 25px/1 var(--font-display); text-transform: uppercase; }
 .dc-announcement-center > header button { border: 0; background: transparent; color: #829087; font-size: 24px; cursor: pointer; }
 .dc-announcement-center__list { display: grid; align-content: start; gap: 8px; overflow: auto; padding: 12px; }
 .dc-announcement-center__list .dc-announcement { box-shadow: none; }

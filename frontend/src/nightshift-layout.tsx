@@ -1,9 +1,9 @@
 import Icon, { type IconName } from "./icons/Icon"
 import { useLanguage } from "./i18n"
 import { publicUrl } from "./publicRoutes"
-import daybreak from "./imports/nightshift/daybreak-city.webp"
-import archive from "./imports/nightshift/archive-room.webp"
-import bureau from "./imports/nightshift/bureau-room.webp"
+import daybreak from "./imports/city/uptown_02.webp"
+import archive from "./imports/city/central_park_01.webp"
+import bureau from "./imports/city/header_city.webp"
 
 export function NightshiftNav({
   active,
@@ -166,7 +166,7 @@ export function WorldGallery({ onNavigate }: { onNavigate?: (tab: string) => voi
           <p className="ns-eyebrow">{ru ? "БОЛЬШЕ, ЧЕМ ОДИН МАТЧ" : "MORE THAN ONE MATCH"}</p>
           <h2>{ru ? "У этого города есть истории." : "This city has stories."}</h2>
         </div>
-        <span>NEW YORK / AFTER DARK</span>
+        <span>CITY NEVER SLEEPS / 2026</span>
       </header>
       <div className="ns-world-grid">
         {scenes.map((scene) => {
@@ -215,6 +215,82 @@ export function ArchiveScene() {
         <p>{ru ? "Найди свою. Сохрани в коллекции." : "Find yours. Keep it in your collection."}</p>
       </div>
       <Icon name="archive" size={32} />
+    </section>
+  )
+}
+
+const CITY_LOCALS = [
+  ["nurse-harrow", "Nurse Harrow"],
+  ["rat-king", "Rat King"],
+  ["solomon", "Solomon"],
+  ["deadman-danny", "Deadman Danny"],
+  ["baba", "Baba"],
+  ["violet", "Violet"],
+] as const
+
+export function CityLocals({
+  onNavigate,
+  showCatalogLink = true,
+}: {
+  onNavigate?: (tab: string) => void
+  showCatalogLink?: boolean
+}) {
+  const { language } = useLanguage(),
+    ru = language === "ru"
+  const label = ru ? "В городской каталог" : "Explore the catalogue"
+  return (
+    <section className="city-locals" aria-labelledby="city-locals-heading">
+      <header>
+        <div>
+          <p>CITY NEVER SLEEPS · {ru ? "НОВАЯ СЕРИЯ" : "NEW SERIES"}</p>
+          <h2 id="city-locals-heading">{ru ? "Новые лица города." : "Meet the new locals."}</h2>
+        </div>
+        {showCatalogLink &&
+          (onNavigate ? (
+            <button
+              type="button"
+              className="city-locals-link"
+              onClick={() => onNavigate("archive")}
+            >
+              {label}
+              <Icon name="arrow-up-right" size={19} />
+            </button>
+          ) : (
+            <a className="city-locals-link" href={publicUrl("cards", language)}>
+              {label}
+              <Icon name="arrow-up-right" size={19} />
+            </a>
+          ))}
+      </header>
+      <div className="city-locals-grid">
+        {CITY_LOCALS.map(([key, name], index) => (
+          <figure className="city-local" key={key}>
+            <img
+              src={`/api/archive/releases/city-never-sleeps/${key}.webp`}
+              alt={name}
+              width="600"
+              height="450"
+              loading="lazy"
+              decoding="async"
+            />
+            <figcaption>
+              {name}
+              <span>
+                {ru ? "КАРТОЧКА" : "COLLECTIBLE"} / {String(index + 1).padStart(2, "0")}
+              </span>
+            </figcaption>
+          </figure>
+        ))}
+      </div>
+      <p className="city-locals-credit">
+        {ru
+          ? "Шесть героев — шесть новых историй в архиве. Иллюстрации: Valve. "
+          : "Six heroes. Six new stories for your collection. Artwork: Valve. "}
+        <a href="https://www.playdeadlock.com/cityneversleeps" target="_blank" rel="noreferrer">
+          {ru ? "Об обновлении Deadlock" : "About the Deadlock update"}
+          <span className="sr-only">{ru ? " (в новой вкладке)" : " (opens a new tab)"}</span>
+        </a>
+      </p>
     </section>
   )
 }

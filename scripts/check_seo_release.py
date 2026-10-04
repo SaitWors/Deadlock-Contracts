@@ -1,6 +1,7 @@
 """Run through stdin inside the built image; verify actual shipped SEO assets."""
 from html.parser import HTMLParser
-from pathlib import Path
+import re
+from urllib.parse import urlsplit
 
 from app.seo import PAGES, STATIC, frontend_shell, render_public_page
 
@@ -35,6 +36,27 @@ class AssetLinks(HTMLParser):
 
 shell = frontend_shell()
 assert shell == (STATIC / "index.html").read_text(), "Image must serve the Vite build, not the development fallback"
+
+# Separate documents are not Vite entries. Verify their transitive CSS assets in
+# the built image too, including relative @imports, font subsets and city art.
+pending = [STATIC / "nightshift-documents.css", STATIC / "reviewer.css"]
+visited = set()
+while pending:
+    stylesheet = pending.pop()
+    if stylesheet in visited:
+        continue
+    visited.add(stylesheet)
+    assert stylesheet.is_file(), f"Missing document stylesheet: {stylesheet}"
+    for value in re.findall(r"url\(\s*['\"]?([^)'\"]+)['\"]?\s*\)", stylesheet.read_text()):
+        url = urlsplit(value.strip())
+        if url.scheme or url.netloc or not url.path:
+            continue
+        asset = STATIC / url.path.removeprefix("/static/") if url.path.startswith("/static/") else stylesheet.parent / url.path
+        asset = asset.resolve()
+        assert asset.is_file(), f"Missing document asset from {stylesheet.name}: {value}"
+        if asset.suffix == ".css":
+            pending.append(asset)
+
 for language in ("ru", "en"):
     for page, data in PAGES.items():
         document = render_public_page(page, language, "https://deadlock-contracts.online", shell)
@@ -47,5 +69,5 @@ for language in ("ru", "en"):
         for asset in links.assets:
             assert (STATIC / asset).is_file(), f"Missing published asset: {asset}"
 assert (STATIC / "social-preview.jpg").read_bytes().startswith(b"\xff\xd8")
-assert Path("/app/shared/public-pages.json").is_file()
-print("[seo-release] Public HTML, translations, Vite modules, CSS and social image verified")
+assert (STATIC.parent.parent / "shared/public-pages.json").is_file()
+print("[seo-release] Public HTML, translations, Vite modules, document CSS/fonts/art and social image verified")

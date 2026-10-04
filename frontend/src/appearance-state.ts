@@ -3,7 +3,7 @@ export type Appearance = { theme: ThemeMode; accent: string; radius: number; mot
 export const APPEARANCE_KEY = "dc.ui.appearance"
 export const defaultAppearance: Appearance = {
   theme: "dark",
-  accent: "#f2ad73",
+  accent: "#d6a2d1",
   radius: 22,
   motion: true,
 }
@@ -61,7 +61,7 @@ export function applyAppearance(
   root.style.setProperty("--ns-small", `${Math.min(14, Math.round(p.radius * 0.55))}px`)
   if (actual === "custom") {
     let accent = p.accent
-    for (let i = 1; contrast(accent, "#293544") < 4.5 && i <= 20; i++) {
+    for (let i = 1; contrast(accent, "#403347") < 4.5 && i <= 20; i++) {
       accent =
         "#" +
         rgb(p.accent)
@@ -76,7 +76,7 @@ export function applyAppearance(
     root.style.setProperty("--ns-fill", p.accent)
     root.style.setProperty(
       "--ns-on-accent",
-      contrast(p.accent, "#111713") >= contrast(p.accent, "#ffffff") ? "#111713" : "#ffffff",
+      contrast(p.accent, "#000000") >= contrast(p.accent, "#ffffff") ? "#000000" : "#ffffff",
     )
   } else {
     for (const key of ["--ns-accent", "--ns-fill", "--ns-on-accent"]) root.style.removeProperty(key)
@@ -85,6 +85,6 @@ export function applyAppearance(
     .querySelector('meta[name="theme-color"]')
     ?.setAttribute(
       "content",
-      { light: "#f2f2e9", dark: "#151a19", black: "#000000", custom: "#111923" }[actual],
+      { light: "#eee6d5", dark: "#181715", black: "#000000", custom: "#201921" }[actual],
     )
 }

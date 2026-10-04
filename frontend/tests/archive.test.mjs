@@ -791,6 +791,56 @@ test("account popover shows actual tokens, closes on Escape and restores focus",
   await api.act(async () => root.unmount())
 })
 
+test("release posters keep their full artwork while custom designs retain their crop", async () => {
+  const { api, doc } = runtime(async () => response({}))
+  const source = "https://www.playdeadlock.com/cityneversleeps"
+  const release = {
+    ...card,
+    id: "364efc49-3038-51f4-8dec-c24538b7145a",
+    source_url: source,
+    release_poster: true,
+    crop_x: 50,
+    crop_y: 50,
+    zoom: 1,
+  }
+  let root
+  await api.act(async () => {
+    root = api.mount(doc.getElementById("mount"), "receipt", {
+      receipt: packReceipt("release-mat", [
+        { id: "release", card: release, duplicate: false },
+        {
+          id: "user-source",
+          card: { ...release, id: "user-design", release_poster: false },
+          duplicate: false,
+        },
+        { id: "custom", card: { ...card, crop_x: 27, crop_y: 72, zoom: 1.4 }, duplicate: false },
+        { id: "edited", card: { ...release, crop_x: 31, zoom: 1.2 }, duplicate: false },
+        {
+          id: "replaced",
+          card: { ...release, release_poster: false, image_url: "/replacement.webp?r=2" },
+          duplicate: false,
+        },
+      ]),
+    })
+  })
+  const [poster, userSource, custom, edited, replaced] = doc.querySelectorAll(".archive-card")
+  assert.equal(poster.dataset.release, "city-never-sleeps")
+  assert.equal(poster.querySelector("img").style.objectFit, "contain")
+  assert.equal(userSource.dataset.release, undefined)
+  assert.equal(userSource.querySelector("img").style.objectFit, "")
+  assert.equal(replaced.dataset.release, undefined)
+  assert.equal(replaced.querySelector("img").style.objectFit, "")
+  for (const [figure, position, zoom] of [
+    [custom, "27% 72%", "scale(1.4)"],
+    [edited, "31% 50%", "scale(1.2)"],
+  ]) {
+    assert.equal(figure.dataset.release, undefined)
+    assert.equal(figure.querySelector("img").style.objectPosition, position)
+    assert.equal(figure.querySelector("img").style.transform, zoom)
+  }
+  await api.act(async () => root.unmount())
+})
+
 test("editor saves a draft with its revision; cannot send a publication state", async () => {
   const writes = []
   let saved

@@ -68,6 +68,8 @@ export default function CardStudio({
         <CardPreview
           card={{
             ...form,
+            id: image ? undefined : card?.id,
+            release_poster: image ? false : card?.release_poster,
             hero_name: meta.heroes.find((h) => h.key === form.hero)?.name || "",
             image_url: image || card?.image_url || null,
           }}

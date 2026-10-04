@@ -5,8 +5,7 @@
   vertical-align: middle;
   pointer-events: none;
 }
-.bureau-public,
-.bureau-app {
+.bureau-public,.bureau-app {
   --color-cream: #edf0e9;
   --color-cream-dim: #afb9ae;
   --color-panel: #151c17;
@@ -55,8 +54,7 @@
 .bureau-app .bureau-profile-trigger {
   border-radius: 12px;
 }
-.bureau-app .bureau-profile-trigger > img,
-.bureau-app .bureau-profile-trigger > span:first-child {
+.bureau-app .bureau-profile-trigger > img,.bureau-app .bureau-profile-trigger > span:first-child {
   border-radius: 10px;
   border-color: #ffffff25;
 }
@@ -110,20 +108,17 @@
   border-color: #ffffff0f;
   padding: 10px 0;
 }
-.bureau-app .bureau-profile-links button,
-.bureau-app .bureau-profile-section button {
+.bureau-app .bureau-profile-links button,.bureau-app .bureau-profile-section button {
   border-radius: 10px;
   min-height: 46px;
   color: #cbd5cb;
   gap: 14px;
   line-height: 1.5;
 }
-.bureau-app .bureau-profile-links button:hover,
-.bureau-app .bureau-profile-section button:hover {
+.bureau-app .bureau-profile-links button:hover,.bureau-app .bureau-profile-section button:hover {
   background: #ffffff07;
 }
-.bureau-app .bureau-profile-links svg,
-.bureau-app .bureau-profile-section svg {
+.bureau-app .bureau-profile-links svg,.bureau-app .bureau-profile-section svg {
   color: #9eaf9c;
   width: 18px;
   height: 18px;
@@ -204,17 +199,13 @@
   letter-spacing: -0.04em;
   line-height: 1.2;
 }
-.community-head h2,
-.community-panel h2 {
+.community-head h2,.community-panel h2 {
   font-family: var(--font-body);
 }
 .community-head {
   border-color: #ffffff10;
 }
-.community-panel,
-.achievement-card,
-.community-collection-summary,
-.leaderboard-mine {
+.community-panel,.achievement-card,.community-collection-summary,.leaderboard-mine {
   border-radius: 18px;
   border-color: #ffffff14;
 }
@@ -244,8 +235,7 @@
   letter-spacing: 0;
   text-transform: none;
 }
-.community-avatar,
-.leaderboard-player img {
+.community-avatar,.leaderboard-player img {
   border-radius: 10px;
 }
 .dossier-view {
@@ -254,8 +244,7 @@
 .dossier-avatar {
   border-radius: 20px;
 }
-.dossier-module,
-.dossier-sidebar > section {
+.dossier-module,.dossier-sidebar > section {
   border-radius: 16px;
   overflow: hidden;
 }
@@ -288,10 +277,7 @@
   width: 16px;
   height: 16px;
 }
-.bureau-app .archive-balance,
-.bureau-app .archive-card-details,
-.bureau-app .archive-pack,
-.bureau-app .archive-cipher {
+.bureau-app .archive-balance,.bureau-app .archive-card-details,.bureau-app .archive-pack,.bureau-app .archive-cipher {
   border-radius: 18px;
 }
 .bureau-app button svg + span {
@@ -312,9 +298,7 @@
   }
 }
 @media (prefers-reduced-motion: reduce) {
-  .bureau-header,
-  .bureau-app .bureau-profile-popover,
-  .bureau-app .dc-mobile-bottom-nav {
+  .bureau-header,.bureau-app .bureau-profile-popover,.bureau-app .dc-mobile-bottom-nav {
     backdrop-filter: none;
   }
 }

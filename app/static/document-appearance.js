@@ -12,7 +12,7 @@
     const p = value && typeof value === "object" ? value : {};
     return {
       theme: modes.includes(p.theme) ? p.theme : "dark",
-      accent: typeof p.accent === "string" && /^#[a-f\d]{6}$/i.test(p.accent) ? p.accent : "#f2ad73",
+      accent: typeof p.accent === "string" && /^#[a-f\d]{6}$/i.test(p.accent) ? p.accent : "#d6a2d1",
       radius: Number.isFinite(p.radius) ? Math.max(12, Math.min(28, p.radius)) : 22,
       motion: p.motion !== false,
     };
@@ -39,15 +39,15 @@
     for (const name of ["--ns-accent", "--ns-fill", "--ns-on-accent"]) root.style.removeProperty(name);
     if (theme === "custom") {
       let accent = p.accent;
-      for (let i = 1; contrast(accent, "#293544") < 4.5 && i <= 20; i++) {
+      for (let i = 1; contrast(accent, "#403347") < 4.5 && i <= 20; i++) {
         accent = "#" + rgb(p.accent).map((v) => Math.round(v + (255 - v) * i / 20).toString(16).padStart(2, "0")).join("");
       }
       root.style.setProperty("--ns-accent", accent);
       root.style.setProperty("--ns-fill", p.accent);
-      root.style.setProperty("--ns-on-accent", contrast(p.accent, "#111713") >= contrast(p.accent, "#ffffff") ? "#111713" : "#ffffff");
+      root.style.setProperty("--ns-on-accent", contrast(p.accent, "#000000") >= contrast(p.accent, "#ffffff") ? "#000000" : "#ffffff");
     }
     controls.forEach((control) => { control.value = p.theme; });
-    document.querySelector('meta[name="theme-color"]')?.setAttribute("content", {light:"#f2f2e9", dark:"#151a19", black:"#000000", custom:"#111923"}[theme]);
+    document.querySelector('meta[name="theme-color"]')?.setAttribute("content", {light:"#eee6d5", dark:"#181715", black:"#000000", custom:"#201921"}[theme]);
   }
   controls.forEach((control) => control.addEventListener("change", () => {
     if (!modes.includes(control.value)) return;
