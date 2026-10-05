@@ -391,30 +391,30 @@
     helpLink: 'https://deadlock-contracts.online/data-sources',
   })
 
-  // Nightshift presentation copy. Technical and contract semantics remain unchanged.
+  // City Never Sleeps presentation copy. Technical and contract semantics remain unchanged.
   Object.assign(CATALOG.en, {
     hq: 'Overview', contracts: 'Contracts', activeCase: 'Active case', debrief: 'Debrief', history: 'Match history', profile: 'Profile', settings: 'Settings',
     brandSub: 'COMPANION / M.C.G.', navWorkspace: 'YOUR NEXT MATCH', bureauSignal: 'YOUR BUREAU / COMPANION', operationsHq: 'Your control room.',
-    hqSubtitle: 'A new goal for your next match.', nightshiftName: 'NIGHTSHIFT', nightshiftEyebrow: 'NIGHTSHIFT / YOUR NEXT MATCH',
+    hqSubtitle: 'A new goal for your next match.', cityName: 'CITY NEVER SLEEPS', cityEyebrow: 'CITY GUIDE / YOUR NEXT MATCH',
     heroTitle: 'A good match starts with a goal.', heroBody: 'Choose a case, play your match, and let the server confirm the result. Your next objective is always close.',
     openContracts: 'Choose a contract', openActive: 'Active case', curatorTitle: 'Your next case is waiting.', curatorBody: 'Choose a goal. The Companion keeps the details close.', connectionSettings: 'Connection settings',
     appearanceEyebrow: 'YOUR COMPANION', appearanceTitle: 'Five moods. One city.', appearanceBody: 'Choose a look for the desktop and overlay. Your choice stays on this device.',
-    themeLabel: 'Color theme', themeSystem: 'System', themeSystemBody: 'Follow your device', themeDark: 'Nightshift', themeDarkBody: 'Graphite and mint', themeLight: 'Daybreak', themeLightBody: 'A lighter city', themeBlack: 'Blackout', themeBlackBody: 'Quiet. Pure black.', themeCustom: 'After hours', themeCustomBody: 'Blue and amber',
+    themeLabel: 'Color theme', themeSystem: 'System', themeSystemBody: 'Follow your device', themeDark: 'Night city', themeDarkBody: 'Charcoal and orange', themeLight: 'City paper', themeLightBody: 'Warm cream and ink', themeBlack: 'Blackout', themeBlackBody: 'Quiet. Pure black.', themeCustom: 'After hours', themeCustomBody: 'Plum and lilac',
     motionTitle: 'Motion', motionBody: 'System accessibility preferences are always respected.', motionSystem: 'System', motionReduced: 'Reduced',
     settingsSecurity: 'Your connection, appearance, overlay and diagnostic controls, in one place.',
-    ftueTitle: 'Your next match starts here.', ftueEyebrow: 'WELCOME TO NIGHTSHIFT', continue: 'Enter the bureau', pairNow: 'Pair account',
+    ftueTitle: 'Your next match starts here.', ftueEyebrow: 'WELCOME TO THE CITY', continue: 'Enter the bureau', pairNow: 'Pair account',
   })
   Object.assign(CATALOG.ru, {
     hq: 'Обзор', contracts: 'Контракты', activeCase: 'Активное дело', debrief: 'Итог матча', history: 'История матчей', profile: 'Профиль', settings: 'Настройки',
     brandSub: 'COMPANION / M.C.G.', navWorkspace: 'ТВОЯ СЛЕДУЮЩАЯ ИГРА', bureauSignal: 'ЛИЧНОЕ БЮРО / COMPANION', operationsHq: 'Твой центр управления.',
-    hqSubtitle: 'Новая цель для следующего матча.', nightshiftName: 'НОЧНАЯ СМЕНА', nightshiftEyebrow: 'НОЧНАЯ СМЕНА / СЛЕДУЮЩИЙ МАТЧ',
+    hqSubtitle: 'Новая цель для следующего матча.', cityName: 'ГОРОД НЕ СПИТ', cityEyebrow: 'ГОРОДСКОЙ ГИД / СЛЕДУЮЩИЙ МАТЧ',
     heroTitle: 'Хороший матч начинается с цели.', heroBody: 'Выбери дело, сыграй матч и дождись подтверждения сервера. Следующая цель всегда рядом.',
     openContracts: 'Выбрать контракт', openActive: 'Активное дело', curatorTitle: 'Твоё следующее дело уже ждёт.', curatorBody: 'Выбери цель. Companion сохранит все детали.', connectionSettings: 'Настройки подключения',
     appearanceEyebrow: 'ТВОЙ COMPANION', appearanceTitle: 'Пять настроений. Один город.', appearanceBody: 'Выбери оформление окна и оверлея. Настройка сохранится на этом устройстве.',
-    themeLabel: 'Цветовая тема', themeSystem: 'Системная', themeSystemBody: 'Как на устройстве', themeDark: 'Ночная смена', themeDarkBody: 'Графит и мята', themeLight: 'Рассвет', themeLightBody: 'Светлый город', themeBlack: 'Ультрачёрная', themeBlackBody: 'Тишина. Чистый чёрный.', themeCustom: 'После полуночи', themeCustomBody: 'Синий и янтарный',
+    themeLabel: 'Цветовая тема', themeSystem: 'Системная', themeSystemBody: 'Как на устройстве', themeDark: 'Ночной город', themeDarkBody: 'Уголь и оранжевый', themeLight: 'Городская газета', themeLightBody: 'Бумага и чернила', themeBlack: 'Ультрачёрная', themeBlackBody: 'Тишина. Чистый чёрный.', themeCustom: 'После полуночи', themeCustomBody: 'Слива и сирень',
     motionTitle: 'Анимации', motionBody: 'Системное уменьшение движения действует всегда.', motionSystem: 'Системные', motionReduced: 'Сокращённые',
     settingsSecurity: 'Подключение, оформление, оверлей и диагностика — в одном месте.',
-    ftueTitle: 'Твой следующий матч начинается здесь.', ftueEyebrow: 'ДОБРО ПОЖАЛОВАТЬ В НОЧНУЮ СМЕНУ', continue: 'Войти в бюро', pairNow: 'Подключить аккаунт',
+    ftueTitle: 'Твой следующий матч начинается здесь.', ftueEyebrow: 'ДОБРО ПОЖАЛОВАТЬ В ГОРОД', continue: 'Войти в бюро', pairNow: 'Подключить аккаунт',
   })
 
   const METRICS = new Set([

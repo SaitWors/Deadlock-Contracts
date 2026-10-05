@@ -46,3 +46,20 @@ test('applying presentation sets resolved theme and accessible selected states o
   assert.equal(buttons[2]['aria-pressed'], 'false')
   assert.equal(motion[1]['aria-pressed'], 'true')
 })
+
+
+test('resolved City themes update the browser window color', () => {
+  const colors = { dark: '#181715', light: '#eee6d5', black: '#000000', custom: '#201921' }
+  let actual
+  const doc = {
+    documentElement: { setAttribute() {} },
+    querySelectorAll() { return [] },
+    querySelector() { return { setAttribute(name, value) { if (name === 'content') actual = value } } },
+  }
+  for (const [theme, color] of Object.entries(colors)) {
+    Appearance.apply({ theme }, doc, {})
+    assert.equal(actual, color)
+  }
+  Appearance.apply({ theme: 'system' }, doc, { dark: false })
+  assert.equal(actual, colors.light)
+})

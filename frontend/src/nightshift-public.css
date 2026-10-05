@@ -1,53 +1,53 @@
-/* Public pages share the same Nightshift controls, card proportions and typography. */
+/* Public pages share the same City Never Sleeps controls, card proportions and typography. */
 .ns-dialog-loading{position:fixed;left:50%;top:90px;z-index:100;transform:translateX(-50%);padding:16px 22px;border:1px solid var(--ns-line);border-radius:var(--ns-small);background:var(--ns-surface);color:var(--ns-text);font:500 13px var(--font-body);box-shadow:var(--ns-shadow)}
 html[data-theme] .bureau-public .bureau-paths{max-width:1352px;gap:20px;margin-bottom:55px}
-html[data-theme] .bureau-public .bureau-paths article{padding:30px;border-radius:var(--ns-radius);border:1px solid var(--ns-line);background:var(--ns-surface);box-shadow:none}
-html[data-theme] .bureau-public .bureau-paths h2{font:650 23px/1.3 var(--font-body);letter-spacing:-.04em;color:var(--ns-text)}
-html[data-theme] .bureau-public .bureau-paths p{font:400 13px/1.8 var(--font-body);color:var(--ns-muted)}
+html[data-theme] .bureau-public .bureau-paths article{padding:30px;border-radius:calc(var(--ns-radius) * .5);border:1px solid var(--ns-line);background:var(--ns-surface);box-shadow:var(--ns-shadow);border-top:4px solid var(--ns-accent);background-image:var(--ns-grain)}
+html[data-theme] .bureau-public .bureau-paths h2{font:400 29px/1.15 var(--font-poster);letter-spacing:0;color:var(--ns-text)}
+html[data-theme] .bureau-public .bureau-paths p{font:400 15px/1.7 var(--font-body);color:var(--ns-muted)}
 html[data-theme] .bureau-public .bureau-paths :is(button,a){font:600 12px/1.5 var(--font-body);color:var(--ns-accent);text-decoration:none}
-html[data-theme] .bureau-public .ns-world h2{font:650 clamp(25px,3vw,34px)/1.3 var(--font-body);letter-spacing:-.045em}
+html[data-theme] .bureau-public .ns-world h2{font:400 clamp(29px,3.3vw,44px)/1.15 var(--font-poster);letter-spacing:0}
 html[data-theme] .bureau-public .bureau-contract-preview{padding:110px 30px 65px;background:var(--ns-bg)}
-html[data-theme] .bureau-public .bureau-contract-preview h2{font:650 clamp(27px,3vw,38px)/1.25 var(--font-body)!important;letter-spacing:-.045em!important;color:var(--ns-text)!important}
+html[data-theme] .bureau-public .bureau-contract-preview h2{font:400 clamp(29px,3.4vw,42px)/1.15 var(--font-poster)!important;letter-spacing:0!important;color:var(--ns-text)!important}
 html[data-theme] .bureau-public .bureau-contract-preview p{color:var(--ns-muted);line-height:1.8}
 .ns-demo-modes{display:flex;align-items:stretch;gap:4px;padding:5px;border:1px solid var(--ns-line)!important;border-radius:14px;background:var(--ns-deep);box-shadow:none!important;max-width:100%}
 .ns-demo-modes>button{min-height:44px;padding:10px 13px;border:0!important;border-radius:10px;color:var(--ns-muted);font:600 11px/1.5 var(--font-body);letter-spacing:0!important;text-shadow:none!important;box-shadow:none!important;white-space:nowrap}
 .ns-demo-modes>button[aria-pressed=true]{background:var(--ns-elevated)!important;color:var(--ns-accent)!important}
-html[data-theme] .bureau-public .ns-demo-contract{padding:25px;border:1px solid var(--ns-line)!important;border-radius:var(--ns-radius)!important;background:var(--ns-surface)!important;min-height:310px;box-shadow:none;text-shadow:none}
+html[data-theme] .bureau-public .ns-demo-contract{padding:25px;border:3px double var(--ns-line)!important;border-radius:calc(var(--ns-radius) * .5)!important;background:var(--ns-surface)!important;min-height:310px;box-shadow:var(--ns-shadow);text-shadow:none;background-image:var(--ns-grain)}
 html[data-theme] .bureau-public .ns-demo-contract:hover{border-color:var(--ns-accent)!important;background:var(--ns-soft)!important;box-shadow:var(--ns-shadow)}
 html[data-theme] .bureau-public .ns-demo-contract.selected{border-color:var(--ns-accent)!important;box-shadow:inset 0 0 0 1px var(--ns-accent);background:var(--ns-soft)!important}
 html[data-theme] .bureau-public .ns-demo-contract>span{padding:5px 8px!important;border:0!important;border-radius:7px!important;font:500 9px/1.5 var(--font-body)!important;letter-spacing:0!important;background:var(--ns-elevated)!important;color:var(--ns-muted)!important}
-html[data-theme] .bureau-public .ns-demo-contract h3{flex:0;margin-top:12px;font:650 21px/1.35 var(--font-body)!important;letter-spacing:-.035em;color:var(--ns-text)}
+html[data-theme] .bureau-public .ns-demo-contract h3{flex:0;margin-top:12px;font:650 21px/1.35 var(--font-body)!important;letter-spacing:0;color:var(--ns-text)}
 html[data-theme] .bureau-public .ns-demo-contract>p{font:400 13px/1.8 var(--font-body);margin-top:4px;margin-bottom:26px}
 html[data-theme] .bureau-public .ns-demo-contract>div:last-child{display:flex;flex-direction:column-reverse;gap:7px;border-color:var(--ns-line)!important;padding-top:16px}
 html[data-theme] .bureau-public .ns-demo-contract>div:last-child>div:last-child{font:700 27px/1.3 var(--font-display)!important;text-shadow:none!important;color:var(--ns-accent)!important}
 html[data-theme] .bureau-public .ns-demo-contract>div:last-child>div:first-child{font-size:9px}
-html[data-theme] .bureau-public .ns-demo-selection{padding:25px;margin-top:25px;border:1px solid var(--ns-line)!important;border-radius:var(--ns-radius)!important;background:var(--ns-surface)!important;box-shadow:var(--ns-shadow)!important}
+html[data-theme] .bureau-public .ns-demo-selection{padding:25px;margin-top:25px;border:2px dashed var(--ns-line)!important;border-radius:calc(var(--ns-radius) * .5)!important;background:var(--ns-surface)!important;box-shadow:var(--ns-shadow)!important}
 html[data-theme] .bureau-public .ns-demo-selection :is(button,span){text-shadow:none!important}
 html[data-theme] .bureau-public .ns-demo-selection button{border-radius:var(--ns-small)!important;min-height:44px;letter-spacing:0!important}
 html[data-theme] .bureau-public .ns-demo-selection .btn-primary{background:var(--ns-fill)!important;color:var(--ns-on-accent)!important;border:0!important}
 html[data-theme] .bureau-public .ns-demo-selection .btn-primary:disabled{opacity:.45}
 html[data-theme] .bureau-public .public-document{padding:0;max-width:1060px;margin:112px auto 65px;background:none;border:0;color:var(--ns-text)}
 html[data-theme] .bureau-public .public-document-continuation{margin-top:35px}
-.ns-document-header{position:relative;padding:36px 40px;border:1px solid var(--ns-line);border-radius:var(--ns-radius);margin-bottom:24px;background:linear-gradient(120deg,var(--ns-surface),var(--ns-soft));overflow:hidden}
+.ns-document-header{position:relative;padding:36px 40px;border:1px solid var(--ns-line);border-radius:calc(var(--ns-radius) * .5);margin-bottom:24px;background:var(--ns-surface);overflow:hidden;background-image:var(--ns-grain);border-top:5px solid var(--ns-accent);box-shadow:var(--ns-shadow)}
 .ns-document-icon{display:grid;place-items:center;width:48px;height:48px;border:1px solid var(--ns-line);border-radius:14px;color:var(--ns-accent);background:var(--ns-elevated);margin-bottom:23px}
-html[data-theme] .bureau-public .public-document h1{font:700 clamp(29px,3.5vw,44px)/1.2 var(--font-body);text-transform:none;letter-spacing:-.045em;color:var(--ns-text);margin:0 0 17px}
-html[data-theme] .bureau-public .public-document h2{font:600 21px/1.4 var(--font-body);text-transform:none;letter-spacing:-.03em;color:var(--ns-text);margin:0 0 13px}
+html[data-theme] .bureau-public .public-document h1{font:400 clamp(30px,3.7vw,48px)/1.12 var(--font-poster);text-transform:none;letter-spacing:0;color:var(--ns-text);margin:0 0 17px}
+html[data-theme] .bureau-public .public-document h2{font:600 21px/1.4 var(--font-body);text-transform:none;letter-spacing:0;color:var(--ns-text);margin:0 0 13px}
 html[data-theme] .bureau-public .public-document p{font:400 14px/1.9 var(--font-body);color:var(--ns-muted);max-width:790px;margin:0}
-html[data-theme] .bureau-public .public-document>section{position:relative;padding:30px 35px 30px 85px;border:1px solid var(--ns-line);border-radius:var(--ns-radius);background:var(--ns-surface);margin:16px 0}
-.ns-document-number{position:absolute;top:35px;left:30px;color:var(--ns-accent);font:600 12px/1.5 var(--font-body)}
+html[data-theme] .bureau-public .public-document>section{position:relative;padding:30px 35px 30px 85px;border:1px solid var(--ns-line);border-radius:calc(var(--ns-radius) * .5);background:var(--ns-surface);margin:16px 0;background-image:var(--ns-grain);border-top:3px double var(--ns-line)}
+.ns-document-number{position:absolute;top:35px;left:30px;color:var(--ns-accent);font:400 26px/1.2 var(--font-poster)}
 html[data-theme] .ns-public-footer{background:var(--ns-deep)!important;border-color:var(--ns-line)!important;color:var(--ns-muted)}
 html[data-theme] .ns-public-footer :is(p,a){color:var(--ns-muted)!important;line-height:1.8}
 html[data-theme] .ns-public-footer a:hover{color:var(--ns-accent)!important}
 html[data-theme] .ns-public-footer h4{color:var(--ns-text)!important;font-family:var(--font-body);letter-spacing:.04em}
 html[data-theme] .ns-private .ns-world{padding-top:36px}
-html[data-theme] .ns-private .ns-world h2{font:650 24px/1.3 var(--font-body);letter-spacing:-.04em}
+html[data-theme] .ns-private .ns-world h2{font:400 33px/1.15 var(--font-poster);letter-spacing:0}
 html[data-theme] .ns-private .ns-world>header{margin-bottom:20px}
 html[data-theme] .ns-private .ns-world .ns-eyebrow{font:600 9px/1.5 var(--font-body);letter-spacing:.1em;color:var(--ns-muted)}
-html[data-theme] .ns-private .ns-world-card{height:240px;box-shadow:none}
-html[data-theme] .bureau-guide h2{font:650 clamp(25px,3vw,34px)/1.25 var(--font-body);letter-spacing:-.045em}
+html[data-theme] .ns-private .ns-world-card{height:240px;box-shadow:var(--ns-shadow)}
+html[data-theme] .bureau-guide h2{font:400 clamp(28px,3vw,36px)/1.15 var(--font-poster);letter-spacing:0}
 html[data-theme] .bureau-guide :is(p,.bureau-guide-note small){font-size:13px;line-height:1.8}
 html[data-theme] .bureau-guide .bureau-guide-note{border-radius:var(--ns-small);padding:18px}
 html[data-theme] .bureau-guide .bureau-guide-footer{border-radius:0 0 var(--ns-radius) var(--ns-radius)}
-html[data-theme] .ns-appearance h2{font:650 30px/1.3 var(--font-body);letter-spacing:-.04em}
+html[data-theme] .ns-appearance h2{font:400 32px/1.2 var(--font-poster);letter-spacing:0}
 @media(max-width:1100px){html[data-theme] .bureau-public .public-document{margin-left:24px;margin-right:24px}}
 @media(max-width:700px){html[data-theme] .bureau-public .bureau-contract-preview{padding:90px 18px 40px}.ns-demo-modes{width:100%}.ns-demo-modes>button{flex:1;padding:10px 8px;font-size:10px}html[data-theme] .bureau-public .ns-demo-selection{padding:20px}html[data-theme] .bureau-public .ns-demo-selection>div:last-child{flex-wrap:wrap;width:100%}html[data-theme] .bureau-public .ns-demo-selection>div:last-child>button:last-child{flex:1}html[data-theme] .bureau-public .public-document{margin:88px 16px 45px}html[data-theme] .bureau-public .public-document-continuation{margin-top:24px}.ns-document-header{padding:26px}.ns-document-icon{margin-bottom:18px}html[data-theme] .bureau-public .public-document>section{padding:25px}.ns-document-number{position:static;display:block;margin-bottom:13px}html[data-theme] .bureau-public .public-document h2{font-size:20px}html[data-theme] .bureau-public .public-document p{font-size:13px}html[data-theme] .bureau-public .bureau-paths article{padding:25px}html[data-theme] .ns-private .ns-world h2{font-size:23px}}

@@ -3,7 +3,7 @@ import SvgIcon, { type IconName } from "./icons/Icon"
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react"
 import markImage from "@/imports/mark.svg"
 import Mascot from "./Mascot"
-import { NightshiftNav, WorldGallery } from "./nightshift-layout"
+import { NightshiftNav, WorldGallery, CityLocals } from "./nightshift-layout"
 import ProfileStudio from "./ProfileStudio"
 import BureauHeader from "./BureauHeader"
 import AccountMenu from "./AccountMenu"
@@ -1603,7 +1603,9 @@ export default function Dashboard({ initialSession }: { initialSession: SessionP
               <section className="ns-home-heading">
                 <div>
                   <p className="ns-eyebrow">
-                    {language === "ru" ? "Личное бюро / Ночная смена" : "Your bureau / Night shift"}
+                    {language === "ru"
+                      ? "Личное бюро / Город не спит"
+                      : "Your bureau / City never sleeps"}
                   </p>
                   <h1>
                     {language === "ru" ? "На связи, " : "Welcome back, "}
@@ -1624,13 +1626,13 @@ export default function Dashboard({ initialSession }: { initialSession: SessionP
                 <div className="dc-command-copy">
                   <p className="dc-eyebrow">
                     {language === "ru"
-                      ? "Ночная смена / Ваше следующее дело"
-                      : "Night shift / Your next case"}
+                      ? "На улицах города / Ваше следующее дело"
+                      : "On the city streets / Your next case"}
                   </p>
                   <h1>
-                    {language === "ru" ? "ХОРОШИЙ МАТЧ НАЧИНАЕТСЯ" : "A GREAT MATCH STARTS"}
+                    {language === "ru" ? "У ГОРОДА ЕСТЬ ДЕЛО." : "THE CITY HAS A CASE."}
                     <br />
-                    <span>{language === "ru" ? "С ЦЕЛИ." : "WITH A GOAL."}</span>
+                    <span>{language === "ru" ? "ТВОЁ." : "YOURS."}</span>
                   </h1>
                   <p className="dc-lead">
                     {t(
@@ -1808,6 +1810,7 @@ export default function Dashboard({ initialSession }: { initialSession: SessionP
                 })}
               </section>
 
+              <CityLocals onNavigate={(next) => setTab(next as Tab)} />
               <WorldGallery onNavigate={(next) => setTab(next as Tab)} />
             </>
           )}

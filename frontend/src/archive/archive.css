@@ -1,4 +1,4 @@
-/* Base geometry and state rules not replaced by Nightshift feature styles. */
+/* Base geometry and state rules not replaced by the archive presentation. */
 .archive-page{margin:0 auto}
 .archive-page input{font:inherit;color:inherit}
 .archive-page select{font:inherit;color:inherit}
@@ -9,20 +9,20 @@
 .archive-page h3{overflow-wrap:anywhere;margin:8px 0}
 .archive-page small{font-size:12px}
 .archive-page a{overflow-wrap:anywhere}
-.archive-page [role=status]{padding:12px;color:#bdd5bf}
+.archive-page [role=status]{padding:12px;color:var(--ns-success)}
 .archive-heading{display:flex;justify-content:space-between}
 .archive-balance small{display:block}
 .archive-tabs{display:flex;flex-wrap:wrap}
-.archive-tabs button[aria-current]{border-color:transparent;color:#e4cd98;background:#d5bc8220}
+.archive-tabs button[aria-current]{border-color:transparent;color:var(--ns-on-accent);background:var(--ns-fill)}
 .archive-panel{border:1px solid var(--color-border);border-radius:18px;background:var(--color-panel);padding:clamp(16px,3vw,32px)}
 .archive-cipher{border:1px solid var(--color-border);border-radius:18px;background:var(--color-panel);padding:clamp(16px,3vw,32px)}
 .archive-form{border:1px solid var(--color-border);border-radius:18px;background:var(--color-panel);padding:clamp(16px,3vw,32px)}
 .archive-section-heading{display:flex;justify-content:space-between}
 .archive-filters{display:grid;align-items:end}
 .archive-page label{display:grid}
-.archive-page input:not([type=checkbox]):not([type=range]){min-height:44px;width:100%;padding:10px;border:1px solid #435143;border-radius:11px;background:#111713}
-.archive-page select{min-height:44px;width:100%;padding:10px;border:1px solid #435143;border-radius:11px;background:#111713}
-.archive-page textarea{min-height:44px;width:100%;padding:10px;border:1px solid #435143;border-radius:11px;background:#111713}
+.archive-page input:not([type=checkbox]):not([type=range]){min-height:44px;width:100%;padding:10px;border:1px solid var(--ns-line);border-radius:11px;background:var(--ns-deep)}
+.archive-page select{min-height:44px;width:100%;padding:10px;border:1px solid var(--ns-line);border-radius:11px;background:var(--ns-deep)}
+.archive-page textarea{min-height:44px;width:100%;padding:10px;border:1px solid var(--ns-line);border-radius:11px;background:var(--ns-deep)}
 .archive-page textarea{resize:vertical}
 .archive-coverage{display:flex;flex-wrap:wrap}
 .archive-coverage b{margin-left:6px}
@@ -37,23 +37,23 @@
 .archive-form fieldset>p{grid-column:1/-1}
 .archive-form fieldset>div{grid-column:1/-1}
 .archive-form .archive-check{display:flex;align-items:flex-start;line-height:1.6}
-.archive-check input{flex:0 0 auto;width:20px;height:20px;margin-top:2px;accent-color:#cab47c}
+.archive-check input{flex:0 0 auto;width:20px;height:20px;margin-top:2px;accent-color:var(--ns-accent)}
 .archive-crop-controls{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}
 .archive-crop-controls input{width:100%}
 .archive-help{font-size:12px!important}
 .archive-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
 .archive-actions button{font-size:12px;padding:9px 12px}
 .archive-pager{display:flex;align-items:center;justify-content:center}
-.archive-empty>span{font-size:52px;color:#b9a475}
+.archive-empty>span{font-size:52px;color:var(--ns-accent)}
 .archive-ledger{list-style:none;padding:0}
-.archive-ledger li{display:grid;grid-template-columns:1fr 1fr auto;gap:12px;border-bottom:1px solid #3c4a3c;font-size:13px}
+.archive-ledger li{display:grid;grid-template-columns:1fr 1fr auto;gap:12px;border-bottom:1px solid var(--ns-line);font-size:13px}
 .archive-cipher{display:grid;grid-template-columns:1fr 1fr;gap:30px;align-items:start}
 .archive-cipher-board{text-align:center}
 .archive-cipher-symbols{font-size:44px;letter-spacing:.1em}
 .archive-week{display:flex;align-items:baseline;gap:12px}
 .archive-guesses{padding:0;margin:0 0 18px;list-style:none}
-.archive-guesses li{display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid #283a2a}
-.archive-guesses li>span{font-size:25px;color:#dfcead}
+.archive-guesses li{display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--ns-line)}
+.archive-guesses li>span{font-size:25px;color:var(--ns-text)}
 .archive-choice{display:grid;margin-bottom:14px}
 .archive-choice span{overflow:hidden}
 .archive-symbol-picker{display:grid;grid-template-columns:repeat(3,1fr)}
@@ -61,7 +61,7 @@
 .archive-symbol-picker button>span{max-width:100%}
 .archive-cipher-board .archive-actions{justify-content:center}
 .archive-review-grid{display:grid;gap:22px;margin-top:24px}
-.archive-review-grid article{display:grid;grid-template-columns:230px minmax(0,1fr);gap:26px;padding:24px;border:1px solid #3d503d;background:#111b14}
+.archive-review-grid article{display:grid;grid-template-columns:230px minmax(0,1fr);gap:26px;padding:24px;border:1px solid var(--ns-line);background:var(--ns-surface)}
 .archive-review-grid textarea{margin:12px 0}
 @media(max-width:1050px){.archive-cipher{grid-template-columns:1fr}}
 @media(max-width:700px){.archive-heading p{font-size:12px}

@@ -125,17 +125,17 @@ function AppearanceDialog({ onClose }: { onClose: () => void }) {
   const descriptions = ru
     ? {
         system: "Вслед за устройством",
-        light: "Утро в городе",
-        dark: "Ночная смена",
+        light: "Бумага и чернила",
+        dark: "Город не спит",
         black: "Глубокий чёрный",
-        custom: "Свой характер",
+        custom: "Фиолетовый квартал",
       }
     : {
         system: "Follow your device",
-        light: "Daybreak in the city",
-        dark: "Night shift",
+        light: "Paper and ink",
+        dark: "City after dark",
         black: "Pure black canvas",
-        custom: "Your own character",
+        custom: "Violet district",
       }
   return (
     <dialog

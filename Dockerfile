@@ -39,6 +39,8 @@ COPY --from=frontend-build --chown=app:app /frontend/dist/assets ./app/static/as
 COPY --from=frontend-build --chown=app:app /frontend/dist/licenses ./app/static/licenses
 COPY --chown=app:app app/static/assets/logo-horizontal.svg ./app/static/assets/logo-horizontal.svg
 COPY --chown=app:app app/static/assets/mark.svg ./app/static/assets/mark.svg
+COPY --chown=app:app app/static/assets/city-fonts ./app/static/assets/city-fonts
+COPY --chown=app:app app/static/assets/city ./app/static/assets/city
 
 USER 10001:10001
 EXPOSE 8080

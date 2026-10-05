@@ -1,11 +1,11 @@
-/* Base geometry and state rules not replaced by Nightshift feature styles. */
+/* Base geometry and state rules not replaced by the archive presentation. */
 .archive-pack-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr))}
 .archive-pack-tile{min-width:0;display:flex;flex-direction:column}
 .archive-pack-tile h3{overflow-wrap:anywhere}
 .archive-owner-packs h3{overflow-wrap:anywhere}
 .archive-pack-tile>small{display:block;margin:8px 0 0;line-height:1.6}
 .archive-pack-tile>p{margin:6px 0}
-.archive-envelope-art{position:relative;display:grid;place-items:center;overflow:hidden;color:#d5bc82}
+.archive-envelope-art{position:relative;display:grid;place-items:center;overflow:hidden;color:var(--ns-paper)}
 .archive-envelope-art .archive-card{width:122px;transform:rotate(-8deg)}
 .archive-envelope-art>span{position:absolute;display:flex;align-items:center;gap:6px}
 .archive-pack-tile>footer{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap}
@@ -21,7 +21,7 @@
 .archive-pool-grid p{overflow-wrap:anywhere}
 .archive-picker-grid p{overflow-wrap:anywhere}
 .archive-page details>summary{cursor:pointer;padding:14px 0}
-.archive-receipt{scroll-margin-top:96px;margin:24px 0;padding:clamp(16px,3vw,28px);border:1px solid #d5bc8240;border-radius:20px;background:var(--color-panel)}
+.archive-receipt{scroll-margin-top:96px;margin:24px 0;padding:clamp(16px,3vw,28px);border:1px solid var(--ns-line);border-radius:20px;background:var(--color-panel)}
 .archive-receipt>header{display:flex;align-items:center;justify-content:space-between;gap:16px}
 .archive-receipt .archive-grid{grid-template-columns:repeat(auto-fit,minmax(130px,220px));justify-content:center}
 .archive-showcase-settings{margin:20px 0}
@@ -31,14 +31,14 @@
 .archive-grid>article>button{font-size:12px}
 .archive-opening-history>button{display:block;margin:8px 0}
 .archive-owner-packs{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px;margin:24px 0}
-.archive-owner-packs>article{padding:20px;border:1px solid #536144;background:#122016;min-width:0}
-.archive-owner-tools{margin:32px 0;border-top:1px solid #967d4f;border-bottom:1px solid #967d4f;padding:12px 0}
+.archive-owner-packs>article{padding:20px;border:1px solid var(--ns-line);background:var(--ns-surface);min-width:0}
+.archive-owner-tools{margin:32px 0;border-top:1px solid var(--ns-line);border-bottom:1px solid var(--ns-line);padding:12px 0}
 .archive-owner-grant{display:flex;align-items:end;flex-wrap:wrap;gap:16px;margin:24px 0}
 .archive-owner-grant>label{max-width:320px}
 .archive-pack-editor{margin:24px 0}
-.archive-price-advice{border:1px solid #6e6948;background:#24291c;padding:20px;margin:20px 0}
+.archive-price-advice{border:1px solid var(--ns-line);background:var(--ns-surface);padding:20px;margin:20px 0}
 .archive-selected-pool{max-height:460px;overflow:auto}
-.archive-selected-pool>div{display:grid;grid-template-columns:minmax(0,1fr) 110px auto;gap:14px;align-items:center;padding:12px 0;border-bottom:1px solid #43513b}
+.archive-selected-pool>div{display:grid;grid-template-columns:minmax(0,1fr) 110px auto;gap:14px;align-items:center;padding:12px 0;border-bottom:1px solid var(--ns-line)}
 .archive-selected-pool>div>span{overflow-wrap:anywhere;font-size:14px}
 .archive-card-picker{padding:20px 0}
 .dossier-card-showcase{padding:18px;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}

@@ -10,6 +10,7 @@ export type Card = {
   artist: string
   source_url: string
   image_url: string | null
+  release_poster?: boolean
   crop_x: number
   crop_y: number
   zoom: number

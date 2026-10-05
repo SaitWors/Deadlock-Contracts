@@ -48,7 +48,12 @@ def test_nine_ranks_roster_and_publish_permission_policy(community):
     _, client = player()
     meta = client.get("/api/archive/meta").json()
     assert meta["ranks"] == ["F", "E", "D", "C", "B", "A", "S", "SS", "SSS"]
-    assert len(meta["heroes"]) == 38 and not meta["can_publish"]
+    assert len(meta["heroes"]) == 44 and not meta["can_publish"]
+    heroes = {hero["key"]: hero["name"] for hero in meta["heroes"]}
+    assert {key: heroes.get(key) for key in (
+        "nurse-harrow", "rat-king", "solomon", "deadman-danny", "baba", "violet",
+    )} == {"nurse-harrow": "Nurse Harrow", "rat-king": "Rat King", "solomon": "Solomon",
+          "deadman-danny": "Deadman Danny", "baba": "Baba", "violet": "Violet"}
     for role in ("OWNER", "ADMIN"):
         assert role_has_permission(role, "cards.publish")
     for role in ("MODERATOR", "TESTER", "PLAYER"):

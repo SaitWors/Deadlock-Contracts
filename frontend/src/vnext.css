@@ -1,23 +1,4 @@
-@font-face{font-family:Inter;src:url('./imports/fonts/inter-latin-400-normal.woff2') format('woff2');font-weight:400;font-style:normal;font-display:swap}
-@font-face{font-family:Inter;src:url('./imports/fonts/inter-cyrillic-400-normal.woff2') format('woff2');font-weight:400;font-style:normal;font-display:swap;unicode-range:U+0400-052F,U+2DE0-2DFF,U+A640-A69F}
-@font-face{font-family:Inter;src:url('./imports/fonts/inter-latin-500-normal.woff2') format('woff2');font-weight:500;font-style:normal;font-display:swap}
-@font-face{font-family:Inter;src:url('./imports/fonts/inter-cyrillic-500-normal.woff2') format('woff2');font-weight:500;font-style:normal;font-display:swap;unicode-range:U+0400-052F,U+2DE0-2DFF,U+A640-A69F}
-@font-face{font-family:Inter;src:url('./imports/fonts/inter-latin-600-normal.woff2') format('woff2');font-weight:600;font-style:normal;font-display:swap}
-@font-face{font-family:Inter;src:url('./imports/fonts/inter-cyrillic-600-normal.woff2') format('woff2');font-weight:600;font-style:normal;font-display:swap;unicode-range:U+0400-052F,U+2DE0-2DFF,U+A640-A69F}
-@font-face{font-family:Inter;src:url('./imports/fonts/inter-latin-700-normal.woff2') format('woff2');font-weight:700;font-style:normal;font-display:swap}
-@font-face{font-family:Inter;src:url('./imports/fonts/inter-cyrillic-700-normal.woff2') format('woff2');font-weight:700;font-style:normal;font-display:swap;unicode-range:U+0400-052F,U+2DE0-2DFF,U+A640-A69F}
-@font-face{font-family:'Roboto Condensed';src:url('./imports/fonts/roboto-condensed-latin-400-normal.woff2') format('woff2');font-weight:400;font-style:normal;font-display:swap}
-@font-face{font-family:'Roboto Condensed';src:url('./imports/fonts/roboto-condensed-cyrillic-400-normal.woff2') format('woff2');font-weight:400;font-style:normal;font-display:swap;unicode-range:U+0400-052F,U+2DE0-2DFF,U+A640-A69F}
-@font-face{font-family:'Roboto Condensed';src:url('./imports/fonts/roboto-condensed-latin-600-normal.woff2') format('woff2');font-weight:600;font-style:normal;font-display:swap}
-@font-face{font-family:'Roboto Condensed';src:url('./imports/fonts/roboto-condensed-cyrillic-600-normal.woff2') format('woff2');font-weight:600;font-style:normal;font-display:swap;unicode-range:U+0400-052F,U+2DE0-2DFF,U+A640-A69F}
-@font-face{font-family:'Roboto Condensed';src:url('./imports/fonts/roboto-condensed-latin-700-normal.woff2') format('woff2');font-weight:700;font-style:normal;font-display:swap}
-@font-face{font-family:'Roboto Condensed';src:url('./imports/fonts/roboto-condensed-cyrillic-700-normal.woff2') format('woff2');font-weight:700;font-style:normal;font-display:swap;unicode-range:U+0400-052F,U+2DE0-2DFF,U+A640-A69F}
-@font-face{font-family:'Roboto Condensed';src:url('./imports/fonts/roboto-condensed-latin-800-normal.woff2') format('woff2');font-weight:800;font-style:normal;font-display:swap}
-@font-face{font-family:'Roboto Condensed';src:url('./imports/fonts/roboto-condensed-cyrillic-800-normal.woff2') format('woff2');font-weight:800;font-style:normal;font-display:swap;unicode-range:U+0400-052F,U+2DE0-2DFF,U+A640-A69F}
-@font-face{font-family:'Barlow Condensed';src:url('./imports/fonts/barlow-condensed-latin-400-normal.woff2') format('woff2');font-weight:400;font-style:normal;font-display:swap}
-@font-face{font-family:'Barlow Condensed';src:url('./imports/fonts/barlow-condensed-latin-600-normal.woff2') format('woff2');font-weight:600;font-style:normal;font-display:swap}
-@font-face{font-family:'Barlow Condensed';src:url('./imports/fonts/barlow-condensed-latin-700-normal.woff2') format('woff2');font-weight:700;font-style:normal;font-display:swap}
-@font-face{font-family:'Barlow Condensed';src:url('./imports/fonts/barlow-condensed-latin-800-normal.woff2') format('woff2');font-weight:800;font-style:normal;font-display:swap}
+@import "./imports/city-fonts/city-fonts.css";
 @font-face{font-family:'Cormorant Garamond';src:url('./imports/fonts/cormorant-garamond-latin-400-normal.woff2') format('woff2');font-weight:400;font-style:normal;font-display:swap}
 @font-face{font-family:'Cormorant Garamond';src:url('./imports/fonts/cormorant-garamond-cyrillic-400-normal.woff2') format('woff2');font-weight:400;font-style:normal;font-display:swap;unicode-range:U+0400-052F,U+2DE0-2DFF,U+A640-A69F}
 @font-face{font-family:'Cormorant Garamond';src:url('./imports/fonts/cormorant-garamond-latin-400-italic.woff2') format('woff2');font-weight:400;font-style:italic;font-display:swap}
@@ -25,14 +6,12 @@
 
 :root{--dc-bg:var(--color-page);--dc-panel:var(--color-panel);--dc-panel-2:var(--color-elevated);--dc-paper:var(--color-cream);--dc-paper-muted:var(--color-cream-dim);--dc-mint:var(--color-mint);--dc-mint-dark:var(--color-mint-dim);--dc-line:var(--color-border);--dc-warm:var(--color-brass);--dc-danger:var(--color-danger)}
 html{scroll-behavior:smooth}
-body{background:var(--dc-bg);color:var(--dc-paper);font-family:Inter,system-ui,sans-serif}
-.dc-eyebrow{display:flex;align-items:center;gap:10px;color:var(--dc-mint);font-family:'Roboto Condensed',sans-serif;font-size:12px;font-weight:700;letter-spacing:.2em}
+body{background:var(--dc-bg);color:var(--dc-paper);font-family:var(--font-body)}
+.dc-eyebrow{display:flex;align-items:center;gap:10px;color:var(--dc-mint);font-family:var(--font-display);font-size:12px;font-weight:700;letter-spacing:.2em}
 .dc-eyebrow>span{width:28px;height:1px;background:var(--dc-mint)}
 
 /* Authenticated product: the existing functional surfaces stay intact while the visual shell becomes restrained. */
-.dc-vnext{background:#070a09;color:var(--dc-paper);font-family:Inter,system-ui,sans-serif}
-.dc-vnext .dc-auth-ambient{display:none}
-.dc-vnext .dc-topbar{background:rgba(7,10,9,.96);border-bottom:1px solid var(--dc-line);backdrop-filter:blur(16px);box-shadow:none}
+.dc-vnext{background:#070a09;color:var(--dc-paper);font-family:var(--font-body)}
 .dc-vnext .dc-app-shell,.dc-vnext .dc-app-main{position:relative;z-index:1}
 .dc-vnext :is(.dc-system-card,.dc-identity-card,.dc-case-file,.dc-policy,.dc-contract-card,.dc-hq-card,.dc-panel,.dc-profile-studio,.dc-danger-zone){border-color:var(--dc-line);border-radius:3px;box-shadow:none}
 .dc-vnext :is(.dc-system-card,.dc-identity-card,.dc-case-file,.dc-policy,.dc-hq-card,.dc-panel,.dc-profile-studio){background-color:#0d1210}
@@ -42,7 +21,7 @@ body{background:var(--dc-bg);color:var(--dc-paper);font-family:Inter,system-ui,s
 .dc-vnext .dc-primary{background:var(--dc-mint);border-color:var(--dc-mint);color:#071008;box-shadow:none}
 .dc-vnext .dc-ghost{border-color:#3a463f;box-shadow:none}
 .dc-vnext .neon-text{color:var(--dc-mint);text-shadow:none}
-.dc-vnext .dc-page-head h1,.dc-vnext .dc-work-head h1{font-family:'Roboto Condensed',sans-serif;letter-spacing:-.02em}
+.dc-vnext .dc-page-head h1,.dc-vnext .dc-work-head h1{font-family:var(--font-display);letter-spacing:-.02em}
 .dc-vnext .dc-language-switch{background:#0d1210;border-color:var(--dc-line)}
 .dc-vnext .dc-active-case-list{display:grid;gap:0;margin-top:8px}
 

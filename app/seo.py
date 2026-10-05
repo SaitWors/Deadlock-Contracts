@@ -56,7 +56,7 @@ def frontend_shell() -> str:
                 return source
     return ('<!doctype html><html lang="ru"><head><meta charset="utf-8">'
             '<meta name="viewport" content="width=device-width, initial-scale=1">'
-            '<link rel="stylesheet" href="/static/styles.css"></head>'
+            '<link rel="stylesheet" href="/static/nightshift-documents.css"></head>'
             '<body><div id="root"></div></body></html>')
 
 
@@ -118,6 +118,13 @@ def render_document(*, title: str, description: str, body: str, language: str,
     source = frontend_shell() if shell is None else shell
     source = _with_metadata(source, metadata(title=title, description=description,
         language=language, base=base, path=path, index=index, alternates=alternates), language)
+    # A self-contained style owner keeps server documents readable before hydration.
+    assets = ""
+    if '/static/nightshift-documents.css' not in source:
+        assets += '<link rel="stylesheet" href="/static/nightshift-documents.css">'
+    if '/static/document-appearance.js' not in source:
+        assets += '<script src="/static/document-appearance.js" defer></script>'
+    source = source.replace("</head>", assets + "</head>", 1)
     return source.replace('<div id="root"></div>', f'<div id="root">{body}</div>', 1)
 
 
@@ -133,11 +140,11 @@ def render_public_page(page: str, language: str, base: str, shell: str | None = 
     footer = " · ".join(f'<a href="/{language}/{slug}">{escape(labels[1 if language == "ru" else 2])}</a>'
                         for slug, labels in LEGAL.items())
     sign_in = "Войти через Steam" if language == "ru" else "Sign in through Steam"
-    body = (f'<div class="bureau-public min-h-screen"><header class="bureau-header"><div class="bureau-header-inner">'
-            f'<a class="bureau-brand" href="/{language}/"><img src="/static/assets/logo-horizontal.svg" '
-            f'width="144" height="44" alt="Deadlock Contracts"></a><nav class="bureau-nav">{links}</nav>'
+    edition = "ГОРОД НЕ СПИТ · ГИД ПО КОНТРАКТАМ" if language == "ru" else "CITY NEVER SLEEPS · CONTRACTS GUIDE"
+    body = (f'<div class="city-public bureau-public min-h-screen"><header class="bureau-header"><div class="bureau-header-inner">'
+            f'<a class="bureau-brand" href="/{language}/" aria-label="Deadlock Contracts">DEADLOCK<small>CONTRACTS</small></a><nav class="bureau-nav">{links}</nav>'
             f'<div class="bureau-account">{languages}</div></div></header>'
-            f'<main class="public-document"><h1>{escape(data["heading"])}</h1><p>{escape(data["intro"])}</p>'
+            f'<main class="public-document"><p class="city-document-edition">{edition}</p><h1>{escape(data["heading"])}</h1><p>{escape(data["intro"])}</p>'
             f'{sections}<p><a class="btn-primary" href="/auth/steam">{sign_in}</a></p>'
             f'<nav class="public-document-links">{links}</nav></main><footer class="public-document">{footer}</footer></div>')
     payload = json.dumps({"page": page, "language": language, "content": data}, ensure_ascii=False).replace("<", "\\u003c").replace(">", "\\u003e").replace("&", "\\u0026")
@@ -168,7 +175,7 @@ def render_legal_page(slug: str, language: str, base: str) -> str:
 
 def render_not_found(base: str, language: str = "ru") -> str:
     title = "Страница не найдена" if language == "ru" else "Page not found"
-    body = f'<main class="public-document"><h1>404 — {title}</h1><p><a href="/ru/">На главную</a> · <a href="/en/">Home</a></p></main>'
+    body = f'<div class="city-public"><main class="public-document city-not-found"><p class="city-document-edition">DEADLOCK CONTRACTS / 404</p><h1>{title}</h1><p><a href="/ru/">На главную</a> · <a href="/en/">Home</a></p></main></div>'
     return render_document(title=title + " | Deadlock Contracts", description=title,
         body=body, language=language, base=base, path=None, index=False)
 
