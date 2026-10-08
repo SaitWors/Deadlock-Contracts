@@ -92,7 +92,7 @@ def guard_active_review_claim(
         AutoReviewCase.created_at.desc()
     )
     if lock:
-        stmt = stmt.with_for_update()
+        stmt = stmt.with_for_update().execution_options(populate_existing=True)
 
     item = db.scalar(stmt)
     if item is None:
@@ -468,6 +468,7 @@ def evaluate_board(
         select(ContractBoard)
         .where(ContractBoard.id == board_id)
         .with_for_update()
+        .execution_options(populate_existing=True)
     )
 
     match = db.get(Match, match_id)
@@ -493,6 +494,7 @@ def evaluate_board(
                 BoardOption.selected.is_(True),
             )
             .with_for_update()
+            .execution_options(populate_existing=True)
         ).all()
     )
 
@@ -504,6 +506,11 @@ def evaluate_board(
         if option.status in FINAL_STATUSES:
             continue
         if option_ids is not None and option.id not in option_ids:
+            continue
+        # A delayed evaluator may replay after this assignment was released
+        # for another attempt, or while another match is already bound. The
+        # binding is the authority even for explicit option_ids/review refresh.
+        if option.bound_match_id != match.id:
             continue
 
         result = _result(option, match, participant)
@@ -610,6 +617,11 @@ def evaluate_board(
 
         processed += 1
 
+    if not processed:
+        # A replay is a true no-op: do not close a historical review, advance
+        # the baseline or rewrite the status of a newer in-flight attempt.
+        return 0
+
     # Если раньше был REVIEW_REQUIRED, но повторная загрузка metadata
     # теперь дала результат — старую внутреннюю заявку закрываем.
     if not review_reasons:
@@ -638,8 +650,8 @@ def evaluate_board(
                 },
             )
 
-    waiting_on_this_match = any(
-        option.status == "VERIFYING" and option.bound_match_id == match.id
+    waiting_on_bound_match = any(
+        option.status == "VERIFYING" and option.bound_match_id is not None
         for option in options
     )
 
@@ -654,7 +666,7 @@ def evaluate_board(
     has_locked_assignments = any(option.status == "LOCKED" for option in options)
     has_review_assignments = any(option.status == "REVIEW_REQUIRED" for option in options)
 
-    if waiting_on_this_match:
+    if waiting_on_bound_match:
         # Partial settlement: one assignment may still wait for a provider-only
         # fact while unrelated assignments from the same match are already
         # completed or released for the next gameplay attempt.

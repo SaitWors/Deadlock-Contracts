@@ -199,7 +199,9 @@ def test_desktop_bootstrap_lock_and_reroll_use_bearer_authority() -> None:
         payload = bootstrap.json()
         assert payload["api_version"] == "desktop.v1"
         assert payload["schema_version"] == 1
-        assert set(payload["desktop_features"]) == {"adaptive_profiles_v1", "debrief_v1"}
+        assert set(payload["desktop_features"]) == {
+            "adaptive_profiles_v1", "debrief_v1", "personal_progress_v1",
+        }
         assert payload["policy"] == {
             "selection_min": 1,
             "selection_max": 3,

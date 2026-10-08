@@ -1,0 +1,162 @@
+import type { Language } from "../i18n"
+import type { ProgressIntent, ProgressSourceKind, ProgressText } from "./types"
+
+const copy = {
+  ru: {
+    eyebrow: "Личный прогресс / Следующий шаг",
+    title: "У следующей катки будет цель",
+    intro: "Выберите цель. После матча сохраните результат в личном досье.",
+    goalTab: "Цель на матч",
+    debriefTab: "Разбор матча",
+    heroesTab: "Досье героев",
+    intent: "Как провести следующий матч?",
+    recommended: "Ваш следующий шаг",
+    alternatives: "Другие цели",
+    choose: "Выбрать цель",
+    refresh: "Обновить",
+    retry: "Повторить",
+    loading: "Загружаем личный прогресс…",
+    error: "Не удалось загрузить личный прогресс. Попробуйте ещё раз.",
+    changed: "Предложение изменилось. Обновите данные перед выбором цели.",
+    unauthorized: "Сессия завершилась. Войдите снова, чтобы увидеть личный прогресс.",
+    noGoal: "Пока нет доступной цели для этого режима.",
+    noData: "Нет данных",
+    noDebrief: "Пока нет итогового матча для разбора в этом режиме.",
+    noHeroes: "Пока нет данных для досье героев в этом режиме.",
+    locked: "Цель зафиксирована",
+    lockedHint: "Условия действующего дела сохраняются. Дождитесь результата матча.",
+    expired: "Срок истёк",
+    void: "Цель отменена",
+    finished: "Цель завершена",
+    terminalHint: "Откройте разбор матча или обновите доступные цели.",
+    sample: "Подходящих матчей",
+    coldStart: "Пока мало данных для личной базовой линии. Это стартовая цель.",
+    preliminary: "Предварительная рекомендация: выборка ещё небольшая.",
+    personal: "На основе ваших результатов",
+    initial: "Стартовая цель",
+    sources: "Источники фактов",
+    clientData: "Данные клиента; независимая проверка не заявлена.",
+    latest: "Последний итоговый матч",
+    match: "Матч",
+    hero: "Герой",
+    current: "Этот матч",
+    median: "Ваша медиана",
+    difference: "Разница",
+    comparisonSample:
+      "n — число предыдущих матчей с этим показателем. Недоступные значения не заменяются нулём.",
+    noBaseline: "Недостаточно предыдущих матчей для сравнения.",
+    baselineHero: "на этом герое",
+    baselineMode: "в этом режиме",
+    prior: "предыдущих матчей",
+    completed: "Выполнено",
+    failed: "Цель не достигнута",
+    pending: "Ожидаем данные",
+    granted: "Начислено за этот матч",
+    noContracts: "В этом матче нет результатов выбранных контрактов.",
+    next: "К следующей цели",
+    heroScope: "Факты из последних 20 подходящих матчей выбранного режима.",
+    matches: "Матчи",
+    contracts: "Выполнено контрактов",
+    records: "Рекорды в этой выборке",
+  },
+  en: {
+    eyebrow: "Personal progress / Next step",
+    title: "Give your next match a goal",
+    intro: "Choose a goal. Keep the result in your personal dossier after the match.",
+    goalTab: "Next-match goal",
+    debriefTab: "Match debrief",
+    heroesTab: "Hero dossier",
+    intent: "How do you want to play the next match?",
+    recommended: "Your next step",
+    alternatives: "Other goals",
+    choose: "Choose goal",
+    refresh: "Refresh",
+    retry: "Retry",
+    loading: "Loading personal progress…",
+    error: "Could not load personal progress. Please try again.",
+    changed: "The offer changed. Refresh the data before choosing a goal.",
+    unauthorized: "Your session ended. Sign in again to view personal progress.",
+    noGoal: "No goal is available for this mode yet.",
+    noData: "No data",
+    noDebrief: "No final match is available for a debrief in this mode yet.",
+    noHeroes: "No data is available for a hero dossier in this mode yet.",
+    locked: "Goal is locked",
+    lockedHint: "Your active case keeps its agreed terms. Await the match result.",
+    expired: "Expired",
+    void: "Goal voided",
+    finished: "Goal finished",
+    terminalHint: "Open the match debrief or refresh the available goals.",
+    sample: "Eligible matches",
+    coldStart: "There is not enough data for your personal baseline yet. This is a starting goal.",
+    preliminary: "Preliminary recommendation: the sample is still small.",
+    personal: "Based on your results",
+    initial: "Starting goal",
+    sources: "Sources of facts",
+    clientData: "Client data; independent verification is not claimed.",
+    latest: "Latest final match",
+    match: "Match",
+    hero: "Hero",
+    current: "This match",
+    median: "Your median",
+    difference: "Difference",
+    comparisonSample:
+      "n is the number of prior matches with this metric. Missing values are not replaced with zero.",
+    noBaseline: "Not enough prior matches for a comparison.",
+    baselineHero: "on this hero",
+    baselineMode: "in this mode",
+    prior: "prior matches",
+    completed: "Completed",
+    failed: "Goal not achieved",
+    pending: "Awaiting data",
+    granted: "Awarded for this match",
+    noContracts: "There are no selected contract results in this match.",
+    next: "Choose the next goal",
+    heroScope: "Facts from the last 20 eligible matches in the selected mode.",
+    matches: "Matches",
+    contracts: "Contracts completed",
+    records: "Records in this sample",
+  },
+}
+export const progressCopy = (language: Language) => copy[language]
+export const progressText = (value: ProgressText | null | undefined, language: Language) =>
+  value?.[language] || value?.ru || value?.en || progressCopy(language).noData
+
+export const intentCopy: Record<ProgressIntent, { ru: string; en: string }> = {
+  PRACTICE: { ru: "Практика", en: "Practice" },
+  EXPERIMENT: { ru: "Эксперимент", en: "Experiment" },
+  RESULT: { ru: "Результат", en: "Result" },
+  VARIETY: { ru: "Разнообразие", en: "Variety" },
+}
+const sources: Record<ProgressSourceKind, { ru: string; en: string }> = {
+  INDEPENDENT_PROVIDER: { ru: "Независимый провайдер", en: "Independent provider" },
+  CLIENT_ATTESTED_GEP: { ru: "Companion · данные клиента", en: "Companion · client data" },
+  DEMO: { ru: "Демо", en: "Demo" },
+  LEGACY: { ru: "Архивный источник", en: "Legacy source" },
+  UNKNOWN: { ru: "Источник неизвестен", en: "Unknown source" },
+}
+export const sourceName = (kind: string, language: Language) =>
+  (sources[kind as ProgressSourceKind] || sources.UNKNOWN)[language]
+
+const metrics: Record<string, { ru: string; en: string }> = {
+  "player.kills": { ru: "Убийства", en: "Kills" },
+  "player.deaths": { ru: "Смерти", en: "Deaths" },
+  "player.assists": { ru: "Помощи", en: "Assists" },
+  "player.kda": { ru: "KDA", en: "KDA" },
+  "player.net_worth.final": { ru: "Итоговые души", en: "Final souls" },
+  "player.hero_damage": { ru: "Урон героям", en: "Hero damage" },
+  "player.object_damage": { ru: "Урон объектам", en: "Objective damage" },
+  "player.healing": { ru: "Лечение", en: "Healing" },
+  "player.scoreboard_healing": { ru: "Лечение по итоговой таблице", en: "Scoreboard healing" },
+  "match.duration_s": { ru: "Длительность, сек.", en: "Duration, sec." },
+  "match.win": { ru: "Победа", en: "Win" },
+}
+export const metricName = (metric: string, language: Language) =>
+  metrics[metric]?.[language] || metric
+export const hasNumber = (value: unknown): value is number =>
+  typeof value === "number" && Number.isFinite(value)
+export const progressNumber = (value: unknown, language: Language) =>
+  hasNumber(value)
+    ? new Intl.NumberFormat(language === "ru" ? "ru-RU" : "en-US", {
+        maximumFractionDigits: 2,
+      }).format(value)
+    : progressCopy(language).noData

@@ -28,6 +28,8 @@ from .config import settings
 from . import seo
 from .db import Base, SessionLocal, engine, get_db
 from .community import router as community_router
+from .personal_progress import router as personal_progress_router
+from .services.personal_progress import build_personal_progress
 from .services.achievements import achievement_collection, awarded_contract_filter
 from .services.bureaus import leave_for_account_deletion, profile_bureau
 from .models import (
@@ -536,6 +538,7 @@ app.add_middleware(TrustedHostMiddleware, allowed_hosts=list(settings.trusted_ho
 app.add_middleware(RequestSecurityMiddleware)
 app.add_middleware(SecurityHeadersMiddleware)
 app.include_router(community_router)
+app.include_router(personal_progress_router)
 
 
 @app.exception_handler(Exception)
@@ -1662,7 +1665,7 @@ def _desktop_bootstrap_payload(db: Session, owner: User, device: CompanionDevice
         **serialize_user(owner),
         "steam_id64": str(owner.steam_id64) if owner.steam_id64 else None,
     }
-    desktop_features = ["adaptive_profiles_v1", "debrief_v1"]
+    desktop_features = ["adaptive_profiles_v1", "debrief_v1", "personal_progress_v1"]
     if settings.companion_ads_enabled:
         desktop_features.append("desktop_ads_v1")
     payload = {
@@ -1676,6 +1679,7 @@ def _desktop_bootstrap_payload(db: Session, owner: User, device: CompanionDevice
         "boards": boards,
         "active_cases": active_cases,
         "adaptive_profiles": {mode: build_adaptive_profile(db, owner, mode) for mode in GAME_MODES},
+        "personal_progress": {mode: build_personal_progress(db, owner, mode) for mode in GAME_MODES},
         "progression": user_progression(db, owner),
         "history": {
             "cases": history_cases,
@@ -1841,10 +1845,12 @@ def companion_hello(request: Request, db: Session = Depends(get_db)) -> dict:
 @app.get("/api/desktop/v1/bootstrap")
 def desktop_bootstrap(
     request: Request,
+    response: Response,
     history_limit: int = 60,
     db: Session = Depends(get_db),
 ) -> dict:
     device, owner = _desktop_context(request, db)
+    response.headers["Cache-Control"] = "private, no-store"
     return _desktop_bootstrap_payload(db, owner, device, history_limit)
 
 

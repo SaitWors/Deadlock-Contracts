@@ -449,8 +449,17 @@ def _upsert_match_evidence(
         select(CompanionMatchEvidence).where(
             CompanionMatchEvidence.user_id == user.id,
             CompanionMatchEvidence.external_match_id == match_id,
-        ).with_for_update()
+        ).with_for_update().execution_options(populate_existing=True)
     )
+    # Heartbeats remain in CompanionEvent for diagnostics. Once finalized,
+    # the evidence row belongs to the immutable GEP payload, including its
+    # identity, capture times and missing fields. Refresh under the row lock
+    # so a cached pre-final ORM instance cannot bypass this guard.
+    if item is not None and (
+        int(item.evidence_schema_version or 0) >= 9
+        or item.server_finalized_at is not None
+    ):
+        return item
     if not item:
         item = CompanionMatchEvidence(
             user_id=user.id,

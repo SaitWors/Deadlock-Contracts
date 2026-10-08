@@ -22,6 +22,8 @@ import ReviewDesk from "./admin/ReviewDesk"
 import type { AdminReview } from "./admin/admin-types"
 import ArchiveNextStep from "./archive/ArchiveNextStep"
 import { useHeroVotes } from "./hero-votes/useHeroVotes"
+import PersonalProgress from "./progress/PersonalProgress"
+import type { GoalRecommendation } from "./progress/types"
 import {
   MCGCredit,
   apiLanguage,
@@ -1084,6 +1086,7 @@ export default function Dashboard({ initialSession }: { initialSession: SessionP
   const [historyCases, setHistoryCases] = useState<HistoryCase[]>([])
   const [historyTotal, setHistoryTotal] = useState(0)
   const [progression, setProgression] = useState<Progression | null>(null)
+  const [progressRevision, setProgressRevision] = useState(0)
   const [reviews, setReviews] = useState<ReviewMine[]>([])
   const [selected, setSelected] = useState<Record<Mode, Set<string>>>({
     STANDARD: new Set(),
@@ -1185,6 +1188,8 @@ export default function Dashboard({ initialSession }: { initialSession: SessionP
       ])
     } catch (reason) {
       setError((reason as Error).message)
+    } finally {
+      setProgressRevision((value) => value + 1)
     }
   }, [loadBoards, loadHistory, loadProgression, loadReviews, loadCompanion])
 
@@ -1269,6 +1274,38 @@ export default function Dashboard({ initialSession }: { initialSession: SessionP
         optionIds: [...selectedSet],
       },
     })
+  }
+  const openGoalSigning = (recommendation: GoalRecommendation) => {
+    const offered = boards.find((item) => item.game_match_mode === recommendation.mode)
+    if (
+      busy ||
+      signing ||
+      !offered ||
+      offered.status !== "OFFERED" ||
+      offered.id !== recommendation.boardId ||
+      offered.generation !== recommendation.generation ||
+      !offered.options.some(
+        (option) =>
+          option.id === recommendation.optionId && option.status === "OFFERED" && !option.selected,
+      )
+    ) {
+      setNotice(
+        language === "ru"
+          ? "Предложение изменилось. Обновите данные перед выбором цели."
+          : "The offer changed. Refresh the data before choosing a goal.",
+      )
+      return false
+    }
+    setSigning({
+      board: offered,
+      selection: {
+        boardId: offered.id,
+        generation: offered.generation,
+        mode: recommendation.mode,
+        optionIds: [recommendation.optionId],
+      },
+    })
+    return true
   }
   const lock = async () => {
     if (!signing) throw new Error("No signing selection")
@@ -1622,45 +1659,24 @@ export default function Dashboard({ initialSession }: { initialSession: SessionP
                   <SvgIcon name="arrow-up-right" size={16} />
                 </button>
               </section>
-              <section className="dc-command-hero dc-v3-hero">
-                <div className="dc-command-copy">
-                  <p className="dc-eyebrow">
-                    {language === "ru"
-                      ? "На улицах города / Ваше следующее дело"
-                      : "On the city streets / Your next case"}
-                  </p>
-                  <h1>
-                    {language === "ru" ? "У ГОРОДА ЕСТЬ ДЕЛО." : "THE CITY HAS A CASE."}
-                    <br />
-                    <span>{language === "ru" ? "ТВОЁ." : "YOURS."}</span>
-                  </h1>
-                  <p className="dc-lead">
-                    {t(
-                      language,
-                      language === "ru"
-                        ? "Всего один шаг за пределы привычного. Выберите контракт, сыграйте свой матч и получите XP после проверки результата."
-                        : "One step beyond the familiar. Choose a contract, play your match and earn XP after verification.",
-                    )}
-                  </p>
-                  <div className="dc-command-actions">
-                    <button className="dc-primary" onClick={() => setTab("quests")}>
-                      {language === "ru" ? "Выбрать контракт" : "Choose a contract"}
-                      <SvgIcon name="arrow-up-right" size={18} />
-                    </button>
-                    <button
-                      className="dc-ghost"
-                      onClick={() => setTab(activeBoards.length ? "active" : "history")}
-                    >
-                      {activeBoards.length
-                        ? language === "ru"
-                          ? "АКТИВНОЕ ДЕЛО"
-                          : "ACTIVE CASE"
-                        : language === "ru"
-                          ? "АРХИВ ДЕЛ"
-                          : "CASE ARCHIVE"}
-                    </button>
-                  </div>
-                </div>
+              <PersonalProgress
+                accountId={user.id}
+                mode={mode}
+                currentBoard={board}
+                reloadKey={`${progressRevision}:${board?.id || ""}:${board?.generation ?? ""}:${board?.status || ""}`}
+                onModeChange={(next) => {
+                  setMode(next)
+                  setFilter("ALL")
+                }}
+                onRecommend={openGoalSigning}
+                onRefresh={reloadAll}
+                onOpenCase={() => setTab("active")}
+                activeCaseCount={activeBoards.length}
+                modeStatuses={Object.fromEntries(
+                  boards.map((item) => [item.game_match_mode, statusLabel(item.status, language)]),
+                )}
+              />
+              <section className="dc-command-hero dc-v3-hero progress-home-dossier">
                 <div className="dc-curator-stage">
                   <Mascot initialPose="dossier" priority />
                 </div>
@@ -1686,7 +1702,12 @@ export default function Dashboard({ initialSession }: { initialSession: SessionP
                     </span>
                   </span>
                   <span className="ns-file-progress-label">
-                    <span>{user.xp.toLocaleString(language === "ru" ? "ru-RU" : "en-US")} XP</span>
+                    <span>
+                      {(progression?.total_xp ?? user.xp).toLocaleString(
+                        language === "ru" ? "ru-RU" : "en-US",
+                      )}{" "}
+                      XP
+                    </span>
                     <span>
                       {language === "ru" ? "Ур." : "Lv."} {level + 1}
                     </span>
@@ -1703,40 +1724,6 @@ export default function Dashboard({ initialSession }: { initialSession: SessionP
                     <strong>{progression?.xp_to_next ?? "—"} XP</strong>
                   </span>
                 </button>
-                <section className="dc-kpi-grid">
-                  <article>
-                    <span>{language === "ru" ? "Уровень" : "Level"}</span>
-                    <strong>{level}</strong>
-                    <small>
-                      {progression?.xp_to_next ?? "—"} XP{" "}
-                      {language === "ru" ? "до следующего уровня" : "to next level"}
-                    </small>
-                  </article>
-                  <article>
-                    <span>{language === "ru" ? "Закрыто контрактов" : "Contracts completed"}</span>
-                    <strong>{progression?.contracts_completed || 0}</strong>
-                    <small>{t(language, "контрактов всего")}</small>
-                  </article>
-                  <article>
-                    <span>{language === "ru" ? "Контракты сегодня" : "Today’s contracts"}</span>
-                    <strong>
-                      {boards.reduce(
-                        (sum, b) => sum + b.options.filter((o) => o.selected).length,
-                        0,
-                      )}
-                      <i>/9</i>
-                    </strong>
-                    <small>{t(language, "контрактов зафиксировано")}</small>
-                  </article>
-                  <article>
-                    <span>{language === "ru" ? "Обновление доски" : "Board refresh"}</span>
-                    <strong>
-                      {boardsPayload?.refresh.remaining ?? 0}
-                      <i>/1</i>
-                    </strong>
-                    <small>{t(language, "бесплатно сегодня")}</small>
-                  </article>
-                </section>
               </section>
               <div className="dc-curator-dialog ns-curator-note">
                 <span>{language === "ru" ? "КУРАТОР" : "CURATOR"}</span>
@@ -1763,53 +1750,6 @@ export default function Dashboard({ initialSession }: { initialSession: SessionP
                 </p>
               </div>
               <ArchiveNextStep revision={archiveRevision} onNavigate={(next) => setTab(next)} />
-              <div className="ns-section-heading">
-                <h2>{language === "ru" ? "На следующую игру" : "For your next match"}</h2>
-                <button onClick={() => setTab("quests")}>
-                  {language === "ru" ? "Все контракты" : "All contracts"}
-                  <SvgIcon name="arrow-up-right" size={17} />
-                </button>
-              </div>
-              <section className="dc-v3-mode-overview">
-                {MODES.map((item) => {
-                  const b = boards.find((x) => x.game_match_mode === item)
-                  const chosen = b?.options.filter((x) => x.selected).length || 0
-                  const done =
-                    b?.options.filter((x) => x.selected && x.status === "COMPLETED").length || 0
-                  return (
-                    <button
-                      key={item}
-                      onClick={() => {
-                        setMode(item)
-                        setTab("quests")
-                      }}
-                      className={`mode-${item.toLowerCase()}`}
-                    >
-                      <header>
-                        <span>{MODE_META[item].short}</span>
-                        <em>{b ? statusLabel(b.status, language) : t(language, "ЗАГРУЗКА")}</em>
-                      </header>
-                      <h3>{MODE_META[item].title}</h3>
-                      <p>{t(language, MODE_META[item].caption)}</p>
-                      <div>
-                        <strong>
-                          {b?.status === "SETTLED" ? done : chosen}
-                          <i>/3</i>
-                        </strong>
-                        <small>
-                          {b?.status === "OFFERED"
-                            ? t(language, "можно выбрать")
-                            : b?.status === "SETTLED"
-                              ? t(language, "выполнено")
-                              : t(language, "в деле")}
-                        </small>
-                        <b>{MODE_META[item].bonus}</b>
-                      </div>
-                    </button>
-                  )
-                })}
-              </section>
-
               <CityLocals onNavigate={(next) => setTab(next as Tab)} />
               <WorldGallery onNavigate={(next) => setTab(next as Tab)} />
             </>
