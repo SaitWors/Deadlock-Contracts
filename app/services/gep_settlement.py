@@ -23,6 +23,7 @@ from ..models import (
     User,
 )
 from .companion import (
+    LIVE_STAT_LIMITS,
     companion_version_supported,
     hash_secret,
     sanitize_live_stats,
@@ -851,6 +852,67 @@ def _payload_hash(
     ).hexdigest()
 
 
+def _validated_final_payload(
+    *,
+    lease: CompanionAttemptLease,
+    evidence: CompanionMatchEvidence,
+    user: User,
+) -> dict[str, Any]:
+    """Verify persisted final facts without changing client-attested trust."""
+    if (
+        int(evidence.evidence_schema_version or 0) != 9
+        or evidence.integrity_status != GEP_INTEGRITY_CLIENT_ATTESTED
+        or evidence.server_finalized_at is None
+    ):
+        raise ValueError("Evidence не прошёл CLIENT_ATTESTED_GEP final validation")
+
+    if (
+        lease.user_id != user.id
+        or evidence.user_id != user.id
+        or evidence.device_id != lease.device_id
+        or evidence.gep_session_id != lease.session_id
+        or not lease.attempt_nonce_hash
+        or evidence.attempt_nonce_hash != lease.attempt_nonce_hash
+        or evidence.external_match_id != lease.external_match_id
+        or evidence.game_match_mode != lease.game_match_mode
+    ):
+        raise ValueError("Lease/Evidence integrity mismatch")
+
+    if (
+        evidence.steam_id64 is None
+        or user.steam_id64 is None
+        or evidence.steam_id64 != user.steam_id64
+    ):
+        raise ValueError("Evidence v9 Steam identity integrity mismatch")
+
+    try:
+        canonical = _canonical_final_payload(
+            session_id=evidence.gep_session_id,
+            match_id=evidence.external_match_id,
+            steam_id64=evidence.steam_id64,
+            mode=evidence.game_match_mode,
+            terminal_signal=evidence.terminal_signal,
+            match_clock_s=evidence.gep_match_clock_s,
+            final_sequence=evidence.final_sequence,
+            live_stats={
+                field: getattr(evidence, field)
+                for field in LIVE_STAT_LIMITS
+            },
+            local_team=evidence.gep_local_team,
+            winning_team=evidence.gep_winning_team,
+        )
+    except (TypeError, ValueError) as exc:
+        raise ValueError("Evidence v9 final payload integrity mismatch") from exc
+
+    if (
+        not re.fullmatch(r"[0-9a-f]{64}", evidence.final_payload_hash or "")
+        or not hmac.compare_digest(evidence.final_payload_hash, _payload_hash(canonical))
+    ):
+        raise ValueError("Evidence v9 final payload hash integrity mismatch")
+
+    return canonical
+
+
 def _finalize_response(
     lease: CompanionAttemptLease,
     evidence: CompanionMatchEvidence,
@@ -1017,6 +1079,7 @@ def finalize_gep_match(
             User.id == user.id
         )
         .with_for_update()
+        .execution_options(populate_existing=True)
     )
 
     if not db_user:
@@ -1046,6 +1109,7 @@ def finalize_gep_match(
             == db_user.id,
         )
         .with_for_update()
+        .execution_options(populate_existing=True)
     )
 
     if (
@@ -1071,6 +1135,7 @@ def finalize_gep_match(
             == session_id,
         )
         .with_for_update()
+        .execution_options(populate_existing=True)
     )
 
     if not lease:
@@ -1215,6 +1280,7 @@ def finalize_gep_match(
             == int(match_id),
         )
         .with_for_update()
+        .execution_options(populate_existing=True)
     )
 
     if (
@@ -1226,6 +1292,11 @@ def finalize_gep_match(
         and evidence.server_finalized_at
         is not None
     ):
+        try:
+            _validated_final_payload(lease=lease, evidence=evidence, user=db_user)
+        except ValueError as exc:
+            raise HTTPException(409, "Immutable Evidence v9 integrity mismatch") from exc
+
         same_finalization = bool(
             evidence.gep_session_id
             == session_id
@@ -1329,15 +1400,10 @@ def finalize_gep_match(
         steam_id64
     )
 
-    for field, value in (
-        clean_stats.items()
-    ):
-        if value is not None:
-            setattr(
-                evidence,
-                field,
-                value,
-            )
+    # Final absence is authoritative too: never inherit a live observation
+    # that was not present in the accepted canonical final payload.
+    for field in LIVE_STAT_LIMITS:
+        setattr(evidence, field, clean_stats.get(field))
 
     evidence.evidence_schema_version = 9
     evidence.gep_session_id = (
@@ -1432,23 +1498,11 @@ def normalized_gep_match_from_evidence(
             "Deadlock account_id"
         )
 
-    if (
-        int(
-            evidence.evidence_schema_version
-            or 0
-        ) != 9
-        or evidence.integrity_status
-        != GEP_INTEGRITY_CLIENT_ATTESTED
-    ):
-        raise ValueError(
-            "Evidence не прошёл "
-            "CLIENT_ATTESTED_GEP validation"
-        )
+    canonical = _validated_final_payload(lease=lease, evidence=evidence, user=user)
+    final_stats = canonical["live_stats"]
 
     mode = str(
-        lease.game_match_mode
-        or evidence.game_match_mode
-        or ""
+        canonical["game_match_mode"] or ""
     ).upper()
 
     if mode not in VALID_GEP_MODES:
@@ -1491,16 +1545,12 @@ def normalized_gep_match_from_evidence(
     for field, capability in (
         field_caps.items()
     ):
-        if getattr(
-            evidence,
-            field,
-            None,
-        ) is not None:
+        if final_stats[field] is not None:
             capabilities.add(
                 capability
             )
 
-    if evidence.healing is not None:
+    if final_stats["healing"] is not None:
         capabilities.update(
             {
                 "summary.healing",
@@ -1511,9 +1561,9 @@ def normalized_gep_match_from_evidence(
 
     duration_s = (
         int(
-            evidence.gep_match_clock_s
+            canonical["match_clock_s"]
         )
-        if evidence.gep_match_clock_s
+        if canonical["match_clock_s"]
         is not None
         else None
     )
@@ -1524,12 +1574,12 @@ def normalized_gep_match_from_evidence(
         )
 
     local_team = str(
-        evidence.gep_local_team
+        canonical["local_team"]
         or ""
     ).upper() or None
 
     winning_team = str(
-        evidence.gep_winning_team
+        canonical["winning_team"]
         or ""
     ).upper() or None
 
@@ -1554,7 +1604,6 @@ def normalized_gep_match_from_evidence(
 
     ended_at = aware(
         evidence.server_finalized_at
-        or evidence.terminal_at
     )
 
     if started_at is None:
@@ -1571,7 +1620,7 @@ def normalized_gep_match_from_evidence(
 
     return {
         "external_match_id": int(
-            evidence.external_match_id
+            canonical["match_id"]
         ),
         "provider": "overwolf_gep",
         "provider_payload_hash":
@@ -1609,13 +1658,13 @@ def normalized_gep_match_from_evidence(
                 "lease_id":
                     lease.id,
                 "session_id":
-                    evidence.gep_session_id,
+                    canonical["session_id"],
                 "final_payload_hash":
                     evidence.final_payload_hash,
                 "terminal_signal":
-                    evidence.terminal_signal,
+                    canonical["terminal_signal"],
                 "final_sequence":
-                    evidence.final_sequence,
+                    canonical["final_sequence"],
                 "server_first_seen_at":
                     started_at.isoformat(),
                 "server_finalized_at":
@@ -1633,19 +1682,9 @@ def normalized_gep_match_from_evidence(
         "participant": {
             "account_id":
                 int(user.account_id),
-            "steam_id64": (
-                int(evidence.steam_id64)
-                if evidence.steam_id64
-                is not None
-                else (
-                    int(user.steam_id64)
-                    if user.steam_id64
-                    is not None
-                    else None
-                )
-            ),
+            "steam_id64": canonical["steam_id64"],
             "hero_id":
-                evidence.hero_id,
+                final_stats["hero_id"],
             # MatchParticipant.team is an Integer provider field.
             # Overwolf exposes AMBER/SAPPHIRE names here; keep those names
             # in raw_summary and derive `won`, but never write a string into
@@ -1653,18 +1692,18 @@ def normalized_gep_match_from_evidence(
             "team": None,
             "won": won,
             "kills":
-                evidence.kills,
+                final_stats["kills"],
             "deaths":
-                evidence.deaths,
+                final_stats["deaths"],
             "assists":
-                evidence.assists,
+                final_stats["assists"],
             "net_worth":
-                evidence.souls,
+                final_stats["souls"],
             "hero_damage":
-                evidence.hero_damage,
+                final_stats["hero_damage"],
             "object_damage":
-                evidence.object_damage,
+                final_stats["object_damage"],
             "healing":
-                evidence.healing,
+                final_stats["healing"],
         },
     }

@@ -44,7 +44,10 @@ from .services.gep_settlement import (
     gep_settlement_managed_user,
     normalized_gep_match_from_evidence,
 )
-from .services.jobs import claim_next_job, complete_job, enqueue_job, retry_job
+from .services.jobs import (
+    claim_next_job, complete_job, enqueue_job, keep_job_lease,
+    reclaim_stale_jobs, retry_job,
+)
 from .services.match_audit import (
     MatchAuditPending,
     reconcile_match_audits,
@@ -374,12 +377,7 @@ def init() -> None:
         Base.metadata.create_all(engine)
     with SessionLocal() as db:
         seed_missions(db)
-        stale_before = utcnow() - timedelta(minutes=10)
-        stale = list(db.scalars(select(Job).where(Job.status == "RUNNING", Job.locked_at < stale_before)).all())
-        for job in stale:
-            job.status = "PENDING"
-            job.run_after = utcnow()
-            job.last_error = "Recovered stale RUNNING job"
+        reclaim_stale_jobs(db)
 
         # v0.3.3 could keep a correctly identified match waiting forever when
         # one capability (for example summary.object_damage) never appeared.
@@ -2072,7 +2070,7 @@ def bind_match(
     locked_board = db.scalar(
         select(ContractBoard).where(
             ContractBoard.id == board.id
-        ).with_for_update()
+        ).with_for_update().execution_options(populate_existing=True)
     )
 
     if not locked_board:
@@ -2118,6 +2116,7 @@ def bind_match(
                 BoardOption.selected.is_(True),
             )
             .with_for_update()
+            .execution_options(populate_existing=True)
         ).all()
     )
 
@@ -2861,11 +2860,13 @@ def handle_settle_gep_match(
     lease = db.get(
         CompanionAttemptLease,
         lease_id,
+        populate_existing=True,
     )
 
     evidence = db.get(
         CompanionMatchEvidence,
         evidence_id,
+        populate_existing=True,
     )
 
     if not lease or not evidence:
@@ -3076,6 +3077,10 @@ def handle_evaluate(db: Session, job: Job) -> None:
         raise ValueError("Доска или матч для оценки не найдены")
 
     missing_by_option = _missing_contract_facts_by_option(db, board, match)
+    if not missing_by_option:
+        # No active assignment belongs to this exact attempt any more. In
+        # particular, never evaluate the whole board when an old job replays.
+        return
     missing = sorted({fact for facts in missing_by_option.values() for fact in facts})
     provisional_companion_match = _is_provisional_companion_match(match)
 
@@ -3223,8 +3228,6 @@ def handle_evaluate(db: Session, job: Job) -> None:
             db, board.id, match.id,
             option_ids=waiting_option_ids,
         )
-    elif not ready_option_ids:
-        evaluate_board(db, board.id, match.id)
 
     db.refresh(board)
     _wake_board_match_candidate(db, board)
@@ -3494,6 +3497,8 @@ def _recover_unexpected_job_error(
     job_type: str,
     job_attempts: int,
     exc: Exception,
+    *,
+    owner: tuple[str, int] | None = None,
 ) -> bool:
     """Reset a failed SQLAlchemy transaction and schedule the job retry.
 
@@ -3511,7 +3516,7 @@ def _recover_unexpected_job_error(
         )
         return False
     delay = min(300, 5 * (2 ** min(int(job_attempts or 0), 6)))
-    retry_job(db, failed_job, exc, delay)
+    retry_job(db, failed_job, exc, delay, owner=owner)
     log.exception(
         "Job %s (%s) failed; transaction rolled back and retry policy applied",
         job_id,
@@ -3565,16 +3570,21 @@ def run() -> None:
                 job_id = job.id
                 job_type = job.type
                 job_attempts = int(job.attempts or 0)
+                owner = (WORKER_ID, job_attempts)
                 try:
-                    process_job(db, job)
-                    complete_job(db, job)
-                    log.info("Completed job %s %s", job_type, job_id)
+                    with keep_job_lease(SessionLocal, job_id, WORKER_ID, job_attempts):
+                        process_job(db, job)
+                    if complete_job(db, job, owner=owner):
+                        log.info("Completed job %s %s", job_type, job_id)
+                    else:
+                        log.warning("Skipped completion of lost lease %s", job_id)
                 except MatchAuditPending as exc:
                     retry_job(
                         db,
                         job,
                         exc,
                         exc.delay_seconds,
+                        owner=owner,
                     )
                     log.info(
                         "Match audit pending for job %s; retry in %ss",
@@ -3582,7 +3592,7 @@ def run() -> None:
                         exc.delay_seconds,
                     )
                 except ProviderRateLimited as exc:
-                    retry_job(db, job, exc, max(exc.retry_after, 30))
+                    retry_job(db, job, exc, max(exc.retry_after, 30), owner=owner)
                     log.warning("Provider rate limited; retry in %ss", exc.retry_after)
                 except ActiveReviewClaim as exc:
                     retry_job(
@@ -3590,6 +3600,7 @@ def run() -> None:
                         job,
                         exc,
                         exc.delay_seconds,
+                        owner=owner,
                     )
                     log.info(
                         "Human review claim active for job %s; "
@@ -3598,10 +3609,10 @@ def run() -> None:
                         exc.delay_seconds,
                     )
                 except FinalFactsPending as exc:
-                    retry_job(db, job, exc, exc.delay_seconds)
+                    retry_job(db, job, exc, exc.delay_seconds, owner=owner)
                     log.info("Final provider facts pending for job %s; retry in %ss", job_id, exc.delay_seconds)
                 except ProviderError as exc:
-                    retry_job(db, job, exc, 30)
+                    retry_job(db, job, exc, 30, owner=owner)
                     log.warning("Provider error for job %s; retry in 30s: %s", job_id, exc)
                 except CompanionMatchNotReady as exc:
                     retry_job(
@@ -3609,6 +3620,7 @@ def run() -> None:
                         job,
                         exc,
                         exc.delay_seconds,
+                        owner=owner,
                     )
                     log.info(
                         "Companion match not ready for job %s; retry in %ss",
@@ -3616,7 +3628,7 @@ def run() -> None:
                         exc.delay_seconds,
                     )
                 except NoMatchYet as exc:
-                    retry_job(db, job, exc, settings.discovery_retry_seconds)
+                    retry_job(db, job, exc, settings.discovery_retry_seconds, owner=owner)
                     log.info("No match yet for job %s", job.id)
                 except Exception as exc:
                     _recover_unexpected_job_error(
@@ -3625,6 +3637,7 @@ def run() -> None:
                         job_type,
                         job_attempts,
                         exc,
+                        owner=owner,
                     )
         if not did_work:
             time.sleep(settings.worker_poll_seconds)

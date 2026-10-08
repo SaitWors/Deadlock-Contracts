@@ -8,9 +8,11 @@ from urllib.parse import urlsplit
 
 
 LIMITS = {
-    # Nightshift + lazy PR44.5 poll/admin pages: ~700 KB total / 300 KB initial.
-    # Hero portraits stay separate assets; the public-entry cap stays unchanged.
-    "javascript_total": 715_000,
+    # Nightshift, lazy poll/admin pages and personal progress: measured ~720 KB.
+    # Deduplicated home keeps this increment under 725 KB total; the initial
+    # public entry remains ~301 KB and retains its existing 310 KB limit.
+    # Hero portraits stay separate assets.
+    "javascript_total": 725_000,
     "initial_javascript": 310_000,
     # Five themes and responsive surfaces retain existing feature styles.
     # ~441 KB including the lazy poll/editor stylesheet.

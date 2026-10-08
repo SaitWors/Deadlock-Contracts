@@ -686,6 +686,57 @@
     }).join('')}`
   }
 
+  function personalProgress(mode) {
+    return snapshot.paired ? Product.personalProgressFor(snapshot.product, mode) : null
+  }
+
+  function personalSourceLabel(kind) {
+    return {
+      INDEPENDENT_PROVIDER: ui('Independent match data', 'Независимые данные матча'),
+      CLIENT_ATTESTED_GEP: ui('Companion · not independently verified', 'Companion · без независимой проверки'),
+      DEMO: ui('Demo data', 'Демонстрационные данные'),
+      LEGACY: ui('Historical data · source not confirmed', 'Исторические данные · источник не подтверждён'),
+      UNKNOWN: ui('Source not confirmed', 'Источник не подтверждён'),
+    }[kind] || ui('Source not confirmed', 'Источник не подтверждён')
+  }
+
+  function personalSourcesHtml(sources) {
+    return `<p class="personal-sources">${escapeHtml(sources.length ? sources.map(source => `${personalSourceLabel(source.kind)}: ${formatNumber(source.count)}`).join(' · ') : personalSourceLabel('UNKNOWN'))}</p>`
+  }
+
+  function heroDossierHtml(hero, mode, debrief = false) {
+    const records = hero.records.map(record => `<span data-personal-record="${escapeHtml(record.metric)}"><em>${escapeHtml(record.metric === 'player.deaths' ? ui('Fewest deaths', 'Меньше всего смертей') : `${ui('Record', 'Рекорд')} · ${Product.metricLabel(record.metric, language())}`)}</em><b>${escapeHtml(adaptiveMetricValue(record.metric, record.value))}</b></span>`).join('')
+    return `<article class="${debrief ? 'debrief-card' : 'adaptive-profile-card'} hero-dossier"><header><span class="eyebrow">${escapeHtml(`${ui('Hero dossier', 'Досье героя')} · ${Product.modeLabel(mode, language())}`)}</span></header><h3>${escapeHtml(`${ui('Hero', 'Герой')} #${hero.hero_id}`)}</h3><p class="personal-scope">${escapeHtml(ui('Last 20 scored matches in this mode', 'Последние 20 зачтённых матчей этого режима'))}</p><div class="mini-kv"><span><em>${escapeHtml(ui('Matches on this hero', 'Матчи на этом герое'))}</em><b>${escapeHtml(formatNumber(hero.matches))}</b></span><span><em>${escapeHtml(ui('Completed contracts', 'Выполненные контракты'))}</em><b>${escapeHtml(formatNumber(hero.contracts_completed))}</b></span>${records}</div>${personalSourcesHtml(hero.sources)}</article>`
+  }
+
+  function personalComparisonsHtml(progress, debrief) {
+    const scope = {
+      SAME_HERO: ui('Same hero', 'Тот же герой'),
+      SAME_MODE: ui('Same mode', 'Тот же режим'),
+      NONE: ui('No prior comparison', 'Пока нет сравнения'),
+    }[debrief.baseline_scope]
+    const rows = debrief.comparisons.slice(0, 2).map(row => {
+      const median = row.median === null ? '—' : adaptiveMetricValue(row.metric, row.median)
+      const delta = row.delta === null ? '—' : `${row.delta > 0 ? '+' : ''}${adaptiveMetricValue(row.metric, row.delta)}`
+      return `<tr><th scope="row">${escapeHtml(Product.metricLabel(row.metric, language()))}</th><td>${escapeHtml(adaptiveMetricValue(row.metric, row.current))}</td><td>${escapeHtml(median)}</td><td class="${row.improved ? 'personal-improved' : ''}">${escapeHtml(delta)}</td><td>${escapeHtml(formatNumber(row.n))}</td></tr>`
+    }).join('')
+    const table = rows ? `<div class="personal-table-wrap"><table><thead><tr><th scope="col">${escapeHtml(ui('Metric', 'Показатель'))}</th><th scope="col">${escapeHtml(ui('This match', 'Этот матч'))}</th><th scope="col">${escapeHtml(ui('Prior median', 'Медиана до матча'))}</th><th scope="col">${escapeHtml(ui('Change', 'Разница'))}</th><th scope="col">${escapeHtml(ui('Matches', 'Матчи'))}</th></tr></thead><tbody>${rows}</tbody></table></div>` : ''
+    const calibrating = !debrief.comparisons.some(row => row.median !== null && row.delta !== null)
+    const minimum = progress.minimum_sample_size
+    const calibration = calibrating ? `<p class="personal-calibration">${escapeHtml(minimum > 0 ? ui(`At least ${minimum} prior matches with the metric available are needed for a comparison.`, `Для сравнения нужно не менее ${minimum} предыдущих матчей с доступным показателем.`) : ui('There are not enough comparable prior matches yet.', 'Пока недостаточно сопоставимых предыдущих матчей.'))}</p>` : ''
+    const title = progress.confidence === 'LOW' || progress.confidence === 'COLD_START' ? ui('Preliminary comparison', 'Предварительное сравнение') : ui('Your prior match comparison', 'Сравнение с предыдущими матчами')
+    return `<article class="debrief-card personal-comparisons"><span class="eyebrow">${escapeHtml(ui('Personal match summary', 'Личный разбор матча'))}</span><h3>${escapeHtml(title)}</h3><p class="personal-scope">${escapeHtml(`${scope} · ${formatNumber(debrief.baseline_sample_size)} ${ui('prior scored matches', 'предыдущих зачтённых матчей')}`)}</p><p class="personal-scope">${escapeHtml(ui('Up to 20 prior matches in this mode from the same source. This match is excluded from the comparison.', 'До 20 предыдущих матчей этого режима из того же источника. Матч исключён из сравнения.'))}</p><p class="personal-sources">${escapeHtml(personalSourceLabel(debrief.source))}</p>${table}${calibration}</article>`
+  }
+
+  function personalNextGoalHtml(progress) {
+    if (!progress?.goal || progress.goal.status !== 'OFFERED') return ''
+    const board = Product.boardForMode(snapshot.product, progress.mode)
+    const option = board?.options.find(item => item.id === progress.goal.option_id && item.status === 'OFFERED')
+    if (board?.status !== 'OFFERED' || board.id !== progress.board?.id || board.generation !== progress.board.generation || !option) return ''
+    const reason = progress.goal.reason?.[language()] || ''
+    return `<article class="debrief-card personal-next-goal"><span class="eyebrow">${escapeHtml(ui('Next goal', 'Следующая цель'))}</span><h3>${escapeHtml(optionTitle(option))}</h3><p>${escapeHtml(optionDescription(option, progress.mode))}</p>${reason ? `<p class="personal-scope">${escapeHtml(reason)}</p>` : ''}<button type="button" class="primary-btn" data-personal-goal-mode="${escapeHtml(progress.mode)}">${escapeHtml(ui('View next goal', 'Посмотреть следующую цель'))}</button></article>`
+  }
+
   function renderDebrief() {
     const product = snapshot.product || Product.emptyProductState()
     if (snapshot.paired && product.status === 'ONLINE' && !product.server_features?.includes('debrief_v1')) {
@@ -695,7 +746,16 @@
       return
     }
     const group = Product.latestVerdictGroup(product.history || [])
+    const progress = personalProgress(group?.game_match_mode || activeMode)
+    const personalDebrief = progress?.debrief && (!group || progress.debrief.match_id === group.match_id) ? progress.debrief : null
     if (!group) {
+      if (personalDebrief) {
+        setText('debriefStatus', ui('Match summary', 'Разбор матча'))
+        $('debriefStatus').className = 'outline-badge'
+        const hero = progress.heroes.find(item => item.hero_id === personalDebrief.hero_id)
+        $('debriefContent').innerHTML = `<div class="debrief-main"><article class="debrief-card"><span class="eyebrow">${escapeHtml(Product.modeLabel(progress.mode, language()))}</span><h3>${escapeHtml(`${ui('MATCH', 'МАТЧ')} #${personalDebrief.match_id}`)}</h3><p class="personal-scope">${escapeHtml(formatDateTime(personalDebrief.played_at))}</p></article>${personalComparisonsHtml(progress, personalDebrief)}</div><aside class="debrief-side">${hero ? heroDossierHtml(hero, progress.mode, true) : ''}${personalNextGoalHtml(progress)}</aside>`
+        return
+      }
       setText('debriefStatus', t('noDebrief'))
       $('debriefStatus').className = 'outline-badge'
       $('debriefContent').innerHTML = emptyState(t('noDebrief'), t('noDebriefBody'))
@@ -734,6 +794,12 @@
       : ''
     const progression = product.progression || {}
     $('debriefContent').innerHTML = `<div class="debrief-main"><article class="debrief-summary"><header><span>${escapeHtml(`${Product.modeLabel(group.game_match_mode)} · MATCH #${group.match_id}`)}</span><b>${escapeHtml(formatDateTime(group.at))}</b></header><h2>${escapeHtml(t('latestServerResult'))}</h2><div class="debrief-score"><div><span>${escapeHtml(t('completed'))}</span><b>${completed}</b></div><div><span>${escapeHtml(t('failed'))}</span><b>${failed}</b></div><div><span>${escapeHtml(t('verifying'))}</span><b>${pending}</b></div><div class="xp"><span>${escapeHtml(t('xpGranted'))}</span><b>+${formatNumber(reward)} XP</b></div></div></article><div class="debrief-contracts">${contractRows}</div></div><aside class="debrief-side"><article class="debrief-card"><span class="eyebrow">${escapeHtml(t('personalIntel'))}</span><h3>${escapeHtml(`${Product.modeLabel(group.game_match_mode)} · ${profile?.confidence || t('waiting')}`)}</h3><div class="mini-kv"><span><em>${escapeHtml(t('sample'))}</em><b>${escapeHtml(formatNumber(profile?.sample_size || 0))}</b></span>${profileMetrics}</div></article><article class="debrief-card"><span class="eyebrow">${escapeHtml(t('progression'))}</span><h3>${escapeHtml(t('level'))} ${escapeHtml(progression.level || '—')}</h3><div class="mini-kv"><span><em>${escapeHtml(t('totalXp'))}</em><b>${escapeHtml(formatNumber(progression.total_xp))}</b></span><span><em>${escapeHtml(t('toNext'))}</em><b>${escapeHtml(formatNumber(progression.xp_to_next))} XP</b></span></div></article>${localHtml}</aside>`
+    if (personalDebrief) {
+      $('debriefContent').querySelector('.debrief-main').insertAdjacentHTML('beforeend', personalComparisonsHtml(progress, personalDebrief))
+      const hero = progress.heroes.find(item => item.hero_id === personalDebrief.hero_id)
+      if (hero) $('debriefContent').querySelector('.debrief-side').insertAdjacentHTML('afterbegin', heroDossierHtml(hero, progress.mode, true))
+    }
+    $('debriefContent').querySelector('.debrief-side').insertAdjacentHTML('beforeend', personalNextGoalHtml(progress))
   }
 
   function historyGroup(status) {
@@ -801,6 +867,11 @@
         return `<article class="adaptive-profile-card"><header><span>${escapeHtml(Product.modeLabel(mode))}</span><b>${escapeHtml(profile?.confidence || 'COLD_START')}</b></header><h3>${escapeHtml(`${formatNumber(profile?.sample_size || 0)} ${t('recentMatches')}`)}</h3><div class="profile-baselines">${metrics}</div></article>`
       }).join('')
     }
+    const dossiers = Product.MODES.flatMap(mode => {
+      const progress = personalProgress(mode)
+      return progress ? progress.heroes.map(hero => heroDossierHtml(hero, mode)) : []
+    }).join('')
+    if (dossiers) $('adaptiveProfiles').insertAdjacentHTML('beforeend', dossiers)
   }
 
   function renderSettings() {
@@ -988,6 +1059,12 @@
 
   function bindNavigation() {
     document.addEventListener('click', event => {
+      const personalGoal = event.target.closest('[data-personal-goal-mode]')
+      if (personalGoal && personalProgress(personalGoal.dataset.personalGoalMode)) {
+        activeMode = personalGoal.dataset.personalGoalMode
+        setView('contracts')
+        $('modeTabs').querySelector(`[data-mode="${activeMode}"]`)?.focus()
+      }
       const target = event.target.closest('[data-view-target]')
       if (target) setView(target.dataset.viewTarget)
       const emptyAction = event.target.closest('[data-empty-action]')?.dataset.emptyAction

@@ -1,4 +1,20 @@
 /* City Never Sleeps Companion — printed directory, case files and city posters. */
+.personal-comparisons { border-top:3px solid var(--info); }
+.personal-scope,.personal-sources,.personal-next-goal > p { font-size:11px; line-height:1.6; overflow-wrap:anywhere; }
+.personal-scope,.personal-next-goal > p { color:var(--text-muted); }
+.personal-sources { color:var(--info); }
+.personal-calibration { padding:12px 14px; border:1px solid var(--border-soft); border-left:3px solid var(--warning); border-radius:var(--radius-sm); background:var(--bg-elevated); color:var(--warning); font-size:11px; line-height:1.6; }
+.personal-table-wrap { max-width:100%; overflow-x:auto; margin-top:16px; }
+.personal-table-wrap table { width:100%; min-width:360px; border-collapse:collapse; font-size:11px; font-variant-numeric:tabular-nums; }
+.personal-table-wrap th,.personal-table-wrap td { padding:10px 7px; border-bottom:1px solid var(--border-soft); text-align:right; }
+.personal-table-wrap th:first-child { text-align:left; }
+.personal-table-wrap thead th { color:var(--text-muted); font-size:10px; font-weight:500; line-height:1.5; }
+.personal-table-wrap tbody th { color:var(--text-secondary); font-weight:500; }
+.personal-table-wrap .personal-improved { color:var(--success); font-weight:600; }
+.hero-dossier .mini-kv { padding-top:12px; border-top:1px solid var(--border-soft); }
+.hero-dossier .personal-sources { margin:18px 0 0; }
+.personal-next-goal { border-top:3px solid var(--accent); }
+.personal-next-goal .primary-btn { margin-top:8px; }
 .app-shell { height:100%; min-width:900px; min-height:620px; position:relative; overflow:hidden; background:var(--bg-page); border:1px solid var(--border-soft); }
 .titlebar { height:72px; position:relative; z-index:20; display:grid; grid-template-columns:220px minmax(0,1fr) auto auto; align-items:center; background:var(--bg-void); border-bottom:1px solid var(--border-soft); user-select:none; }
 .brand { height:100%; padding:0 22px; display:flex; align-items:center; gap:12px; border:0; border-right:1px solid var(--border-soft); background:transparent; color:var(--text-primary); text-align:left; }
