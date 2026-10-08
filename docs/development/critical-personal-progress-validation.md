@@ -2,7 +2,7 @@
 
 ## Repository and compatibility
 
-The implementation is based on GitHub main `8db85642ae30e38142b95f4cc281c93c7dec1082` (tree `7cee3eb304a749ff0019bc0cf47da33e16bca020`). Main was checked again during implementation and remained unchanged. Read-only public HTTP checks of `/api/health` and `/api/status` returned 200 and web `0.10.1-alpha.12`, agreeing with source metadata. These endpoints do not expose a deployed Git SHA or establish schema/worker correctness. Runtime source hashes were compared with the repository before changes. Backend, frontend and production Compose target web `0.10.1-alpha.12`; Companion metadata and manifest agree on `0.5.2-alpha.18` / `0.5.2.18`. This is a review branch, not a released version.
+The implementation is based on GitHub main `8db85642ae30e38142b95f4cc281c93c7dec1082` (tree `7cee3eb304a749ff0019bc0cf47da33e16bca020`). Main was checked again during implementation and remained unchanged. Read-only public HTTP checks of `/api/health` and `/api/status` returned 200 and web `0.10.1-alpha.12`, agreeing with source metadata. These endpoints do not expose a deployed Git SHA or establish schema/worker correctness. Runtime source hashes were compared with the repository before changes. Backend, frontend and production Compose target web `0.10.1-alpha.12`; Companion metadata and manifest agree on `0.5.2-alpha.18` / `0.5.2.18`. Published review branch: `fix/critical-personal-progress`, [draft PR #47](https://github.com/SaitWors/Deadlock-Contracts/pull/47). This is not a released version.
 
 The private read model is additive: `/api/personal-progress`, version `personal-progress-1`, and the optional desktop capability `personal_progress_v1`. Existing clients continue using the established bootstrap fields. Companion hides the new private projection for cached, stale or unpaired snapshots. No database migration, new currency, hero XP or settlement rollout is introduced.
 
@@ -14,8 +14,11 @@ The private read model is additive: `/api/personal-progress`, version `personal-
 | C-01: heartbeat changes finalized evidence | Final v9 evidence remains immutable; scoring verifies the canonical digest and lease/account/device/session/match identity, then reads final facts. Missing final metrics stay missing. | Final mutation, hash drift, missing metric, identity and cached-session regressions failed before the fixes. |
 | INFRA-01: restart strands RUNNING jobs | Normal polling reclaims expired/orphaned leases. Separate-session heartbeat renews live jobs; owner and attempt fence completion/retry. | Four orphan/renewal/ownership regressions failed before implementation. Queue delivery remains at least once and domain handlers still require idempotency. |
 | INFRA-02: restore drops live DB before validating the archive | Private archive validation and a trial import/runtime check precede service interruption. Cutover retains the original DB and verifies OIDs; uncertain/failing cutover attempts identity-based rollback. Services resume explicitly. | 13 real-script tests use controlled Docker/psql failure paths, real gzip/checksum and filesystem cleanup. Real PostgreSQL rehearsal is still required. |
+| DEP-01: vulnerable frontend tooling dependencies block CI | Source-map-js is resolved to 1.2.2. A narrow `oxfmt@0.64.0>tinypool: 2.1.2` override replaces the formatter's exact vulnerable dependency without changing the formatter release. Docker copies the override configuration before frozen installation. | The existing CI audit failed with two Critical and one High advisory. A fresh frozen install, full audit with zero advisories, 166 tests, format/types/build and asset-budget checks pass after the patch. |
 
 The finalized GEP path remains client-attested, without independent provider verification. Its rollout settings remain disabled by default. Already-corrupted historical final evidence is rejected; this branch does not automatically repair production data.
+
+The dependency patch addresses GHSA-5gmw-xhrv-c9v3, GHSA-85c8-ppgw-ccpr and GHSA-68fv-2mgg-jv7q. They affect development dependencies; the advisory severity does not establish that the production website is exploitable. The parent-specific override is documented in `frontend/pnpm-workspace.yaml` and should be removed when a future formatter release includes fixed Tinypool. All other resolved package versions are unchanged and the security gate remains enabled.
 
 ## First product increment
 
@@ -37,6 +40,7 @@ Colors and typography use the existing appearance tokens and Jost/Ruslan Display
 - Companion DOM behavior runs under the frontend's existing jsdom dependency; its five scenarios passed. Companion CI and standalone packaging remain dependency-free.
 
 - Website: `npm test` — **166 passed**, including the Companion DOM scenarios; TypeScript `tsc --noEmit`, full frontend `oxfmt --check`, production Vite build and diff whitespace check — passed.
+- Dependency patch: independent `pnpm install --frozen-lockfile` with fresh local `node_modules`, then `pnpm audit --audit-level high --json` — **zero advisories of any severity**. Format/type/test/build/budget checks above were repeated using these installed packages. Local pnpm is 11.25.0; CI retains the pinned 11.19.0 and verifies its frozen installation separately.
 - Website asset budget — passed: total JavaScript **720,823 / 725,000 bytes**, initial JavaScript **301,364 / 310,000**, CSS **426,138 / 450,000**, largest image **356,200 / 600,000**, all assets **2,502,565 / 3,100,000**. Duplicate home goal/KPI/mode-card markup was removed while retaining the paper XP/profile entry, active-case shortcut, mascot, recovery note and archive/artwork. Home deduplication saved 3,196 bytes; final terminal-state handling added 1,037 bytes, leaving the clean production build 2,159 bytes smaller than the first implementation. The total cap increases by 10,000 bytes (1.4%) to accommodate the new private feature; the public entry, CSS, image and overall asset caps are unchanged. No dependency or payload guard was removed to reach it.
 
 ## Whole-branch review and fix pass
@@ -50,11 +54,11 @@ The final full suites passed after this fix pass: backend 559 plus 1188 subtests
 
 ## Scope decisions and limits
 
-- Keep existing AUTH-01/02 and dependency advisories for the next audit group. They remain known work; this PR must not be treated as clearing the whole audit.
+- Keep existing AUTH-01/02 for the next audit group. They remain known work; this PR must not be treated as clearing the whole audit. DEP-01 was brought into this increment after it blocked actual GitHub CI; compatible patch versions and a narrow override preserve the existing formatter and all CI gates. The override must be maintained until the parent package fixes its exact dependency.
 - Keep durable GEP queue, permanent-final retries and underlying mixed-source settlement repairs for the next group. Source labeling was checked here; the existing delivery limitations remain.
 - Keep other provisioning/readiness repairs outside this increment. Public release/status responses do not establish deployment readiness.
 - Keep hero XP, campaigns, community competitions, expanded achievements and richer filtering for later phases. These are not present in this first factual progress foundation.
-- Make no production PostgreSQL/Compose correctness or concurrency claim; require isolated rehearsal before production use. A passing command double cannot exclude runtime failures.
+- GitHub CI passed blank PostgreSQL bootstrap, ORM/Alembic agreement, previous-to-current migration and the existing bureau/archive/pack concurrency smoke checks. These checks do not establish restore cutover or production job/evidence concurrency correctness; require isolated restore rehearsal before production use. A passing command double cannot exclude runtime failures.
 - Make no real browser/mobile/assistive-technology or Overwolf claim; require their QA before release. Headless DOM tests do not exclude layout/native/telemetry issues.
 - Publish changed entries on the original complete remote Git tree and verify the omitted local unused PNG by its original blob SHA. A reconstructed local snapshot must never replace the whole remote tree.
 - Permit the bounded total JavaScript cap adjustment noted above; retaining all existing initial/CSS/image/overall-asset caps limits the tradeoff to up to 10,000 additional bytes across all lazy JavaScript.
@@ -63,4 +67,6 @@ The final full suites passed after this fix pass: backend 559 plus 1188 subtests
 
 No Docker/PostgreSQL runtime or browser executable is available in this development environment. SQLite, Node/jsdom and controlled command doubles do not prove PostgreSQL locking/authentication/cutover, real browser/native dialog layout, screen-reader behavior, or Overwolf/in-game telemetry. Before deploying, rehearse restore using disposable pinned Compose images, perform browser/mobile RU/EN/theme checks and run the Companion Overwolf QA matrix. No production restore, deployment, merge or GEP enablement was performed.
 
-The remaining P2/P3 audit findings are outside this first increment. Next groups are authentication/rate-limit and dependency advisories, then durable GEP queue and mixed-source behavior, then provisioning/readiness and remaining UX/accessibility. The home XP display also now follows the refreshed progression ledger (FE-03).
+The remaining P2/P3 audit findings are outside this first increment. Next groups are authentication/rate-limit, then durable GEP queue and mixed-source behavior, then provisioning/readiness and remaining UX/accessibility. The home XP display also now follows the refreshed progression ledger (FE-03).
+
+Publication verification compares every changed blob with the tested local HEAD and preserves file modes; all 658 original blobs are retained or deliberately updated. The unused PNG retains SHA `49667201e00ed44cb979e8fd5aebab7beeaddb8d`; `scripts/restore.sh` retains mode `100755`. The branch is based on original main and no main ref was changed.

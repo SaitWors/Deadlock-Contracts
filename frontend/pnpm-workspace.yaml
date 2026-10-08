@@ -1,0 +1,5 @@
+# oxfmt 0.64.0 pins vulnerable Tinypool 2.1.0. Keep the formatter release
+# while applying the patch fixes for GHSA-5gmw-xhrv-c9v3 and GHSA-85c8-ppgw-ccpr.
+# Remove this narrow override when oxfmt ships with Tinypool >= 2.1.2.
+overrides:
+  "oxfmt@0.64.0>tinypool": "2.1.2"
