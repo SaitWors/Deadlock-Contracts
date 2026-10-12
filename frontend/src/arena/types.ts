@@ -65,6 +65,12 @@ export type Bootstrap = {
   }
   squad: Squad
   inventory: RosterItem[]
+  starter?: { claimed: boolean; available: boolean; missing_heroes: string[] }
+  unavailable_inventory?: {
+    item_id: string
+    card: Card
+    reason: "UNSUPPORTED_HERO" | "BATTLE_APPROVAL"
+  }[]
   assignments: {
     id: string
     mode: Mode

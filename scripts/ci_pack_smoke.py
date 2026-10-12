@@ -1,10 +1,13 @@
 """Verify paid/starter openings with real PostgreSQL locks and competing sessions."""
 from concurrent.futures import ThreadPoolExecutor
 from datetime import timedelta
+import hashlib
+import io
 from threading import Barrier
 from uuid import uuid4
 
 from fastapi.testclient import TestClient
+from PIL import Image
 from sqlalchemy import delete, func, select
 
 from app.db import SessionLocal, engine
@@ -17,9 +20,13 @@ from app.services.auth import COOKIE_NAME, csrf_token, hash_token
 def main():
     assert engine.dialect.name == "postgresql"
     token = uuid4().hex
+    image = io.BytesIO()
+    Image.new("RGB", (240, 360), "#394b65").save(image, format="WEBP")
+    artwork = image.getvalue()
     with SessionLocal() as db:
         user = User(display_name="Pack concurrency smoke")
-        card = ArchiveCard(hero="abrams", rank="F", title="PG smoke card", status="PUBLISHED", image_digest="test")
+        card = ArchiveCard(hero="abrams", rank="F", title="PG smoke card", status="PUBLISHED",
+                           image_data=artwork, image_digest=hashlib.sha256(artwork).hexdigest())
         pack = ArchivePack(active=True, starter=True)
         db.add_all([user, card, pack]); db.flush()
         user_id, card_id, pack_id = user.id, card.id, pack.id

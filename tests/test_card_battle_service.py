@@ -5,6 +5,7 @@ from datetime import timedelta
 import pytest
 from sqlalchemy import create_engine, select
 from sqlalchemy.orm import Session
+from arena_fixtures import original_card_id as card_id, seed_original_catalogue
 
 
 @pytest.fixture()
@@ -34,6 +35,7 @@ def player(db):
 def seed(db):
     from app.services.battle_catalog import seed_battle_catalogue
     seed_battle_catalogue(db)
+    seed_original_catalogue(db)
 
 
 def test_catalogue_seed_is_insert_only_and_starter_is_independent_of_old_pack(db):
@@ -155,7 +157,6 @@ def test_assigned_opponent_persists_across_loss_and_normal_hard_share_three_win_
 def test_trial_lends_only_chosen_base_and_access_requires_matching_real_win(db, monkeypatch):
     from app.models import ArchiveCard, ArchiveItem, utcnow
     from app.services import extra_coin_rewards
-    from app.services.battle_catalog import card_id
     seed(db); user = player(db); user.created_at = utcnow() - timedelta(days=8)
     db.flush()
     monkeypatch.setattr(extra_coin_rewards, "confirmed_contract_count", lambda db, uid: 20)
@@ -277,7 +278,6 @@ def test_bootstrap_is_read_only_and_request_recovery_private(db):
 
 def test_first_room_seal_does_not_silently_upgrade_to_different_definition(db):
     from app.battle_models import BattleArtwork, BattleDefinitionVersion, BattleMatch
-    from app.services.battle_catalog import card_id
     from app.services import card_battle
     seed(db); first, second = player(db), player(db)
     for user in (first, second): service().claim_starter(db, user.id, str(uuid4()), "REAL")
@@ -297,7 +297,6 @@ def test_ranked_queue_does_not_weaken_rating_or_budget_constraints(db):
     from app.models import ArchiveItem, utcnow
     from app.battle_models import BattleRating, BattleSeason
     from app.services import battle_social
-    from app.services.battle_catalog import card_id
     seed(db); owner, first, second = player(db), player(db), player(db)
     for user in (first, second): service().claim_starter(db, user.id, str(uuid4()), "REAL")
     season = battle_social.set_season(db, owner.id, str(uuid4()), "Fixed matching", utcnow() - timedelta(hours=1), utcnow() + timedelta(days=7), True)["season"]
@@ -330,7 +329,6 @@ def test_ranked_queue_filters_suspended_candidates_and_experience_bucket(db):
 
 def test_owned_definition_preview_matches_actual_versioned_match_stats(db):
     from app.battle_models import BattleArtwork, BattleDefinitionVersion
-    from app.services.battle_catalog import card_id
     from app.services import card_battle
     seed(db); user = player(db)
     service().claim_starter(db, user.id, str(uuid4()), "REAL")

@@ -76,22 +76,10 @@ def image_bytes(encoded):
 
 
 def battle_metadata(db, cards):
-    """Publication is independent of the explicit server-approved battle link."""
-    from ..battle_models import BattleArtwork, BattleDefinitionVersion
-    cards_by_id = {card.id: card for card in cards}
-    if not cards_by_id:
-        return {}
-    rows = db.execute(select(BattleArtwork, BattleDefinitionVersion).join(
-        BattleDefinitionVersion, BattleDefinitionVersion.id == BattleArtwork.definition_id).where(
-        BattleArtwork.card_id.in_(cards_by_id), BattleArtwork.approved.is_(True), BattleDefinitionVersion.approved.is_(True))).all()
-    result = {}
-    for artwork, definition in rows:
-        card = cards_by_id[artwork.card_id]
-        expected = "BASE" if card.rank == "EX" else "HERO"
-        if definition.key == card.hero and definition.category == expected and card.rank in CATALOG_RANKS:
-            result[card.id] = {"category": expected, "battle_eligible": True, "definition_key": definition.key,
-                               "definition_id": definition.id, "definition_version": definition.version}
-    return result
+    from .battle_definitions import definitions_for_cards
+    return {card_id: {"category": definition.category, "battle_eligible": True, "definition_key": definition.key,
+                      "definition_id": definition.id, "definition_version": definition.version}
+            for card_id, definition in definitions_for_cards(db, cards).items()}
 
 
 def card_payload(card, *, private=False, staff=False, battle=None):

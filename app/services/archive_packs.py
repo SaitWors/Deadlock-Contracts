@@ -9,10 +9,11 @@ from uuid import NAMESPACE_URL, uuid5
 
 from fastapi import HTTPException
 from sqlalchemy import Integer, func, select
+from sqlalchemy.orm import undefer
 
 from ..models import (ArchiveCard, ArchiveFavorite, ArchiveItem, ArchiveLedger, ArchiveOperation, ArchivePack,
                       ArchivePackVersion, ArchiveShowcase, AuditLog, PublicProfile)
-from .archive import ECONOMY_SCOPES, MAX_BALANCE, RANKS, aware, battle_metadata, card_payload, lock_user, wallet_state
+from .archive import ECONOMY_SCOPES, HEROES, MAX_BALANCE, RANKS, aware, battle_metadata, card_payload, lock_user, wallet_state
 from . import pack_rules
 
 # Internal collection balance, not a cash value or an external market estimate.
@@ -46,32 +47,32 @@ def rank_odds(entries):
 
 
 def cards_for_pool(db, entries, *, lock=False):
-    statement = select(ArchiveCard).where(ArchiveCard.id.in_([entry["card_id"] for entry in entries])).order_by(ArchiveCard.id)
+    statement = select(ArchiveCard).options(undefer(ArchiveCard.image_data)).where(
+        ArchiveCard.id.in_([entry["card_id"] for entry in entries])).order_by(ArchiveCard.id)
     if lock:
         statement = statement.with_for_update(read=True).execution_options(populate_existing=True)
     return {card.id: card for card in db.scalars(statement)}
 
 
+def collectible_pack_card(card):
+    from .arena_catalog_repair import is_pristine_arena_card
+    return bool(card.status == "PUBLISHED" and card.hero in HEROES and card.rank in RANKS
+                and card.image_digest and card.image_data and not is_pristine_arena_card(card))
+
+
 def ready_pool(entries, cards):
-    return all(entry["card_id"] in cards and cards[entry["card_id"]].status == "PUBLISHED"
-               and cards[entry["card_id"]].image_digest for entry in entries)
+    return bool(entries) and all(entry["card_id"] in cards and collectible_pack_card(cards[entry["card_id"]])
+                                 for entry in entries)
 
 
 def ready_v2_pool(db, entries, cards, *, lock=False):
-    from ..battle_models import BattleArtwork, BattleDefinitionVersion
     if not entries or not ready_pool(entries, cards) or {entry["rank"] for entry in entries} != set(pack_rules.RANKS):
         return False
-    statement = select(BattleArtwork.card_id, BattleDefinitionVersion.key).join(
-        BattleDefinitionVersion, BattleDefinitionVersion.id == BattleArtwork.definition_id).where(
-        BattleArtwork.card_id.in_([entry["card_id"] for entry in entries]), BattleArtwork.approved.is_(True),
-        BattleDefinitionVersion.approved.is_(True), BattleDefinitionVersion.category == "HERO")
-    if lock:
-        statement = statement.order_by(BattleArtwork.card_id).with_for_update(read=True)
-    approved = dict(db.execute(statement).all())
     groups = {}
     for entry in entries:
         card = cards[entry["card_id"]]
-        if card.rank != entry["rank"] or card.hero != entry["hero"] or approved.get(card.id) != entry["hero"]:
+        if (card.rank != entry["rank"] or card.hero != entry["hero"]
+                or type(entry["weight"]) is not int or not 1 <= entry["weight"] <= 10000):
             return False
         variant = (entry["rank"], entry["hero"])
         if groups.setdefault(variant, entry["weight"]) != entry["weight"]:
@@ -96,7 +97,7 @@ def configuration(db, payload):
         for entry in entries:
             entry["hero"] = cards[entry["card_id"]].hero
         if not ready_v2_pool(db, entries, cards, lock=True):
-            raise HTTPException(422, "Нужны утверждённые варианты всех рангов с единым весом героя / All approved hero ranks required")
+            raise HTTPException(422, "Нужны опубликованные варианты всех рангов с единым весом героя / All collectible hero ranks required")
         return {"title": payload.title, "description": payload.description, "price": payload.price,
                 "draws": payload.draws, "entries": entries, "price_model": 3, "kind": kind,
                 "rule_version": pack_rules.RULE_VERSION, "slots": list(preset["slots"])}
@@ -336,33 +337,62 @@ def open_v2(db, operation, pack, version, cards, payload):
         "guarantee_before": before, "guarantee_after": guarantee_payload(state, operation.scope, config["slots"][0])}})
 
 
+def _preset_config(kind, entries):
+    preset = pack_rules.PRESETS[kind]
+    return {"kind": kind, "rule_version": pack_rules.RULE_VERSION, "price_model": 3,
+            "title": preset["title"], "description": "Оплаченные карты с общими гарантиями / Paid cards with shared guarantees",
+            "price": preset["price"], "draws": len(preset["slots"]), "slots": list(preset["slots"]), "entries": entries}
+
+
+def _pristine_synthetic_preset(db, pack, version, kind):
+    """Recognize only the exact shipped preset, leaving curator decisions alone."""
+    from .battle_catalog import card_id
+    if (pack.creator_id is not None or not pack.active or pack.starter or pack.revision != 1
+            or version is None or version.id != str(uuid5(NAMESPACE_URL, "deadlock-contracts:pack-v2-version:" + kind))):
+        return False
+    # Freeze the released roster: later battle rule additions are not old seed entries.
+    heroes = ("abrams", "bebop", "dynamo", "haze", "ivy", "kelvin", "seven", "infernus", "wraith", "mcginnis", "lady-geist", "venator")
+    entries = [{"card_id": card_id(hero, rank), "hero": hero, "rank": rank, "weight": 1}
+               for rank in RANKS for hero in heroes]
+    entries.sort(key=lambda entry: (entry["rank"], entry["hero"], entry["card_id"]))
+    if version.config != _preset_config(kind, entries):
+        return False
+    if db.scalar(select(func.count()).select_from(ArchivePackVersion).where(ArchivePackVersion.pack_id == pack.id)) != 1:
+        return False
+    return db.scalar(select(AuditLog.id).where(AuditLog.entity_id == pack.id,
+        AuditLog.action.in_(("archive.pack_created", "archive.pack_updated", "archive.pack_paused"))).limit(1)) is None
+
+
 def seed_pack_v2(db):
-    """Insert the two reviewed presets; never overwrite edits or unpause a pack."""
-    from ..battle_models import BattleArtwork, BattleDefinitionVersion
+    """Seed original collection pools; append repairs only to untouched system presets."""
     from sqlalchemy.dialects.postgresql import insert as postgresql_insert
     from sqlalchemy.dialects.sqlite import insert as sqlite_insert
     dialect = db.get_bind().dialect.name
     insert = {"postgresql": postgresql_insert, "sqlite": sqlite_insert}.get(dialect)
     if insert is None:
         raise RuntimeError(f"Pack seeding does not support {dialect}")
-    rows = db.execute(select(ArchiveCard, BattleDefinitionVersion.key).join(
-        BattleArtwork, BattleArtwork.card_id == ArchiveCard.id).join(
-        BattleDefinitionVersion, BattleDefinitionVersion.id == BattleArtwork.definition_id).where(
-        ArchiveCard.status == "PUBLISHED", ArchiveCard.rank.in_(pack_rules.RANKS), ArchiveCard.image_digest.is_not(None),
-        BattleArtwork.approved.is_(True), BattleDefinitionVersion.approved.is_(True), BattleDefinitionVersion.category == "HERO")
-        .order_by(ArchiveCard.rank, BattleDefinitionVersion.key, ArchiveCard.id)).all()
-    entries = [{"card_id": card.id, "hero": hero, "rank": card.rank, "weight": 1} for card, hero in rows if card.hero == hero]
+    rows = db.scalars(select(ArchiveCard).options(undefer(ArchiveCard.image_data)).where(
+        ArchiveCard.status == "PUBLISHED", ArchiveCard.rank.in_(pack_rules.RANKS), ArchiveCard.hero.in_(HEROES),
+        ArchiveCard.image_digest.is_not(None)).order_by(ArchiveCard.rank, ArchiveCard.hero, ArchiveCard.id)).all()
+    entries = [{"card_id": card.id, "hero": card.hero, "rank": card.rank, "weight": 1}
+               for card in rows if collectible_pack_card(card)]
     if {entry["rank"] for entry in entries} != set(pack_rules.RANKS):
         return
-    for kind, preset in pack_rules.PRESETS.items():
+    for kind in pack_rules.PRESETS:
         pack_id = str(uuid5(NAMESPACE_URL, "deadlock-contracts:pack-v2:" + kind))
-        config = {"kind": kind, "rule_version": pack_rules.RULE_VERSION, "price_model": 3,
-                  "title": preset["title"], "description": "Оплаченные карты с общими гарантиями / Paid cards with shared guarantees",
-                  "price": preset["price"], "draws": len(preset["slots"]), "slots": list(preset["slots"]), "entries": entries}
-        db.execute(insert(ArchivePack).values(id=pack_id, revision=1, active=True, starter=False)
-                   .on_conflict_do_nothing(index_elements=["id"]))
-        db.execute(insert(ArchivePackVersion).values(id=str(uuid5(NAMESPACE_URL, "deadlock-contracts:pack-v2-version:" + kind)),
-                   pack_id=pack_id, revision=1, config=config).on_conflict_do_nothing(index_elements=["pack_id", "revision"]))
+        config = _preset_config(kind, entries)
+        created = db.execute(insert(ArchivePack).values(id=pack_id, revision=1, active=True, starter=False)
+                             .on_conflict_do_nothing(index_elements=["id"])).rowcount
+        pack = db.scalar(select(ArchivePack).where(ArchivePack.id == pack_id).with_for_update().execution_options(populate_existing=True))
+        version = pack_version(db, pack)
+        if created:
+            db.execute(insert(ArchivePackVersion).values(id=str(uuid5(NAMESPACE_URL, "deadlock-contracts:pack-v2-version:" + kind)),
+                       pack_id=pack_id, revision=1, config=config).on_conflict_do_nothing(index_elements=["pack_id", "revision"]))
+        elif _pristine_synthetic_preset(db, pack, version, kind):
+            db.execute(insert(ArchivePackVersion).values(id=str(uuid5(NAMESPACE_URL, "deadlock-contracts:pack-v2-original-art-version:" + kind)),
+                       pack_id=pack_id, revision=2, config=config).on_conflict_do_nothing(index_elements=["pack_id", "revision"]))
+            pack.revision = 2
+            db.flush()
 
 
 def acquire(db, user_id, card_id, payload, *, owner=False):

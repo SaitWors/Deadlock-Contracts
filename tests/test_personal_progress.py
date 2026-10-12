@@ -226,6 +226,7 @@ def test_intents_recommend_issued_options_with_two_distinct_alternatives(db, int
 def test_cold_start_never_repeats_generator_claim_of_personalization(db, sample_size):
     owner = player(db)
     goal = option(db, board(db, owner), adaptive_n=12)
+    goal.id = "00000000-0000-4000-8000-000000000999"
     for index in range(sample_size):
         match(db, owner, index, kills=6)
     db.commit()
@@ -238,12 +239,13 @@ def test_cold_start_never_repeats_generator_claim_of_personalization(db, sample_
     assert result["goal"]["personalized"] is False
     assert result["goal"]["basis"] == []
     assert "generic" in result["goal"]["reason"]["en"].lower()
-    assert "999" not in str(result["goal"])
+    assert all("999" not in text for text in result["goal"]["reason"].values())
 
 
 def test_personalization_basis_uses_actual_available_samples_not_stale_metadata(db):
     owner = player(db)
-    option(db, board(db, owner))
+    goal = option(db, board(db, owner))
+    goal.id = "00000000-0000-4000-8000-000000000999"
     for index in range(8):
         match(db, owner, index, kills=6)
     db.commit()
@@ -258,7 +260,7 @@ def test_personalization_basis_uses_actual_available_samples_not_stale_metadata(
     }]
     assert "6" in result["goal"]["reason"]["en"]
     assert "8" in result["goal"]["reason"]["en"]
-    assert "999" not in str(result["goal"])
+    assert all("999" not in text for text in result["goal"]["reason"].values())
 
 
 def test_eight_matches_with_missing_goal_metric_do_not_claim_personalization(db):

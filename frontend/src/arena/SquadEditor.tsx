@@ -73,6 +73,32 @@ export default function SquadEditor({
           ? "Шесть разных героев. Ранг усиливает только HP и обычную атаку. EX занимает 2 очка из 24."
           : "Six distinct heroes. Rank scales HP and basic attack only. EX uses 2 of 24 budget points."}
       </p>
+      {!!data.unavailable_inventory?.length && (
+        <aside className="arena-notice">
+          <h3>{ru ? "Карты без доступа к арене" : "Cards without arena access"}</h3>
+          <p>
+            {ru
+              ? "Эти карты остаются в вашей коллекции. В состав можно выбрать карты с одобренными правилами боя."
+              : "These cards remain in your collection. You can choose cards with approved battle rules for your squad."}
+          </p>
+          <ul>
+            {data.unavailable_inventory.map((item) => (
+              <li key={item.item_id}>
+                <b>
+                  {item.card.hero_name} · {item.card.title} · {item.card.rank}
+                </b>{" "}
+                {item.reason === "UNSUPPORTED_HERO"
+                  ? ru
+                    ? "Для этого героя пока нет одобренных правил боя."
+                    : "This hero has no approved battle rules yet."
+                  : ru
+                    ? "Эта карта ещё не одобрена для боёв."
+                    : "This card is not yet approved for battles."}
+              </li>
+            ))}
+          </ul>
+        </aside>
+      )}
       <div className="arena-patrons" aria-label={ru ? "Выбор покровителя" : "Patron selection"}>
         {(["ORDINARY", "HIDDEN_KING", "ARCHMOTHER"] as Patron[]).map((key) => {
           const owned = data.inventory.filter(

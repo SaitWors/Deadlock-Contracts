@@ -9,14 +9,16 @@ from sqlalchemy import select
 from app.main import app
 from app.models import ArchiveCard, ArchiveItem, PublicProfile, User, utcnow
 from app.battle_models import BattleArtwork, BattleDefinitionVersion, BattleMatch
-from app.services.battle_catalog import card_id, seed_battle_catalogue
+from app.services.battle_catalog import seed_battle_catalogue
+from arena_fixtures import original_card_id as card_id, seed_original_catalogue
 from test_archive_packs import owner  # noqa: F401
 from test_bureau_operations import elevate
 from test_player_community import community  # noqa: F401
 
 
 def ready(factory, client, scope="REAL"):
-    with factory() as db: seed_battle_catalogue(db); db.commit()
+    with factory() as db:
+        seed_battle_catalogue(db); seed_original_catalogue(db); db.commit()
     response = client.post("/api/arena/starter", json={"request_key": str(uuid4()), "scope": scope})
     assert response.status_code == 200, response.text
     return response.json()
@@ -148,7 +150,8 @@ def test_public_showcase_images_hide_immediately_with_profile_switch(community):
 def test_account_deletion_removes_peer_match_recovery_but_keeps_unrelated_receipt(community):
     factory, player = community
     first_id, first = player(); second_id, second = player()
-    with factory() as db: seed_battle_catalogue(db); db.commit()
+    with factory() as db:
+        seed_battle_catalogue(db); seed_original_catalogue(db); db.commit()
     starter_key = str(uuid4())
     starter = first.post("/api/arena/starter", json={"request_key": starter_key, "scope": "REAL"}).json()
     ready(factory, second)

@@ -135,6 +135,12 @@ def build_router(require_permission=None, effective_role=None):
     def match(match_id: UUID, response: Response, user: User = Depends(require_user), db: Session = Depends(get_db)):
         _private(response); return service.get_match(db, user.id, str(match_id))
 
+    @router.get("/arena/matches/{match_id}/cards/{card_id}/image")
+    def match_image(match_id: UUID, card_id: UUID, user: User = Depends(require_user), db: Session = Depends(get_db)):
+        card = service.match_card(db, user.id, str(match_id), str(card_id))
+        return Response(card.image_data, media_type="image/webp", headers={
+            "Cache-Control": "private, no-store", "X-Content-Type-Options": "nosniff"})
+
     @router.post("/arena/matches/{match_id}/plans", dependencies=[Depends(require_csrf)])
     def plan(match_id: UUID, body: Plan, response: Response, user: User = Depends(require_user), db: Session = Depends(get_db)):
         _private(response); return service.submit_plan(db, user.id, str(match_id), str(body.request_key), body.expected_revision,

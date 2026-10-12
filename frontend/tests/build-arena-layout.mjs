@@ -1,14 +1,40 @@
-// Isolated QA fixture. Production components and styles; no application mock data.
+// Isolated QA fixture using production components. Layout data is explicitly synthetic;
+// the original Nurse Harrow poster is copied unchanged and is never used as arena art.
 import { build } from "vite"
 import { readFile, writeFile, mkdir, cp, readdir } from "node:fs/promises"
 import path from "node:path"
-const target = path.resolve("../.qa/arena-layout")
+const target = path.resolve("../.qa/arena-original-collection")
 await mkdir(target, { recursive: true })
 const source = await readFile("tests/arena.test.mjs", "utf8")
 const fixtures = new Function(
-  `${source.slice(source.indexOf("const heroKeys"), source.indexOf("function runtime"))}; return {bootstrap,match,inventory}`,
+  `${source.slice(source.indexOf("const heroKeys"), source.indexOf("function runtime"))}; return {bootstrap,match,inventory,heroKeys}`,
 )()
-const { bootstrap, match, inventory } = fixtures
+const { bootstrap, match, inventory, heroKeys } = fixtures
+const originalCard = {
+  id: "364efc49-3038-51f4-8dec-c24538b7145a",
+  hero: "nurse-harrow",
+  hero_name: "Nurse Harrow",
+  rank: "F",
+  category: "HERO",
+  battle_eligible: false,
+  title: "City Never Sleeps · Nurse Harrow",
+  description:
+    "Официальная иллюстрация Valve / Official Valve artwork. Неофициальная коллекция / Unofficial collection.",
+  artist: "Valve",
+  source_url: "https://www.playdeadlock.com/cityneversleeps",
+  image_url: "city-never-sleeps/nurse-harrow.webp",
+  release_poster: true,
+  crop_x: 50,
+  crop_y: 50,
+  zoom: 1,
+  frame_version: 1,
+  status: "PUBLISHED",
+  revision: 1,
+}
+bootstrap.starter = { claimed: false, available: false, missing_heroes: heroKeys }
+bootstrap.unavailable_inventory = [
+  { item_id: "qa-owned-original-harrow", card: originalCard, reason: "UNSUPPORTED_HERO" },
+]
 bootstrap.rules.bases.HIDDEN_KING.passive = {
   ru: "Первая обычная атака по зданию +10%, если у атакующего ≤40% HP.",
   en: "First basic attack against a building gains 10% if the attacker has ≤40% HP.",
@@ -16,11 +42,6 @@ bootstrap.rules.bases.HIDDEN_KING.passive = {
 bootstrap.rules.bases.ARCHMOTHER.passive = {
   ru: "Первый щит от способности героя в раунде +15%.",
   en: "First hero ability shield each round gains 15%.",
-}
-for (const item of inventory) item.card.image_url = `battle-art/${item.hero_key}.webp`
-for (const value of match.state.sides) {
-  for (const hero of value.heroes) hero.image_url = `battle-art/${hero.hero_key}.webp`
-  value.base.image_url = `battle-art/${value.side === "A" ? "HIDDEN_KING" : "ARCHMOTHER"}.webp`
 }
 bootstrap.inventory.push({
   item_id: "base-ex",
@@ -32,7 +53,7 @@ bootstrap.inventory.push({
     rank: "EX",
     category: "BASE",
     title: "Court of shadows",
-    image_url: "battle-art/HIDDEN_KING.webp",
+    image_url: null,
   },
   hero_key: "HIDDEN_KING",
   category: "BASE",
@@ -90,7 +111,11 @@ match.last_events = [
     },
   },
 ]
-await cp("../app/data/archive/bureau-arena", path.join(target, "battle-art"), { recursive: true })
+await mkdir(path.join(target, "city-never-sleeps"), { recursive: true })
+await cp(
+  "../app/data/archive/city-never-sleeps/nurse-harrow.webp",
+  path.join(target, "city-never-sleeps/nurse-harrow.webp"),
+)
 await cp("dist/assets", path.join(target, "assets"), { recursive: true })
 const result = await build({
   configFile: false,
@@ -111,14 +136,18 @@ const styles = (await readdir(path.join(target, "assets")))
   .filter((name) => name.endsWith(".css"))
   .map((name) => `<link rel="stylesheet" href="assets/${name}">`)
   .join("")
-const html = `<!doctype html><html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">${styles}<link rel="stylesheet" href="arena.css"><title>Arena component QA</title></head><body><div class="ns-private" id="mount"></div><script src="arena.js"></script><script>
-const bootstrap=${JSON.stringify(bootstrap)},match=${JSON.stringify(match)};
-const params=new URLSearchParams(location.search),mode=params.get('mode')||'battle';
+const html = `<!doctype html><html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">${styles}<link rel="stylesheet" href="arena.css"><title>Original collection / Arena QA</title></head><body><div class="ns-private"><section class="arena-page"><section class="arena-panel"><h2 id="qa-title"></h2><p id="qa-note"></p><div id="original-card" style="max-width:260px;margin:auto"></div></section></section><div id="mount"></div></div><script src="arena.js"></script><script>
+const bootstrap=${JSON.stringify(bootstrap)},match=${JSON.stringify(match)},originalCard=${JSON.stringify(originalCard)};
+const params=new URLSearchParams(location.search),mode=params.get('mode')||'collection',ru=(params.get('lang')||'ru')==='ru';
 localStorage.setItem('dc.ui.language',params.get('lang')||'ru');localStorage.setItem('dc.ui.appearance',JSON.stringify({theme:params.get('theme')||'dark',motion:params.get('motion')!=='false'}));
-location.hash=mode==='squad'?'arena/squad':mode==='room'?'arena/social/QA1234':mode==='hub'?'arena':'arena/match/match-1';
+document.getElementById('qa-title').textContent=ru?'QA · оригинальная коллекционная карта':'QA · original collection card';
+document.getElementById('qa-note').textContent=ru?'Исходный постер Nurse Harrow сохранён без изменений. Карта остаётся в коллекции; одобренных правил боя для этого героя пока нет. Это изолированный QA-сценарий, не данные аккаунта. Дополнительные режимы squad/battle используют условные составы без арта.':'The original Nurse Harrow poster is unchanged. The card remains in the collection; this hero has no approved battle rules yet. This is an isolated QA scenario, not account data. Additional squad/battle modes use synthetic squads without artwork.';
+if(mode==='collection'){bootstrap.inventory=[];bootstrap.squad={...bootstrap.squad,base_item_id:null,slots:[]};bootstrap.active_matches=[];bootstrap.assignments=[];}
+location.hash=mode==='squad'?'arena/squad':mode==='room'?'arena/social/QA1234':mode==='hub'||mode==='collection'?'arena':'arena/match/match-1';
 if(mode==='result'){match.status='FINISHED';match.result={winner_side:'A',reason:'BASE_DESTROYED'};match.reward={source_type:'pve',source_id:'match-1',status:'RESERVED',reason:'AWARDED',amount:8,nominal_amount:8};}
 window.fetch=async(url,init={})=>({ok:true,json:async()=>url.includes('/matches/')?{match}:url.includes('/rooms/')?{room:{code:'QA1234',status:'WAITING',match_id:null,own_confirmed:true,opponent_confirmed:false}}:url.includes('/queue')?{queued:false,match:null}:url.includes('/leaderboard')?{players:[{slug:'qa-player',display_name:'Bureau tactician',rating:1120,games:12,earned_title:'TACTICIAN'}]}:bootstrap});
 ArenaTest.mount(document.getElementById('mount'),{csrf:'qa-only',accountKey:'qa-fixture'});
+ArenaTest.mountCollectionCard(document.getElementById('original-card'),originalCard);
 </script></body></html>`
 await writeFile(path.join(target, "index.html"), html)
 console.log(target)
