@@ -313,7 +313,9 @@ def test_real_board_signing_captures_newly_selected_options_without_autoflush(db
         option.selected, option.status, option.locked_at = False, "OFFERED", None
         option.settled_at, option.final_evaluation_id = None, None
     db.commit()
-    monkeypatch.setattr(boards, "today_utc", lambda: datetime(2026, 10, 12).date())
+    now = datetime(2026, 10, 12, 13, tzinfo=timezone.utc)
+    monkeypatch.setattr(boards, "today_utc", lambda: now.date())
+    monkeypatch.setattr(boards, "utcnow", lambda: now)
     boards.lock_board(db, user, [options[0].id])
     assert rewards.assignment_receipts(db, [options[0].id], user.id)[options[0].id]["status"] == "PENDING"
 

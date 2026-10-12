@@ -244,6 +244,9 @@ def settle_assignment(db, assignment_id, context=None):
 def _still_valid(db, row):
     if row.status in {"CORRECTED", "INVALIDATED", "REJECTED"}:
         return False
+    if row.source_type not in {"assignment", "case"}:
+        from .extra_coin_rewards import still_valid
+        return still_valid(db, row)
     if row.source_type == "case":
         selected = list(db.scalars(select(BoardOption).where(BoardOption.board_id == row.source_id,
                                                              BoardOption.selected.is_(True))))
@@ -278,16 +281,18 @@ def deliver_entitlement(db, entitlement_id):
         return _receipt(row)
     if row.amount:
         from .archive import credit_wallet
+        from .extra_coin_rewards import REASONS
         source = "coin:" + row.id
         credit_wallet(db, row.user_id, source=source,
-                      reason="CONTRACT" if row.source_type == "assignment" else "CASE_BONUS", delta=row.amount, scope="REAL")
+                      reason=REASONS.get(row.source_type, "CONTRACT" if row.source_type == "assignment" else "CASE_BONUS"),
+                      delta=row.amount, scope="REAL")
         row.ledger_source = source
     row.status, row.delivered_at = "DELIVERED", utcnow()
     db.flush()
     return _receipt(row)
 
 
-def _correction_result(db, correction, *, reverse_case=False):
+def _case_correction_result(db, correction, *, reverse_case=False):
     result = {"id": correction.id, "entitlement_id": correction.entitlement_id,
               "delta": correction.delta, "reason": correction.reason, "related_corrections": []}
     entitlement = db.get(CoinEntitlement, correction.entitlement_id)
@@ -303,7 +308,7 @@ def _correction_result(db, correction, *, reverse_case=False):
     linked_key = str(uuid5(NAMESPACE_URL, f"coin-correction:{correction.id}:{case.id}"))
     if reverse_case and case.status in {"RESERVED", "DELIVERED"}:
         result["related_corrections"].append(correct_entitlement(db, case.id, request_key=linked_key,
-            actor_user_id=correction.actor_user_id, reason=correction.reason))
+            actor_user_id=correction.actor_user_id, reason=correction.reason, _cascade=False))
     else:
         linked = db.scalar(select(CoinCorrection).where(CoinCorrection.user_id == correction.user_id,
                                                         CoinCorrection.request_key == linked_key))
@@ -312,7 +317,18 @@ def _correction_result(db, correction, *, reverse_case=False):
     return result
 
 
-def correct_entitlement(db, entitlement_id, *, request_key, actor_user_id, reason):
+def _correction_result(db, correction, *, reverse_case=False):
+    from .extra_coin_rewards import identity
+    result = _case_correction_result(db, correction, reverse_case=reverse_case)
+    linked = list(db.scalars(select(CoinCorrection).where(CoinCorrection.user_id == correction.user_id)
+        .order_by(CoinCorrection.entitlement_id)))
+    for row in linked:
+        if row.request_key == identity("correction", correction.id, row.entitlement_id):
+            result["related_corrections"].append(_correction_result(db, row))
+    return result
+
+
+def correct_entitlement(db, entitlement_id, *, request_key, actor_user_id, reason, _cascade=True):
     """Reverse once; the authorized OWNER route supplies the actor and reason."""
     row = db.get(CoinEntitlement, entitlement_id)
     if row is None:
@@ -344,7 +360,11 @@ def correct_entitlement(db, entitlement_id, *, request_key, actor_user_id, reaso
     db.add(AuditLog(user_id=actor_user_id, action="coins.corrected", entity_type="coin_entitlement", entity_id=row.id,
                     data={"correction_id": correction.id, "delta": delta, "reason": reason, "recipient_id": row.user_id}))
     db.flush()
-    return _correction_result(db, correction, reverse_case=True)
+    _correction_result(db, correction, reverse_case=True)
+    from .extra_coin_rewards import corrected_dependents
+    if _cascade:
+        corrected_dependents(db, row, correction)
+    return _correction_result(db, correction)
 
 
 def status(db, user_id, *, now=None):

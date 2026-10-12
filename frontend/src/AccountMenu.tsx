@@ -135,6 +135,10 @@ export default function AccountMenu({
             </p>
           )}
           <div className="bureau-profile-links">
+            <button onClick={() => go("arena")}>
+              {ru ? "Арена бюро" : "Bureau arena"}
+              <Icon name="swords" />
+            </button>
             <button onClick={() => go("profile")}>
               {ru ? "Мой профиль и настройки" : "Profile & settings"}
               <Icon name="arrow-up-right" />

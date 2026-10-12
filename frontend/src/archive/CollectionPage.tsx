@@ -222,7 +222,7 @@ export default function CollectionPage({
             }}
           >
             <option value="">{ru ? "Все ранги" : "All ranks"}</option>
-            {RANKS.map((r) => (
+            {meta.ranks.map((r) => (
               <option key={r}>{r}</option>
             ))}
           </select>
@@ -294,6 +294,17 @@ export default function CollectionPage({
           >
             <CardSurface card={item.card} />
             <h3 className="archive-item-title">{item.card.title}</h3>
+            {typeof item.card.battle_eligible === "boolean" && (
+              <p>
+                {item.card.battle_eligible
+                  ? ru
+                    ? "Боевой вариант одобрен"
+                    : "Approved battle variant"
+                  : ru
+                    ? "Коллекционный дизайн: боевой допуск ещё не выдан"
+                    : "Collectible artwork: battle approval pending"}
+              </p>
+            )}
             <p>
               {ru ? "Экземпляров" : "Copies"}: {item.quantity}
               {item.test_count > 0

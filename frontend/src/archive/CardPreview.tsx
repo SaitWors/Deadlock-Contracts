@@ -8,10 +8,11 @@ export default function CardPreview({
   artOverlay,
 }: {
   card: Pick<Card, "rank" | "title" | "hero_name" | "image_url" | "crop_x" | "crop_y" | "zoom"> &
-    Partial<Pick<Card, "id" | "source_url" | "release_poster">>
+    Partial<Pick<Card, "id" | "source_url" | "release_poster" | "category">>
   artOverlay?: ReactNode
 }) {
-  const tier = RANKS.indexOf(card.rank)
+  const base = card.rank === "EX" || card.category === "BASE"
+  const tier = base ? 9 : RANKS.indexOf(card.rank as (typeof RANKS)[number])
   const releasePoster =
     card.release_poster === true &&
     card.source_url === "https://www.playdeadlock.com/cityneversleeps" &&
@@ -22,6 +23,7 @@ export default function CardPreview({
     <figure
       className="archive-card"
       data-rank={card.rank}
+      data-category={base ? "BASE" : "HERO"}
       data-tier={tier}
       data-release={releasePoster ? "city-never-sleeps" : undefined}
       aria-label={`${card.hero_name} · ${card.title} · ${card.rank}`}
@@ -47,7 +49,13 @@ export default function CardPreview({
         )}
         {artOverlay}
       </div>
-      <svg className="archive-card-frame" viewBox="0 0 400 600" fill="none" aria-hidden="true">
+      <svg
+        className="archive-card-frame"
+        viewBox="0 0 400 600"
+        preserveAspectRatio="none"
+        fill="none"
+        aria-hidden="true"
+      >
         <rect
           x="3"
           y="3"
@@ -72,7 +80,7 @@ export default function CardPreview({
         <path d="M361 558V574M353 566H369" stroke="currentColor" opacity=".7" />
       </svg>
       <span className="archive-card-edition" aria-hidden="true">
-        DC / ARCHIVE
+        {base ? "EX / BASE" : "DC / ARCHIVE"}
       </span>
       <span className="archive-rank">{card.rank}</span>
       <figcaption>

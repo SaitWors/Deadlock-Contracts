@@ -43,11 +43,12 @@ def solve(factory, client, round_data):
     return response.json()["round"]
 
 
-def test_nine_ranks_roster_and_publish_permission_policy(community):
+def test_hero_ranks_and_ex_category_preserve_roster_and_publish_permission_policy(community):
     _, player = community
     _, client = player()
     meta = client.get("/api/archive/meta").json()
-    assert meta["ranks"] == ["F", "E", "D", "C", "B", "A", "S", "SS", "SSS"]
+    assert meta["hero_ranks"] == ["F", "E", "D", "C", "B", "A", "S", "SS", "SSS"]
+    assert meta["ranks"] == ["F", "E", "D", "C", "B", "A", "S", "SS", "SSS", "EX"]
     assert len(meta["heroes"]) == 44 and not meta["can_publish"]
     heroes = {hero["key"]: hero["name"] for hero in meta["heroes"]}
     assert {key: heroes.get(key) for key in (

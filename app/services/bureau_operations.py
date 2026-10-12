@@ -17,6 +17,7 @@ from ..models import (BoardOption, BureauContribution, BureauContributionEvent,
 from .leaderboard import TRUSTED_REWARD_SOURCES
 
 TEMPLATES = {
+    "quarter_defence": {"title": {"ru": "Оборона квартала", "en": "Quarter defence"}, "target": 20, "min_contributors": 3, "category": None, "metric": "contracts"},
     "city_cases": {"title": {"ru": "Городское расследование", "en": "City investigation"}, "target": 20, "min_contributors": 3, "category": None, "metric": "contracts"},
     "field_hospital": {"title": {"ru": "На помощь городу", "en": "City relief"}, "target": 10, "min_contributors": 2, "category": "SUPPORT", "metric": "contracts"},
     "five_witnesses": {"title": {"ru": "Пять свидетелей", "en": "Five witnesses"}, "target": 5, "min_contributors": 5, "category": None, "metric": "contributors"},
@@ -144,6 +145,8 @@ def maintenance(factory, limit: int = 10) -> None:
                 operation = db.scalar(select(BureauOperation).where(BureauOperation.id == operation_id).with_for_update())
                 if operation and (bureau or operation.bureau_id is None):
                     reconcile(db, operation, allow_new=bool(bureau and bureau.status == "ACTIVE"))
+                    from .extra_coin_rewards import record_bureau
+                    record_bureau(db, operation)
                     db.commit()
         except Exception:
             logging.getLogger(__name__).exception("Could not reconcile bureau operation %s", operation_id)

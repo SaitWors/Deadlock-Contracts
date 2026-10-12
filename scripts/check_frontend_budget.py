@@ -8,11 +8,11 @@ from urllib.parse import urlsplit
 
 
 LIMITS = {
-    # Nightshift, personal progress and scoped coin receipts: measured 731,081 B.
-    # The economy's lazy wallet/history UI adds ~11 KB; preserve the initial
-    # public entry's existing 310 KB limit (~301.5 KB measured).
+    # Arena, squad/room/season recovery, EX and scoped v2 pack disclosures:
+    # measured 794,657 B; the Arena UI is lazy and the public entry remains
+    # 301,583 B within its unchanged 310 KB limit.
     # Hero portraits stay separate assets.
-    "javascript_total": 740_000,
+    "javascript_total": 800_000,
     "initial_javascript": 310_000,
     # Five themes and responsive surfaces retain existing feature styles.
     # ~441 KB including the lazy poll/editor stylesheet.

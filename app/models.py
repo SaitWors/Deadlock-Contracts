@@ -1272,3 +1272,6 @@ class EvidenceFile(Base):
 
 # Register the focused economy models for metadata creation and Alembic parity.
 from . import coin_models as coin_models  # noqa: E402,F401
+from . import economy_models as economy_models  # noqa: E402,F401
+from . import battle_models as battle_models  # noqa: E402,F401
+from . import pack_models as pack_models  # noqa: E402,F401

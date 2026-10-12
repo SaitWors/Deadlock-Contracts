@@ -16,13 +16,16 @@ import {
 import { TransactionStatus, useTransaction } from "../archive/transactions"
 import "../archive/archive.css"
 import "../archive/packs.css"
+import OwnerArenaDesk from "./OwnerArenaDesk"
 
 export default function OwnerArchiveDesk({
   csrf,
   permissions,
+  isOwner = false,
 }: {
   csrf: string
   permissions: string[]
+  isOwner?: boolean
 }) {
   const { language } = useLanguage()
   if (!permissions.includes("packs.manage") && !permissions.includes("*"))
@@ -33,10 +36,10 @@ export default function OwnerArchiveDesk({
           : "Only OWNER can access this section."}
       </p>
     )
-  return <OwnerContent csrf={csrf} />
+  return <OwnerContent csrf={csrf} isOwner={isOwner} />
 }
 
-function OwnerContent({ csrf }: { csrf: string }) {
+function OwnerContent({ csrf, isOwner }: { csrf: string; isOwner: boolean }) {
   const { language } = useLanguage()
   const ru = language === "ru"
   const meta = useResource<Meta>("/api/archive/meta")
@@ -100,6 +103,7 @@ function OwnerContent({ csrf }: { csrf: string }) {
       )}
       {(!meta.data || packs.loading) && <p role="status">{ru ? "Загрузка…" : "Loading…"}</p>}
       <TransactionStatus transaction={tx} />
+      {isOwner && meta.data && <OwnerArenaDesk csrf={csrf} accountKey={meta.data.account_key} />}
       {meta.data && (
         <>
           {editing ? (
@@ -362,6 +366,7 @@ function PackForm({
   const [previewError, setPreviewError] = useState("")
   const [busy, setBusy] = useState(false)
   const [previewRetry, setPreviewRetry] = useState(0)
+  const versionTwo = initial?.rule_version === "packs-v2"
   const payload = {
     title,
     description,
@@ -369,6 +374,7 @@ function PackForm({
     draws,
     active,
     starter,
+    ...(versionTwo ? { kind: initial.kind } : {}),
     entries: entries.map((entry) => ({ card_id: entry.card_id, weight: entry.weight })),
   }
   const previewBody = JSON.stringify({
@@ -445,6 +451,7 @@ function PackForm({
               step={1}
               required
               value={draws}
+              disabled={versionTwo}
               onChange={(event) => setDraws(Number(event.target.value))}
             />
           </label>
@@ -465,6 +472,7 @@ function PackForm({
               step={1}
               required
               value={price}
+              disabled={versionTwo}
               onChange={(event) => setPrice(Number(event.target.value))}
             />
           </label>
@@ -480,6 +488,7 @@ function PackForm({
             <input
               type="checkbox"
               checked={starter}
+              disabled={versionTwo}
               onChange={(event) => setStarter(event.target.checked)}
             />
             {ru
@@ -487,59 +496,75 @@ function PackForm({
               : "Allow as a starter (one free pack per account)"}
           </label>
         </fieldset>
-        <div className="archive-price-advice" aria-live="polite">
-          {previewError && (
-            <p role="alert">
-              {previewError}
-              <button type="button" onClick={() => setPreviewRetry((value) => value + 1)}>
-                {ru ? "Повторить расчёт" : "Retry estimate"}
-              </button>
+        {versionTwo ? (
+          <div className="archive-price-advice">
+            <h3>{ru ? "Фиксированные правила выпуска" : "Fixed release rules"}</h3>
+            <p>
+              {ru
+                ? "Цена и слоты заданы моделью v2. Переименование и редактирование иллюстраций не сбрасывает общие гарантии. Для продажи нужны одобренные боевые герои всех обещанных рангов; EX в конверты не входит."
+                : "Price and slots are fixed by v2. Renaming or artwork edits do not reset shared guarantees. Every promised rank needs approved battle heroes; EX is excluded."}
             </p>
-          )}
-          {preview ? (
-            <>
-              <h3>
-                {ru ? "Рекомендованная цена" : "Recommended price"}: {preview.recommendation.price}{" "}
-                <Icon name="coins" size={18} />
-              </h3>
-              <p>
-                {ru
-                  ? `Средняя цена прямого получения этого состава: ${preview.recommendation.expected_direct_cost} монет. Для случайного конверта — скидка 45%, округление вверх до 5 монет. Только шифры дают до 150 монет в неделю: ${preview.recommendation.weeks_at_150} недели накопления. Монеты контрактов — дополнительный источник.`
-                  : `Expected direct acquisition cost: ${preview.recommendation.expected_direct_cost} coins. Random packs receive a 45% discount, rounded up to 5 coins. Ciphers alone provide up to 150 coins per week: ${preview.recommendation.weeks_at_150} weeks. Contract coins are an additional source.`}
+            <PackOdds pack={initial} />
+          </div>
+        ) : (
+          <div className="archive-price-advice" aria-live="polite">
+            {previewError && (
+              <p role="alert">
+                {previewError}
+                <button type="button" onClick={() => setPreviewRetry((value) => value + 1)}>
+                  {ru ? "Повторить расчёт" : "Retry estimate"}
+                </button>
               </p>
-              <button
-                type="button"
-                disabled={busy}
-                onClick={() => setPrice(preview.recommendation.price)}
-              >
-                {ru ? "Поставить рекомендованную цену" : "Use recommended price"}
-              </button>
-              <PackOdds pack={{ odds: preview.odds, draws }} />
-            </>
-          ) : (
-            !previewError && (
-              <p>
-                {entries.length
-                  ? ru
-                    ? "Пересчитываем рекомендацию…"
-                    : "Updating recommendation…"
-                  : ru
-                    ? "Выбери карточки, чтобы рассчитать цену."
-                    : "Choose cards to estimate the price."}
-              </p>
-            )
-          )}
-          <small>
-            {ru
-              ? "Это начальная модель баланса, а не рыночная оценка. Последнее слово за владельцем."
-              : "This is an initial balancing model, not a market valuation. The owner sets the final price."}
-          </small>
-        </div>
+            )}
+            {preview ? (
+              <>
+                <h3>
+                  {ru ? "Рекомендованная цена" : "Recommended price"}:{" "}
+                  {preview.recommendation.price} <Icon name="coins" size={18} />
+                </h3>
+                <p>
+                  {ru
+                    ? `Средняя цена прямого получения этого состава: ${preview.recommendation.expected_direct_cost} монет. Для случайного конверта — скидка 45%, округление вверх до 5 монет. Только шифры дают до 150 монет в неделю: ${preview.recommendation.weeks_at_150} недели накопления. Монеты контрактов — дополнительный источник.`
+                    : `Expected direct acquisition cost: ${preview.recommendation.expected_direct_cost} coins. Random packs receive a 45% discount, rounded up to 5 coins. Ciphers alone provide up to 150 coins per week: ${preview.recommendation.weeks_at_150} weeks. Contract coins are an additional source.`}
+                </p>
+                <button
+                  type="button"
+                  disabled={busy}
+                  onClick={() => setPrice(preview.recommendation.price)}
+                >
+                  {ru ? "Поставить рекомендованную цену" : "Use recommended price"}
+                </button>
+                <PackOdds pack={{ odds: preview.odds, draws }} />
+              </>
+            ) : (
+              !previewError && (
+                <p>
+                  {entries.length
+                    ? ru
+                      ? "Пересчитываем рекомендацию…"
+                      : "Updating recommendation…"
+                    : ru
+                      ? "Выбери карточки, чтобы рассчитать цену."
+                      : "Choose cards to estimate the price."}
+                </p>
+              )
+            )}
+            <small>
+              {ru
+                ? "Это начальная модель баланса, а не рыночная оценка. Последнее слово за владельцем."
+                : "This is an initial balancing model, not a market valuation. The owner sets the final price."}
+            </small>
+          </div>
+        )}
         <h3>{ru ? `Состав: ${entries.length} / 400` : `Pool: ${entries.length} / 400`}</h3>
         <p>
-          {ru
-            ? "Вес задаёт относительную частоту конкретной карточки. Вес 20 выпадает вдвое чаще веса 10. Точные шансы рангов показаны выше."
-            : "Weight controls relative frequency: weight 20 is twice as likely as weight 10. Rank probabilities are shown above."}
+          {versionTwo
+            ? ru
+              ? "Вес задаёт частоту героя и ранга. Все иллюстрации одного варианта должны иметь одинаковый вес; новая иллюстрация не повышает шанс героя."
+              : "Weight belongs to the hero and rank variant. All its artworks must use the same weight; a new artwork does not increase hero probability."
+            : ru
+              ? "Вес задаёт относительную частоту конкретной карточки. Вес 20 выпадает вдвое чаще веса 10. Точные шансы рангов показаны выше."
+              : "Weight controls relative frequency: weight 20 is twice as likely as weight 10. Rank probabilities are shown above."}
         </p>
         <div className="archive-selected-pool">
           {entries.map((entry) => (
@@ -596,6 +621,7 @@ function PackForm({
       </form>
       <CardPicker
         meta={meta}
+        excludeBases
         selected={entries.map((entry) => entry.card_id)}
         disabled={busy || entries.length >= 400}
         onPick={(card) =>
@@ -624,11 +650,13 @@ function CardPicker({
   selected,
   onPick,
   disabled = false,
+  excludeBases = false,
 }: {
   meta: Meta
   selected: string[]
   onPick: (card: Card) => void
   disabled?: boolean
+  excludeBases?: boolean
 }) {
   const { language } = useLanguage()
   const ru = language === "ru"
@@ -638,7 +666,7 @@ function CardPicker({
   const [search, setSearch] = useState("")
   const [offset, setOffset] = useState(0)
   const cards = useResource<{ items: Card[]; total: number }>(
-    `/api/archive/cards?hero=${hero}${rank ? `&rank=${rank}` : ""}&q=${encodeURIComponent(search)}&offset=${offset}`,
+    `/api/archive/cards?hero=${hero}${rank ? `&rank=${rank}` : ""}${excludeBases ? "&category=HERO" : ""}&q=${encodeURIComponent(search)}&offset=${offset}`,
   )
   return (
     <section className="archive-card-picker">
@@ -661,7 +689,7 @@ function CardPicker({
             }}
           >
             <option value="">{ru ? "Все герои" : "All heroes"}</option>
-            {meta.heroes.map((h) => (
+            {[...meta.heroes, ...(excludeBases ? [] : meta.bases || [])].map((h) => (
               <option key={h.key} value={h.key}>
                 {h.name}
               </option>
@@ -678,7 +706,7 @@ function CardPicker({
             }}
           >
             <option value="">{ru ? "Все ранги" : "All ranks"}</option>
-            {RANKS.map((r) => (
+            {(excludeBases ? RANKS : meta.ranks).map((r) => (
               <option key={r}>{r}</option>
             ))}
           </select>
@@ -702,21 +730,26 @@ function CardPicker({
         </p>
       )}
       <div className="archive-picker-grid">
-        {cards.data?.items.map((card) => (
-          <article key={card.id}>
-            <CardPreview card={card} />
-            <p>{card.title}</p>
-            <button disabled={disabled || selected.includes(card.id)} onClick={() => onPick(card)}>
-              {selected.includes(card.id)
-                ? ru
-                  ? "Выбрана"
-                  : "Selected"
-                : ru
-                  ? "Выбрать"
-                  : "Select"}
-            </button>
-          </article>
-        ))}
+        {cards.data?.items
+          .filter((card) => !excludeBases || card.rank !== "EX")
+          .map((card) => (
+            <article key={card.id}>
+              <CardPreview card={card} />
+              <p>{card.title}</p>
+              <button
+                disabled={disabled || selected.includes(card.id)}
+                onClick={() => onPick(card)}
+              >
+                {selected.includes(card.id)
+                  ? ru
+                    ? "Выбрана"
+                    : "Selected"
+                  : ru
+                    ? "Выбрать"
+                    : "Select"}
+              </button>
+            </article>
+          ))}
       </div>
       {cards.data && (
         <Pager offset={offset} total={cards.data.total} size={18} setOffset={setOffset} />

@@ -114,6 +114,189 @@ const coinStatus = {
   ],
 }
 
+test("v2 packs disclose separate slot tables, shared guarantees and pay with the viewed revision", async () => {
+  const writes = []
+  const pack = {
+    id: "v2",
+    revision: 2,
+    title: "Night envelope",
+    description: "Three cards",
+    price: 180,
+    draws: 3,
+    ready: true,
+    active: true,
+    starter: false,
+    card_count: 9,
+    cover: null,
+    kind: "NIGHT_ENVELOPE",
+    rule_version: "packs-v2",
+    odds: [{ rank: "F", weight: 34, total_weight: 100, percent: 34 }],
+    slots: [
+      { kind: "ORDINARY", odds: [{ rank: "F", weight: 34, total_weight: 100, percent: 34 }] },
+    ],
+    guarantees: {
+      scope: "REAL",
+      revision: 7,
+      without_a: 29,
+      without_s: 119,
+      without_sss: 359,
+      thresholds: { a: 30, s: 120, sss: 360 },
+      next_minimum_rank: "SSS",
+      next_slot_odds: [{ rank: "SSS", weight: 100, total_weight: 100, percent: 100 }],
+    },
+    recommendation: {
+      price: 180,
+      model: 2,
+      discount_percent: 33.5,
+      expected_direct_cost: 270,
+      weeks_at_150: 1.2,
+    },
+  }
+  const env = runtime(async (url, init = {}) => {
+    if (init.method === "POST") {
+      writes.push(JSON.parse(init.body))
+      return response({
+        id: "receipt-v2",
+        kind: "PACK_OPEN",
+        delta: -180,
+        balance_after: 100,
+        created_at: "2026-10-12T00:00:00Z",
+        items: [],
+      })
+    }
+    if (url.includes("/meta")) return response(meta)
+    if (url.includes("/wallet")) return response({ ...wallet, balance: 1000 })
+    if (url.includes("/packs/v2")) return response({ pack })
+    if (url.includes("/packs")) return response({ items: [pack], total: 1, starter_claimed: true })
+    return response({ items: [], total: 0 })
+  }, "en")
+  let root
+  await env.api.act(async () => {
+    root = env.api.mount(env.doc.getElementById("mount"), "archive", {
+      csrf: "csrf",
+      mode: "packs",
+      onWalletChange() {},
+    })
+  })
+  const details = [...env.doc.querySelectorAll("button")].find((item) =>
+    item.textContent.includes("Contents & opening"),
+  )
+  assert.ok(details)
+  await env.api.act(async () => details.click())
+  assert.match(env.doc.body.textContent, /29 \/ 30/)
+  assert.match(env.doc.body.textContent, /119 \/ 120/)
+  assert.match(env.doc.body.textContent, /359 \/ 360/)
+  assert.match(env.doc.body.textContent, /Next paid slot.*SSS/)
+  assert.doesNotMatch(
+    env.doc.querySelector(".archive-pack-details").textContent,
+    /No guaranteed rank/,
+  )
+  const open = [...env.doc.querySelectorAll("button")].find(
+    (item) => item.textContent === "Open for 180 coins",
+  )
+  await env.api.act(async () => open.click())
+  assert.equal(writes[0].guarantee_revision, 7)
+  await env.api.act(() => root.unmount())
+})
+
+test("an EX base receipt uses the wide base frame and explains a forced pack rank", async () => {
+  const env = runtime(async () => response({ items: [], total: 0 }), "en")
+  let root
+  await env.api.act(async () => {
+    root = env.api.mount(env.doc.getElementById("mount"), "receipt", {
+      receipt: {
+        id: "ex",
+        kind: "DIRECT_CARD",
+        delta: -1800,
+        balance_after: 0,
+        created_at: "2026-10-12T00:00:00Z",
+        items: [
+          {
+            id: "base-instance",
+            card: {
+              id: "ex-card",
+              hero: "hidden_king",
+              hero_name: "Hidden King",
+              rank: "EX",
+              category: "BASE",
+              title: "Court of shadows",
+              image_url: null,
+              crop_x: 50,
+              crop_y: 50,
+              zoom: 1,
+            },
+            duplicate: false,
+            test_grant: false,
+            recycle_value: 0,
+            forced: true,
+            natural_rank: "F",
+            guaranteed_minimum_rank: "SSS",
+          },
+        ],
+      },
+    })
+  })
+  assert.equal(env.doc.querySelector(".archive-card").dataset.category, "BASE")
+  assert.match(env.doc.body.textContent, /Guaranteed rank/)
+  await env.api.act(() => root.unmount())
+})
+test("only effective OWNER sees arena tools and links matching published artwork with an explicit approval", async () => {
+  const writes = [],
+    definition = {
+      id: "definition-1",
+      key: "abrams",
+      category: "HERO",
+      version: 1,
+      approved: true,
+      rules: { name: "Abrams" },
+    },
+    card = {
+      id: "card-1",
+      hero: "abrams",
+      hero_name: "Abrams",
+      rank: "F",
+      title: "Published Abrams",
+      image_url: null,
+      crop_x: 50,
+      crop_y: 50,
+      zoom: 1,
+      status: "PUBLISHED",
+    }
+  const env = runtime(async (url, init = {}) => {
+    if (init.method === "PUT") {
+      writes.push({ url, body: JSON.parse(init.body) })
+      return response({ approved: true })
+    }
+    if (url.includes("/definitions")) return response({ definitions: [definition] })
+    if (url.includes("/meta")) return response(meta)
+    if (url.includes("/cards")) return response({ items: [card], total: 1 })
+    return response({ items: [], total: 0 })
+  }, "en")
+  let root
+  await env.api.act(async () => {
+    root = env.api.mount(env.doc.getElementById("mount"), "owner", {
+      csrf: "csrf",
+      permissions: ["packs.manage"],
+      isOwner: false,
+    })
+  })
+  assert.doesNotMatch(env.doc.body.textContent, /Arena owner tools/)
+  await env.api.act(async () =>
+    root.rerender({ csrf: "csrf", permissions: ["packs.manage"], isOwner: true }),
+  )
+  assert.match(env.doc.body.textContent, /Arena owner tools/)
+  const button = [...env.doc.querySelectorAll("button")].find(
+    (item) => item.textContent === "Approve battle artwork",
+  )
+  assert.ok(button)
+  await env.api.act(async () => button.click())
+  assert.deepEqual(writes[0], {
+    url: "/api/arena/artwork-approval",
+    body: { card_id: "card-1", definition_id: "definition-1", approved: true },
+  })
+  await env.api.act(() => root.unmount())
+})
+
 test("coin wallet separates debt from spending and shows quota-limited and pending receipts", async () => {
   const { api, doc } = runtime(async (url) => {
     if (url.includes("/meta")) return response(meta)

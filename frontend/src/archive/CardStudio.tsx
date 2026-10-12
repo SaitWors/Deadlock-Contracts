@@ -38,6 +38,8 @@ export default function CardStudio({
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState("")
   const change = (values: Partial<typeof form>) => setForm((old) => ({ ...old, ...values }))
+  const base = form.rank === "EX",
+    subjects = base ? meta.bases || [] : meta.heroes
   const save = async () => {
     setBusy(true)
     setError("")
@@ -70,7 +72,7 @@ export default function CardStudio({
             ...form,
             id: image ? undefined : card?.id,
             release_poster: image ? false : card?.release_poster,
-            hero_name: meta.heroes.find((h) => h.key === form.hero)?.name || "",
+            hero_name: subjects.find((h) => h.key === form.hero)?.name || "",
             image_url: image || card?.image_url || null,
           }}
         />
@@ -99,10 +101,27 @@ export default function CardStudio({
         {card?.review_note && <p className="archive-review-note">{card.review_note}</p>}
         {error && <p role="alert">{error}</p>}
         <fieldset disabled={busy}>
+          {!!meta.bases?.length && (
+            <label>
+              {ru ? "Тип карточки" : "Card type"}
+              <select
+                value={base ? "BASE" : "HERO"}
+                onChange={(event) =>
+                  change({
+                    rank: event.target.value === "BASE" ? "EX" : "F",
+                    hero: event.target.value === "BASE" ? meta.bases![0].key : meta.heroes[0].key,
+                  })
+                }
+              >
+                <option value="HERO">{ru ? "Герой" : "Hero"}</option>
+                <option value="BASE">{ru ? "База EX" : "EX base"}</option>
+              </select>
+            </label>
+          )}
           <label>
-            {ru ? "Герой" : "Hero"}
+            {base ? (ru ? "Покровитель" : "Patron") : ru ? "Герой" : "Hero"}
             <select value={form.hero} onChange={(e) => change({ hero: e.target.value })}>
-              {meta.heroes.map((hero) => (
+              {subjects.map((hero) => (
                 <option key={hero.key} value={hero.key}>
                   {hero.name}
                 </option>
@@ -112,11 +131,16 @@ export default function CardStudio({
           <label>
             {ru ? "Ранг рамки" : "Frame rank"}
             <select value={form.rank} onChange={(e) => change({ rank: e.target.value as Rank })}>
-              {RANKS.map((rank) => (
+              {(base ? ["EX"] : RANKS).map((rank) => (
                 <option key={rank}>{rank}</option>
               ))}
             </select>
           </label>
+          <p>
+            {ru
+              ? "Публикация иллюстрации не одобряет боевые правила. Боевой вариант связывает OWNER; автор не меняет HP, способности или цены."
+              : "Publishing artwork does not approve battle rules. OWNER links an approved battle definition; authors cannot change HP, abilities or prices."}
+          </p>
           <label>
             {ru ? "Название варианта" : "Variant title"}
             <input

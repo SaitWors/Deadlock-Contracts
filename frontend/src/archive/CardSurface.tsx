@@ -40,7 +40,7 @@ export default function CardSurface({
   const surface = useRef<HTMLDivElement>(null)
   const gesture = useRef<Gesture | null>(null)
   const suppressClick = useRef(false)
-  const rank = RANKS.indexOf(card.rank)
+  const rank = card.rank === "EX" ? 9 : RANKS.indexOf(card.rank)
   const reset = () => {
     const style = surface.current?.style
     for (const key of [
@@ -99,6 +99,7 @@ export default function CardSurface({
       ref={surface}
       className="card-surface"
       data-rank={revealed ? card.rank : undefined}
+      data-category={card.rank === "EX" || card.category === "BASE" ? "BASE" : "HERO"}
       data-revealed={revealed}
       data-reduced={reduced}
       data-finish={rank >= 6 ? "holo" : rank >= 3 ? "foil" : "matte"}

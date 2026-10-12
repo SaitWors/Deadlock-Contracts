@@ -5,17 +5,19 @@ import hashlib
 import json
 import secrets
 from collections import Counter
+from uuid import NAMESPACE_URL, uuid5
 
 from fastapi import HTTPException
 from sqlalchemy import Integer, func, select
 
 from ..models import (ArchiveCard, ArchiveFavorite, ArchiveItem, ArchiveLedger, ArchiveOperation, ArchivePack,
                       ArchivePackVersion, ArchiveShowcase, AuditLog, PublicProfile)
-from .archive import ECONOMY_SCOPES, MAX_BALANCE, RANKS, aware, card_payload, lock_user, wallet_state
+from .archive import ECONOMY_SCOPES, MAX_BALANCE, RANKS, aware, battle_metadata, card_payload, lock_user, wallet_state
+from . import pack_rules
 
 # Internal collection balance, not a cash value or an external market estimate.
-DIRECT_COST = dict(zip(RANKS, (25, 40, 70, 120, 220, 380, 700, 1300, 2600)))
-DEFAULT_WEIGHTS = dict(zip(RANKS, (2000, 1600, 1200, 900, 600, 350, 150, 60, 15)))
+DIRECT_COST = {**dict(zip(pack_rules.RANKS, (25, 40, 70, 120, 220, 380, 700, 1300, 2600))), "EX": 1800}
+DEFAULT_WEIGHTS = dict(zip(pack_rules.RANKS, (2000, 1600, 1200, 900, 600, 350, 150, 60, 15)))
 PRICE_MODEL = 2
 
 
@@ -55,6 +57,28 @@ def ready_pool(entries, cards):
                and cards[entry["card_id"]].image_digest for entry in entries)
 
 
+def ready_v2_pool(db, entries, cards, *, lock=False):
+    from ..battle_models import BattleArtwork, BattleDefinitionVersion
+    if not entries or not ready_pool(entries, cards) or {entry["rank"] for entry in entries} != set(pack_rules.RANKS):
+        return False
+    statement = select(BattleArtwork.card_id, BattleDefinitionVersion.key).join(
+        BattleDefinitionVersion, BattleDefinitionVersion.id == BattleArtwork.definition_id).where(
+        BattleArtwork.card_id.in_([entry["card_id"] for entry in entries]), BattleArtwork.approved.is_(True),
+        BattleDefinitionVersion.approved.is_(True), BattleDefinitionVersion.category == "HERO")
+    if lock:
+        statement = statement.order_by(BattleArtwork.card_id).with_for_update(read=True)
+    approved = dict(db.execute(statement).all())
+    groups = {}
+    for entry in entries:
+        card = cards[entry["card_id"]]
+        if card.rank != entry["rank"] or card.hero != entry["hero"] or approved.get(card.id) != entry["hero"]:
+            return False
+        variant = (entry["rank"], entry["hero"])
+        if groups.setdefault(variant, entry["weight"]) != entry["weight"]:
+            return False
+    return True
+
+
 def configuration(db, payload):
     entries = [{"card_id": str(entry.card_id), "weight": entry.weight} for entry in payload.entries]
     cards = cards_for_pool(db, entries, lock=True)
@@ -62,8 +86,50 @@ def configuration(db, payload):
         raise HTTPException(422, "В состав можно включить только опубликованные карточки с изображением / Published artwork required")
     for entry in entries:
         entry["rank"] = cards[entry["card_id"]].rank
+    if any(entry["rank"] == "EX" for entry in entries):
+        raise HTTPException(422, "EX не входит в обычные конверты / EX bases are excluded from ordinary packs")
+    kind = getattr(payload, "kind", "LEGACY")
+    if kind in pack_rules.PRESETS:
+        preset = pack_rules.PRESETS[kind]
+        if payload.price != preset["price"] or payload.draws != len(preset["slots"]) or payload.starter:
+            raise HTTPException(422, "Цена и слоты версии 2 фиксированы / Typed pack price and slots are fixed")
+        for entry in entries:
+            entry["hero"] = cards[entry["card_id"]].hero
+        if not ready_v2_pool(db, entries, cards, lock=True):
+            raise HTTPException(422, "Нужны утверждённые варианты всех рангов с единым весом героя / All approved hero ranks required")
+        return {"title": payload.title, "description": payload.description, "price": payload.price,
+                "draws": payload.draws, "entries": entries, "price_model": 3, "kind": kind,
+                "rule_version": pack_rules.RULE_VERSION, "slots": list(preset["slots"])}
     return {"title": payload.title, "description": payload.description, "price": payload.price,
             "draws": payload.draws, "entries": entries, "price_model": PRICE_MODEL}
+
+
+def v2_recommendation(config):
+    value = sum(sum(DIRECT_COST[row["rank"]] * row["weight"] for row in pack_rules.slot_odds(slot)) / 10000
+                for slot in config["slots"])
+    return {"price": config["price"], "model": 3, "discount_percent": round((1 - config["price"] / value) * 100, 2),
+            "expected_direct_cost": round(value, 2), "guarantees_included": False,
+            "weeks_at_150": round(config["price"] / 150, 2), "weeks_at_330": round(config["price"] / 330, 2),
+            "weeks_at_610": round(config["price"] / 610, 2), "weeks_at_840": round(config["price"] / 840, 2),
+            "direct_costs": DIRECT_COST}
+
+
+def guarantee_state(db, user_id, scope, *, lock=False):
+    from ..pack_models import PackGuaranteeState
+    if user_id is None:
+        return None
+    statement = select(PackGuaranteeState).where(PackGuaranteeState.user_id == user_id, PackGuaranteeState.scope == scope)
+    if lock:
+        statement = statement.with_for_update().execution_options(populate_existing=True)
+    return db.scalar(statement)
+
+
+def guarantee_payload(state, scope, first_slot="ORDINARY"):
+    counters = {key: getattr(state, key, 0) for key in pack_rules.THRESHOLDS}
+    minimum = pack_rules.minimum_rank(counters)
+    return {"scope": scope, "revision": getattr(state, "revision", 0), **counters,
+            "thresholds": {"a": 30, "s": 120, "sss": 360}, "next_minimum_rank": minimum,
+            "next_slot_odds": pack_rules.slot_odds(first_slot, minimum)}
 
 
 def pack_version(db, pack):
@@ -71,21 +137,37 @@ def pack_version(db, pack):
                                                     ArchivePackVersion.revision == pack.revision))
 
 
-def pack_payload(db, pack, *, detailed=False, version=None):
+def pack_payload(db, pack, *, detailed=False, version=None, user_id=None, scope="REAL"):
     version = version or pack_version(db, pack)
     config = version.config
     cards = cards_for_pool(db, config["entries"])
-    ready = bool(ready_pool(config["entries"], cards))
+    metadata = battle_metadata(db, cards.values())
+    is_v2 = config.get("rule_version") == pack_rules.RULE_VERSION
+    ready = bool(ready_v2_pool(db, config["entries"], cards) if is_v2 else ready_pool(config["entries"], cards))
     cover = next((card for card in cards.values() if card.status == "PUBLISHED"), None)
     result = {"id": pack.id, "revision": pack.revision, "active": pack.active, "starter": pack.starter,
               "title": config["title"], "description": config["description"], "price": config["price"],
               "draws": config["draws"], "card_count": len(config["entries"]), "ready": ready,
-              "odds": rank_odds(config["entries"]), "recommendation": recommendation(config["entries"], config["draws"]),
-              "cover": card_payload(cover) if cover else None}
+              "odds": pack_rules.slot_odds("ORDINARY") if is_v2 else rank_odds(config["entries"]),
+              "recommendation": v2_recommendation(config) if is_v2 else recommendation(config["entries"], config["draws"]),
+              "kind": config.get("kind", "LEGACY"),
+              "cover": card_payload(cover, battle=metadata.get(cover.id)) if cover else None}
+    if is_v2:
+        result.update(rule_version=pack_rules.RULE_VERSION,
+                      slots=[{"kind": slot, "odds": pack_rules.slot_odds(slot)} for slot in config["slots"]],
+                      guarantees=guarantee_payload(guarantee_state(db, user_id, scope), scope, config["slots"][0]))
     if detailed:
         total = sum(entry["weight"] for entry in config["entries"])
-        result["entries"] = [{**entry, "percent": round(entry["weight"] * 100 / total, 4),
-                              "card": card_payload(cards[entry["card_id"]]) if entry["card_id"] in cards else None}
+        variants = {(entry["rank"], entry.get("hero")): entry["weight"] for entry in config["entries"]}
+        def percent(entry):
+            if not is_v2:
+                return round(entry["weight"] * 100 / total, 4)
+            probability = next(row["percent"] for row in pack_rules.slot_odds("ORDINARY") if row["rank"] == entry["rank"])
+            variant_total = sum(weight for (rank, _), weight in variants.items() if rank == entry["rank"])
+            artworks = sum(other["rank"] == entry["rank"] and other["hero"] == entry["hero"] for other in config["entries"])
+            return round(probability * entry["weight"] / variant_total / artworks, 6)
+        result["entries"] = [{**entry, "percent": percent(entry),
+                              "card": card_payload(cards[entry["card_id"]], battle=metadata.get(entry["card_id"])) if entry["card_id"] in cards else None}
                              for entry in config["entries"]]
     return result
 
@@ -150,6 +232,7 @@ def issue(db, operation, cards, paid=0):
                     ArchiveItem.card_id.in_([card.id for card in cards]), ArchiveItem.state == "OWNED",
                     ArchiveItem.scope == operation.scope)))
     results = []
+    metadata = battle_metadata(db, cards)
     basis, remainder = divmod(paid, len(cards))
     test = operation.scope == "SANDBOX"
     for i, card in enumerate(cards):
@@ -157,7 +240,7 @@ def issue(db, operation, cards, paid=0):
                            cost_basis=basis + (i < remainder), test_grant=test, scope=operation.scope)
         db.add(item)
         db.flush()
-        results.append({"id": item.id, "card": card_payload(card), "duplicate": card.id in existing,
+        results.append({"id": item.id, "card": card_payload(card, battle=metadata.get(card.id)), "duplicate": card.id in existing,
                         "scope": operation.scope, "test_grant": test, "recycle_value": item.cost_basis // 5})
         existing.add(card.id)
     return results
@@ -178,8 +261,11 @@ def choose(entries, draws):
 
 def open_pack(db, user_id, pack_id, payload):
     kind = "STARTER_PACK" if payload.starter else "PACK_OPEN"
+    inputs = {"pack_id": pack_id, "revision": payload.revision}
+    if getattr(payload, "guarantee_revision", None) is not None:
+        inputs["guarantee_revision"] = payload.guarantee_revision
     operation, replay = begin(db, user_id, kind, payload.request_key,
-                              {"pack_id": pack_id, "revision": payload.revision}, scope=payload.scope)
+                              inputs, scope=payload.scope)
     if replay:
         return receipt_payload(operation)
     pack = db.scalar(select(ArchivePack).where(ArchivePack.id == pack_id).with_for_update())
@@ -190,6 +276,8 @@ def open_pack(db, user_id, pack_id, payload):
     version = pack_version(db, pack)
     config = version.config
     cards = cards_for_pool(db, config["entries"], lock=True)
+    if config.get("rule_version") == pack_rules.RULE_VERSION:
+        return open_v2(db, operation, pack, version, cards, payload)
     if not ready_pool(config["entries"], cards):
         raise HTTPException(409, "Одна из карточек снята с публикации. Конверт приостановлен / Pack content unavailable")
     price = config["price"]
@@ -211,6 +299,72 @@ def open_pack(db, user_id, pack_id, payload):
         "draws": config["draws"], "odds": rank_odds(config["entries"])}})
 
 
+def open_v2(db, operation, pack, version, cards, payload):
+    from ..pack_models import PackGuaranteeState
+    config = version.config
+    if payload.starter or not ready_v2_pool(db, config["entries"], cards, lock=True):
+        raise HTTPException(409, "Не все обещанные ранги доступны / Promised pack ranks unavailable")
+    if wallet_state(db, operation.user_id, operation.scope)["available_balance"] < config["price"]:
+        raise HTTPException(409, "Недостаточно жетонов / Not enough tokens")
+    state = guarantee_state(db, operation.user_id, operation.scope, lock=True)
+    before = guarantee_payload(state, operation.scope, config["slots"][0])
+    if getattr(payload, "guarantee_revision", None) != before["revision"]:
+        raise HTTPException(409, "Гарантии изменились. Обновите конверт / Guarantees changed; refresh before paying")
+    if state is None:
+        state = PackGuaranteeState(user_id=operation.user_id, scope=operation.scope, without_a=0, without_s=0,
+                                   without_sss=0, revision=0)
+        db.add(state)
+    counters = {key: before[key] for key in pack_rules.THRESHOLDS}
+    draws = []
+    selected = []
+    for slot in config["slots"]:
+        draw, counters = pack_rules.draw_slot(slot, counters, secrets.randbelow)
+        selected.append(cards[pack_rules.choose_artwork(config["entries"], draw["rank"], secrets.randbelow)])
+        draws.append(draw)
+    for key, value in counters.items():
+        setattr(state, key, value)
+    state.revision += 1
+    operation.pack_version_id = version.id
+    result = issue(db, operation, selected, config["price"])
+    result = [{**item, **draw} for item, draw in zip(result, draws)]
+    return finish(db, operation, delta=-config["price"], items=result, extra={"pack": {
+        "id": pack.id, "title": config["title"], "revision": pack.revision, "price": config["price"],
+        "version_id": version.id,
+        "draws": config["draws"], "kind": config["kind"], "rule_version": pack_rules.RULE_VERSION,
+        "odds": pack_rules.slot_odds("ORDINARY"),
+        "slots": [{"kind": slot, "odds": pack_rules.slot_odds(slot)} for slot in config["slots"]],
+        "guarantee_before": before, "guarantee_after": guarantee_payload(state, operation.scope, config["slots"][0])}})
+
+
+def seed_pack_v2(db):
+    """Insert the two reviewed presets; never overwrite edits or unpause a pack."""
+    from ..battle_models import BattleArtwork, BattleDefinitionVersion
+    from sqlalchemy.dialects.postgresql import insert as postgresql_insert
+    from sqlalchemy.dialects.sqlite import insert as sqlite_insert
+    dialect = db.get_bind().dialect.name
+    insert = {"postgresql": postgresql_insert, "sqlite": sqlite_insert}.get(dialect)
+    if insert is None:
+        raise RuntimeError(f"Pack seeding does not support {dialect}")
+    rows = db.execute(select(ArchiveCard, BattleDefinitionVersion.key).join(
+        BattleArtwork, BattleArtwork.card_id == ArchiveCard.id).join(
+        BattleDefinitionVersion, BattleDefinitionVersion.id == BattleArtwork.definition_id).where(
+        ArchiveCard.status == "PUBLISHED", ArchiveCard.rank.in_(pack_rules.RANKS), ArchiveCard.image_digest.is_not(None),
+        BattleArtwork.approved.is_(True), BattleDefinitionVersion.approved.is_(True), BattleDefinitionVersion.category == "HERO")
+        .order_by(ArchiveCard.rank, BattleDefinitionVersion.key, ArchiveCard.id)).all()
+    entries = [{"card_id": card.id, "hero": hero, "rank": card.rank, "weight": 1} for card, hero in rows if card.hero == hero]
+    if {entry["rank"] for entry in entries} != set(pack_rules.RANKS):
+        return
+    for kind, preset in pack_rules.PRESETS.items():
+        pack_id = str(uuid5(NAMESPACE_URL, "deadlock-contracts:pack-v2:" + kind))
+        config = {"kind": kind, "rule_version": pack_rules.RULE_VERSION, "price_model": 3,
+                  "title": preset["title"], "description": "Оплаченные карты с общими гарантиями / Paid cards with shared guarantees",
+                  "price": preset["price"], "draws": len(preset["slots"]), "slots": list(preset["slots"]), "entries": entries}
+        db.execute(insert(ArchivePack).values(id=pack_id, revision=1, active=True, starter=False)
+                   .on_conflict_do_nothing(index_elements=["id"]))
+        db.execute(insert(ArchivePackVersion).values(id=str(uuid5(NAMESPACE_URL, "deadlock-contracts:pack-v2-version:" + kind)),
+                   pack_id=pack_id, revision=1, config=config).on_conflict_do_nothing(index_elements=["pack_id", "revision"]))
+
+
 def acquire(db, user_id, card_id, payload, *, owner=False):
     kind = "OWNER_CARD" if owner else "DIRECT_CARD"
     inputs = {"card_id": card_id, "quantity": payload.quantity if owner else 1,
@@ -221,6 +375,9 @@ def acquire(db, user_id, card_id, payload, *, owner=False):
     card = db.scalar(select(ArchiveCard).where(ArchiveCard.id == card_id).with_for_update(read=True))
     if not card or card.status != "PUBLISHED" or not card.image_digest:
         raise HTTPException(409, "Карточка сейчас недоступна / Card unavailable")
+    if card.rank == "EX" and not owner:
+        from .battle_service import assert_ex_purchase
+        assert_ex_purchase(db, user_id, card, payload.scope)
     price = 0 if owner else DIRECT_COST[card.rank]
     if not owner and payload.expected_price != price:
         raise HTTPException(409, "Цена изменилась. Обновите каталог / Price changed; refresh catalogue")
@@ -240,6 +397,9 @@ def recycle(db, user_id, item_id, payload):
                                                ArchiveItem.scope == payload.scope).with_for_update())
     if not item or item.state != "OWNED":
         raise HTTPException(409, "Этот экземпляр уже недоступен / Item unavailable")
+    from .battle_service import is_item_reserved
+    if is_item_reserved(db, item.id):
+        raise HTTPException(409, "Экземпляр используется в бою / Item is reserved by a battle")
     count = db.scalar(select(func.count()).select_from(ArchiveItem).where(ArchiveItem.user_id == user_id,
                       ArchiveItem.card_id == item.card_id, ArchiveItem.state == "OWNED", ArchiveItem.scope == payload.scope))
     if count < 2:
@@ -247,6 +407,8 @@ def recycle(db, user_id, item_id, payload):
     if item.cost_basis < 5:
         raise HTTPException(409, "Бесплатный или слишком дешёвый экземпляр не даёт жетонов / This copy has no token refund")
     item.state = "RECYCLED"
+    from .battle_service import invalidate_item_squads
+    invalidate_item_squads(db, user_id, item.id)
     return finish(db, operation, delta=item.cost_basis // 5, extra={"recycled_item_id": item.id})
 
 
@@ -273,6 +435,9 @@ def set_favorite(db, user_id, card_id, favorite, scope="REAL"):
 
 
 def inventory(db, user_id, hero, rank, q, offset, favorites_only=False, scope="REAL"):
+    from ..battle_models import BattleItemReservation, BattleMatch
+    reserved = select(BattleItemReservation.item_id).join(BattleMatch, BattleMatch.id == BattleItemReservation.match_id).where(
+        BattleItemReservation.item_id == ArchiveItem.id, BattleMatch.status == "ACTIVE").exists()
     count = func.count(ArchiveItem.id).label("quantity")
     favorite = select(ArchiveFavorite.card_id).where(ArchiveFavorite.user_id == user_id,
                                                       ArchiveFavorite.card_id == ArchiveCard.id).exists()
@@ -291,12 +456,13 @@ def inventory(db, user_id, hero, rank, q, offset, favorites_only=False, scope="R
     statement = statement.group_by(ArchiveCard.id)
     total = db.scalar(select(func.count()).select_from(statement.subquery()))
     rows = db.execute(statement.order_by(ArchiveCard.hero, ArchiveCard.rank, ArchiveCard.title, ArchiveCard.id).offset(offset).limit(18)).all()
+    metadata = battle_metadata(db, [row[0] for row in rows])
     result = []
     for card, quantity, test_count, is_favorite in rows:
         duplicate = db.scalar(select(ArchiveItem).where(ArchiveItem.user_id == user_id, ArchiveItem.card_id == card.id,
-                          ArchiveItem.state == "OWNED", ArchiveItem.cost_basis >= 5, ArchiveItem.scope == scope)
+                          ArchiveItem.state == "OWNED", ArchiveItem.cost_basis >= 5, ArchiveItem.scope == scope, ~reserved)
                           .order_by(ArchiveItem.cost_basis.desc(), ArchiveItem.id).limit(1)) if quantity > 1 else None
-        result.append({"card": card_payload(card), "quantity": quantity, "test_count": test_count, "scope": scope,
+        result.append({"card": card_payload(card, battle=metadata.get(card.id)), "quantity": quantity, "test_count": test_count, "scope": scope,
                        "favorite": bool(is_favorite),
                        "recycle": {"id": duplicate.id, "value": duplicate.cost_basis // 5} if duplicate else None})
     return {"items": result, "total": total, "scope": scope}

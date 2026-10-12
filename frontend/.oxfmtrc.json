@@ -5,7 +5,5 @@
   "trailingComma": "all",
   "printWidth": 100,
   "sortPackageJson": false,
-  "ignorePatterns": [
-    "src/**/*.css"
-  ]
+  "ignorePatterns": ["src/**/*.css", "dist/**"]
 }

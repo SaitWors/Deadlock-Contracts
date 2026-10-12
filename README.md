@@ -40,6 +40,7 @@ Backend remains authoritative: Companion/GEP evidence is accepted only through s
 
 - [SEO: выкладка, Search Console, Bing и IndexNow](docs/SEO.md);
 - [публичное описание проекта на русском и английском](docs/public-project.md);
+- [арена бюро, EX, экономика и развёртывание миграции 0022](docs/development/bureau-arena.md);
 
 - установка/обновление: `INSTALL_0.10.1_ALPHA9_RU.md`;
 - изменения: `RELEASE_NOTES_0.10.1_ALPHA9_RU.md`;

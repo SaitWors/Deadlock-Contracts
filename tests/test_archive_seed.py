@@ -20,6 +20,7 @@ from app.db import Base
 from app.models import (ArchiveCard, ArchiveFavorite, ArchiveItem, ArchiveLedger,
                         ArchiveOperation, ArchivePack, ArchivePackVersion, RewardLedgerEntry)
 from app.services.seed import seed_missions
+from app.services.archive_seed import RELEASE_CARD_IDS
 from test_archive import create, decide
 from test_archive_packs import buy, fund, published
 from test_bureau_operations import elevate
@@ -51,11 +52,11 @@ def test_startup_adds_six_collectible_cards_with_valid_credited_artwork(release)
     factory, player = release
     _, client = player()
     restart()
-    catalog = client.get("/api/archive/cards").json()
+    catalog = client.get("/api/archive/cards?q=City Never Sleeps").json()
     assert catalog["total"] == 6
     assert {card["hero"]: card["hero_name"] for card in catalog["items"]} == HEROES
     assert client.get("/api/archive/inventory").json()["total"] == 0
-    assert client.get("/api/archive/packs").json()["total"] == 0
+    assert {pack["kind"] for pack in client.get("/api/archive/packs").json()["items"]} == {"NIGHT_ENVELOPE", "SPECIAL_FOLDER"}
     for card in catalog["items"]:
         UUID(card["id"])
         assert card["rank"] == "F" and card["status"] == "PUBLISHED" and card["revision"] == 1
@@ -103,18 +104,18 @@ def test_release_ids_are_repeatable_on_restart_and_fresh_install(release):
     restart()
     with factory() as db:
         before = {row.hero: (row.id, row.created_at, row.updated_at, row.image_digest)
-                  for row in db.scalars(select(ArchiveCard))}
+                  for row in db.scalars(select(ArchiveCard).where(ArchiveCard.id.in_(RELEASE_CARD_IDS.values())))}
     assert len(before) == 6
     restart()
     with factory() as db:
         assert {row.hero: (row.id, row.created_at, row.updated_at, row.image_digest)
-                for row in db.scalars(select(ArchiveCard))} == before
+                for row in db.scalars(select(ArchiveCard).where(ArchiveCard.id.in_(RELEASE_CARD_IDS.values())))} == before
         # This isolated database has no owned items: recreate the release as a fresh install would.
         db.execute(delete(ArchiveCard))
         db.commit()
     restart()
     with factory() as db:
-        assert {row.hero: row.id for row in db.scalars(select(ArchiveCard))} == {
+        assert {row.hero: row.id for row in db.scalars(select(ArchiveCard).where(ArchiveCard.id.in_(RELEASE_CARD_IDS.values())))} == {
             hero: values[0] for hero, values in before.items()}
 
 
@@ -149,7 +150,8 @@ def test_restart_preserves_admin_archival_and_existing_collection_state(release)
         db.commit()
     restart()
     assert client.get("/api/archive/cards?hero=nurse-harrow").json()["total"] == 0
-    assert client.get("/api/archive/cards").json()["total"] == 6  # five release cards plus the original
+    assert client.get("/api/archive/cards?q=City Never Sleeps").json()["total"] == 5
+    assert client.get("/api/archive/cards?q=Released A").json()["items"][0]["id"] == existing_id
     assert client.get("/api/archive/wallet").json()["balance"] == 120
     inventory = client.get("/api/archive/inventory").json()
     assert inventory["total"] == 1
@@ -184,7 +186,7 @@ def test_concurrent_startups_insert_only_one_of_each_release_card(tmp_path, monk
         with ThreadPoolExecutor(max_workers=2) as workers:
             list(workers.map(start, range(2)))
         with factory() as db:
-            cards = db.scalars(select(ArchiveCard)).all()
+            cards = db.scalars(select(ArchiveCard).where(ArchiveCard.id.in_(RELEASE_CARD_IDS.values()))).all()
             assert len(cards) == 6 and {card.hero for card in cards} == set(HEROES)
     finally:
         engine.dispose()

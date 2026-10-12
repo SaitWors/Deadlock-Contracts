@@ -1,5 +1,6 @@
 export const RANKS = ["F", "E", "D", "C", "B", "A", "S", "SS", "SSS"] as const
-export type Rank = (typeof RANKS)[number]
+export type HeroRank = (typeof RANKS)[number]
+export type Rank = HeroRank | "EX"
 export type EconomyScope = "REAL" | "SANDBOX"
 export type WalletBalance = {
   scope: EconomyScope
@@ -26,12 +27,32 @@ export type CoinRewardStatus = {
     { limit: number; used: number; remaining: number; reset_at: string }
   >
   receipts: CoinReward[]
+  source_quotas?: Record<
+    string,
+    Partial<
+      Record<
+        "daily" | "weekly",
+        { limit: number; used: number; remaining: number; reset_at: string }
+      >
+    >
+  >
+  regular_weekly_maximum?: number
+  progress?: {
+    confirmed_contracts: number
+    eligible_pve_wins: number
+    weekly_contracts: number
+    weekly_pve_wins: number
+  }
 }
 export type Card = {
   id: string
   hero: string
   hero_name: string
   rank: Rank
+  category?: "HERO" | "BASE"
+  battle_eligible?: boolean
+  definition_key?: string
+  ex_access?: { eligible: boolean; reasons: string[] }
   title: string
   description: string
   artist: string
@@ -49,6 +70,7 @@ export type Card = {
 }
 export type Meta = {
   heroes: { key: string; name: string }[]
+  bases?: { key: string; name: string }[]
   ranks: Rank[]
   can_publish: boolean
   can_manage_packs: boolean
@@ -65,6 +87,17 @@ export type Recommendation = {
   expected_direct_cost: number
   weeks_at_150: number
 }
+export type PackGuarantees = {
+  scope: EconomyScope
+  revision: number
+  without_a: number
+  without_s: number
+  without_sss: number
+  thresholds: { a: number; s: number; sss: number }
+  next_minimum_rank: Rank | null
+  next_slot_odds: Odds[]
+}
+export type PackSlot = { kind: "ORDINARY" | "B_PLUS"; odds: Odds[] }
 export type Pack = {
   id: string
   revision: number
@@ -78,6 +111,10 @@ export type Pack = {
   card_count: number
   cover: Card | null
   odds: Odds[]
+  kind?: "LEGACY" | "NIGHT_ENVELOPE" | "SPECIAL_FOLDER"
+  rule_version?: string
+  slots?: PackSlot[]
+  guarantees?: PackGuarantees
   recommendation: Recommendation
   entries?: { card_id: string; weight: number; rank: Rank; percent: number; card: Card | null }[]
 }
@@ -91,13 +128,28 @@ export type Receipt = {
   available_balance?: number
   debt?: number
   created_at: string
-  pack?: { id: string; title: string; price: number; revision: number; draws: number; odds: Odds[] }
+  pack?: {
+    id: string
+    title: string
+    price: number
+    revision: number
+    draws: number
+    odds: Odds[]
+    rule_version?: string
+    slots?: PackSlot[]
+    guarantee_before?: PackGuarantees
+    guarantee_after?: PackGuarantees
+  }
   items: {
     id: string
     card: Card
     duplicate: boolean
     test_grant: boolean
     recycle_value: number
+    slot_kind?: "ORDINARY" | "B_PLUS"
+    natural_rank?: Rank
+    guaranteed_minimum_rank?: Rank | null
+    forced?: boolean
   }[]
 }
 export type Inventory = {
