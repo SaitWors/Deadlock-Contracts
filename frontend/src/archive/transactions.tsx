@@ -23,11 +23,23 @@ export function useTransaction(csrf: string, accountKey: string, onChanged: () =
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState("")
   const [receipt, setReceipt] = useState<Receipt | null>(null)
+  const [stateAccount, setStateAccount] = useState(accountKey)
+  const currentAccount = useRef(accountKey)
+  currentAccount.current = accountKey
+  const inFlight = useRef<AbortController | null>(null)
   useEffect(() => {
     const refresh = () => setPending(read())
+    setStateAccount(accountKey)
+    setBusy(false)
+    setError("")
+    setReceipt(null)
     refresh()
     window.addEventListener(EVENT, refresh)
-    return () => window.removeEventListener(EVENT, refresh)
+    return () => {
+      window.removeEventListener(EVENT, refresh)
+      inFlight.current?.abort()
+      inFlight.current = null
+    }
   }, [storageKey])
   const save = (value: Pending | null) => {
     if (value) sessionStorage.setItem(storageKey, JSON.stringify(value))
@@ -41,27 +53,60 @@ export function useTransaction(csrf: string, accountKey: string, onChanged: () =
     setError("")
     onChanged()
   }
-  const run = async (value: Pending) => {
+  const run = async (value: Pending, recover = false) => {
+    if (
+      !accountKey ||
+      stateAccount !== accountKey ||
+      currentAccount.current !== accountKey ||
+      inFlight.current
+    )
+      return
+    const controller = new AbortController()
+    inFlight.current = controller
+    const active = () => !controller.signal.aborted && currentAccount.current === accountKey
     setBusy(true)
     setError("")
-    setReceipt(null)
+    if (!recover) setReceipt(null)
     try {
-      completed(
-        await request<Receipt>(value.url, csrf, {
-          method: "POST",
-          body: JSON.stringify(value.body),
-        }),
-      )
+      const result = recover
+        ? (
+            await request<{ operation: Receipt | null }>(
+              `/api/archive/requests/${value.body.request_key}`,
+              "",
+              { signal: controller.signal },
+            )
+          ).operation
+        : await request<Receipt>(value.url, csrf, {
+            method: "POST",
+            body: JSON.stringify(value.body),
+            signal: controller.signal,
+          })
+      if (!active()) return
+      if (result) completed(result)
+      else
+        setError("Результат пока не найден. Повторите сохранённый запрос / Retry the saved request")
     } catch (reason) {
+      if (!active()) return
       // Domain failures roll back before returning. Network/5xx failures retain the exact key.
-      if (reason instanceof ApiError && [400, 404, 409, 422].includes(reason.status)) save(null)
+      if (!recover && reason instanceof ApiError && [400, 404, 409, 422].includes(reason.status))
+        save(null)
       setError((reason as Error).message)
     } finally {
-      setBusy(false)
+      if (inFlight.current === controller) {
+        inFlight.current = null
+        if (active()) setBusy(false)
+      }
     }
   }
   const execute = async (url: string, body: Record<string, unknown> = {}) => {
-    if (busy || read()) return
+    if (
+      !accountKey ||
+      currentAccount.current !== accountKey ||
+      stateAccount !== accountKey ||
+      inFlight.current ||
+      read()
+    )
+      return
     const value = { url, body: { ...body, request_key: crypto.randomUUID() } }
     try {
       save(value)
@@ -71,30 +116,14 @@ export function useTransaction(csrf: string, accountKey: string, onChanged: () =
     }
     await run(value)
   }
-  const recover = async () => {
-    if (!pending || busy) return
-    setBusy(true)
-    setError("")
-    try {
-      const result = await request<{ operation: Receipt | null }>(
-        `/api/archive/requests/${pending.body.request_key}`,
-      )
-      if (result.operation) completed(result.operation)
-      else
-        setError("Результат пока не найден. Повторите сохранённый запрос / Retry the saved request")
-    } catch (reason) {
-      setError((reason as Error).message)
-    } finally {
-      setBusy(false)
-    }
-  }
+  const current = stateAccount === accountKey
   return {
-    pending,
-    busy,
-    error,
-    receipt,
+    pending: current ? pending : null,
+    busy: current && busy,
+    error: current ? error : "",
+    receipt: current ? receipt : null,
     execute,
-    recover,
+    recover: () => pending && run(pending, true),
     retry: () => pending && run(pending),
     clearReceipt: () => setReceipt(null),
   }

@@ -143,6 +143,9 @@
 }
 .dc-announcement-modal {
   width: min(590px, 100%);
+  max-height: calc(100dvh - 36px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
   outline: none;
 }
 .dc-announcement-modal .dc-announcement { padding: 20px; }

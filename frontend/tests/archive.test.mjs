@@ -1011,6 +1011,74 @@ test("an uncertain opening keeps the same key across a remount and retries only 
   await api.act(async () => root.unmount())
 })
 
+test("saved purchase recovery and retry share one in-flight request", async () => {
+  const calls = []
+  let complete
+  const { api, doc, w } = runtime((url, init) => {
+    calls.push({ url, init })
+    return new Promise((resolve) => {
+      complete = resolve
+    })
+  }, "en")
+  const pending = {
+    url: "/api/archive/packs/test/open",
+    body: { request_key: "saved-request", revision: 4, starter: false },
+  }
+  w.sessionStorage.setItem("dc-archive-request:account", JSON.stringify(pending))
+  let root
+  await api.act(async () => {
+    root = api.mount(doc.getElementById("mount"), "transaction", {
+      csrf: "csrf",
+      accountKey: "account",
+      onChanged() {},
+    })
+  })
+  await api.act(async () => {
+    button(doc, "Check result").click()
+    button(doc, "Retry request").click()
+  })
+  assert.equal(calls.length, 1, "checking the receipt must exclude a concurrent POST")
+  await api.act(async () => complete(response({ operation: null })))
+  await api.act(async () => {
+    button(doc, "Retry request").click()
+    button(doc, "Retry request").click()
+  })
+  assert.equal(calls.length, 2, "two retry activations must send only one POST")
+  assert.equal(calls[1].init.method, "POST")
+  assert.deepEqual(JSON.parse(calls[1].init.body), pending.body)
+  await api.act(async () => complete(response(packReceipt("saved-result"))))
+  assert.equal(w.sessionStorage.getItem("dc-archive-request:account"), null)
+  await api.act(async () => root.unmount())
+})
+
+test("changing archive account aborts the old purchase and preserves its recovery key", async () => {
+  let complete, oldSignal
+  let changes = 0
+  const { api, doc, w } = runtime((url, init) => {
+    oldSignal = init.signal
+    return new Promise((resolve) => {
+      complete = resolve
+    })
+  }, "en")
+  let root
+  const props = { csrf: "csrf-a", accountKey: "a", onChanged: () => changes++ }
+  await api.act(async () => {
+    root = api.mount(doc.getElementById("mount"), "transaction", props)
+  })
+  await api.act(async () => button(doc, "Open test pack").click())
+  const saved = w.sessionStorage.getItem("dc-archive-request:a")
+  assert.ok(saved)
+  await api.act(async () => root.rerender({ ...props, csrf: "csrf-b", accountKey: "b" }))
+  assert.equal(oldSignal?.aborted, true)
+  assert.equal(doc.querySelector(".archive-pending"), null)
+  assert.equal(button(doc, "Open test pack").disabled, false)
+  await api.act(async () => complete(response(packReceipt("old-account-receipt"))))
+  assert.equal(doc.querySelector(".archive-receipt"), null)
+  assert.equal(changes, 0)
+  assert.equal(w.sessionStorage.getItem("dc-archive-request:a"), saved)
+  await api.act(async () => root.unmount())
+})
+
 test("pack opening shows actual odds and sends the displayed revision with CSRF", async () => {
   const writes = []
   const released = { ...card, status: "PUBLISHED" }

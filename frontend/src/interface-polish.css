@@ -40,7 +40,6 @@
 .bureau-menu-toggle {
   border-color: #ffffff22;
   border-radius: 12px;
-  display: none;
 }
 .bureau-mobile-nav button {
   font-family: var(--font-body);
