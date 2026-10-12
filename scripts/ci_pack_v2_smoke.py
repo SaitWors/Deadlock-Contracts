@@ -12,6 +12,7 @@ from app.models import ArchiveItem, ArchiveLedger, ArchiveOperation, User
 from app.pack_models import PackGuaranteeState
 from app.services import archive_packs as packs
 from app.services.battle_catalog import seed_battle_catalogue
+from scripts.ci_original_archive_fixture import seed_original_archive_fixture
 
 
 def main():
@@ -25,6 +26,7 @@ def main():
     try:
         with SessionLocal() as db:
             seed_battle_catalogue(db)
+            seed_original_archive_fixture(db)
             packs.seed_pack_v2(db)
             user = User(display_name="Pack v2 concurrency smoke")
             db.add(user); db.flush(); user_id = user.id

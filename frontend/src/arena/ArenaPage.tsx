@@ -625,14 +625,43 @@ export default function ArenaPage({ csrf, accountKey }: { csrf: string; accountK
                 <h2>{ru ? "Начни с шести героев" : "Start with six heroes"}</h2>
                 <p>
                   {ru
-                    ? "Бесплатный боевой состав F: Abrams, Bebop, Dynamo, Haze, Ivy и Seven. Выдаётся один раз независимо от стартового конверта архива."
-                    : "Free F battle squad: Abrams, Bebop, Dynamo, Haze, Ivy and Seven. Granted once, independently of the archive starter pack."}
+                    ? "Бесплатные опубликованные оригинальные карты F: Abrams, Bebop, Dynamo, Haze, Ivy и Seven. Боевой старт выдаётся один раз для выбранной коллекции."
+                    : "Free published original F cards: Abrams, Bebop, Dynamo, Haze, Ivy and Seven. The battle starter is granted once per collection."}
                 </p>
+                {!data.starter?.claimed && data.starter?.available === false && (
+                  <p className="arena-notice" role="status">
+                    {ru
+                      ? "Боевой старт пока недоступен: опубликованы не все оригинальные карты F."
+                      : "The battle starter is unavailable: some published original F cards are missing."}{" "}
+                    {!!data.starter.missing_heroes.length && (
+                      <>
+                        {ru ? "Нужны карты героев: " : "Missing hero cards: "}
+                        {data.starter.missing_heroes
+                          .map((key) => key.charAt(0).toUpperCase() + key.slice(1))
+                          .join(", ")}
+                        .{" "}
+                      </>
+                    )}
+                    {ru
+                      ? "Можно подготовить состав из подходящих карт вашей коллекции."
+                      : "You can prepare a squad using eligible cards from your collection."}
+                  </p>
+                )}
                 <button
-                  disabled={blocked}
+                  disabled={blocked || data.starter?.claimed || data.starter?.available === false}
                   onClick={() => void commands.execute("/api/arena/starter", { scope })}
                 >
-                  {ru ? "Получить боевой старт" : "Claim battle starter"}
+                  {data.starter?.claimed
+                    ? ru
+                      ? "Боевой старт получен"
+                      : "Battle starter claimed"
+                    : data.starter?.available === false
+                      ? ru
+                        ? "Боевой старт недоступен"
+                        : "Battle starter unavailable"
+                      : ru
+                        ? "Получить боевой старт"
+                        : "Claim battle starter"}
                 </button>
                 <button onClick={() => navigate("squad")}>
                   {ru ? "Подготовить состав" : "Prepare squad"}

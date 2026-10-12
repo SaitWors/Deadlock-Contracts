@@ -158,7 +158,7 @@ const match = {
   result: null,
   reward: null,
 }
-function runtime(fetch, hash = "#arena", saved = null) {
+function runtime(fetch, hash = "#arena", saved = null, language = "en") {
   const dom = new JSDOM('<main id="mount"></main>', {
     url: `https://qa.invalid/${hash}`,
     runScripts: "outside-only",
@@ -174,7 +174,7 @@ function runtime(fetch, hash = "#arena", saved = null) {
   w.fetch = fetch
   w.matchMedia = () => ({ matches: true, addEventListener() {}, removeEventListener() {} })
   w.IS_REACT_ACT_ENVIRONMENT = true
-  w.localStorage.setItem("dc.ui.language", "en")
+  w.localStorage.setItem("dc.ui.language", language)
   if (saved) w.sessionStorage.setItem("dc-arena-command:test", JSON.stringify(saved))
   w.eval(code)
   return { w, api: w.ArenaTest, doc: w.document }
@@ -192,6 +192,140 @@ const mount = async (env) => {
     root = env.api.mount(env.doc.getElementById("mount"), { csrf: "csrf", accountKey: "test" })
   })
   return root
+}
+
+for (const [language, claim, prepare, save, unavailable, collection] of [
+  [
+    "en",
+    "Battle starter unavailable",
+    "Prepare squad",
+    "Save squad",
+    /published original F cards/i,
+    /cards.*collection/i,
+  ],
+  [
+    "ru",
+    "Боевой старт недоступен",
+    "Подготовить состав",
+    "Сохранить состав",
+    /опубликован.*оригинальн.*карт.*F/i,
+    /карт.*коллекци/i,
+  ],
+]) {
+  test(`an unavailable starter keeps the existing collection usable (${language})`, async () => {
+    const writes = []
+    const env = runtime(
+      async (url, init = {}) => {
+        if (init.method) writes.push({ url, body: JSON.parse(init.body) })
+        return response({
+          ...bootstrap,
+          starter: { claimed: false, available: false, missing_heroes: ["bebop", "ivy"] },
+        })
+      },
+      "#arena",
+      null,
+      language,
+    )
+    const root = await mount(env)
+    const claimButton = [...env.doc.querySelectorAll("button")].find(
+      (item) => item.textContent === claim,
+    )
+    assert.ok(claimButton?.disabled)
+    assert.match(env.doc.body.textContent, unavailable)
+    assert.match(env.doc.body.textContent, /bebop, ivy/i)
+    assert.match(env.doc.body.textContent, collection)
+    await env.api.act(() => claimButton.click())
+    assert.equal(writes.length, 0)
+    await click(env, prepare)
+    assert.equal(
+      [...env.doc.querySelectorAll("button")].find((item) => item.textContent === save).disabled,
+      false,
+    )
+    await env.api.act(() => root.unmount())
+  })
+}
+
+test("claiming an available starter disables further claims after bootstrap refresh", async () => {
+  const writes = []
+  const env = runtime(async (url, init = {}) => {
+    if (init.method === "POST") {
+      writes.push({ url, body: JSON.parse(init.body) })
+      return response({ squad: bootstrap.squad })
+    }
+    return response({
+      ...bootstrap,
+      starter: { claimed: writes.length > 0, available: true, missing_heroes: [] },
+    })
+  })
+  const root = await mount(env)
+  await click(env, "Claim battle starter")
+  assert.equal(writes.length, 1)
+  assert.equal(writes[0].url, "/api/arena/starter")
+  assert.equal(writes[0].body.scope, "REAL")
+  const claimed = [...env.doc.querySelectorAll("button")].find(
+    (item) => item.textContent === "Battle starter claimed",
+  )
+  assert.ok(claimed?.disabled)
+  await env.api.act(() => claimed.click())
+  assert.equal(writes.length, 1)
+  await env.api.act(() => root.unmount())
+})
+
+for (const [language, collection, unsupported, approval, save] of [
+  [
+    "en",
+    /remain in your collection/i,
+    /no approved battle rules/i,
+    /card.*not yet approved for battles/i,
+    "Save squad",
+  ],
+  [
+    "ru",
+    /остаются в вашей коллекции/i,
+    /нет одобренных правил боя/i,
+    /карт.*ещё не одобрен.*для боёв/i,
+    "Сохранить состав",
+  ],
+]) {
+  test(`owned cards without arena access stay visible and outside squad choices (${language})`, async () => {
+    const env = runtime(
+      async () =>
+        response({
+          ...bootstrap,
+          unavailable_inventory: [
+            {
+              item_id: "owned-yamato",
+              card: { ...inventory[0].card, id: "yamato-f", hero: "yamato", hero_name: "Yamato" },
+              reason: "UNSUPPORTED_HERO",
+            },
+            {
+              item_id: "owned-bebop-alt",
+              card: { ...inventory[1].card, id: "bebop-alt", title: "Bebop alternative" },
+              reason: "BATTLE_APPROVAL",
+            },
+          ],
+        }),
+      "#arena/squad",
+      null,
+      language,
+    )
+    const root = await mount(env)
+    assert.match(env.doc.body.textContent, /Yamato/)
+    assert.match(env.doc.body.textContent, /Bebop alternative/)
+    assert.match(env.doc.body.textContent, collection)
+    assert.match(env.doc.body.textContent, unsupported)
+    assert.match(env.doc.body.textContent, approval)
+    assert.ok(
+      ![...env.doc.querySelectorAll("option")].some((item) =>
+        ["owned-yamato", "owned-bebop-alt"].includes(item.value),
+      ),
+    )
+    assert.equal(
+      [...env.doc.querySelectorAll("button")].find((item) => item.textContent === save).disabled,
+      false,
+    )
+    await env.api.act(() => root.unmount())
+  })
 }
 
 test("starting PvE first shows patron preparation and names the committed base", async () => {

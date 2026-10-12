@@ -63,23 +63,48 @@ def _scope(scope):
         raise HTTPException(422, "Unknown economy scope")
 
 
-def display_rules():
-    from .battle_catalog import card_id
+def display_rules(db=None):
     rules = deepcopy(engine.RULES)
-    for group, rank in (("heroes", "F"), ("bases", "EX")):
-        for key, definition in rules[group].items():
-            if key != "ORDINARY": definition["image_url"] = f"/api/archive/cards/{card_id(key, rank)}/image"
+    if db is not None:
+        from .arena_catalog_repair import is_pristine_arena_card
+        from .battle_definitions import definitions_for_cards
+        rows = list(db.scalars(select(ArchiveCard).where(ArchiveCard.status == "PUBLISHED",
+            ArchiveCard.image_digest.is_not(None), ArchiveCard.hero.in_([*engine.HEROES, *engine.BASES]))
+            .order_by((ArchiveCard.rank != "F"), ArchiveCard.id)))
+        definitions = definitions_for_cards(db, rows)
+        for card in rows:
+            group = "bases" if card.rank == "EX" else "heroes"
+            if (card.id not in definitions or card.hero not in rules[group]
+                    or "image_url" in rules[group][card.hero]): continue
+            if not card.image_data or is_pristine_arena_card(card): continue
+            rules[group][card.hero]["image_url"] = card_payload(card)["image_url"]
     return rules
 
 
 def approved_definition(db, card):
-    link = db.get(BattleArtwork, card.id)
-    definition = db.get(BattleDefinitionVersion, link.definition_id) if link and link.approved else None
-    if (not definition or not definition.approved or definition.key != card.hero
-            or (definition.category == "HERO" and card.rank not in engine.RANKS)
-            or (definition.category == "BASE" and card.rank != "EX")):
-        return None
-    return definition
+    from .battle_definitions import definitions_for_cards
+    return definitions_for_cards(db, [card]).get(card.id) if card else None
+
+
+def _starter_cards(db, *, lock=False):
+    from .arena_catalog_repair import is_pristine_arena_card
+    query = select(ArchiveCard).where(ArchiveCard.hero.in_(STARTER), ArchiveCard.rank == "F",
+        ArchiveCard.status == "PUBLISHED", ArchiveCard.image_digest.is_not(None)).order_by(ArchiveCard.id)
+    if lock: query = query.with_for_update(read=True)
+    choices = {}
+    for card in db.scalars(query):
+        if card.image_data and not is_pristine_arena_card(card) and approved_definition(db, card):
+            choices.setdefault(card.hero, card)
+    return choices
+
+
+def starter_status(db, user_id, scope):
+    benefit = "battle_starter_v1" + (":sandbox" if scope == "SANDBOX" else "")
+    claimed = db.scalar(select(ArchiveOperation.id).where(ArchiveOperation.user_id == user_id,
+        ArchiveOperation.benefit_key == benefit)) is not None
+    cards = _starter_cards(db)
+    missing = [key for key in STARTER if key not in cards]
+    return dict(claimed=claimed, available=not claimed and not missing, missing_heroes=missing)
 
 
 def ex_access(db, user_id, card=None, scope="REAL", patron_key=None):
@@ -189,7 +214,6 @@ def invalidate_item_squads(db, user_id, item_id):
 
 def claim_starter(db, user_id, request_key, scope="REAL"):
     from .archive_packs import begin, finish, issue
-    from .battle_catalog import card_id
     _lock_users(db, user_id); _scope(scope)
     command, replay = _begin(db, user_id, request_key, "starter", {"scope": scope})
     if replay: return deepcopy(command.response)
@@ -197,11 +221,12 @@ def claim_starter(db, user_id, request_key, scope="REAL"):
     old = db.scalar(select(ArchiveOperation).where(ArchiveOperation.user_id == user_id, ArchiveOperation.benefit_key == benefit))
     if old:
         raise HTTPException(409, "Arena starter already claimed")
+    choices = _starter_cards(db, lock=True)
+    if any(key not in choices for key in STARTER):
+        raise HTTPException(409, "В каталоге нет полного стартового состава F. Используйте свою коллекцию / Original starter artwork is incomplete; use your collection")
+    cards = [choices[key] for key in STARTER]
     operation, _ = begin(db, user_id, "BATTLE_STARTER", request_key, {}, scope=scope)
     operation.benefit_key = benefit
-    cards = [db.get(ArchiveCard, card_id(key, "F")) for key in STARTER]
-    if any(card is None or not approved_definition(db, card) for card in cards):
-        raise HTTPException(409, "Arena catalogue is unavailable")
     items = issue(db, operation, cards)
     slots = [{"item_id": item["id"], "line": index // 2, "position": "FRONT" if index % 2 == 0 else "BACK"}
              for index, item in enumerate(items)]
@@ -266,11 +291,14 @@ def _new_match(db, user_id, opponent_id, mode, scope, first, second, *, assignme
         versions = snapshot.setdefault("definition_versions", {})
         for key in [hero["hero_key"] for hero in snapshot["heroes"]] + ([snapshot["base_key"]] if snapshot["base_key"] != "ORDINARY" else []):
             versions.setdefault(key, dict(id=identity("definition", key), version=1, category="HERO" if key in engine.HEROES else "BASE"))
-    rules = display_rules()
+    rules = display_rules(db)
     # Each physical artwork keeps its own approved version, including mirror heroes.
     state = engine.initial_state(first["heroes"], second["heroes"], base_a=first["base_key"], base_b=second["base_key"], rules=rules,
                                  definitions_a=first.get("definitions"), definitions_b=second.get("definitions"))
     for side, snapshot in zip(state["sides"], (first, second)):
+        if snapshot.get("base_card"):
+            side["base"]["card"] = deepcopy(snapshot["base_card"])
+            side["base"]["image_url"] = snapshot["base_card"]["image_url"]
         version = snapshot["definition_versions"].get(snapshot["base_key"])
         if version:
             side["base"]["definition_id"] = version["id"]
@@ -343,6 +371,32 @@ def _owned_match(db, user_id, match_id, *, lock=False):
     return match
 
 
+def _image_card_id(image_url):
+    prefix = "/api/archive/cards/"
+    if not isinstance(image_url, str) or not image_url.startswith(prefix): return None
+    identifier, separator, rest = image_url[len(prefix):].partition("/image")
+    if not separator or (rest and not rest.startswith("?")): return None
+    try: return str(UUID(identifier))
+    except ValueError: return None
+
+
+def match_card(db, user_id, match_id, card_id):
+    match = _owned_match(db, user_id, match_id)
+    permitted = set()
+    for side in match.state.get("sides", []):
+        for unit in [*side.get("heroes", []), side.get("base", {})]:
+            if unit.get("card"): permitted.add(unit["card"]["id"])
+            image_id = _image_card_id(unit.get("image_url"))
+            if image_id: permitted.add(image_id)
+    for side in ("A", "B"):
+        base = match.snapshot.get(side, {}).get("base_card")
+        if base: permitted.add(base["id"])
+    card = db.get(ArchiveCard, card_id) if card_id in permitted else None
+    if not card or card.status == "REMOVED" or not card.image_data:
+        raise HTTPException(404, "Image not found")
+    return card
+
+
 def match_payload(db, match, user_id):
     side = "A" if match.user_id == user_id else "B"
     pending = set(db.scalars(select(BattleAction.user_id).where(BattleAction.match_id == match.id, BattleAction.round == match.round))) if match.status == "ACTIVE" else set()
@@ -351,6 +405,19 @@ def match_payload(db, match, user_id):
         from .extra_coin_rewards import battle_receipt
         reward = battle_receipt(db, match.id, user_id)
     state = deepcopy(match.state)
+    # Participants can see frozen opponent art without making it public.
+    for state_side, side_key in zip(state.get("sides", []), ("A", "B")):
+        base = match.snapshot.get(side_key, {}).get("base_card")
+        if base:
+            state_side["base"]["card"] = deepcopy(base)
+            state_side["base"]["image_url"] = base.get("image_url")
+        for unit in [*state_side.get("heroes", []), state_side.get("base", {})]:
+            card = unit.get("card")
+            card_id = card["id"] if card and card.get("image_url") else _image_card_id(unit.get("image_url"))
+            if card_id:
+                url = f"/api/arena/matches/{match.id}/cards/{card_id}/image"
+                unit["image_url"] = url
+                if card and card.get("image_url"): card["image_url"] = url
     # Full squads are revealed only after both room/queue confirmations. Never expose pending actions or bot plan.
     return {"match": dict(id=match.id, mode=match.mode, scope=match.scope, status=match.status,
         expired=bool(match.status == "ACTIVE" and aware(match.updated_at) < utcnow() - MATCH_TTL),
@@ -451,12 +518,15 @@ def bootstrap(db, user_id, scope="REAL"):
     _scope(scope)
     user = db.get(User, user_id)
     squad = db.scalar(select(BattleSquad).where(BattleSquad.user_id == user_id, BattleSquad.scope == scope))
-    inventory = []
+    inventory, unavailable = [], []
     for item, card in db.execute(select(ArchiveItem, ArchiveCard).join(ArchiveCard, ArchiveCard.id == ArchiveItem.card_id)
         .where(ArchiveItem.user_id == user_id, ArchiveItem.state == "OWNED",
                ArchiveItem.scope.in_(["REAL", "SANDBOX"] if scope == "SANDBOX" else ["REAL"]))):
         definition = approved_definition(db, card)
-        if not definition: continue
+        if not definition:
+            unavailable.append(dict(item_id=item.id, card=card_payload(card),
+                reason="UNSUPPORTED_HERO" if card.hero not in engine.HEROES and card.rank != "EX" else "BATTLE_APPROVAL"))
+            continue
         preview_rules = {**engine.RULES, "heroes": {**engine.HEROES, definition.key: definition.rules}}
         inventory.append(dict(item_id=item.id, card=card_payload(card), hero_key=definition.key, category=definition.category,
             definition_key=definition.key, scope=item.scope, reserved=is_item_reserved(db, item.id),
@@ -470,7 +540,8 @@ def bootstrap(db, user_id, scope="REAL"):
     rating = db.get(BattleRating, (season.id, user_id)) if season else None
     showcase = db.get(BattleShowcase, user_id)
     first = access["HIDDEN_KING"]
-    return dict(account_key=user.id, rules=display_rules(), squad=squad_payload(squad, scope), inventory=inventory,
+    return dict(account_key=user.id, rules=display_rules(db), squad=squad_payload(squad, scope), inventory=inventory,
+        unavailable_inventory=unavailable, starter=starter_status(db, user_id, scope),
         assignments=assignments, active_matches=[dict(id=value.id, mode=value.mode, scope=value.scope, status=value.status,
             revision=value.revision, round=value.round, expired=aware(value.updated_at) < utcnow() - MATCH_TTL) for value in _active(db, user_id)],
         progression={**{key: first[key] for key in ("account_days", "confirmed_contracts", "eligible_pve_wins")},

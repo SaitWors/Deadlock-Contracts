@@ -56,7 +56,9 @@ def test_startup_adds_six_collectible_cards_with_valid_credited_artwork(release)
     assert catalog["total"] == 6
     assert {card["hero"]: card["hero_name"] for card in catalog["items"]} == HEROES
     assert client.get("/api/archive/inventory").json()["total"] == 0
-    assert {pack["kind"] for pack in client.get("/api/archive/packs").json()["items"]} == {"NIGHT_ENVELOPE", "SPECIAL_FOLDER"}
+    # Six F posters cannot supply the nine-rank v2 pool. Startup must not fill
+    # those gaps by creating a second geometric collection.
+    assert client.get("/api/archive/packs").json()["items"] == []
     for card in catalog["items"]:
         UUID(card["id"])
         assert card["rank"] == "F" and card["status"] == "PUBLISHED" and card["revision"] == 1

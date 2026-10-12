@@ -257,18 +257,18 @@ def test_v2_rename_keeps_algorithm_progress_and_original_receipt(community, owne
 
 
 def test_v2_seed_is_idempotent_and_does_not_unpause_or_rewrite_versions(community):
-    from app.services.battle_catalog import seed_battle_catalogue
+    from test_pack_collection_repair import originals
 
     factory, _ = community
     with factory() as db:
-        seed_battle_catalogue(db)
+        originals(db)
         packs.seed_pack_v2(db)
         db.commit()
         seeded = list(db.scalars(select(ArchivePack)))
         assert len(seeded) == 2
         versions = list(db.scalars(select(ArchivePackVersion)))
         assert sorted((row.config["price"], row.config["draws"]) for row in versions) == [(180, 3), (450, 5)]
-        assert all(len(row.config["entries"]) == 108 and all(entry["rank"] != "EX" for entry in row.config["entries"]) for row in versions)
+        assert all(len(row.config["entries"]) == 9 and all(entry["rank"] != "EX" for entry in row.config["entries"]) for row in versions)
         seeded[0].active = False
         db.commit()
         packs.seed_pack_v2(db)

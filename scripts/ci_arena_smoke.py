@@ -15,6 +15,7 @@ from app.services import battle_service as arena, extra_coin_rewards as rewards
 from app.services.battle_catalog import seed_battle_catalogue
 from app.services.coin_rewards import deliver_entitlement
 from app.services.arena_privacy import purge_account_battles
+from scripts.ci_original_archive_fixture import seed_original_archive_fixture
 
 
 def race(values, action):
@@ -42,6 +43,7 @@ def main():
     try:
         with SessionLocal() as db:
             seed_battle_catalogue(db)
+            seed_original_archive_fixture(db)
             user = User(display_name="Arena concurrency smoke")
             db.add(user); db.flush(); user_id = user.id
             db.commit()

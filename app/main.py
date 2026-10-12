@@ -498,7 +498,9 @@ async def lifespan(_: FastAPI):
         seed_archive_cards(db)
         from .services.battle_catalog import seed_battle_catalogue
         from .services.archive_packs import seed_pack_v2
+        from .services.arena_catalog_repair import retire_arena_placeholders
         seed_battle_catalogue(db)
+        retire_arena_placeholders(db)
         seed_pack_v2(db)
         db.execute(delete(SessionToken).where(SessionToken.expires_at <= now))
         db.execute(delete(OpenIDState).where(OpenIDState.expires_at <= now))
