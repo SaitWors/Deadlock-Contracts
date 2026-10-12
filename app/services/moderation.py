@@ -612,6 +612,9 @@ def decide_review(
             db.flush()
             option.final_evaluation_id = evaluation.id
 
+            from .coin_rewards import settle_assignment
+            settle_assignment(db, option.id)
+
             reward_xp = option.reward_xp if option.status == "COMPLETED" else 0
             outcome = {
                 "option_id": option.id,

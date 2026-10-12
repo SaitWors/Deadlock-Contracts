@@ -144,7 +144,7 @@ export default function PackReveal({
   const close = () => dialogRef.current?.close()
   const current = receipt.items[cardIndex]
   const itemLabel = (item: Receipt["items"][number]) =>
-    `${item.duplicate ? (ru ? "Дубль" : "Duplicate") : ru ? "Новая карточка" : "New card"}${item.test_grant ? (ru ? " · Тестовая выдача OWNER" : " · OWNER test grant") : ""}`
+    `${item.duplicate ? (ru ? "Дубль" : "Duplicate") : ru ? "Новая карточка" : "New card"}${item.test_grant ? (ru ? " · Тестовый экземпляр" : " · Sandbox copy") : ""}`
   const itemSummary = (item: Receipt["items"][number]) => (
     <article key={item.id} data-rank={item.card.rank}>
       <CardSurface card={item.card} reduced={reduced} />

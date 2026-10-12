@@ -185,6 +185,9 @@ jobs:
       - name: Verify archive currency concurrency
         run: python scripts/ci_archive_smoke.py
 
+      - name: Verify contract coin concurrency
+        run: python scripts/ci_coin_smoke.py
+
       - name: Verify pack opening concurrency
         run: python scripts/ci_pack_smoke.py
 

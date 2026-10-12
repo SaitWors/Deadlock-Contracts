@@ -116,6 +116,8 @@ def expire_board(
                     else "Срок дела истёк. Неиспользованные попытки сгорели."
                 )
             )
+            from .coin_rewards import settle_assignment
+            settle_assignment(db, option.id)
 
     pending_reviews = list(
         db.scalars(
@@ -742,6 +744,9 @@ def lock_board(
 
         else:
             option.status = "SKIPPED"
+
+    from .coin_rewards import snapshot_signing
+    snapshot_signing(db, board)
 
     db.add(
         AuditLog(

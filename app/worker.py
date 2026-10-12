@@ -3326,6 +3326,9 @@ def dispatch_outbox(db: Session) -> bool:
     # while unrelated review notifications can continue to flow.
     if not settings.reward_settlement_enabled:
         filters.append(OutboxEvent.event_type != "assignment.settled")
+        filters.append(OutboxEvent.event_type != "coin.reward")
+    if not getattr(settings, "coin_rewards_enabled", False):
+        filters.append(OutboxEvent.event_type != "coin.reward")
 
     # Emergency freeze for Telegram moderation delivery. Keep already queued
     # events durable and unpublished rather than consuming them as "skipped".
@@ -3393,6 +3396,9 @@ def dispatch_outbox(db: Session) -> bool:
                             policy_version="xp-v3",
                         )
                     )
+        elif event.event_type == "coin.reward":
+            from .services.coin_rewards import deliver_entitlement
+            deliver_entitlement(db, event.payload["entitlement_id"])
         elif event.event_type.startswith(TELEGRAM_REVIEW_EVENT_PREFIX):
             result = send_review_notification(
                 event.event_type,

@@ -5,7 +5,14 @@ import { useLanguage } from "../i18n"
 import { Pager } from "./ArchivePage"
 import CardSurface from "./CardSurface"
 import { FavoriteButton, FavoriteError, type FavoriteControls } from "./favorites"
-import { RANKS, type Inventory, type Meta, type Receipt, type Showcase } from "./types"
+import {
+  RANKS,
+  type EconomyScope,
+  type Inventory,
+  type Meta,
+  type Receipt,
+  type Showcase,
+} from "./types"
 import { ReceiptView, type useTransaction } from "./transactions"
 
 export default function CollectionPage({
@@ -14,12 +21,14 @@ export default function CollectionPage({
   revision,
   transaction,
   favorites,
+  scope,
 }: {
   csrf: string
   meta: Meta
   revision: number
   transaction: ReturnType<typeof useTransaction>
   favorites: FavoriteControls
+  scope: EconomyScope
 }) {
   const { language } = useLanguage()
   const ru = language === "ru"
@@ -37,14 +46,14 @@ export default function CollectionPage({
   const [historyOffset, setHistoryOffset] = useState(0)
   const [receipt, setReceipt] = useState<Receipt | null>(null)
   const inventory = useResource<Inventory>(
-    `/api/archive/inventory?hero=${hero}${rank ? `&rank=${rank}` : ""}&q=${encodeURIComponent(search)}&offset=${offset}&refresh=${revision}&favorites_only=${favoritesOnly}`,
+    `/api/archive/inventory?hero=${hero}${rank ? `&rank=${rank}` : ""}&q=${encodeURIComponent(search)}&offset=${offset}&refresh=${revision}&favorites_only=${favoritesOnly}&scope=${scope}`,
   )
   const coverage = useResource<{ items: { hero: string; rank: string; count: number }[] }>(
-    `/api/archive/inventory/coverage?refresh=${revision}`,
+    `/api/archive/inventory/coverage?refresh=${revision}&scope=${scope}`,
   )
   const showcase = useResource<Showcase>("/api/archive/showcase")
   const history = useResource<{ items: Receipt[]; total: number }>(
-    `/api/archive/openings?offset=${historyOffset}&refresh=${revision}`,
+    `/api/archive/openings?offset=${historyOffset}&refresh=${revision}&scope=${scope}`,
   )
   useEffect(() => {
     if (showcase.data) {
@@ -134,48 +143,50 @@ export default function CollectionPage({
           <p>{ru ? "Твоя коллекция. Твой почерк." : "Your collection. Your signature."}</p>
         </div>
       )}
-      <details className="archive-panel archive-showcase-settings">
-        <summary>
-          <Icon name="images" size={20} />
-          <span>
-            {ru
-              ? `Витрина профиля: ${selected.length} / 3`
-              : `Profile showcase: ${selected.length} / 3`}
-          </span>
-          <Icon name="chevron-down" size={18} />
-        </summary>
-        <p>
-          {ru
-            ? "Отметь до трёх карточек ниже. Они появятся в профиле в порядке выбора."
-            : "Select up to three cards below. They appear in the order selected."}
-        </p>
-        <label className="archive-check">
-          <input
-            type="checkbox"
-            checked={visible}
-            disabled={saving}
-            onChange={(event) => setVisible(event.target.checked)}
-          />
-          {ru
-            ? "Показывать выбранные карточки в публичном профиле"
-            : "Show selected cards on my public profile"}
-        </label>
-        {visible && !showcase.data?.profile_public && (
+      {scope === "REAL" && (
+        <details className="archive-panel archive-showcase-settings">
+          <summary>
+            <Icon name="images" size={20} />
+            <span>
+              {ru
+                ? `Витрина профиля: ${selected.length} / 3`
+                : `Profile showcase: ${selected.length} / 3`}
+            </span>
+            <Icon name="chevron-down" size={18} />
+          </summary>
           <p>
             {ru
-              ? "Сам профиль сейчас закрыт. Его можно открыть в настройках профиля; одна эта галочка не делает профиль публичным."
-              : "Your profile is private. Enable its public visibility in profile settings; this checkbox alone does not publish it."}
+              ? "Отметь до трёх карточек ниже. Они появятся в профиле в порядке выбора."
+              : "Select up to three cards below. They appear in the order selected."}
           </p>
-        )}
-        <div className="archive-actions">
-          <button disabled={saving || !showcase.data} onClick={() => void save()}>
-            {ru ? "Сохранить витрину" : "Save showcase"}
-          </button>
-          <button disabled={saving} onClick={() => setSelected([])}>
-            {ru ? "Снять все отметки" : "Clear selection"}
-          </button>
-        </div>
-      </details>
+          <label className="archive-check">
+            <input
+              type="checkbox"
+              checked={visible}
+              disabled={saving}
+              onChange={(event) => setVisible(event.target.checked)}
+            />
+            {ru
+              ? "Показывать выбранные карточки в публичном профиле"
+              : "Show selected cards on my public profile"}
+          </label>
+          {visible && !showcase.data?.profile_public && (
+            <p>
+              {ru
+                ? "Сам профиль сейчас закрыт. Его можно открыть в настройках профиля; одна эта галочка не делает профиль публичным."
+                : "Your profile is private. Enable its public visibility in profile settings; this checkbox alone does not publish it."}
+            </p>
+          )}
+          <div className="archive-actions">
+            <button disabled={saving || !showcase.data} onClick={() => void save()}>
+              {ru ? "Сохранить витрину" : "Save showcase"}
+            </button>
+            <button disabled={saving} onClick={() => setSelected([])}>
+              {ru ? "Снять все отметки" : "Clear selection"}
+            </button>
+          </div>
+        </details>
+      )}
       <form
         className="archive-filters"
         onSubmit={(event) => {
@@ -286,29 +297,33 @@ export default function CollectionPage({
             <p>
               {ru ? "Экземпляров" : "Copies"}: {item.quantity}
               {item.test_count > 0
-                ? ` · ${ru ? "тестовых" : "test grants"}: ${item.test_count}`
+                ? ` · ${ru ? "тестовых" : "test copies"}: ${item.test_count}`
                 : ""}
             </p>
             <FavoriteButton controls={favorites} cardId={item.card.id} />
-            <label className="archive-check">
-              <input
-                type="checkbox"
-                checked={selected.includes(item.card.id)}
-                disabled={saving || (!selected.includes(item.card.id) && selected.length >= 3)}
-                onChange={() => toggle(item.card.id)}
-              />
-              {ru ? "В витрину профиля" : "Feature on profile"}
-            </label>
+            {scope === "REAL" && (
+              <label className="archive-check">
+                <input
+                  type="checkbox"
+                  checked={selected.includes(item.card.id)}
+                  disabled={saving || (!selected.includes(item.card.id) && selected.length >= 3)}
+                  onChange={() => toggle(item.card.id)}
+                />
+                {ru ? "В витрину профиля" : "Feature on profile"}
+              </label>
+            )}
             {item.recycle && (
               <button
                 disabled={transaction.busy || !!transaction.pending}
                 onClick={() =>
-                  void transaction.execute(`/api/archive/items/${item.recycle!.id}/recycle`)
+                  void transaction.execute(`/api/archive/items/${item.recycle!.id}/recycle`, {
+                    scope,
+                  })
                 }
               >
                 {ru
-                  ? `Обменять один дубль: +${item.recycle.value} жет.`
-                  : `Recycle one duplicate: +${item.recycle.value} tokens`}
+                  ? `Обменять один дубль: +${item.recycle.value} монет`
+                  : `Recycle one duplicate: +${item.recycle.value} coins`}
               </button>
             )}
           </article>
@@ -320,7 +335,7 @@ export default function CollectionPage({
       <details className="archive-opening-history">
         <summary>{ru ? "История открытий и выдачи" : "Opening & grant history"}</summary>
         {history.data?.items.map((item) => (
-          <button key={item.id} onClick={() => setReceipt(item)}>
+          <button key={item.id} onClick={() => setReceipt({ ...item, scope: item.scope ?? scope })}>
             {item.pack?.title || item.kind} · {new Date(item.created_at).toLocaleString()} ·{" "}
             {item.delta > 0 ? "+" : ""}
             {item.delta} <Icon name="coins" size={18} />

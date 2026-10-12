@@ -83,6 +83,331 @@ const meta = {
   direct_costs: { F: 20, E: 30, D: 45, C: 70, B: 110, A: 180, S: 300, SS: 500, SSS: 900 },
   default_weights: { F: 2000, E: 1600, D: 1200, C: 900, B: 600, A: 350, S: 150, SS: 60, SSS: 15 },
 }
+const coinStatus = {
+  policy_version: "coins-v1",
+  enabled: true,
+  quotas: {
+    daily: { limit: 80, used: 75, remaining: 5, reset_at: "2026-10-13T00:00:00Z" },
+    weekly: { limit: 400, used: 375, remaining: 25, reset_at: "2026-10-19T00:00:00Z" },
+  },
+  receipts: [
+    {
+      id: "coin-earned",
+      source_type: "assignment",
+      source_id: "contract-1",
+      nominal_amount: 24,
+      amount: 5,
+      reason: "DAILY_LIMIT",
+      status: "DELIVERED",
+      created_at: "2026-10-12T12:00:00Z",
+    },
+    {
+      id: "coin-pending",
+      source_type: "case",
+      source_id: "case-1",
+      nominal_amount: 10,
+      amount: 10,
+      reason: "AWARDED",
+      status: "RESERVED",
+      created_at: "2026-10-12T12:01:00Z",
+    },
+  ],
+}
+
+test("coin wallet separates debt from spending and shows quota-limited and pending receipts", async () => {
+  const { api, doc } = runtime(async (url) => {
+    if (url.includes("/meta")) return response(meta)
+    if (url.includes("/coin-rewards")) return response(coinStatus)
+    if (url.includes("/wallet"))
+      return response({
+        ...wallet,
+        balance: 0,
+        net_balance: -15,
+        available_balance: 0,
+        debt: 15,
+        scope: "REAL",
+      })
+    return response({ items: [], total: 0 })
+  }, "en")
+  let root
+  await api.act(async () => {
+    root = api.mount(doc.getElementById("mount"), "archive", {
+      csrf: "csrf",
+      mode: "wallet",
+      onWalletChange() {},
+    })
+  })
+  assert.match(doc.querySelector(".archive-balance").textContent, /Bureau coins.*0/)
+  const text = doc.querySelector(".archive-page").textContent
+  assert.match(text, /Debt: 15/)
+  assert.match(text, /Net balance: -15/)
+  assert.match(text, /75 \/ 80/)
+  assert.match(text, /375 \/ 400/)
+  assert.match(text, /Resets/)
+  const receipts = doc.querySelector(".archive-coin-receipts").textContent
+  assert.match(receipts, /Contract.*contract-1.*\+5.*24.*Daily limit/)
+  assert.match(receipts, /Case bonus.*case-1.*Pending.*10/)
+  await api.act(async () => root.unmount())
+})
+
+test("sandbox purchases use their own wallet and retain their scope through saved retry", async () => {
+  const writes = []
+  const fetch = async (url, init = {}) => {
+    if (init.method === "POST") {
+      writes.push({ url, body: JSON.parse(init.body) })
+      if (writes.length === 1) throw new Error("connection lost")
+      return response({
+        ...packReceipt("sandbox-receipt"),
+        kind: "DIRECT_CARD",
+        scope: "SANDBOX",
+        items: [],
+      })
+    }
+    if (url.includes("/meta"))
+      return response({
+        ...meta,
+        can_manage_packs: true,
+        direct_costs: { ...meta.direct_costs, SSS: 2600 },
+      })
+    if (url.includes("/wallet"))
+      return response({
+        ...wallet,
+        scope: url.includes("scope=SANDBOX") ? "SANDBOX" : "REAL",
+        balance: url.includes("scope=SANDBOX") ? 3000 : 0,
+      })
+    if (url.includes("/cards?"))
+      return response({ items: [{ ...card, status: "PUBLISHED" }], total: 1 })
+    return response({ items: [], total: 0 })
+  }
+  const { api, doc, w } = runtime(fetch, "en")
+  let root
+  const props = { csrf: "csrf", mode: "packs", onWalletChange() {} }
+  await api.act(async () => {
+    root = api.mount(doc.getElementById("mount"), "archive", props)
+  })
+  await api.act(async () => button(doc, "Catalogue").click())
+  assert.equal(button(doc, "Acquire for 2600").disabled, true)
+  const scope = doc.querySelector('[aria-label="Economy scope"]')
+  assert.ok(scope, "owner can select the test economy")
+  await api.act(async () => {
+    scope.value = "SANDBOX"
+    scope.dispatchEvent(new w.Event("change", { bubbles: true }))
+  })
+  assert.equal(button(doc, "Acquire for 2600").disabled, false)
+  await api.act(async () => button(doc, "Acquire for 2600").click())
+  assert.equal(writes[0].body.scope, "SANDBOX")
+  assert.equal(writes[0].body.expected_price, 2600)
+  await api.act(async () => root.unmount())
+  await api.act(async () => {
+    root = api.mount(doc.getElementById("mount"), "archive", props)
+  })
+  assert.match(doc.querySelector(".archive-pending").textContent, /Sandbox/)
+  await api.act(async () => button(doc, "Retry request").click())
+  assert.deepEqual(writes[1], writes[0])
+  assert.match(doc.querySelector(".archive-receipt").textContent, /Sandbox/)
+  await api.act(async () => root.unmount())
+})
+
+test("a former owner with no sandbox coins can still open owned sandbox cards and receipts", async () => {
+  const { api, doc, w } = runtime(async (url) => {
+    if (url.includes("/meta")) return response({ ...meta, can_manage_packs: false })
+    if (url.includes("/wallet"))
+      return response({
+        ...wallet,
+        balance: 0,
+        wallets: {
+          REAL: { scope: "REAL", net_balance: 0, available_balance: 0, debt: 0 },
+          SANDBOX: { scope: "SANDBOX", net_balance: 0, available_balance: 0, debt: 0 },
+        },
+      })
+    if (url.includes("/showcase"))
+      return response({ card_ids: [], is_public: false, revision: 3, profile_public: false })
+    if (url.includes("/inventory?"))
+      return response({
+        items: url.includes("scope=SANDBOX")
+          ? [
+              {
+                card: { ...card, title: "Retained sandbox card", status: "PUBLISHED" },
+                quantity: 1,
+                test_count: 1,
+                recycle: null,
+              },
+            ]
+          : [],
+        total: url.includes("scope=SANDBOX") ? 1 : 0,
+      })
+    if (url.includes("/openings?") && url.includes("scope=SANDBOX"))
+      return response({
+        items: [
+          {
+            ...packReceipt("retained-sandbox-receipt"),
+            scope: "SANDBOX",
+            pack: { title: "Retained sandbox pack" },
+          },
+        ],
+        total: 1,
+      })
+    if (url.includes("/favorites")) return response({ card_ids: [] })
+    return response({ items: [], total: 0 })
+  }, "en")
+  let root
+  await api.act(async () => {
+    root = api.mount(doc.getElementById("mount"), "archive", {
+      csrf: "csrf",
+      mode: "collection",
+      onWalletChange() {},
+    })
+  })
+  const scope = doc.querySelector('[aria-label="Economy scope"]')
+  assert.ok(scope, "sandbox ownership remains accessible after OWNER access ends")
+  await api.act(async () => {
+    scope.value = "SANDBOX"
+    scope.dispatchEvent(new w.Event("change", { bubbles: true }))
+  })
+  assert.match(doc.querySelector(".archive-collection").textContent, /Retained sandbox card/)
+  assert.match(doc.querySelector(".archive-opening-history").textContent, /Retained sandbox pack/)
+  assert.equal(doc.querySelector(".archive-showcase-settings"), null)
+  await api.act(async () => root.unmount())
+})
+
+test("owner grants default to sandbox and real adjustments carry the explicit reason", async () => {
+  const writes = []
+  const { api, doc, w } = runtime(async (url, init = {}) => {
+    if (init.method === "POST") {
+      writes.push(JSON.parse(init.body))
+      return response({
+        ...packReceipt(`owner-${writes.length}`),
+        kind: "OWNER_TOKENS",
+        scope: writes.at(-1).scope,
+      })
+    }
+    if (url.includes("/meta")) return response({ ...meta, can_manage_packs: true })
+    return response({ items: [], total: 0 })
+  }, "en")
+  let root
+  await api.act(async () => {
+    root = api.mount(doc.getElementById("mount"), "owner", {
+      csrf: "csrf",
+      permissions: ["packs.manage"],
+    })
+  })
+  const reason = [...doc.querySelectorAll("input")].find((input) => input.maxLength === 300)
+  const set = Object.getOwnPropertyDescriptor(w.HTMLInputElement.prototype, "value").set
+  await api.act(async () => {
+    set.call(reason, "Refund mistaken charge")
+    reason.dispatchEvent(new w.Event("input", { bubbles: true }))
+  })
+  await api.act(async () => button(doc, "Adjust my").click())
+  assert.equal(writes[0].scope, "SANDBOX")
+  const scope = doc.querySelector('[aria-label="Grant scope"]')
+  assert.ok(scope)
+  await api.act(async () => {
+    scope.value = "REAL"
+    scope.dispatchEvent(new w.Event("change", { bubbles: true }))
+  })
+  assert.match(
+    doc.querySelector(".archive-owner-tools").textContent,
+    /Manual real balance correction/,
+  )
+  await api.act(async () => button(doc, "Adjust my").click())
+  assert.equal(writes[1].scope, "REAL")
+  assert.equal(writes[1].note, "Refund mistaken charge")
+  await api.act(async () => root.unmount())
+})
+
+test("contract receipt distinguishes rejected historical results from pending rewards", async () => {
+  const { api, doc } = runtime(async () => response({}), "en")
+  let root
+  await api.act(async () => {
+    root = api.mount(doc.getElementById("mount"), "coinReward", {
+      reward: {
+        source_type: "assignment",
+        source_id: "old",
+        nominal_amount: 0,
+        amount: 0,
+        reason: "NO_SIGNED_POLICY",
+        status: "REJECTED",
+      },
+    })
+  })
+  assert.match(
+    doc.getElementById("mount").textContent,
+    /No coin reward.*Before coin rewards launched/,
+  )
+  assert.doesNotMatch(doc.getElementById("mount").textContent, /Pending/)
+  await api.act(async () =>
+    root.rerender({
+      reward: {
+        source_type: "assignment",
+        source_id: "new",
+        nominal_amount: 24,
+        amount: 5,
+        reason: "WEEKLY_LIMIT",
+        status: "RESERVED",
+      },
+    }),
+  )
+  assert.match(doc.getElementById("mount").textContent, /Pending.*5.*24.*Weekly limit/)
+  await api.act(async () =>
+    root.rerender({
+      reward: {
+        source_type: "assignment",
+        source_id: "corrected",
+        nominal_amount: 24,
+        amount: 24,
+        reason: "RESULT_CHANGED",
+        status: "CORRECTED",
+      },
+    }),
+  )
+  assert.match(doc.getElementById("mount").textContent, /Corrected.*Result changed/)
+  await api.act(async () => root.unmount())
+})
+
+test("a recovered sandbox pack favorites its test copies in the receipt scope", async () => {
+  const writes = []
+  const { api, doc, w } = runtime(
+    async (url, init = {}) => {
+      if (init.method === "PUT") {
+        writes.push(JSON.parse(init.body))
+        return response({ card_id: "card-test-copy", favorite: true })
+      }
+      if (url.includes("/meta")) return response({ ...meta, can_manage_packs: true })
+      if (url.includes("/wallet")) return response(wallet)
+      if (url.includes("/favorites")) return response({ card_ids: [] })
+      if (url.includes("/requests/"))
+        return response({
+          operation: {
+            ...packReceipt("test-pack", [receiptItem("test-copy", "Test card", "F", false, true)]),
+            scope: "SANDBOX",
+          },
+        })
+      return response({ items: [], total: 0 })
+    },
+    "en",
+    true,
+  )
+  w.sessionStorage.setItem(
+    "dc-archive-request:test-account",
+    JSON.stringify({
+      url: "/api/archive/packs/pack/open",
+      body: { request_key: "recover-test-pack", scope: "SANDBOX", revision: 1, starter: false },
+    }),
+  )
+  let root
+  await api.act(async () => {
+    root = api.mount(doc.getElementById("mount"), "archive", {
+      csrf: "csrf",
+      mode: "packs",
+      onWalletChange() {},
+    })
+  })
+  await api.act(async () => button(doc, "Check result").click())
+  await api.act(async () => button(doc, "Reveal cards").click())
+  await api.act(async () => button(doc.querySelector("dialog"), "Add to favorites").click())
+  assert.equal(writes[0].scope, "SANDBOX")
+  await api.act(async () => root.unmount())
+})
 const card = {
   id: "draft-1",
   hero: "abrams",
@@ -296,7 +621,7 @@ test("collection favorites save with CSRF, retry failure and filter the server i
   assert.equal(writes.length, 2)
   assert.equal(writes[1].csrf, "favorite-csrf")
   assert.equal(writes[1].url, `/api/archive/favorites/${card.id}`)
-  assert.deepEqual(writes[1].body, { favorite: true })
+  assert.deepEqual(writes[1].body, { favorite: true, scope: "REAL" })
   assert.equal(button(doc, "Remove from favorites").getAttribute("aria-pressed"), "true")
   await api.act(async () => doc.querySelector("input[name=favorites_only]").click())
   assert.ok(reads.some((url) => url.includes("favorites_only=true")))
@@ -401,7 +726,10 @@ test("a pending favorite swipe cannot advance after skipping and never buys agai
     pointer(w, control, "pointerup", 100)
   })
   assert.equal(writes.length, 1)
-  assert.deepEqual(writes[0], { url: "/api/archive/favorites/card-one", body: { favorite: true } })
+  assert.deepEqual(writes[0], {
+    url: "/api/archive/favorites/card-one",
+    body: { favorite: true, scope: "REAL" },
+  })
   assert.ok(button(doc, "Saving…").disabled)
   await api.act(async () => button(doc, "Skip to results").click())
   await api.act(async () => finish(response({ card_id: "card-one", favorite: true })))
@@ -527,7 +855,7 @@ test("cinematic pack reveal uses receipt order and replay has no network or wall
   )
   assert.deepEqual(titles, ["First file", "Second file"])
   assert.match(doc.querySelector("dialog").textContent, /Duplicate/)
-  assert.match(doc.querySelector("dialog").textContent, /OWNER test grant/)
+  assert.match(doc.querySelector("dialog").textContent, /Sandbox copy/)
   await api.act(async () => button(doc, "Close reveal").click())
   assert.equal(closed, 0)
   assert.ok(button(doc, "Replay reveal"))
@@ -935,7 +1263,7 @@ test("guided cipher posts saved revision and asks wallet to refresh", async () =
   assert.equal(writes[0].revision, 7)
   assert.deepEqual(writes[0].symbols, [0, 2, 4, 5])
   assert.equal(earned, 1)
-  assert.match(doc.querySelector('[role="status"]').textContent, /30 tokens/)
+  assert.match(doc.querySelector('[role="status"]').textContent, /30 coins/)
   await api.act(async () => root.unmount())
 })
 
@@ -1136,6 +1464,7 @@ test("pack opening shows actual odds and sends the displayed revision with CSRF"
   assert.equal(writes[0].csrf, "pack-csrf")
   assert.equal(writes[0].body.revision, 8)
   assert.equal(writes[0].body.starter, false)
+  assert.equal(writes[0].body.scope, "REAL")
   assert.ok(writes[0].body.request_key)
   assert.equal(writes[0].body.price, undefined)
   assert.equal(doc.activeElement, doc.querySelector(".archive-receipt"))

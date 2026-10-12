@@ -124,8 +124,8 @@ def test_restart_preserves_admin_archival_and_existing_collection_state(release)
     admin_id, admin = player()
     elevate(factory, admin_id, admin, role="ADMIN")
     existing_id = published(factory, rank="A")
-    fund(factory, user_id)
-    receipt = buy(client, existing_id, price=180).json()
+    fund(factory, user_id, 500)
+    receipt = buy(client, existing_id, price=380).json()
     assert client.put(f"/api/archive/favorites/{existing_id}", json={"favorite": True}).status_code == 200
     config = {"title": "Existing pool", "description": "Keep this release", "price": 30, "draws": 1,
               "entries": [{"card_id": existing_id, "rank": "A", "weight": 7}], "price_model": 1}
@@ -228,9 +228,9 @@ def test_seeded_card_purchase_retry_uses_original_receipt_without_double_charge(
     restart()
     replay = buy(client, card_id, key=request_key)
     assert replay.status_code == 200 and replay.json() == first.json()
-    assert first.json()["delta"] == -20 and first.json()["balance_after"] == 10
+    assert first.json()["delta"] == -25 and first.json()["balance_after"] == 5
     assert first.json()["items"][0]["card"]["hero_name"] == "Violet"
-    assert client.get("/api/archive/wallet").json()["balance"] == 10
+    assert client.get("/api/archive/wallet").json()["balance"] == 5
     inventory = client.get("/api/archive/inventory").json()
     assert inventory["total"] == 1 and inventory["items"][0]["quantity"] == 1
     with factory() as db:

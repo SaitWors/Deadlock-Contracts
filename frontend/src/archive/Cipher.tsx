@@ -62,8 +62,8 @@ export default function Cipher({
         </p>
         <p>
           {ru
-            ? "За завершение — 30 жетонов, до пяти заданий в неделю. После шести попыток доступен разбор с той же наградой."
-            : "Earn 30 tokens, up to five tasks a week. After six guesses a guided solution earns the same reward."}
+            ? "За завершение — 30 монет, до пяти заданий в неделю. После шести попыток доступен разбор с той же наградой."
+            : "Earn 30 coins, up to five tasks a week. After six guesses a guided solution earns the same reward."}
         </p>
         <p className="archive-help">
           {ru
@@ -87,9 +87,7 @@ export default function Cipher({
           <>
             {round && (
               <p role="status">
-                {ru
-                  ? "Шифр разобран. Начислено 30 жетонов."
-                  : "Cipher complete. 30 tokens awarded."}
+                {ru ? "Шифр разобран. Начислено 30 монет." : "Cipher complete. 30 coins awarded."}
               </p>
             )}
             <div className="archive-cipher-symbols" aria-hidden="true">
@@ -107,8 +105,8 @@ export default function Cipher({
             {wallet.completed >= wallet.weekly_limit && (
               <p>
                 {ru
-                  ? "Все пять шифров разобраны. Жетоны останутся на счёте."
-                  : "All five ciphers are complete. Your tokens stay on your account."}
+                  ? "Все пять шифров разобраны. Монеты останутся на счёте."
+                  : "All five ciphers are complete. Your coins stay on your account."}
               </p>
             )}
           </>

@@ -85,13 +85,15 @@ class ArchiveCipher(Base):
 
 class ArchiveLedger(Base):
     __tablename__ = "archive_ledger"
-    __table_args__ = (UniqueConstraint("user_id", "source", name="uq_archive_ledger_source"),)
+    __table_args__ = (UniqueConstraint("user_id", "source", name="uq_archive_ledger_source"),
+                     CheckConstraint("scope IN ('REAL', 'SANDBOX')", name="ck_archive_ledger_scope"))
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uuid4)
     user_id: Mapped[str] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
     source: Mapped[str] = mapped_column(String(80))
     reason: Mapped[str] = mapped_column(String(32))
     delta: Mapped[int] = mapped_column(Integer)
+    scope: Mapped[str] = mapped_column(String(8), default="REAL", server_default="REAL")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
 
@@ -125,6 +127,7 @@ class ArchiveOperation(Base):
     __table_args__ = (
         UniqueConstraint("user_id", "request_key", name="uq_archive_operation_request"),
         UniqueConstraint("user_id", "benefit_key", name="uq_archive_operation_benefit"),
+        CheckConstraint("scope IN ('REAL', 'SANDBOX')", name="ck_archive_operation_scope"),
     )
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uuid4)
@@ -133,6 +136,7 @@ class ArchiveOperation(Base):
     signature: Mapped[str] = mapped_column(String(64))
     benefit_key: Mapped[str | None] = mapped_column(String(32), nullable=True)
     kind: Mapped[str] = mapped_column(String(32))
+    scope: Mapped[str] = mapped_column(String(8), default="REAL", server_default="REAL")
     pack_version_id: Mapped[str | None] = mapped_column(ForeignKey("archive_pack_versions.id", ondelete="RESTRICT"), nullable=True)
     result: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
@@ -142,6 +146,7 @@ class ArchiveItem(Base):
     __tablename__ = "archive_items"
     __table_args__ = (
         CheckConstraint("cost_basis >= 0", name="ck_archive_item_cost"),
+        CheckConstraint("scope IN ('REAL', 'SANDBOX')", name="ck_archive_item_scope"),
         Index("ix_archive_items_owner_card_state", "user_id", "card_id", "state"),
     )
 
@@ -151,6 +156,7 @@ class ArchiveItem(Base):
     operation_id: Mapped[str] = mapped_column(ForeignKey("archive_operations.id", ondelete="CASCADE"))
     cost_basis: Mapped[int] = mapped_column(Integer, default=0)
     test_grant: Mapped[bool] = mapped_column(Boolean, default=False)
+    scope: Mapped[str] = mapped_column(String(8), default="REAL", server_default="REAL")
     state: Mapped[str] = mapped_column(String(16), default="OWNED")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
@@ -1262,3 +1268,7 @@ class EvidenceFile(Base):
     size_bytes: Mapped[int] = mapped_column(Integer)
     sha256: Mapped[str] = mapped_column(String(64))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+# Register the focused economy models for metadata creation and Alembic parity.
+from . import coin_models as coin_models  # noqa: E402,F401

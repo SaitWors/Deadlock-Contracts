@@ -216,7 +216,7 @@ test("guest can solve the teaching code and receives only a Steam continuation",
     doc.querySelector('.guest-solution a[href="/auth/steam"]').textContent.includes("Steam"),
     true,
   )
-  assert.match(doc.querySelector(".guest-solution").textContent, /жетоны не начислены/i)
+  assert.match(doc.querySelector(".guest-solution").textContent, /монеты не начислены/i)
   assert.equal(calls.length, 0)
   await api.act(async () => root.unmount())
 })
@@ -243,7 +243,7 @@ test("guest can request an early guided explanation in English", async () => {
     doc.querySelector(".guest-solution").textContent,
     /Compass.*Hourglass.*Hands.*Documents/,
   )
-  assert.match(doc.querySelector(".guest-solution").textContent, /no tokens were awarded/i)
+  assert.match(doc.querySelector(".guest-solution").textContent, /no coins were awarded/i)
   await api.act(async () => root.unmount())
 })
 
@@ -333,9 +333,9 @@ test("next step reports wallet error, retries the same view and then uses server
   await api.act(async () => button(doc, "Retry").click())
   assert.equal(calls.length, 2)
   assert.ok(calls.every(({ url }) => url === "/api/archive/wallet?view=4"))
-  assert.match(doc.querySelector(".bureau-callout-stats").textContent, /73 tokens/)
+  assert.match(doc.querySelector(".bureau-callout-stats").textContent, /73 coins/)
   assert.match(doc.querySelector(".bureau-callout-stats").textContent, /Reward per cipher/)
-  assert.match(doc.querySelector(".bureau-callout-stats").textContent, /\+41 tokens/)
+  assert.match(doc.querySelector(".bureau-callout-stats").textContent, /\+41 coins/)
   assert.match(doc.querySelector(".bureau-callout-stats").textContent, /2 \/ 5/)
   await api.act(async () => button(doc, "Decode a cipher").click())
   await api.act(async () => button(doc, "My collection").click())

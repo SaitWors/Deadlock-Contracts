@@ -144,6 +144,14 @@ export function TransactionStatus({
       {transaction.pending && (
         <div className="archive-pending" role="status">
           <p>
+            {!!transaction.pending.body.scope &&
+              (transaction.pending.body.scope === "SANDBOX"
+                ? ru
+                  ? "Тестовый счёт · "
+                  : "Sandbox · "
+                : ru
+                  ? "Основной счёт · "
+                  : "Real economy · ")}
             {ru
               ? "Запрос сохранён. При обрыве связи повтор вернёт тот же результат."
               : "Request saved. Retrying after a connection error returns the same result."}
@@ -202,10 +210,23 @@ export function ReceiptView({
         {onClose && <button onClick={onClose}>{ru ? "Закрыть результат" : "Close result"}</button>}
       </header>
       <p>
+        {receipt.scope === "SANDBOX"
+          ? ru
+            ? "Тестовый счёт · "
+            : "Sandbox · "
+          : ru
+            ? "Основной счёт · "
+            : "Real economy · "}
         {new Date(receipt.created_at).toLocaleString(locale)} · {receipt.delta > 0 ? "+" : ""}
         {receipt.delta} <Icon name="coins" size={18} /> ·{" "}
         {ru ? "Баланс после операции" : "Balance after transaction"}: {receipt.balance_after}{" "}
         <Icon name="coins" size={18} />
+        {!!receipt.debt && (
+          <>
+            {" "}
+            · {ru ? "Долг" : "Debt"}: {receipt.debt}
+          </>
+        )}
       </p>
       {useCinematic ? (
         <PackReveal key={receipt.id} receipt={receipt} favorites={favorites} />
@@ -216,7 +237,7 @@ export function ReceiptView({
               <CardPreview card={item.card} />
               <p>
                 {item.duplicate ? (ru ? "Дубль" : "Duplicate") : ru ? "Новая карточка" : "New card"}
-                {item.test_grant ? (ru ? " · Тестовая выдача OWNER" : " · OWNER test grant") : ""}
+                {item.test_grant ? (ru ? " · Тестовый экземпляр" : " · Sandbox copy") : ""}
               </p>
             </article>
           ))}

@@ -779,7 +779,8 @@
         : status === 'COMPLETED' ? t('xpPending') : `${formatNumber(item.reward_xp || 0)} XP`
       const label = retryableMiss ? t('attemptMissed') : statusLabel(status)
       const detail = retryableMiss ? `${localizeServerText(explanation) || ''} ${t('stillActive')}`.trim() : (localizeServerText(explanation) || '')
-      return `<article class="debrief-contract ${status.toLowerCase()}"><span>${escapeHtml(label)}</span><div><h3>${escapeHtml(Product.contractTitle(item, language()))}</h3><p>${escapeHtml(detail)}</p></div><b>${escapeHtml(xp)}</b></article>`
+      const coins = Product.coinRewardLabel(item.coin_reward, language())
+      return `<article class="debrief-contract ${status.toLowerCase()}"><span>${escapeHtml(label)}</span><div><h3>${escapeHtml(Product.contractTitle(item, language()))}</h3><p>${escapeHtml(detail)}</p></div><b>${escapeHtml(xp)}${coins ? `<br><small>${escapeHtml(coins)}</small>` : ''}</b></article>`
     }).join('')
 
     const profile = Product.adaptiveProfileFor(product, group.game_match_mode)
@@ -826,7 +827,8 @@
       const granted = Number(item.reward_granted_xp || 0)
       const xp = granted > 0 ? `+${formatNumber(granted)} XP` : `${formatNumber(item.reward_xp)} XP`
       const historyMatchId = Product.attemptMatchId(item)
-      return `<article class="history-row ${group.toLowerCase()}"><span>${escapeHtml(statusLabel(item.status))}</span><div><h3>${escapeHtml(Product.contractTitle(item, language()))}</h3><p>${escapeHtml(`${Product.modeLabel(item.game_match_mode)} · ${localizeServerText(item.explanation) || progress || `${t('attempt')} ${item.attempts_used || 0}/${item.max_attempts || 3}`}`)}</p></div><small>${escapeHtml(formatDateTime(date))}${historyMatchId ? `<br>${ui('MATCH', 'МАТЧ')} #${escapeHtml(historyMatchId)}` : ''}</small><b>${escapeHtml(xp)}</b></article>`
+      const coins = Product.coinRewardLabel(item.coin_reward, language())
+      return `<article class="history-row ${group.toLowerCase()}"><span>${escapeHtml(statusLabel(item.status))}</span><div><h3>${escapeHtml(Product.contractTitle(item, language()))}</h3><p>${escapeHtml(`${Product.modeLabel(item.game_match_mode)} · ${localizeServerText(item.explanation) || progress || `${t('attempt')} ${item.attempts_used || 0}/${item.max_attempts || 3}`}`)}</p></div><small>${escapeHtml(formatDateTime(date))}${historyMatchId ? `<br>${ui('MATCH', 'МАТЧ')} #${escapeHtml(historyMatchId)}` : ''}</small><b>${escapeHtml(xp)}${coins ? `<br><small>${escapeHtml(coins)}</small>` : ''}</b></article>`
     }).join('')
   }
 

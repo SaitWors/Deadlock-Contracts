@@ -76,9 +76,9 @@ def test_inventory_marks_and_filters_favorites_before_total_and_pagination(commu
     favorite = published(factory, rank="A", hero="haze")
     other = published(factory, rank="A", hero="haze")
     unrelated = published(factory, rank="F", hero="abrams")
-    fund(factory, user_id, 500)
+    fund(factory, user_id, 1000)
     for card_id in (favorite, other, unrelated):
-        assert buy(client, card_id, price={"A": 180, "F": 20}["A" if card_id in (favorite, other) else "F"]).status_code == 200
+        assert buy(client, card_id, price={"A": 380, "F": 25}["A" if card_id in (favorite, other) else "F"]).status_code == 200
     assert client.put(f"/api/archive/favorites/{favorite}", json={"favorite": True}).status_code == 200
 
     inventory = client.get("/api/archive/inventory?hero=haze&rank=A&q=Released").json()

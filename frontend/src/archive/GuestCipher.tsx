@@ -90,8 +90,8 @@ export default function GuestCipher({ onHome }: { onHome: () => void }) {
           </p>
           <p className="guest-demo-note">
             {ru
-              ? "Это учебный пример: жетоны не начисляются, а результат не переносится в аккаунт."
-              : "This is a teaching demo: it awards no tokens and does not transfer progress to an account."}
+              ? "Это учебный пример: монеты не начисляются, а результат не переносится в аккаунт."
+              : "This is a teaching demo: it awards no coins and does not transfer progress to an account."}
           </p>
 
           <ol className="guest-choice" aria-label={ru ? "Выбранные символы" : "Chosen symbols"}>
@@ -187,8 +187,8 @@ export default function GuestCipher({ onHome }: { onHome: () => void }) {
               <p>{SOLUTION.map((symbol) => names[symbol]).join(" → ")}</p>
               <p>
                 {ru
-                  ? "Это было демо: жетоны не начислены и прогресс не перенесён."
-                  : "This was a demo: no tokens were awarded and no progress was transferred."}
+                  ? "Это было демо: монеты не начислены и прогресс не перенесён."
+                  : "This was a demo: no coins were awarded and no progress was transferred."}
               </p>
               <a className="bureau-action" href="/auth/steam">
                 {ru ? "Продолжить через Steam" : "Continue with Steam"}

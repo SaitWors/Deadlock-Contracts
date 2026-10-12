@@ -14,13 +14,14 @@ from sqlalchemy.orm import Session
 
 from .community import Strict, no_store
 from .db import get_db
-from .models import ArchiveCard, ArchiveCipher, ArchiveLedger, User, utcnow
+from .models import ArchiveCard, ArchiveCipher, User, utcnow
 from .services import archive as service
 from .services import archive_packs as packs
 from .services.archive_seed import release_artwork_path
 from .services.auth import require_csrf, require_user
 
 Rank = Literal["F", "E", "D", "C", "B", "A", "S", "SS", "SSS"]
+EconomyScope = Literal["REAL", "SANDBOX"]
 
 
 class Design(Strict):
@@ -88,13 +89,15 @@ def build_router(require_permission, effective_role):
         return {"ranks": service.RANKS, "heroes": [{"key": key, "name": name} for key, name in service.HEROES.items()],
                 "can_publish": effective_role(user) in {"ADMIN", "OWNER"}, "frame_version": 1,
                 "can_manage_packs": effective_role(user) == "OWNER", "direct_costs": packs.DIRECT_COST,
-                "default_weights": packs.DEFAULT_WEIGHTS, "price_model": packs.PRICE_MODEL, "account_key": user.id}
+                "default_weights": packs.DEFAULT_WEIGHTS, "price_model": packs.PRICE_MODEL,
+                "economy_scopes": service.ECONOMY_SCOPES, "account_key": user.id}
 
     @router.get("/archive/wallet")
     def wallet(response: Response, offset: int = Query(default=0, ge=0, le=100000),
+               scope: EconomyScope = "REAL",
                user: User = Depends(require_user), db: Session = Depends(get_db)):
         no_store(response)
-        return service.wallet_payload(db, user.id, offset)
+        return service.wallet_payload(db, user.id, offset, scope)
 
     @router.post("/archive/cipher", dependencies=[Depends(require_csrf)])
     def start(user: User = Depends(require_user), db: Session = Depends(get_db)):
@@ -131,7 +134,7 @@ def build_router(require_permission, effective_role):
         if payload.symbols == item.solution:
             item.status = "ASSISTED" if assisted else "SOLVED"
             item.completed_at = utcnow()
-            db.add(ArchiveLedger(user_id=user.id, source="cipher:" + item.id, reason="CIPHER", delta=30))
+            service.credit_wallet(db, user.id, "cipher:" + item.id, "CIPHER", 30)
         db.commit()
         return {"round": service.cipher_payload(item)}
 
@@ -228,7 +231,8 @@ def build_router(require_permission, effective_role):
     def image(card_id: UUID, user: User = Depends(require_user), db: Session = Depends(get_db)):
         card = db.get(ArchiveCard, str(card_id))
         if not card or card.status == "REMOVED" or (card.status != "PUBLISHED" and card.creator_id != user.id
-                                                    and not packs.owns_card(db, user.id, card.id)):
+                                                    and not packs.owns_card(db, user.id, card.id)
+                                                    and not packs.owns_card(db, user.id, card.id, "SANDBOX")):
             raise HTTPException(404, "Image not found")
         return serve_image(card)
 

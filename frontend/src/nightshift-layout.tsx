@@ -39,7 +39,7 @@ export function NightshiftNav({
         ["collection", ru ? "Моя коллекция" : "My collection", "layers"],
         ["packs", ru ? "Конверты" : "Envelopes", "mail"],
         ["studio", ru ? "Мастерская" : "Card studio", "palette"],
-        ["wallet", ru ? "История жетонов" : "Token history", "coins"],
+        ["wallet", ru ? "История монет" : "Coin history", "coins"],
       ],
     },
     {

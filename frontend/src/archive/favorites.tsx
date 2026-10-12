@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react"
 import { request } from "../community/api"
 import { useLanguage } from "../i18n"
 import Icon from "../icons/Icon"
+import type { EconomyScope } from "./types"
 
 export type FavoriteControls = {
   ids: string[] | null
@@ -13,7 +14,12 @@ export type FavoriteControls = {
   setFavorite: (id: string, favorite: boolean) => Promise<boolean>
 }
 
-export function useFavorites(csrf: string, accountKey: string): FavoriteControls {
+export function useFavorites(
+  csrf: string,
+  accountKey: string,
+  scope: EconomyScope = "REAL",
+): FavoriteControls {
+  const identity = `${accountKey}:${scope}`
   const [state, setState] = useState({
     account: "",
     ids: null as string[] | null,
@@ -23,8 +29,8 @@ export function useFavorites(csrf: string, accountKey: string): FavoriteControls
   })
   const [revision, setRevision] = useState(0)
   const [mutationRevision, setMutationRevision] = useState(0)
-  const currentAccount = useRef(accountKey)
-  currentAccount.current = accountKey
+  const currentAccount = useRef(identity)
+  currentAccount.current = identity
   const generation = useRef(0)
   const write = useRef<AbortController | null>(null)
   useEffect(() => {
@@ -32,17 +38,19 @@ export function useFavorites(csrf: string, accountKey: string): FavoriteControls
     const epoch = ++generation.current
     write.current?.abort()
     write.current = null
-    setState({ account: accountKey, ids: null, loading: true, pendingId: null, error: "" })
+    setState({ account: identity, ids: null, loading: true, pendingId: null, error: "" })
     if (accountKey) {
-      request<{ card_ids: string[] }>("/api/archive/favorites", "", { signal: controller.signal })
+      request<{ card_ids: string[] }>(`/api/archive/favorites?scope=${scope}`, "", {
+        signal: controller.signal,
+      })
         .then((data) => {
           if (
             !controller.signal.aborted &&
             epoch === generation.current &&
-            accountKey === currentAccount.current
+            identity === currentAccount.current
           )
             setState({
-              account: accountKey,
+              account: identity,
               ids: data.card_ids,
               loading: false,
               pendingId: null,
@@ -53,10 +61,10 @@ export function useFavorites(csrf: string, accountKey: string): FavoriteControls
           if (
             !controller.signal.aborted &&
             epoch === generation.current &&
-            accountKey === currentAccount.current
+            identity === currentAccount.current
           )
             setState({
-              account: accountKey,
+              account: identity,
               ids: null,
               loading: false,
               pendingId: null,
@@ -70,12 +78,12 @@ export function useFavorites(csrf: string, accountKey: string): FavoriteControls
       write.current?.abort()
       write.current = null
     }
-  }, [accountKey, revision])
+  }, [identity, revision])
   const setFavorite = async (id: string, favorite: boolean) => {
     if (
       !accountKey ||
-      currentAccount.current !== accountKey ||
-      state.account !== accountKey ||
+      currentAccount.current !== identity ||
+      state.account !== identity ||
       !state.ids ||
       state.loading ||
       write.current
@@ -92,14 +100,14 @@ export function useFavorites(csrf: string, accountKey: string): FavoriteControls
         csrf,
         {
           method: "PUT",
-          body: JSON.stringify({ favorite }),
+          body: JSON.stringify({ favorite, scope }),
           signal: controller.signal,
         },
       )
       if (
         controller.signal.aborted ||
         epoch !== generation.current ||
-        accountKey !== currentAccount.current
+        identity !== currentAccount.current
       )
         return false
       setState((old) => ({
@@ -115,7 +123,7 @@ export function useFavorites(csrf: string, accountKey: string): FavoriteControls
       if (
         !controller.signal.aborted &&
         epoch === generation.current &&
-        accountKey === currentAccount.current
+        identity === currentAccount.current
       )
         setState((old) => ({ ...old, error: (reason as Error).message, pendingId: null }))
       return false
@@ -124,11 +132,11 @@ export function useFavorites(csrf: string, accountKey: string): FavoriteControls
     }
   }
   return {
-    ids: state.account === accountKey ? state.ids : null,
+    ids: state.account === identity ? state.ids : null,
     revision: mutationRevision,
-    loading: state.account !== accountKey || state.loading,
-    pendingId: state.account === accountKey ? state.pendingId : null,
-    error: state.account === accountKey ? state.error : "",
+    loading: state.account !== identity || state.loading,
+    pendingId: state.account === identity ? state.pendingId : null,
+    error: state.account === identity ? state.error : "",
     reload: () => setRevision((value) => value + 1),
     setFavorite,
   }

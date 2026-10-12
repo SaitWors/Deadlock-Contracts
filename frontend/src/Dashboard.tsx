@@ -24,6 +24,7 @@ import ArchiveNextStep from "./archive/ArchiveNextStep"
 import { useHeroVotes } from "./hero-votes/useHeroVotes"
 import PersonalProgress from "./progress/PersonalProgress"
 import type { GoalRecommendation } from "./progress/types"
+import type { CoinReward } from "./archive/types"
 import {
   MCGCredit,
   apiLanguage,
@@ -37,6 +38,7 @@ import {
 } from "./i18n"
 
 const ArchivePage = lazy(() => import("./archive/ArchivePage"))
+const CoinRewardReceipt = lazy(() => import("./archive/CoinRewardReceipt"))
 const CardReviewDesk = lazy(() => import("./admin/CardReviewDesk"))
 const OwnerArchiveDesk = lazy(() => import("./admin/OwnerArchiveDesk"))
 const HeroVotesPage = lazy(() => import("./hero-votes/HeroVotesPage"))
@@ -148,6 +150,7 @@ type BoardsPayload = {
   boards: Board[]
 }
 type HistoryItem = {
+  coin_reward?: CoinReward | null
   assignment_id: string
   board_id: string
   game_match_mode: Mode
@@ -179,6 +182,7 @@ type HistoryItem = {
   case_expires_at?: string | null
 }
 type HistoryCase = {
+  coin_reward?: CoinReward | null
   board_id: string
   game_match_mode: Mode
   status: string
@@ -1113,6 +1117,23 @@ export default function Dashboard({ initialSession }: { initialSession: SessionP
     () => historyCases.flatMap((historyCase) => historyCase.items),
     [historyCases],
   )
+  const coinReceiptRevision = useMemo(
+    () =>
+      historyCases
+        .flatMap((item) => [
+          item.coin_reward,
+          ...item.items.map((contract) => contract.coin_reward),
+        ])
+        .filter((reward): reward is CoinReward => !!reward)
+        .map((reward) => `${reward.source_id}:${reward.status}:${reward.amount}`)
+        .join("|"),
+    [historyCases],
+  )
+  useEffect(() => {
+    if (!coinReceiptRevision) return
+    setArchiveRevision((value) => value + 1)
+    window.dispatchEvent(new Event("dc-archive-wallet"))
+  }, [coinReceiptRevision])
 
   useEffect(() => {
     const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC"
@@ -1452,6 +1473,7 @@ export default function Dashboard({ initialSession }: { initialSession: SessionP
       .map((historyCase) => ({
         boardId: historyCase.board_id,
         items: historyCase.items,
+        coinReward: historyCase.coin_reward,
         mode: historyCase.game_match_mode,
         matchId:
           historyCase.items.find((item) => item.match_id)?.match_id ||
@@ -1477,7 +1499,7 @@ export default function Dashboard({ initialSession }: { initialSession: SessionP
           collection: "Моя коллекция",
           packs: "Конверты",
           studio: "Мастерская",
-          wallet: "История жетонов",
+          wallet: "История монет",
           bureaus: "Бюро игроков",
           achievements: "Достижения",
           leaderboard: "Рейтинг",
@@ -1494,7 +1516,7 @@ export default function Dashboard({ initialSession }: { initialSession: SessionP
           collection: "My collection",
           packs: "Envelopes",
           studio: "Card studio",
-          wallet: "Token history",
+          wallet: "Coin history",
           bureaus: "Player bureaus",
           achievements: "Achievements",
           leaderboard: "Leaderboard",
@@ -1771,8 +1793,8 @@ export default function Dashboard({ initialSession }: { initialSession: SessionP
                         ? "Компаньон привязан, но сейчас не в сети. Сайт продолжит искать матч автоматически."
                         : "Companion is paired but currently offline. The site will keep looking for the match automatically."
                       : language === "ru"
-                        ? "Компаньон пока проходит QA. Шифры, жетоны, карточки и бюро уже доступны на сайте. Матчевые награды зависят от проверки результата."
-                        : "The Companion is in QA. Ciphers, tokens, cards and bureaus are already available here. Match rewards depend on verification."}
+                        ? "Компаньон пока проходит QA. Шифры, монеты, карточки и бюро уже доступны на сайте. Матчевые награды зависят от проверки результата."
+                        : "The Companion is in QA. Ciphers, coins, cards and bureaus are already available here. Match rewards depend on verification."}
                 </p>
               </div>
               <ArchiveNextStep revision={archiveRevision} onNavigate={(next) => setTab(next)} />
@@ -2362,6 +2384,11 @@ export default function Dashboard({ initialSession }: { initialSession: SessionP
                                     : statusLabel(item.status, language)}
                                 </em>
                               </div>
+                              {item.coin_reward && (
+                                <Suspense fallback={null}>
+                                  <CoinRewardReceipt reward={item.coin_reward} />
+                                </Suspense>
+                              )}
                               {(item.evaluations?.length || 0) > 1 && (
                                 <details className="dc-attempt-log">
                                   <summary>
@@ -2405,6 +2432,15 @@ export default function Dashboard({ initialSession }: { initialSession: SessionP
                           </span>
                           <strong>
                             {MODE_META[group.mode].short} · +{reward} XP
+                            {group.coinReward && (
+                              <>
+                                <br />
+                                <span>{language === "ru" ? "Бонус дела" : "Case bonus"}: </span>
+                                <Suspense fallback={null}>
+                                  <CoinRewardReceipt reward={group.coinReward} />
+                                </Suspense>
+                              </>
+                            )}
                           </strong>
                         </footer>
                       </div>

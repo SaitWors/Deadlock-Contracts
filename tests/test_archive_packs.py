@@ -56,7 +56,7 @@ def opening(client, item, *, key=None, starter=False):
     return client.post(f"/api/archive/packs/{item['id']}/open", json={"request_key": key or str(uuid4()), "revision": item["revision"], "starter": starter})
 
 
-def buy(client, card_id, price=20, key=None):
+def buy(client, card_id, price=25, key=None):
     return client.post(f"/api/archive/cards/{card_id}/acquire", json={"request_key": key or str(uuid4()), "expected_price": price})
 
 
@@ -87,12 +87,12 @@ def test_recommendation_matches_pool_weights_and_owner_can_choose_price(communit
     response = client.post("/api/owner/archive/packs/preview", json=body)
     assert response.status_code == 200, response.text
     preview = response.json()
-    assert preview["recommendation"]["price"] == 50
-    assert preview["recommendation"]["expected_direct_cost"] == 86.14
+    assert preview["recommendation"]["price"] == 85
+    assert preview["recommendation"]["expected_direct_cost"] == 151.49
     assert [row["rank"] for row in preview["odds"]] == ["F", "SSS"]
     assert preview["odds"][0]["weight"] == 100 and preview["odds"][0]["total_weight"] == 101
     created = client.post("/api/owner/archive/packs", json=body).json()["pack"]
-    assert created["price"] == 31 and created["recommendation"]["price"] == 50
+    assert created["price"] == 31 and created["recommendation"]["price"] == 85
 
 
 def test_pack_config_validation_and_csrf(community, owner):
@@ -190,13 +190,13 @@ def test_direct_acquisition_quote_and_duplicate_refund_cannot_remove_last_copy(c
     inventory = client.get("/api/archive/inventory?hero=abrams&rank=F&q=Released").json()
     assert inventory["total"] == 1 and inventory["items"][0]["quantity"] == 2
     duplicate = inventory["items"][0]["recycle"]
-    assert duplicate["value"] == 4
+    assert duplicate["value"] == 5
     url = f"/api/archive/items/{duplicate['id']}/recycle"
     body = {"request_key": str(uuid4())}
     assert other.post(url, json=body).status_code == 409
     receipt = client.post(url, json=body)
     assert receipt.status_code == 200, receipt.text
-    assert receipt.json()["balance_after"] == 64
+    assert receipt.json()["balance_after"] == 55
     assert client.post(url, json=body).json() == receipt.json()
     assert client.post(url, json={"request_key": str(uuid4())}).status_code == 409
     with factory() as db:
@@ -221,7 +221,8 @@ def test_owner_grants_are_self_only_audited_bounded_and_not_recyclable(community
     cards = client.post(f"/api/owner/archive/cards/{card_id}/grant", json=grant)
     assert cards.status_code == 200, cards.text
     assert client.post(f"/api/owner/archive/cards/{card_id}/grant", json=grant).json() == cards.json()
-    inventory = client.get("/api/archive/inventory").json()["items"][0]
+    assert client.get("/api/archive/inventory").json()["items"] == []
+    inventory = client.get("/api/archive/inventory?scope=SANDBOX").json()["items"][0]
     assert inventory["quantity"] == inventory["test_count"] == 3 and inventory["recycle"] is None
     item_id = cards.json()["items"][0]["id"]
     assert client.post(f"/api/archive/items/{item_id}/recycle", json={"request_key": str(uuid4())}).status_code == 409

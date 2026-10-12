@@ -5,7 +5,14 @@ import { useLanguage } from "../i18n"
 import { Pager } from "../archive/ArchivePage"
 import CardPreview from "../archive/CardPreview"
 import { PackOdds } from "../archive/PackShop"
-import { RANKS, type Card, type Meta, type Pack, type Recommendation } from "../archive/types"
+import {
+  RANKS,
+  type Card,
+  type EconomyScope,
+  type Meta,
+  type Pack,
+  type Recommendation,
+} from "../archive/types"
 import { TransactionStatus, useTransaction } from "../archive/transactions"
 import "../archive/archive.css"
 import "../archive/packs.css"
@@ -43,6 +50,7 @@ function OwnerContent({ csrf }: { csrf: string }) {
   const [delta, setDelta] = useState(150)
   const [quantity, setQuantity] = useState(1)
   const [note, setNote] = useState("")
+  const [scope, setScope] = useState<EconomyScope>("SANDBOX")
   const [card, setCard] = useState<Card | null>(null)
   const tx = useTransaction(csrf, meta.data?.account_key || "", () =>
     window.dispatchEvent(new Event("dc-archive-wallet")),
@@ -164,9 +172,30 @@ function OwnerContent({ csrf }: { csrf: string }) {
             </summary>
             <p>
               {ru
-                ? "Получатель — твой текущий аккаунт. Жетоны и карточки выдаются реально, сохраняются после обновлений и записываются в аудит с пояснением. XP за матчи не меняется."
-                : "Recipient: your current account. Grants are real, persist across updates and are audited with a note. Match XP does not change."}
+                ? "Получатель — твой текущий аккаунт. Тестовые монеты и экземпляры сохраняются отдельно. Каждая выдача записывается в аудит с причиной."
+                : "Recipient: your current account. Sandbox coins and copies are stored separately. Every grant is audited with its reason."}
             </p>
+            <label>
+              {ru ? "Область выдачи" : "Grant scope"}
+              <select
+                aria-label={ru ? "Область выдачи" : "Grant scope"}
+                value={scope}
+                disabled={tx.busy || !!tx.pending}
+                onChange={(event) => setScope(event.target.value as EconomyScope)}
+              >
+                <option value="SANDBOX">{ru ? "Тестовая выдача" : "Sandbox test grant"}</option>
+                <option value="REAL">
+                  {ru ? "Ручная корректировка основного баланса" : "Manual real balance correction"}
+                </option>
+              </select>
+            </label>
+            {scope === "REAL" && (
+              <p>
+                {ru
+                  ? "Ручная корректировка основного баланса. Укажи причину изменения настоящих монет или экземпляров."
+                  : "Manual real balance correction. Explain why real coins or copies need an adjustment."}
+              </p>
+            )}
             <label>
               {ru ? "Для чего выдача" : "Reason for grant"}
               <input
@@ -184,8 +213,8 @@ function OwnerContent({ csrf }: { csrf: string }) {
             <div className="archive-owner-grant">
               <label>
                 {ru
-                  ? "Изменение жетонов (можно со знаком минус)"
-                  : "Token adjustment (negative allowed)"}
+                  ? "Изменение монет (можно со знаком минус)"
+                  : "Coin adjustment (negative allowed)"}
                 <input
                   type="number"
                   value={delta}
@@ -204,17 +233,17 @@ function OwnerContent({ csrf }: { csrf: string }) {
                   !delta ||
                   Math.abs(delta) > 1000000
                 }
-                onClick={() => void tx.execute("/api/owner/archive/tokens", { delta, note })}
+                onClick={() => void tx.execute("/api/owner/archive/tokens", { delta, note, scope })}
               >
                 {ru
-                  ? `Изменить свой баланс на ${delta > 0 ? "+" : ""}${delta} жет.`
-                  : `Adjust my balance by ${delta > 0 ? "+" : ""}${delta} tokens`}
+                  ? `Изменить свой баланс на ${delta > 0 ? "+" : ""}${delta} монет`
+                  : `Adjust my balance by ${delta > 0 ? "+" : ""}${delta} coins`}
               </button>
             </div>
             <h3>{ru ? "Выдать себе карточку" : "Grant myself a card"}</h3>
             <p>
               {ru
-                ? "Выбери опубликованный дизайн. Бесплатные тестовые экземпляры помечаются и не дают жетонов при обмене дублей."
+                ? "Выбери опубликованный дизайн. Бесплатные тестовые экземпляры помечаются и не дают монет при обмене дублей."
                 : "Choose a published design. Free test copies are labelled and have no token refund."}
             </p>
             <CardPicker meta={meta.data} selected={card ? [card.id] : []} onPick={setCard} />
@@ -244,7 +273,11 @@ function OwnerContent({ csrf }: { csrf: string }) {
                     quantity > 100
                   }
                   onClick={() =>
-                    void tx.execute(`/api/owner/archive/cards/${card.id}/grant`, { quantity, note })
+                    void tx.execute(`/api/owner/archive/cards/${card.id}/grant`, {
+                      quantity,
+                      note,
+                      scope,
+                    })
                   }
                 >
                   {ru ? `Выдать себе ${quantity} шт.` : `Grant myself ${quantity} copies`}
@@ -424,7 +457,7 @@ function PackForm({
             />
           </label>
           <label>
-            {ru ? "Цена в жетонах — задаёт OWNER" : "Token price — set by OWNER"}
+            {ru ? "Цена в монетах — задаёт OWNER" : "Coin price — set by OWNER"}
             <input
               type="number"
               min={1}
@@ -471,8 +504,8 @@ function PackForm({
               </h3>
               <p>
                 {ru
-                  ? `Средняя цена прямого получения этого состава: ${preview.recommendation.expected_direct_cost} жет. Для случайного конверта — скидка 45%, округление вверх до 5 жетонов. При 150 жетонах в неделю это ${preview.recommendation.weeks_at_150} недели накопления.`
-                  : `Expected direct acquisition cost: ${preview.recommendation.expected_direct_cost} tokens. Random packs receive a 45% discount, rounded up to 5 tokens. At 150 tokens per week: ${preview.recommendation.weeks_at_150} weeks.`}
+                  ? `Средняя цена прямого получения этого состава: ${preview.recommendation.expected_direct_cost} монет. Для случайного конверта — скидка 45%, округление вверх до 5 монет. Только шифры дают до 150 монет в неделю: ${preview.recommendation.weeks_at_150} недели накопления. Монеты контрактов — дополнительный источник.`
+                  : `Expected direct acquisition cost: ${preview.recommendation.expected_direct_cost} coins. Random packs receive a 45% discount, rounded up to 5 coins. Ciphers alone provide up to 150 coins per week: ${preview.recommendation.weeks_at_150} weeks. Contract coins are an additional source.`}
               </p>
               <button
                 type="button"

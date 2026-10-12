@@ -45,7 +45,7 @@ export default function BureauGuide({
         },
         {
           title: "Сыграйте. Проверьте результат.",
-          text: "Запустите Deadlock и выполните подписанные условия в выбранном режиме. XP, уровни и достижения начисляются после проверки матча.",
+          text: "Запустите Deadlock и выполните подписанные условия в выбранном режиме. XP и монеты бюро начисляются после проверки матча; монеты учитывают дневной и недельный лимиты.",
           detail:
             "Откройте «Активное дело», чтобы увидеть попытки, срок и состояние проверки. На дело — 24 часа и до трёх подходящих матчей; прогресс разных матчей не складывается.",
           note: "Компаньон проходит QA. Если результат ещё проверяется, дождитесь подтверждения в деле: награда не начисляется сразу после игры.",
@@ -55,8 +55,8 @@ export default function BureauGuide({
           title: "Есть дело и без игры.",
           text: "Пока компаньон проходит QA, в браузере уже можно разбирать шифры и собирать карточки героев.",
           detail:
-            "Разберите шифр → получите жетоны архива → выберите карточку в каталоге или откройте конверт. До покупки видны цена, состав и шансы.",
-          note: "Жетоны и XP — разные вещи. Жетоны нужны для карточек, XP отражает выполненные контракты. Шифры работают без компаньёна.",
+            "Разберите шифр → получите монеты бюро → выберите карточку в каталоге или откройте конверт. До покупки видны цена, состав и шансы.",
+          note: "Монеты и XP — разные вещи. Монеты нужны для карточек, XP отражает выполненные контракты. Шифры работают без компаньёна.",
           action: "Разобрать первый шифр",
         },
         {
@@ -79,7 +79,7 @@ export default function BureauGuide({
         },
         {
           title: "Play. Check your result.",
-          text: "Launch Deadlock and complete the signed objectives in your chosen mode. XP, levels and achievements arrive after match verification.",
+          text: "Launch Deadlock and complete the signed objectives in your chosen mode. XP and Bureau coins arrive after match verification; coins have daily and weekly limits.",
           detail:
             "Open Active case to see attempts, the deadline and verification status. A case lasts 24 hours and allows up to three eligible matches; progress does not add up across matches.",
           note: "The Companion is in QA. If your result is still being checked, wait for confirmation in your case: rewards do not arrive immediately after a match.",
@@ -89,8 +89,8 @@ export default function BureauGuide({
           title: "A case without a match.",
           text: "While the Companion is in QA, you can already solve ciphers and collect hero cards in your browser.",
           detail:
-            "Solve a cipher → earn archive tokens → choose a card from the catalogue or open an envelope. Price, contents and odds are shown before purchase.",
-          note: "Tokens and XP are separate. Tokens are for cards; XP reflects completed contracts. Ciphers work without the Companion.",
+            "Solve a cipher → earn Bureau coins → choose a card from the catalogue or open an envelope. Price, contents and odds are shown before purchase.",
+          note: "Coins and XP are separate. Coins are for cards; XP reflects completed contracts. Ciphers work without the Companion.",
           action: "Solve your first cipher",
         },
         {

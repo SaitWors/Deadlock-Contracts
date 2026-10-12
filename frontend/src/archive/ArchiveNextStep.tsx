@@ -71,13 +71,19 @@ export default function ArchiveNextStep({
               <div>
                 <dt>{ru ? "Баланс" : "Balance"}</dt>
                 <dd>
-                  {data.balance} {ru ? "жет." : "tokens"}
+                  {data.available_balance ?? data.balance} {ru ? "монет" : "coins"}
+                  {!!data.debt && (
+                    <>
+                      {" "}
+                      · {ru ? "Долг" : "Debt"}: {data.debt}
+                    </>
+                  )}
                 </dd>
               </div>
               <div>
                 <dt>{ru ? "Награда за шифр" : "Reward per cipher"}</dt>
                 <dd>
-                  +{data.reward} {ru ? "жет." : "tokens"}
+                  +{data.reward} {ru ? "монет" : "coins"}
                 </dd>
               </div>
               <div>

@@ -26,6 +26,8 @@ HEROES = {name.lower().replace(" & ", "-").replace(" ", "-"): name for name in (
     "Vindicta", "Violet", "Viscous", "Vyper", "Warden", "Wraith", "Yamato",
 )}
 MAX_IMAGE_BYTES = 300_000
+MAX_BALANCE = 1_000_000_000
+ECONOMY_SCOPES = ("REAL", "SANDBOX")
 
 
 def aware(value):
@@ -113,15 +115,36 @@ def cipher_payload(item):
             "solution": item.solution if len(item.guesses) >= 6 or item.status != "OPEN" else None}
 
 
-def wallet_payload(db, user_id, offset=0):
+def wallet_state(db, user_id, scope="REAL"):
+    if scope not in ECONOMY_SCOPES:
+        raise HTTPException(422, "Unknown economy scope")
+    net = db.scalar(select(func.coalesce(func.sum(ArchiveLedger.delta), 0)).where(
+        ArchiveLedger.user_id == user_id, ArchiveLedger.scope == scope))
+    return {"scope": scope, "net_balance": net, "available_balance": max(0, net), "debt": max(0, -net)}
+
+
+def credit_wallet(db, user_id, source, reason, delta, scope="REAL"):
+    """Append a bounded positive credit within the caller's locked transaction."""
+    state = wallet_state(db, user_id, scope)
+    if type(delta) is not int or delta <= 0:
+        raise ValueError("A wallet credit must be a positive integer")
+    if state["net_balance"] + delta > MAX_BALANCE:
+        raise HTTPException(409, "Достигнут предел баланса / Balance limit reached")
+    db.add(ArchiveLedger(user_id=user_id, source=source, reason=reason, delta=delta, scope=scope))
+
+
+def wallet_payload(db, user_id, offset=0, scope="REAL"):
     week = week_start()
     rows = db.scalars(select(ArchiveCipher).where(ArchiveCipher.user_id == user_id, ArchiveCipher.week == week).order_by(ArchiveCipher.slot)).all()
-    entries = db.scalars(select(ArchiveLedger).where(ArchiveLedger.user_id == user_id)
+    entries = db.scalars(select(ArchiveLedger).where(ArchiveLedger.user_id == user_id, ArchiveLedger.scope == scope)
         .order_by(ArchiveLedger.created_at.desc(), ArchiveLedger.id).offset(offset).limit(20)).all()
-    return {"balance": db.scalar(select(func.coalesce(func.sum(ArchiveLedger.delta), 0)).where(ArchiveLedger.user_id == user_id)),
+    wallets = {key: wallet_state(db, user_id, key) for key in ECONOMY_SCOPES}
+    return {**wallets[scope], "balance": wallets[scope]["available_balance"], "wallets": wallets,
             "currency": "ARCHIVE_TOKEN", "weekly_limit": 5, "reward": 30,
             "completed": sum(item.status != "OPEN" for item in rows),
             "reset_at": datetime.combine(week + timedelta(days=7), datetime.min.time(), tzinfo=timezone.utc).isoformat(),
             "round": cipher_payload(next((item for item in rows if item.status == "OPEN"), None)),
-            "history": [{"id": row.id, "delta": row.delta, "reason": row.reason, "created_at": aware(row.created_at).isoformat()} for row in entries],
-            "history_total": db.scalar(select(func.count()).select_from(ArchiveLedger).where(ArchiveLedger.user_id == user_id))}
+            "history": [{"id": row.id, "delta": row.delta, "reason": row.reason, "scope": row.scope,
+                         "source": row.source, "created_at": aware(row.created_at).isoformat()} for row in entries],
+            "history_total": db.scalar(select(func.count()).select_from(ArchiveLedger).where(
+                ArchiveLedger.user_id == user_id, ArchiveLedger.scope == scope))}
