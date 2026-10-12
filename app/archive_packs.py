@@ -7,7 +7,7 @@ from pydantic import Field, field_validator
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from .archive import Rank, Revision
+from .archive import EconomyScope, Rank, Revision
 from .community import Strict, no_store
 from .db import get_db
 from .models import (ArchiveCard, ArchiveOperation, ArchivePack, ArchivePackVersion,
@@ -45,6 +45,7 @@ class PackEdit(PackDesign):
 
 class RequestKey(Strict):
     request_key: UUID
+    scope: EconomyScope = "REAL"
 
 
 class OpenPack(RequestKey):
@@ -57,13 +58,29 @@ class AcquireCard(RequestKey):
 
 
 class GrantCard(RequestKey):
+    scope: EconomyScope = "SANDBOX"
     quantity: int = Field(ge=1, le=100, strict=True)
     note: str = Field(min_length=3, max_length=300)
 
+    @field_validator("note")
+    @classmethod
+    def meaningful_reason(cls, value):
+        if len(value.strip()) < 3:
+            raise ValueError("Give a reason for the adjustment")
+        return value.strip()
+
 
 class GrantTokens(RequestKey):
+    scope: EconomyScope = "SANDBOX"
     delta: int = Field(ge=-1000000, le=1000000, strict=True)
     note: str = Field(min_length=3, max_length=300)
+
+    @field_validator("note")
+    @classmethod
+    def meaningful_reason(cls, value):
+        if len(value.strip()) < 3:
+            raise ValueError("Give a reason for the adjustment")
+        return value.strip()
 
     @field_validator("delta")
     @classmethod
@@ -88,6 +105,7 @@ class Showcase(Strict):
 
 class Favorite(Strict):
     favorite: bool = Field(strict=True)
+    scope: EconomyScope = "REAL"
 
 
 def build_router(require_permission, effective_role):
@@ -103,10 +121,13 @@ def build_router(require_permission, effective_role):
 
     @router.get("/archive/packs")
     def catalog(response: Response, offset: int = Query(default=0, ge=0, le=100000),
+                scope: EconomyScope = "REAL",
                 user: User = Depends(require_user), db: Session = Depends(get_db)):
         no_store(response)
-        claimed = db.scalar(select(ArchiveOperation.id).where(ArchiveOperation.user_id == user.id, ArchiveOperation.benefit_key == "starter"))
-        return {**packs(db, offset), "starter_claimed": bool(claimed)}
+        benefit_key = "starter" if scope == "REAL" else "starter:sandbox"
+        claimed = db.scalar(select(ArchiveOperation.id).where(ArchiveOperation.user_id == user.id,
+                                                              ArchiveOperation.benefit_key == benefit_key))
+        return {**packs(db, offset), "starter_claimed": bool(claimed), "scope": scope}
 
     @router.get("/archive/packs/{pack_id}")
     def details(pack_id: UUID, response: Response, user: User = Depends(require_user), db: Session = Depends(get_db)):
@@ -128,43 +149,47 @@ def build_router(require_permission, effective_role):
     def inventory(response: Response, hero: str = Query(default="", max_length=40), rank: Rank | None = None,
                   q: str = Query(default="", max_length=80), offset: int = Query(default=0, ge=0, le=100000),
                   favorites_only: bool = False,
+                  scope: EconomyScope = "REAL",
                   user: User = Depends(require_user), db: Session = Depends(get_db)):
         no_store(response)
-        return service.inventory(db, user.id, hero, rank, q, offset, favorites_only)
+        return service.inventory(db, user.id, hero, rank, q, offset, favorites_only, scope)
 
     @router.get("/archive/favorites")
-    def favorites(response: Response, user: User = Depends(require_user), db: Session = Depends(get_db)):
+    def favorites(response: Response, scope: EconomyScope = "REAL",
+                  user: User = Depends(require_user), db: Session = Depends(get_db)):
         no_store(response)
-        return {"card_ids": service.favorite_card_ids(db, user.id)}
+        return {"card_ids": service.favorite_card_ids(db, user.id, scope)}
 
     @router.put("/archive/favorites/{card_id}", dependencies=[Depends(require_csrf)])
     def save_favorite(card_id: UUID, payload: Favorite, response: Response,
                       user: User = Depends(require_user), db: Session = Depends(get_db)):
         no_store(response)
-        return service.set_favorite(db, user.id, str(card_id), payload.favorite)
+        return service.set_favorite(db, user.id, str(card_id), payload.favorite, payload.scope)
 
     @router.post("/archive/items/{item_id}/recycle", dependencies=[Depends(require_csrf)])
     def recycle(item_id: UUID, payload: RequestKey, user: User = Depends(require_user), db: Session = Depends(get_db)):
         return service.recycle(db, user.id, str(item_id), payload)
 
     @router.get("/archive/inventory/coverage")
-    def owned_coverage(response: Response, user: User = Depends(require_user), db: Session = Depends(get_db)):
+    def owned_coverage(response: Response, scope: EconomyScope = "REAL",
+                       user: User = Depends(require_user), db: Session = Depends(get_db)):
         from .models import ArchiveItem
         no_store(response)
         rows = db.execute(select(ArchiveCard.hero, ArchiveCard.rank, func.count(func.distinct(ArchiveCard.id)))
                           .join(ArchiveItem, ArchiveItem.card_id == ArchiveCard.id)
-                          .where(ArchiveItem.user_id == user.id, ArchiveItem.state == "OWNED")
+                          .where(ArchiveItem.user_id == user.id, ArchiveItem.state == "OWNED", ArchiveItem.scope == scope)
                           .group_by(ArchiveCard.hero, ArchiveCard.rank)).all()
         return {"items": [{"hero": hero, "rank": rank, "count": count} for hero, rank, count in rows]}
 
     @router.get("/archive/openings")
     def history(response: Response, offset: int = Query(default=0, ge=0, le=100000),
+                scope: EconomyScope = "REAL",
                 user: User = Depends(require_user), db: Session = Depends(get_db)):
         no_store(response)
-        statement = select(ArchiveOperation).where(ArchiveOperation.user_id == user.id)
+        statement = select(ArchiveOperation).where(ArchiveOperation.user_id == user.id, ArchiveOperation.scope == scope)
         total = db.scalar(select(func.count()).select_from(statement.subquery()))
         rows = db.scalars(statement.order_by(ArchiveOperation.created_at.desc(), ArchiveOperation.id).offset(offset).limit(10)).all()
-        return {"items": [row.result for row in rows], "total": total}
+        return {"items": [service.receipt_payload(row) for row in rows], "total": total}
 
     @router.get("/archive/requests/{request_key}")
     def request_result(request_key: UUID, response: Response, user: User = Depends(require_user), db: Session = Depends(get_db)):
@@ -172,7 +197,7 @@ def build_router(require_permission, effective_role):
         lock_user(db, user.id)
         operation = db.scalar(select(ArchiveOperation).where(ArchiveOperation.user_id == user.id,
                                                              ArchiveOperation.request_key == str(request_key)))
-        return {"operation": operation.result if operation else None}
+        return {"operation": service.receipt_payload(operation) if operation else None}
 
     @router.get("/archive/showcase")
     def showcase(response: Response, user: User = Depends(require_user), db: Session = Depends(get_db)):
@@ -268,12 +293,14 @@ def build_router(require_permission, effective_role):
 
     @router.post("/owner/archive/tokens", dependencies=[Depends(require_csrf)])
     def grant_tokens(payload: GrantTokens, owner: User = Depends(require_permission("archive.grant_self")), db: Session = Depends(get_db)):
-        operation, replay = service.begin(db, owner.id, "OWNER_TOKENS", payload.request_key,
-                                           {"delta": payload.delta, "note": payload.note})
+        kind = "OWNER_REAL_ADJUSTMENT" if payload.scope == "REAL" else "OWNER_TOKENS"
+        operation, replay = service.begin(db, owner.id, kind, payload.request_key,
+                                           {"delta": payload.delta, "note": payload.note}, scope=payload.scope)
         if replay:
-            return operation.result
-        service.audit(db, owner.id, "owner_grant_tokens", operation.id, {"delta": payload.delta, "note": payload.note, "recipient_id": owner.id})
-        return service.finish(db, operation, delta=payload.delta)
+            return service.receipt_payload(operation)
+        service.audit(db, owner.id, "owner_grant_tokens", operation.id, {"delta": payload.delta, "note": payload.note,
+                                                                       "scope": payload.scope, "recipient_id": owner.id})
+        return service.finish(db, operation, delta=payload.delta, allow_debt=payload.scope == "REAL")
 
     @router.post("/owner/archive/cards/{card_id}/grant", dependencies=[Depends(require_csrf)])
     def grant_card(card_id: UUID, payload: GrantCard, owner: User = Depends(require_permission("archive.grant_self")), db: Session = Depends(get_db)):

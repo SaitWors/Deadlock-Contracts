@@ -212,6 +212,8 @@ class Settings:
     companion_ads_enabled: bool = _bool("COMPANION_ADS_ENABLED", False)
     companion_minimum_version: str = os.getenv("COMPANION_MINIMUM_VERSION", "").strip()
     reward_settlement_enabled: bool = _bool("REWARD_SETTLEMENT_ENABLED", True)
+    # Pause delivery without discarding signed policies, reservations or events.
+    coin_rewards_enabled: bool = _bool("COIN_REWARDS_ENABLED", True)
     case_ttl_hours: int = int(os.getenv("CASE_TTL_HOURS", "24"))
     board_reset_hour_utc: int = int(os.getenv("BOARD_RESET_HOUR_UTC", "3"))
     case_max_attempts: int = int(os.getenv("CASE_MAX_ATTEMPTS", "3"))

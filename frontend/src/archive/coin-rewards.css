@@ -1,0 +1,30 @@
+.archive-coin-reward {
+  display: inline-block;
+  overflow-wrap: anywhere;
+  font-size: 0.9rem;
+  line-height: 1.6;
+}
+.archive-ledger li > span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+html[data-theme] .archive-ledger li small {
+  color: var(--ns-paper-muted);
+}
+.archive-coin-receipts li {
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 1rem;
+  overflow-wrap: anywhere;
+}
+.archive-coin-receipts .archive-coin-reward {
+  text-align: right;
+}
+@media (max-width: 640px) {
+  .archive-coin-receipts li {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0.25rem;
+  }
+  .archive-coin-receipts .archive-coin-reward {
+    text-align: left;
+  }
+}

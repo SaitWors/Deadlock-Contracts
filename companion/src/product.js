@@ -120,6 +120,34 @@
   function modeLabel(value,lang='en'){const normalized=normalizeMode(value);return normalized?(I18n?.t(`mode.${normalized}`,lang)||normalized):(I18n?.t('mode.unknown',lang)||'UNKNOWN MODE')}
   function contractTitle(option,lang='en'){return I18n?.contractTitle(option,lang) || String(option?.title_i18n?.[lang]||'UNTITLED CONTRACT')}
   function contractDescription(option,mode,lang='en'){return I18n?.renderObjective({mode:normalizeMode(mode),conditions:cleanArray(option?.conditions)},lang)||''}
+  function coinRewardLabel(receipt,lang='en') {
+    if(!receipt||typeof receipt!=='object')return ''
+    const ru=lang==='ru',status=receipt.status
+    if(status==='PENDING'||status==='RESERVED')return ru?'Монеты ожидают начисления':'Coins pending'
+    if(status==='CORRECTED')return ru?'Монеты скорректированы':'Coins corrected'
+    const reasons={
+      DAILY_LIMIT:ru?'дневной лимит':'daily limit',
+      WEEKLY_LIMIT:ru?'недельный лимит':'weekly limit',
+      NO_SIGNED_POLICY:ru?'контракт без денежной политики':'contract predates coin rewards',
+      NOT_COMPLETED:ru?'контракт не выполнен':'contract incomplete',
+      UNTRUSTED_RESULT:ru?'результат не подтверждён':'result not eligible',
+      MISSING_MATCH_TIME:ru?'нет времени матча':'match time missing',
+      OUTSIDE_ATTEMPT_WINDOW:ru?'матч вне срока контракта':'outside contract window',
+      RESULT_CHANGED:ru?'результат изменён':'result changed',
+    }
+    const reason=Object.hasOwn(reasons,receipt.reason)?reasons[receipt.reason]:''
+    if(status==='DELIVERED'&&Number.isSafeInteger(receipt.amount)&&receipt.amount>=0){
+      const last=receipt.amount%10,teen=receipt.amount%100>=11&&receipt.amount%100<=14
+      const unit=ru?(teen?'монет':last===1?'монета':last>=2&&last<=4?'монеты':'монет'):(receipt.amount===1?'coin':'coins')
+      const issued=`${receipt.amount>0?'+':''}${receipt.amount} ${unit}`
+      return reason?`${issued} · ${reason}`:issued
+    }
+    if(status==='REJECTED'||status==='INVALIDATED'){
+      const label=ru?'Монеты не начислены':'Coins not awarded'
+      return reason?`${label} · ${reason}`:label
+    }
+    return ru?'Монеты недоступны':'Coins unavailable'
+  }
   function metricLabel(metric,lang='en'){return I18n?.metricLabel(metric,lang)||String(metric||'OBJECTIVE').replace(/[._]/g,' ').toUpperCase()}
   function normalizeCondition(raw,legacy={}){const metric=String(raw?.metric??legacy.metric??'').trim();const operator=String(raw?.operator??legacy.operator??'').trim();const target=requireFiniteNumber(raw?.target??legacy.target,'condition.target');const condition={metric,operator,target,capabilities:cleanArray(raw?.capabilities).map(String)};Schema?.validateCondition(condition);return condition}
   function normalizeOption(option,mode=null){if(!option||typeof option!=='object')throw Object.assign(new Error('OPTION_INVALID'),{code:'OPTION_INVALID'});const conditions=cleanArray(option.conditions).map(c=>normalizeCondition(c,option));if(!conditions.length&&option.metric)conditions.push(normalizeCondition({},option));const normalized={id:String(option.id||'').trim(),title_key:String(option.title_key||'').trim()||null,title_i18n:normalizeTranslations(option.title_i18n),flavor_i18n:normalizeTranslations(option.flavor_i18n),game_match_mode:normalizeMode(option.game_match_mode||mode),conditions,reward_xp:Math.trunc(requireFiniteNumber(option.reward_xp,'reward_xp')),difficulty:String(option.difficulty||'FOCUSED').toUpperCase(),rarity:String(option.rarity||'COMMON').toUpperCase(),category:String(option.category||'COMBAT').toUpperCase(),selected:option.selected===true,status:String(option.status||'OFFERED').toUpperCase(),progress_current:finiteOrNull(option.progress_current),progress_target:finiteOrNull(option.progress_target),explanation:option.explanation?String(option.explanation):null,bound_match_id:option.bound_match_id==null?null:String(option.bound_match_id),generator_meta:{adaptive:option.personalization&&typeof option.personalization==='object'?option.personalization:option.generator_meta?.adaptive&&typeof option.generator_meta.adaptive==='object'?option.generator_meta.adaptive:{}},deprecated_description:option.description?String(option.description):null};Schema?.validateOption(normalized);return normalized}
@@ -148,5 +176,5 @@
   function verdictGroups(history){const groups=new Map();for(const item of cleanArray(history)){const matchId=attemptMatchId(item);if(!matchId)continue;const key=String(matchId);if(!groups.has(key))groups.set(key,{match_id:key,game_match_mode:normalizeMode(item.game_match_mode),at:attemptTimestamp(item),items:[],reward_granted_xp:0});const group=groups.get(key);const status=attemptStatus(item);group.items.push({...item,attempt_status:status});group.reward_granted_xp+=Number(item.reward_granted_xp||0);const ts=attemptTimestamp(item);if(ts&&(!group.at||Date.parse(ts)>Date.parse(group.at)))group.at=ts}return[...groups.values()].map(group=>{const statuses=group.items.map(i=>i.attempt_status);const metas=statuses.map(s=>STATUS_META[s]||{group:'UNKNOWN'});let status='LOCKED';if(metas.some(m=>m.group==='ACTIVE'))status=statuses.includes('VERIFYING')?'VERIFYING':'REVIEW_REQUIRED';else if(metas.every(m=>m.group==='SUCCESS'))status='COMPLETED';else if(metas.every(m=>m.group==='FAILED'))status='FAILED';else if(metas.some(m=>m.group==='SUCCESS'||m.group==='PARTIAL')&&metas.some(m=>m.group==='FAILED'||m.group==='PARTIAL'))status='PARTIAL';else if(metas.some(m=>m.group==='VOID'))status='VOID';else if(metas.some(m=>m.group==='EXPIRED'))status='EXPIRED';return{...group,status,counts:{completed:metas.filter(m=>m.group==='SUCCESS').length,failed:metas.filter(m=>m.group==='FAILED').length,partial:metas.filter(m=>m.group==='PARTIAL').length,verifying:statuses.filter(s=>s==='VERIFYING').length,review:statuses.filter(s=>s==='REVIEW_REQUIRED').length,active:statuses.filter(s=>s==='LOCKED').length}}}).sort((a,b)=>(Date.parse(b.at||0)-Date.parse(a.at||0))||Number(b.match_id)-Number(a.match_id))}
   function latestVerdictGroup(history){return verdictGroups(history)[0]||null}
   function isFinalBoard(board){return FINAL_BOARD_STATES.has(String(board?.status||'').toUpperCase())}
-  return{API_VERSION,PRODUCT_CACHE_VERSION,MODES,STATUS_META,ACTIVE_BOARD_STATES,FINAL_BOARD_STATES,emptyProductState,normalizeMode,normalizeGameModePayload,normalizeModeResult,modeLabel,contractTitle,contractDescription,normalizeBootstrap,normalizeAnnouncement,activeAnnouncements,serverNowMs,normalizeOption,normalizeBoard,normalizeAdaptiveProfile,normalizeHistoryItem,deriveActiveCases,boardForMode,activeCaseFor,selectedContracts,adaptiveProfileFor,personalProgressFor,profileMetric,metricKey,metricLabel,liveMetricValue,conditionProgress,attemptMatchId,attemptStatus,attemptTimestamp,verdictGroups,latestVerdictGroup,isFinalBoard,optionLogicFingerprint,requireFiniteNumber,normalizeTranslations}
+  return{API_VERSION,PRODUCT_CACHE_VERSION,MODES,STATUS_META,ACTIVE_BOARD_STATES,FINAL_BOARD_STATES,emptyProductState,normalizeMode,normalizeGameModePayload,normalizeModeResult,modeLabel,contractTitle,contractDescription,coinRewardLabel,normalizeBootstrap,normalizeAnnouncement,activeAnnouncements,serverNowMs,normalizeOption,normalizeBoard,normalizeAdaptiveProfile,normalizeHistoryItem,deriveActiveCases,boardForMode,activeCaseFor,selectedContracts,adaptiveProfileFor,personalProgressFor,profileMetric,metricKey,metricLabel,liveMetricValue,conditionProgress,attemptMatchId,attemptStatus,attemptTimestamp,verdictGroups,latestVerdictGroup,isFinalBoard,optionLogicFingerprint,requireFiniteNumber,normalizeTranslations}
 })

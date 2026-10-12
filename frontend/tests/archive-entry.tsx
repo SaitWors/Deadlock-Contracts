@@ -10,6 +10,7 @@ import Cipher from "../src/archive/Cipher"
 import OwnerArchiveDesk from "../src/admin/OwnerArchiveDesk"
 import { ReceiptView, TransactionStatus, useTransaction } from "../src/archive/transactions"
 import { useFavorites } from "../src/archive/favorites"
+import CoinRewardReceipt from "../src/archive/CoinRewardReceipt"
 
 function FavoriteReceiptHarness({
   receipt,
@@ -73,6 +74,7 @@ export function mount(element: HTMLElement, page: string, props: Record<string, 
     transaction: TransactionHarness,
     receipt: ReceiptHarness,
     favoriteReceipt: FavoriteReceiptHarness,
+    coinReward: CoinRewardReceipt,
   }[page] as React.ComponentType<Record<string, unknown>>
   const root = createRoot(element)
   const render = (nextProps: Record<string, unknown>) =>

@@ -182,7 +182,7 @@ for (const language of ["ru", "en"])
     await api.act(async () => button(doc, language === "ru" ? "Дальше" : "Next").click())
     assert.match(
       doc.querySelector(".bureau-guide-note").textContent,
-      language === "ru" ? /Жетоны и XP/ : /Tokens and XP/,
+      language === "ru" ? /Монеты и XP/ : /Coins and XP/,
     )
     await api.act(async () => doc.querySelector(".bureau-guide-content>.bureau-action").click())
     assert.equal(actions.pop(), "archive")
@@ -306,7 +306,25 @@ test("background history refresh retains all loaded pages and updates older verd
       },
     ],
   }))
+  cases[200].coin_reward = {
+    source_type: "case",
+    source_id: "history-200",
+    nominal_amount: 10,
+    amount: 10,
+    status: "DELIVERED",
+    reason: "AWARDED",
+  }
+  cases[200].items[0].coin_reward = {
+    source_type: "assignment",
+    source_id: "assignment-200",
+    nominal_amount: 24,
+    amount: 5,
+    status: "RESERVED",
+    reason: "DAILY_LIMIT",
+  }
   w.fetch = async (url, init) => {
+    if (url.startsWith("/api/archive/wallet"))
+      return { ok: true, json: async () => ({ balance: updated ? 5 : 0 }) }
     if (!url.startsWith("/api/history?")) return fetch(url, init)
     historyCalls.push(url)
     const query = new URL(url, w.location.origin).searchParams
@@ -315,13 +333,20 @@ test("background history refresh retains all loaded pages and updates older verd
     return {
       ok: true,
       json: async () => ({
-        cases: cases
-          .slice(offset, offset + limit)
-          .map((item) =>
-            updated && item.board_id === "history-200"
-              ? { ...item, items: [{ ...item.items[0], title: "Updated older verdict" }] }
-              : item,
-          ),
+        cases: cases.slice(offset, offset + limit).map((item) =>
+          updated && item.board_id === "history-200"
+            ? {
+                ...item,
+                items: [
+                  {
+                    ...item.items[0],
+                    title: "Updated older verdict",
+                    coin_reward: { ...item.items[0].coin_reward, status: "DELIVERED" },
+                  },
+                ],
+              }
+            : item,
+        ),
         total: cases.length,
       }),
     }
@@ -334,12 +359,20 @@ test("background history refresh retains all loaded pages and updates older verd
     await api.act(async () => button(doc, "LOAD MORE").click())
     await api.act(async () => button(doc, "LOAD MORE").click())
     assert.equal(doc.querySelectorAll(".dc-case-file").length, 201)
+    const lastCase = [...doc.querySelectorAll(".dc-case-file")].at(-1)
+    assert.match(lastCase.textContent, /Pending.*5 coins.*24.*Daily limit/)
+    assert.match(lastCase.textContent, /Case bonus.*\+10 coins/)
     updated = true
     const beforeRefresh = historyCalls.length
     await api.act(async () => refresh())
     assert.equal(doc.querySelectorAll(".dc-case-file").length, 201)
     assert.ok(doc.querySelector(".dc-case-archive").textContent.includes("Updated older verdict"))
+    assert.match(
+      [...doc.querySelectorAll(".dc-case-file")].at(-1).textContent,
+      /\+5 coins.*24.*Daily limit/,
+    )
     assert.ok(historyCalls.slice(beforeRefresh).some((url) => url.includes("offset=200")))
+    assert.match(doc.querySelector(".bureau-profile-trigger small").textContent, /5$/)
     assert.equal(button(doc, "LOAD MORE"), undefined)
   } finally {
     if (root) await api.act(async () => root.unmount())

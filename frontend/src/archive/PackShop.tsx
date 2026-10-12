@@ -4,7 +4,7 @@ import { useResource } from "../community/api"
 import { useLanguage } from "../i18n"
 import { Pager } from "./ArchivePage"
 import CardPreview from "./CardPreview"
-import type { Pack } from "./types"
+import type { EconomyScope, Pack } from "./types"
 import type { useTransaction } from "./transactions"
 
 export function PackOdds({ pack }: { pack: Pick<Pack, "odds" | "draws"> }) {
@@ -37,17 +37,19 @@ export default function PackShop({
   revision,
   balance,
   transaction,
+  scope,
 }: {
   revision: number
   balance: number
   transaction: ReturnType<typeof useTransaction>
+  scope: EconomyScope
 }) {
   const { language } = useLanguage()
   const ru = language === "ru"
   const [offset, setOffset] = useState(0)
   const [selected, setSelected] = useState<string | null>(null)
   const data = useResource<{ items: Pack[]; total: number; starter_claimed: boolean }>(
-    `/api/archive/packs?offset=${offset}&refresh=${revision}`,
+    `/api/archive/packs?offset=${offset}&refresh=${revision}&scope=${scope}`,
   )
   return (
     <section className="archive-pack-shop">
@@ -68,8 +70,8 @@ export default function PackShop({
           <Icon name="mail" size={28} />
           <p>
             {ru
-              ? "Владелец ещё не опубликовал конверты. Жетоны сохраняются; карточку можно получить напрямую в каталоге."
-              : "No packs have been published yet. Tokens are saved; individual cards are available in the catalogue."}
+              ? "Владелец ещё не опубликовал конверты. Монеты сохраняются; карточку можно получить напрямую в каталоге."
+              : "No packs have been published yet. Coins are saved; individual cards are available in the catalogue."}
           </p>
         </div>
       )}
@@ -81,6 +83,7 @@ export default function PackShop({
           balance={balance}
           starterClaimed={!!data.data?.starter_claimed}
           transaction={transaction}
+          scope={scope}
           onClose={() => {
             document.getElementById(`archive-pack-${selected}`)?.focus({ preventScroll: true })
             setSelected(null)
@@ -144,7 +147,7 @@ export default function PackShop({
               </p>
             )}
             <footer>
-              <b aria-label={`${pack.price} ${ru ? "жетонов" : "tokens"}`}>
+              <b aria-label={`${pack.price} ${ru ? "монет" : "coins"}`}>
                 <Icon name="coins" size={20} />
                 {pack.price}
               </b>
@@ -173,6 +176,7 @@ function PackDetails({
   balance,
   starterClaimed,
   transaction,
+  scope,
   onClose,
 }: {
   id: string
@@ -180,11 +184,14 @@ function PackDetails({
   balance: number
   starterClaimed: boolean
   transaction: ReturnType<typeof useTransaction>
+  scope: EconomyScope
   onClose: () => void
 }) {
   const { language } = useLanguage()
   const ru = language === "ru"
-  const data = useResource<{ pack: Pack }>(`/api/archive/packs/${id}?refresh=${revision}`)
+  const data = useResource<{ pack: Pack }>(
+    `/api/archive/packs/${id}?refresh=${revision}&scope=${scope}`,
+  )
   const pack = data.data?.pack
   const locked = transaction.busy || !!transaction.pending || !pack?.ready
   const panel = useRef<HTMLElement>(null)
@@ -220,10 +227,11 @@ function PackDetails({
                 void transaction.execute(`/api/archive/packs/${pack.id}/open`, {
                   revision: pack.revision,
                   starter: false,
+                  scope,
                 })
               }
             >
-              {ru ? `Открыть за ${pack.price} жет.` : `Open for ${pack.price} tokens`}
+              {ru ? `Открыть за ${pack.price} монет` : `Open for ${pack.price} coins`}
             </button>
             {pack.starter && !starterClaimed && (
               <button
@@ -232,6 +240,7 @@ function PackDetails({
                   void transaction.execute(`/api/archive/packs/${pack.id}/open`, {
                     revision: pack.revision,
                     starter: true,
+                    scope,
                   })
                 }
               >
@@ -242,15 +251,15 @@ function PackDetails({
           {balance < pack.price && (
             <p>
               {ru
-                ? "На платное открытие пока не хватает жетонов. Их можно заработать в шифре бюро."
-                : "Earn more tokens in the bureau cipher to pay for this pack."}
+                ? "На платное открытие пока не хватает монет. Их можно заработать в шифре бюро."
+                : "Earn more coins in the bureau cipher to pay for this pack."}
             </p>
           )}
           {!pack.ready && (
             <p role="alert">
               {ru
-                ? "Одна из карточек недоступна. Открытие приостановлено; жетоны не списываются."
-                : "A card is unavailable. Opening is paused; no tokens are charged."}
+                ? "Одна из карточек недоступна. Открытие приостановлено; монеты не списываются."
+                : "A card is unavailable. Opening is paused; no coins are charged."}
             </p>
           )}
           <details>

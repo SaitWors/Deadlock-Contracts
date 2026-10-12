@@ -220,8 +220,8 @@ export default function CardStudio({
         </fieldset>
         <p className="archive-help">
           {ru
-            ? "Публикация доступна администратору и владельцу. За отправку карточек жетоны не выдаются."
-            : "Only admins and the owner can publish. Submissions do not earn tokens."}
+            ? "Публикация доступна администратору и владельцу. За отправку карточек монеты не выдаются."
+            : "Only admins and the owner can publish. Submissions do not earn coins."}
         </p>
       </form>
     </section>

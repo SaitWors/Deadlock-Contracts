@@ -1,6 +1,6 @@
 import Icon from "../icons/Icon"
 import { ArchiveScene } from "../nightshift-layout"
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { request, useResource } from "../community/api"
 import { useLanguage } from "../i18n"
 import CardPreview from "./CardPreview"
@@ -8,9 +8,10 @@ import CardStudio, { CardStatus } from "./CardStudio"
 import Cipher from "./Cipher"
 import PackShop from "./PackShop"
 import CollectionPage from "./CollectionPage"
+import CoinRewards from "./CoinRewards"
 import { useFavorites } from "./favorites"
 import { TransactionStatus, useTransaction } from "./transactions"
-import { RANKS, type Card, type Meta, type Wallet } from "./types"
+import { RANKS, type Card, type EconomyScope, type Meta, type Wallet } from "./types"
 import "./archive.css"
 import "./packs.css"
 import "./nightshift-archive.css"
@@ -40,11 +41,20 @@ export default function ArchivePage({
   const [error, setError] = useState("")
   const [notice, setNotice] = useState("")
   const [collectionRevision, setCollectionRevision] = useState(0)
+  const [scope, setScope] = useState<EconomyScope>("REAL")
+  const activeScope = ["cipher", "mine"].includes(view) ? "REAL" : scope
   const meta = useResource<Meta>("/api/archive/meta")
-  const favorites = useFavorites(csrf, meta.data?.account_key || "")
-  const wallet = useResource<Wallet>(`/api/archive/wallet?offset=${historyOffset}`)
+  const favorites = useFavorites(csrf, meta.data?.account_key || "", activeScope)
+  const wallet = useResource<Wallet>(
+    `/api/archive/wallet?offset=${historyOffset}&scope=${activeScope}`,
+  )
+  useEffect(() => {
+    const refresh = () => wallet.reload()
+    window.addEventListener("dc-archive-wallet", refresh)
+    return () => window.removeEventListener("dc-archive-wallet", refresh)
+  }, [])
   const cards = useResource<{ items: Card[]; total: number }>(
-    `/api/archive/cards?mine=${view === "mine"}&hero=${encodeURIComponent(hero)}&rank=${encodeURIComponent(rank)}&q=${encodeURIComponent(search)}&offset=${offset}`.replace(
+    `/api/archive/cards?mine=${view === "mine"}&hero=${encodeURIComponent(hero)}&rank=${encodeURIComponent(rank)}&q=${encodeURIComponent(search)}&offset=${offset}&scope=${activeScope}`.replace(
       "&rank=&",
       "&",
     ),
@@ -57,6 +67,12 @@ export default function ArchivePage({
     onWalletChange()
     setCollectionRevision((value) => value + 1)
   })
+  const receiptScope = transaction.receipt?.scope ?? activeScope
+  const receiptFavorites = useFavorites(
+    csrf,
+    receiptScope === activeScope ? "" : meta.data?.account_key || "",
+    receiptScope,
+  )
   const chooseView = (next: string) => {
     setView(next)
     setOffset(0)
@@ -104,7 +120,7 @@ export default function ArchivePage({
                   mine: ru ? "Студия карточек." : "Card studio.",
                   packs: ru ? "Что внутри?" : "What's inside?",
                   cipher: ru ? "У города есть секреты." : "The city has secrets.",
-                  wallet: ru ? "История жетонов." : "Token history.",
+                  wallet: ru ? "История монет." : "Coin history.",
                 } as Record<string, string>
               )[view]
             }
@@ -116,11 +132,26 @@ export default function ArchivePage({
           </p>
         </div>
         <div className="archive-balance">
-          <small>{ru ? "Жетоны архива" : "Archive tokens"}</small>
+          <small>
+            {activeScope === "SANDBOX"
+              ? ru
+                ? "Тестовые монеты"
+                : "Sandbox coins"
+              : ru
+                ? "Монеты бюро"
+                : "Bureau coins"}
+          </small>
           <strong>
             <Icon name="coins" size={18} />{" "}
-            {wallet.data ? wallet.data.balance.toLocaleString(locale) : "—"}
+            {wallet.data
+              ? (wallet.data.available_balance ?? wallet.data.balance).toLocaleString(locale)
+              : "—"}
           </strong>
+          {!!wallet.data?.debt && (
+            <small>
+              {ru ? "Долг" : "Debt"}: {wallet.data.debt.toLocaleString(locale)}
+            </small>
+          )}
         </div>
       </header>
       {["collection", "catalog"].includes(view) && <ArchiveScene />}
@@ -131,7 +162,7 @@ export default function ArchivePage({
           ["collection", ru ? "Моя коллекция" : "My collection"],
           ["catalog", ru ? "Каталог" : "Catalogue"],
           ["mine", ru ? "Мои карточки" : "My designs"],
-          ["wallet", ru ? "История жетонов" : "Token history"],
+          ["wallet", ru ? "История монет" : "Coin history"],
         ].map(([key, label]) => (
           <button
             key={key}
@@ -142,6 +173,31 @@ export default function ArchivePage({
           </button>
         ))}
       </nav>
+      {!["cipher", "mine"].includes(view) && (
+        <label className="archive-filters">
+          {ru ? "Счёт и коллекция" : "Wallet & collection"}
+          <select
+            aria-label={ru ? "Область экономики" : "Economy scope"}
+            value={scope}
+            disabled={transaction.busy}
+            onChange={(event) => {
+              setScope(event.target.value as EconomyScope)
+              setHistoryOffset(0)
+              setOffset(0)
+            }}
+          >
+            <option value="REAL">{ru ? "Основной счёт" : "Real economy"}</option>
+            <option value="SANDBOX">{ru ? "Тестовый счёт" : "Sandbox"}</option>
+          </select>
+          {scope === "SANDBOX" && (
+            <small>
+              {ru
+                ? "Покупки тестовыми монетами создают тестовые экземпляры."
+                : "Sandbox purchases create test copies."}
+            </small>
+          )}
+        </label>
+      )}
       {(error || cards.error || wallet.error) && (
         <p role="alert">
           {error || cards.error || wallet.error}{" "}
@@ -157,16 +213,23 @@ export default function ArchivePage({
         </p>
       )}
       {notice && <p role="status">{notice}</p>}
-      <TransactionStatus transaction={transaction} favorites={favorites} />
+      <TransactionStatus
+        transaction={transaction}
+        favorites={receiptScope === activeScope ? favorites : receiptFavorites}
+      />
       {view === "packs" && (
         <PackShop
+          key={activeScope}
+          scope={activeScope}
           revision={collectionRevision}
-          balance={wallet.data?.balance || 0}
+          balance={wallet.data?.available_balance ?? wallet.data?.balance ?? 0}
           transaction={transaction}
         />
       )}
       {view === "collection" && (
         <CollectionPage
+          key={activeScope}
+          scope={activeScope}
           favorites={favorites}
           csrf={csrf}
           meta={meta.data}
@@ -188,50 +251,65 @@ export default function ArchivePage({
         <p role="status">{ru ? "Загружаем счёт…" : "Loading wallet…"}</p>
       )}
       {view === "wallet" && wallet.data && (
-        <div className="archive-panel">
-          <h2>{ru ? "История жетонов" : "Token history"}</h2>
-          <p>
-            {ru
-              ? "Жетоны тратятся на конверты или конкретные карточки в каталоге. История показывает заработок, покупки, обмен дублей и выдачу OWNER. XP за матчи учитывается отдельно."
-              : "Spend tokens on envelopes or specific catalogue cards. This history includes earnings, purchases, duplicate recycling and OWNER adjustments. Match XP is separate."}
-          </p>
-          {wallet.data.history.length ? (
-            <ul className="archive-ledger">
-              {wallet.data.history.map((item) => (
-                <li key={item.id}>
-                  <span>{new Date(item.created_at).toLocaleString(locale)}</span>
-                  <span>
-                    {
-                      ({
-                        CIPHER: ["Шифр бюро", "Bureau cipher"],
-                        PACK_OPEN: ["Открытие конверта", "Pack opening"],
-                        DIRECT_CARD: ["Получение карточки", "Direct card"],
-                        RECYCLE: ["Обмен дубля", "Duplicate recycling"],
-                        OWNER_TOKENS: ["Корректировка OWNER", "OWNER adjustment"],
-                      }[item.reason] || [item.reason, item.reason])[ru ? 0 : 1]
-                    }
-                  </span>
-                  <b>
-                    {item.delta > 0 ? "+" : ""}
-                    {item.delta} <Icon name="coins" size={18} />
-                  </b>
-                </li>
-              ))}
-            </ul>
-          ) : (
+        <>
+          {activeScope === "REAL" && <CoinRewards />}
+          <div className="archive-panel">
+            <h2>{ru ? "История монет" : "Coin history"}</h2>
+            <p>
+              {ru ? "Доступно" : "Available"}:{" "}
+              {wallet.data.available_balance ?? wallet.data.balance} ·{" "}
+              {ru ? "Итоговый баланс" : "Net balance"}:{" "}
+              {wallet.data.net_balance ?? wallet.data.balance} · {ru ? "Долг" : "Debt"}:{" "}
+              {wallet.data.debt ?? 0}
+            </p>
             <p>
               {ru
-                ? "Пока нет начислений. Начни с шифра бюро."
-                : "No entries yet. Start with a cipher."}
+                ? "Монеты тратятся на конверты или конкретные карточки в каталоге. История показывает источник каждой операции. Новые награды сначала погашают долг. XP за матчи учитывается отдельно."
+                : "Spend coins on envelopes or specific catalogue cards. Each entry identifies its source. New rewards repay debt first. Match XP is separate."}
             </p>
-          )}
-          <Pager
-            offset={historyOffset}
-            total={wallet.data.history_total}
-            size={20}
-            setOffset={setHistoryOffset}
-          />
-        </div>
+            {wallet.data.history.length ? (
+              <ul className="archive-ledger">
+                {wallet.data.history.map((item) => (
+                  <li key={item.id}>
+                    <span>{new Date(item.created_at).toLocaleString(locale)}</span>
+                    <span>
+                      {
+                        ({
+                          CIPHER: ["Шифр бюро", "Bureau cipher"],
+                          PACK_OPEN: ["Открытие конверта", "Pack opening"],
+                          DIRECT_CARD: ["Получение карточки", "Direct card"],
+                          RECYCLE: ["Обмен дубля", "Duplicate recycling"],
+                          OWNER_TOKENS: ["Корректировка OWNER", "OWNER adjustment"],
+                          OWNER_REAL_ADJUSTMENT: [
+                            "Ручная корректировка основного баланса",
+                            "Manual real balance correction",
+                          ],
+                          CONTRACT: ["Контракт", "Contract"],
+                          CONTRACT_REWARD: ["Контракт", "Contract"],
+                          CASE_BONUS: ["Бонус дела", "Case bonus"],
+                          COIN_CORRECTION: ["Исправление награды", "Reward correction"],
+                        }[item.reason] || [item.reason, item.reason])[ru ? 0 : 1]
+                      }
+                      {item.source && <small> · {item.source}</small>}
+                    </span>
+                    <b>
+                      {item.delta > 0 ? "+" : ""}
+                      {item.delta} <Icon name="coins" size={18} />
+                    </b>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p>{ru ? "Пока нет операций на этом счёте." : "No entries in this wallet yet."}</p>
+            )}
+            <Pager
+              offset={historyOffset}
+              total={wallet.data.history_total}
+              size={20}
+              setOffset={setHistoryOffset}
+            />
+          </div>
+        </>
       )}
       {view === "mine" && editing && (
         <CardStudio
@@ -386,17 +464,19 @@ export default function ArchivePage({
                         transaction.busy ||
                         !!transaction.pending ||
                         !wallet.data ||
-                        wallet.data.balance < meta.data!.direct_costs[card.rank]
+                        (wallet.data.available_balance ?? wallet.data.balance) <
+                          meta.data!.direct_costs[card.rank]
                       }
                       onClick={() =>
                         void transaction.execute(`/api/archive/cards/${card.id}/acquire`, {
                           expected_price: meta.data!.direct_costs[card.rank],
+                          scope: activeScope,
                         })
                       }
                     >
                       {ru
-                        ? `Получить за ${meta.data!.direct_costs[card.rank]} жет.`
-                        : `Acquire for ${meta.data!.direct_costs[card.rank]} tokens`}
+                        ? `Получить за ${meta.data!.direct_costs[card.rank]} монет`
+                        : `Acquire for ${meta.data!.direct_costs[card.rank]} coins`}
                     </button>
                   )}
                   {view === "mine" && (

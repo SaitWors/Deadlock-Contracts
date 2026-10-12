@@ -449,8 +449,8 @@ export default function Landing() {
                 </h2>
                 <p>
                   {language === "ru"
-                    ? "Решайте шифры, получайте жетоны архива и открывайте карточки. Жетоны и матчевый XP считаются отдельно. Компаньон не нужен."
-                    : "Solve ciphers, earn archive tokens and open cards. Tokens are separate from match XP. No companion required."}
+                    ? "Решайте шифры, получайте монеты бюро и открывайте карточки. Монеты и матчевый XP считаются отдельно. Компаньон не нужен."
+                    : "Solve ciphers, earn Bureau coins and open cards. Coins are separate from match XP. No companion required."}
                 </p>
                 <a href={publicUrl("try", language)}>
                   {language === "ru" ? "Разгадать первый шифр" : "Try your first cipher"}

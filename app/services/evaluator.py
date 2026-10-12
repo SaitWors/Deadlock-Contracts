@@ -595,6 +595,11 @@ def evaluate_board(
             option.status = result.status
             option.settled_at = utcnow()
 
+            # Reserve the played-period quota with the final decision. The
+            # separate durable coin event is delivered independently of XP.
+            from .coin_rewards import settle_assignment
+            settle_assignment(db, option.id)
+
             db.add(
                 OutboxEvent(
                     event_type="assignment.settled",

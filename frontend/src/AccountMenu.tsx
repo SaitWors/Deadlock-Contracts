@@ -89,7 +89,9 @@ export default function AccountMenu({
           <b>{user.display_name}</b>
           <small>
             LVL {level} · <Icon name="coins" size={14} />{" "}
-            {wallet.data ? wallet.data.balance.toLocaleString(locale) : "—"}
+            {wallet.data
+              ? (wallet.data.available_balance ?? wallet.data.balance).toLocaleString(locale)
+              : "—"}
           </small>
         </span>
         <Icon name="chevron-down" size={16} />
@@ -109,14 +111,21 @@ export default function AccountMenu({
           </header>
           <div className="bureau-wallet-strip">
             <div>
-              <small>{ru ? "Жетоны архива" : "Archive tokens"}</small>
+              <small>{ru ? "Монеты бюро" : "Bureau coins"}</small>
               <b>
                 <Icon name="coins" />{" "}
-                {wallet.data ? wallet.data.balance.toLocaleString(locale) : "—"}
+                {wallet.data
+                  ? (wallet.data.available_balance ?? wallet.data.balance).toLocaleString(locale)
+                  : "—"}
               </b>
+              {!!wallet.data?.debt && (
+                <small>
+                  {ru ? "Долг" : "Debt"}: {wallet.data.debt.toLocaleString(locale)}
+                </small>
+              )}
             </div>
             <button ref={first} onClick={() => go("archive")}>
-              {ru ? "Заработать" : "Earn tokens"}
+              {ru ? "Заработать" : "Earn coins"}
             </button>
           </div>
           {wallet.error && (
@@ -173,7 +182,7 @@ export default function AccountMenu({
               <Icon name="layers" />
             </button>
             <button onClick={() => go("wallet")}>
-              {ru ? "История жетонов" : "Token history"}
+              {ru ? "История монет" : "Coin history"}
               <Icon name="coins" />
             </button>
             <button onClick={() => go("history")}>

@@ -1347,10 +1347,12 @@ app.include_router(build_hero_votes_router(_require_permission))
 from .archive import build_router as build_archive_router
 
 from .archive_packs import build_router as build_archive_packs_router
+from .coin_rewards import build_router as build_coin_rewards_router
 
 # Specific acquisition routes precede the existing card author-action route.
 app.include_router(build_archive_packs_router(_require_permission, _effective_access_role))
 app.include_router(build_archive_router(_require_permission, _effective_access_role))
+app.include_router(build_coin_rewards_router(_require_permission))
 
 def _require_owner(admin: User = Depends(_require_admin)) -> User:
     if _effective_access_role(admin) != "OWNER":
@@ -1474,6 +1476,8 @@ def _history_items(
     )
 
     assignment_ids = [option.id for option in options]
+    from .services.coin_rewards import assignment_receipts
+    coin_receipts = assignment_receipts(db, assignment_ids, user.id)
     evaluations = (
         list(
             db.scalars(
@@ -1560,6 +1564,7 @@ def _history_items(
         items.append(
             {
                 "assignment_id": option.id,
+                "coin_reward": coin_receipts.get(option.id),
                 "board_id": option.board_id,
                 "game_match_mode": option.board.game_match_mode,
                 "board_status": option.board.status,
@@ -1604,6 +1609,8 @@ def _history_cases(
     offset: int = 0,
 ) -> list[dict[str, Any]]:
     board_ids = _history_case_ids(db, user, limit, offset)
+    from .services.coin_rewards import case_receipts
+    coin_receipts = case_receipts(db, board_ids, user.id)
     items = _history_items(db, user, board_ids=board_ids)
     items_by_board: dict[str, list[dict[str, Any]]] = {
         board_id: [] for board_id in board_ids
@@ -1623,6 +1630,7 @@ def _history_cases(
         cases.append(
             {
                 "board_id": board_id,
+                "coin_reward": coin_receipts.get(board_id),
                 "game_match_mode": first["game_match_mode"],
                 "status": first["board_status"],
                 "locked_at": first["locked_at"],

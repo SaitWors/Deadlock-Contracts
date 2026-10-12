@@ -1,5 +1,32 @@
 export const RANKS = ["F", "E", "D", "C", "B", "A", "S", "SS", "SSS"] as const
 export type Rank = (typeof RANKS)[number]
+export type EconomyScope = "REAL" | "SANDBOX"
+export type WalletBalance = {
+  scope: EconomyScope
+  net_balance: number
+  available_balance: number
+  debt: number
+}
+export type CoinReward = {
+  id?: string
+  source_type: string
+  source_id: string
+  nominal_amount: number
+  amount: number
+  reason: string
+  status: string
+  created_at?: string
+  delivered_at?: string | null
+}
+export type CoinRewardStatus = {
+  policy_version: string
+  enabled: boolean
+  quotas: Record<
+    "daily" | "weekly",
+    { limit: number; used: number; remaining: number; reset_at: string }
+  >
+  receipts: CoinReward[]
+}
 export type Card = {
   id: string
   hero: string
@@ -59,6 +86,10 @@ export type Receipt = {
   kind: string
   delta: number
   balance_after: number
+  scope?: EconomyScope
+  net_balance?: number
+  available_balance?: number
+  debt?: number
   created_at: string
   pack?: { id: string; title: string; price: number; revision: number; draws: number; odds: Odds[] }
   items: {
@@ -70,6 +101,7 @@ export type Receipt = {
   }[]
 }
 export type Inventory = {
+  scope?: EconomyScope
   items: {
     favorite: boolean
     card: Card
@@ -95,13 +127,25 @@ export type Round = {
 }
 export type Wallet = {
   balance: number
+  scope?: EconomyScope
+  net_balance?: number
+  available_balance?: number
+  debt?: number
+  wallets?: Record<EconomyScope, WalletBalance>
   currency: string
   weekly_limit: number
   reward: number
   completed: number
   reset_at: string
   round: Round | null
-  history: { id: string; delta: number; reason: string; created_at: string }[]
+  history: {
+    id: string
+    delta: number
+    reason: string
+    source?: string
+    scope?: EconomyScope
+    created_at: string
+  }[]
   history_total: number
 }
 export const STATUS = {
