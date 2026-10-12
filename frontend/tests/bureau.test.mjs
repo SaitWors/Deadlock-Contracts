@@ -262,3 +262,86 @@ test("disabled storage never blocks the guide or account navigation", () => {
   assert.equal(api.hasSeenGuide("private"), false)
   assert.doesNotThrow(() => api.rememberGuide("private"))
 })
+
+test("background history refresh retains all loaded pages and updates older verdicts", async () => {
+  const { api, doc, w } = runtime({ hash: "#history", language: "en" })
+  Object.defineProperty(doc, "visibilityState", { value: "visible" })
+  const fetch = w.fetch
+  const historyCalls = []
+  let refresh,
+    updated = false
+  const setInterval = w.setInterval.bind(w)
+  w.setInterval = (callback, delay, ...args) => {
+    if (delay === 20_000) refresh = callback
+    return setInterval(callback, delay, ...args)
+  }
+  const cases = Array.from({ length: 201 }, (_, i) => ({
+    board_id: `history-${i}`,
+    game_match_mode: "STANDARD",
+    status: "COMPLETED",
+    locked_at: "2026-09-08T00:00:00Z",
+    settled_at: "2026-09-08T01:00:00Z",
+    case_expires_at: null,
+    attempts_used: 1,
+    max_attempts: 3,
+    items: [
+      {
+        assignment_id: `assignment-${i}`,
+        board_id: `history-${i}`,
+        game_match_mode: "STANDARD",
+        title: `History contract ${i}`,
+        status: "COMPLETED",
+        reward_xp: 30,
+        reward_granted_xp: 30,
+        difficulty: "LIGHT",
+        rarity: "COMMON",
+        explanation: null,
+        match_id: null,
+        last_attempt_match_id: null,
+        locked_at: "2026-09-08T00:00:00Z",
+        settled_at: "2026-09-08T01:00:00Z",
+        evaluations: [],
+        attempts_used: 1,
+        max_attempts: 3,
+      },
+    ],
+  }))
+  w.fetch = async (url, init) => {
+    if (!url.startsWith("/api/history?")) return fetch(url, init)
+    historyCalls.push(url)
+    const query = new URL(url, w.location.origin).searchParams
+    const offset = Number(query.get("offset")),
+      limit = Math.min(200, Number(query.get("limit")))
+    return {
+      ok: true,
+      json: async () => ({
+        cases: cases
+          .slice(offset, offset + limit)
+          .map((item) =>
+            updated && item.board_id === "history-200"
+              ? { ...item, items: [{ ...item.items[0], title: "Updated older verdict" }] }
+              : item,
+          ),
+        total: cases.length,
+      }),
+    }
+  }
+  let root
+  try {
+    await api.act(async () => {
+      root = api.mountDashboard(doc.getElementById("mount"), session())
+    })
+    await api.act(async () => button(doc, "LOAD MORE").click())
+    await api.act(async () => button(doc, "LOAD MORE").click())
+    assert.equal(doc.querySelectorAll(".dc-case-file").length, 201)
+    updated = true
+    const beforeRefresh = historyCalls.length
+    await api.act(async () => refresh())
+    assert.equal(doc.querySelectorAll(".dc-case-file").length, 201)
+    assert.ok(doc.querySelector(".dc-case-archive").textContent.includes("Updated older verdict"))
+    assert.ok(historyCalls.slice(beforeRefresh).some((url) => url.includes("offset=200")))
+    assert.equal(button(doc, "LOAD MORE"), undefined)
+  } finally {
+    if (root) await api.act(async () => root.unmount())
+  }
+})

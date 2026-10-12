@@ -1,7 +1,7 @@
 import { after, before, test } from "node:test"
 import assert from "node:assert/strict"
 import path from "node:path"
-import { build } from "vite"
+import { build, normalizePath } from "vite"
 import { JSDOM } from "jsdom"
 
 let code
@@ -16,7 +16,7 @@ before(async () => {
       {
         name: "admin-console-test-export",
         transform(source, id) {
-          if (id === path.resolve("src/Dashboard.tsx"))
+          if (id === normalizePath(path.resolve("src/Dashboard.tsx")))
             return `${source}\nexport { AdminConsole }\n`
         },
       },

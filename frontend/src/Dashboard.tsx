@@ -1103,6 +1103,9 @@ export default function Dashboard({ initialSession }: { initialSession: SessionP
   const [companionDevices, setCompanionDevices] = useState<CompanionAccountDevice[]>([])
   const [pairing, setPairing] = useState<CompanionPairing | null>(null)
   const boardsRequest = useRef(0)
+  const historyRequest = useRef(0)
+  const historyPages = useRef(1)
+  const historyMorePending = useRef(false)
   const xpRef = useRef<HTMLSpanElement>(null)
   const ripple = useRipple()
   const cardTilt = useTilt(2)
@@ -1144,25 +1147,48 @@ export default function Dashboard({ initialSession }: { initialSession: SessionP
     })
   }, [csrf])
   const loadHistory = useCallback(async () => {
-    const data = await api<{ cases: HistoryCase[]; total: number }>(
-      "/api/history?limit=100&offset=0",
-      csrf,
+    if (historyMorePending.current) return
+    const request = ++historyRequest.current
+    const pages = await Promise.all(
+      Array.from({ length: historyPages.current }, (_, page) =>
+        api<{ cases: HistoryCase[]; total: number }>(
+          `/api/history?limit=100&offset=${page * 100}`,
+          csrf,
+        ),
+      ),
     )
-    setHistoryCases(data.cases)
-    setHistoryTotal(data.total)
+    if (request !== historyRequest.current) return
+    setHistoryCases([
+      ...new Map(pages.flatMap((page) => page.cases).map((item) => [item.board_id, item])).values(),
+    ])
+    setHistoryTotal(pages[0].total)
   }, [csrf])
   const loadMoreHistory = useCallback(async () => {
-    const data = await api<{ cases: HistoryCase[]; total: number }>(
-      `/api/history?limit=100&offset=${historyCases.length}`,
-      csrf,
-    )
-    setHistoryCases((current) => [
-      ...current,
-      ...data.cases.filter(
-        (next) => !current.some((existing) => existing.board_id === next.board_id),
-      ),
-    ])
-    setHistoryTotal(data.total)
+    if (historyMorePending.current) return
+    historyMorePending.current = true
+    const request = ++historyRequest.current
+    try {
+      const data = await api<{ cases: HistoryCase[]; total: number }>(
+        `/api/history?limit=100&offset=${historyCases.length}`,
+        csrf,
+      )
+      if (request !== historyRequest.current) return
+      historyPages.current = Math.max(
+        historyPages.current,
+        Math.ceil((historyCases.length + data.cases.length) / 100),
+      )
+      setHistoryCases((current) => [
+        ...current,
+        ...data.cases.filter(
+          (next) => !current.some((existing) => existing.board_id === next.board_id),
+        ),
+      ])
+      setHistoryTotal(data.total)
+    } catch (reason) {
+      setError((reason as Error).message)
+    } finally {
+      historyMorePending.current = false
+    }
   }, [csrf, historyCases.length])
   const loadProgression = useCallback(
     async () => setProgression(await api<Progression>("/api/progression", csrf)),
