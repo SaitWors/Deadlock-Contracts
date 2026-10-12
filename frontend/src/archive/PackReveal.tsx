@@ -148,7 +148,16 @@ export default function PackReveal({
   const itemSummary = (item: Receipt["items"][number]) => (
     <article key={item.id} data-rank={item.card.rank}>
       <CardSurface card={item.card} reduced={reduced} />
-      <p>{itemLabel(item)}</p>
+      <p>
+        {itemLabel(item)}
+        {item.forced && (
+          <span>
+            {" "}
+            · {ru ? "Гарантированный ранг" : "Guaranteed rank"}: {item.card.rank} (
+            {ru ? "исходный" : "natural"}: {item.natural_rank})
+          </span>
+        )}
+      </p>
       {favorites && <FavoriteButton controls={favorites} cardId={item.card.id} />}
     </article>
   )
@@ -297,6 +306,12 @@ export default function PackReveal({
                     ? "Нажми на карточку, чтобы раскрыть"
                     : "Tap the card to reveal it"}
               </p>
+              {faceUp && current.forced && (
+                <p className="pack-card-status">
+                  {ru ? "Гарантированный ранг" : "Guaranteed rank"}: {current.card.rank} ·{" "}
+                  {ru ? "Исходный ранг" : "Natural rank"}: {current.natural_rank}
+                </p>
+              )}
               {faceUp && (
                 <div className="pack-card-actions">
                   {favorites && (

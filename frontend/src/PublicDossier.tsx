@@ -4,6 +4,8 @@ import DossierView from "./community/DossierView"
 import { useResource } from "./community/api"
 import { LoadState } from "./community/Shared"
 import type { Profile } from "./community/types"
+import { lazy, Suspense } from "react"
+const PublicSquad = lazy(() => import("./arena/PublicSquad"))
 
 export default function PublicDossier({ slug }: { slug: string }) {
   const { language } = useLanguage()
@@ -42,7 +44,12 @@ export default function PublicDossier({ slug }: { slug: string }) {
         ) : !resource.data ? (
           <LoadState />
         ) : (
-          <DossierView profile={resource.data.profile} />
+          <>
+            <DossierView profile={resource.data.profile} />
+            <Suspense fallback={null}>
+              <PublicSquad slug={slug} />
+            </Suspense>
+          </>
         )}
       </main>
       <footer className="community-footer">

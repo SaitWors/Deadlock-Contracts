@@ -238,6 +238,13 @@ export function ReceiptView({
               <p>
                 {item.duplicate ? (ru ? "Дубль" : "Duplicate") : ru ? "Новая карточка" : "New card"}
                 {item.test_grant ? (ru ? " · Тестовый экземпляр" : " · Sandbox copy") : ""}
+                {item.forced && (
+                  <span>
+                    {" "}
+                    · {ru ? "Гарантированный ранг" : "Guaranteed rank"}: {item.card.rank} (
+                    {ru ? "исходный" : "natural"}: {item.natural_rank})
+                  </span>
+                )}
               </p>
             </article>
           ))}

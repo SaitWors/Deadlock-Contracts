@@ -69,3 +69,4 @@
 @media (prefers-reduced-motion: reduce) {
   .card-surface-shine, .card-surface-glare { display: none !important; animation: none !important; }
 }
+.card-surface[data-category=BASE] { aspect-ratio:8/5; }

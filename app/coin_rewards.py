@@ -23,7 +23,8 @@ def build_router(require_permission):
     @router.get("/archive/coin-rewards")
     def status(response: Response, user: User = Depends(require_user), db: Session = Depends(get_db)):
         no_store(response)
-        return service.status(db, user.id)
+        from .services.extra_coin_rewards import status as extra_status
+        return {**service.status(db, user.id), **extra_status(db, user.id)}
 
     @router.post("/owner/archive/coin-rewards/{entitlement_id}/correct", dependencies=[Depends(require_csrf)])
     def correct(entitlement_id: UUID, payload: Correction, response: Response,

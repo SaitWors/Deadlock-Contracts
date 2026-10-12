@@ -496,6 +496,10 @@ async def lifespan(_: FastAPI):
     with SessionLocal() as db:
         seed_missions(db)
         seed_archive_cards(db)
+        from .services.battle_catalog import seed_battle_catalogue
+        from .services.archive_packs import seed_pack_v2
+        seed_battle_catalogue(db)
+        seed_pack_v2(db)
         db.execute(delete(SessionToken).where(SessionToken.expires_at <= now))
         db.execute(delete(OpenIDState).where(OpenIDState.expires_at <= now))
         db.execute(delete(CompanionPairing).where(CompanionPairing.expires_at <= now))
@@ -1353,6 +1357,10 @@ from .coin_rewards import build_router as build_coin_rewards_router
 app.include_router(build_archive_packs_router(_require_permission, _effective_access_role))
 app.include_router(build_archive_router(_require_permission, _effective_access_role))
 app.include_router(build_coin_rewards_router(_require_permission))
+from .card_battle import build_router as build_card_battle_router
+from .arena_metrics import build_router as build_arena_metrics_router
+app.include_router(build_card_battle_router(_require_permission, _effective_access_role))
+app.include_router(build_arena_metrics_router(_require_permission))
 
 def _require_owner(admin: User = Depends(_require_admin)) -> User:
     if _effective_access_role(admin) != "OWNER":
@@ -4790,6 +4798,8 @@ def delete_account(
     db: Session = Depends(get_db),
 ) -> dict:
     leave_for_account_deletion(db, user.id)
+    from .services.arena_privacy import purge_account_battles
+    purge_account_battles(db, user.id)
     from .models import ArchiveCard
     db.execute(delete(ArchiveCard).where(ArchiveCard.creator_id == user.id, ArchiveCard.status.notin_(["PUBLISHED", "ARCHIVED"])))
     account_id = user.account_id

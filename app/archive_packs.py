@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from uuid import UUID
+from typing import Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Response
 from pydantic import Field, field_validator
@@ -23,6 +24,7 @@ class Entry(Strict):
 
 
 class PackDesign(Strict):
+    kind: Literal["LEGACY", "NIGHT_ENVELOPE", "SPECIAL_FOLDER"] = "LEGACY"
     title: str = Field(min_length=2, max_length=80)
     description: str = Field(default="", max_length=600)
     price: int = Field(ge=1, le=100000, strict=True)
@@ -51,6 +53,7 @@ class RequestKey(Strict):
 class OpenPack(RequestKey):
     revision: int = Field(ge=1, strict=True)
     starter: bool = False
+    guarantee_revision: int | None = Field(default=None, ge=0, strict=True)
 
 
 class AcquireCard(RequestKey):
@@ -111,13 +114,13 @@ class Favorite(Strict):
 def build_router(require_permission, effective_role):
     router = APIRouter(prefix="/api", tags=["Archive packs"])
 
-    def packs(db, offset, *, owner=False):
+    def packs(db, offset, *, owner=False, user_id=None, scope="REAL"):
         statement = select(ArchivePack)
         if not owner:
             statement = statement.where(ArchivePack.active.is_(True))
         total = db.scalar(select(func.count()).select_from(statement.subquery()))
         rows = db.scalars(statement.order_by(ArchivePack.created_at.desc(), ArchivePack.id).offset(offset).limit(8)).all()
-        return {"items": [service.pack_payload(db, row) for row in rows], "total": total}
+        return {"items": [service.pack_payload(db, row, user_id=user_id, scope=scope) for row in rows], "total": total}
 
     @router.get("/archive/packs")
     def catalog(response: Response, offset: int = Query(default=0, ge=0, le=100000),
@@ -127,15 +130,16 @@ def build_router(require_permission, effective_role):
         benefit_key = "starter" if scope == "REAL" else "starter:sandbox"
         claimed = db.scalar(select(ArchiveOperation.id).where(ArchiveOperation.user_id == user.id,
                                                               ArchiveOperation.benefit_key == benefit_key))
-        return {**packs(db, offset), "starter_claimed": bool(claimed), "scope": scope}
+        return {**packs(db, offset, user_id=user.id, scope=scope), "starter_claimed": bool(claimed), "scope": scope}
 
     @router.get("/archive/packs/{pack_id}")
-    def details(pack_id: UUID, response: Response, user: User = Depends(require_user), db: Session = Depends(get_db)):
+    def details(pack_id: UUID, response: Response, scope: EconomyScope = "REAL",
+                user: User = Depends(require_user), db: Session = Depends(get_db)):
         no_store(response)
         pack = db.get(ArchivePack, str(pack_id))
         if not pack or (not pack.active and effective_role(user) != "OWNER"):
             raise HTTPException(404, "Pack not found")
-        return {"pack": service.pack_payload(db, pack, detailed=True)}
+        return {"pack": service.pack_payload(db, pack, detailed=True, user_id=user.id, scope=scope)}
 
     @router.post("/archive/packs/{pack_id}/open", dependencies=[Depends(require_csrf)])
     def open_pack(pack_id: UUID, payload: OpenPack, user: User = Depends(require_user), db: Session = Depends(get_db)):
@@ -238,12 +242,14 @@ def build_router(require_permission, effective_role):
     def own_packs(response: Response, offset: int = Query(default=0, ge=0, le=100000),
                   owner: User = Depends(require_permission("packs.manage")), db: Session = Depends(get_db)):
         no_store(response)
-        return packs(db, offset, owner=True)
+        return packs(db, offset, owner=True, user_id=owner.id)
 
     @router.post("/owner/archive/packs/preview", dependencies=[Depends(require_csrf)])
     def preview(payload: PackDesign, owner: User = Depends(require_permission("packs.manage")), db: Session = Depends(get_db)):
         config = service.configuration(db, payload)
-        return {"recommendation": service.recommendation(config["entries"], config["draws"]), "odds": service.rank_odds(config["entries"])}
+        is_v2 = config.get("rule_version") == service.pack_rules.RULE_VERSION
+        return {"recommendation": service.v2_recommendation(config) if is_v2 else service.recommendation(config["entries"], config["draws"]),
+                "odds": service.pack_rules.slot_odds("ORDINARY") if is_v2 else service.rank_odds(config["entries"])}
 
     @router.post("/owner/archive/packs", dependencies=[Depends(require_csrf)])
     def create(payload: PackDesign, owner: User = Depends(require_permission("packs.manage")), db: Session = Depends(get_db)):
@@ -266,6 +272,9 @@ def build_router(require_permission, effective_role):
             raise HTTPException(404, "Pack not found")
         if pack.revision != payload.revision:
             raise HTTPException(409, "Конверт изменился. Обновите редактор / Refresh pack editor")
+        previous = service.pack_version(db, pack)
+        if "kind" not in payload.model_fields_set and previous.config.get("kind") in service.pack_rules.PRESETS:
+            payload = payload.model_copy(update={"kind": previous.config["kind"]})
         config = service.configuration(db, payload)
         pack.revision += 1
         pack.active, pack.starter, pack.updated_at = payload.active, payload.starter, utcnow()

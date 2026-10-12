@@ -15,6 +15,9 @@ from sqlalchemy import func, select
 from ..models import ArchiveCard, ArchiveCipher, ArchiveLedger, AuditLog, User, utcnow
 
 RANKS = ("F", "E", "D", "C", "B", "A", "S", "SS", "SSS")
+HERO_RANKS = RANKS
+CATALOG_RANKS = (*HERO_RANKS, "EX")
+BASES = {"HIDDEN_KING": "Тайный король / Hidden King", "ARCHMOTHER": "Архиматерь / Archmother"}
 # Roster snapshot: https://deadlock-api.com/heroes, 2026-09-08, plus the six
 # City Never Sleeps posters: https://www.playdeadlock.com/cityneversleeps.
 # These are catalogue keys, deliberately not Valve numeric hero IDs.
@@ -72,11 +75,32 @@ def image_bytes(encoded):
         raise HTTPException(422, "Нужен статичный PNG/JPEG/WebP до 300 КБ, от 240 до 2048 px / Invalid image") from None
 
 
-def card_payload(card, *, private=False, staff=False):
+def battle_metadata(db, cards):
+    """Publication is independent of the explicit server-approved battle link."""
+    from ..battle_models import BattleArtwork, BattleDefinitionVersion
+    cards_by_id = {card.id: card for card in cards}
+    if not cards_by_id:
+        return {}
+    rows = db.execute(select(BattleArtwork, BattleDefinitionVersion).join(
+        BattleDefinitionVersion, BattleDefinitionVersion.id == BattleArtwork.definition_id).where(
+        BattleArtwork.card_id.in_(cards_by_id), BattleArtwork.approved.is_(True), BattleDefinitionVersion.approved.is_(True))).all()
+    result = {}
+    for artwork, definition in rows:
+        card = cards_by_id[artwork.card_id]
+        expected = "BASE" if card.rank == "EX" else "HERO"
+        if definition.key == card.hero and definition.category == expected and card.rank in CATALOG_RANKS:
+            result[card.id] = {"category": expected, "battle_eligible": True, "definition_key": definition.key,
+                               "definition_id": definition.id, "definition_version": definition.version}
+    return result
+
+
+def card_payload(card, *, private=False, staff=False, battle=None):
     from .archive_seed import is_release_poster
     result = {key: getattr(card, key) for key in (
         "id", "hero", "rank", "title", "description", "artist", "source_url", "crop_x", "crop_y", "zoom", "frame_version", "status", "revision")}
-    result["hero_name"] = HEROES.get(card.hero, card.hero)
+    result["hero_name"] = HEROES.get(card.hero, BASES.get(card.hero, card.hero))
+    result.update(category="BASE" if card.rank == "EX" else "HERO", battle_eligible=False)
+    result.update(battle or {})
     result["release_poster"] = is_release_poster(card)
     prefix = "/api/admin/archive/cards" if staff else "/api/archive/cards"
     result["image_url"] = f"{prefix}/{card.id}/image?r={card.revision}" if card.image_digest else None
@@ -92,8 +116,10 @@ def audit(db, user_id, card, action, **data):
 
 
 def set_design(card, payload):
-    if payload.hero not in HEROES:
+    if payload.hero not in HEROES and payload.hero not in BASES:
         raise HTTPException(422, "Выберите героя из списка / Choose a listed hero")
+    if (payload.rank == "EX") != (payload.hero in BASES):
+        raise HTTPException(422, "Ранг EX предназначен для баз покровителей / EX is reserved for patron bases")
     for field in ("hero", "rank", "title", "description", "artist", "source_url", "rights_confirmed", "crop_x", "crop_y", "zoom"):
         setattr(card, field, getattr(payload, field))
     if payload.image is not None:

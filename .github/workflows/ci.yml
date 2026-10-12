@@ -191,6 +191,12 @@ jobs:
       - name: Verify pack opening concurrency
         run: python scripts/ci_pack_smoke.py
 
+      - name: Verify paid pack v2 guarantees and rollback
+        run: python scripts/ci_pack_v2_smoke.py
+
+      - name: Verify arena commands and bounded reward concurrency
+        run: python scripts/ci_arena_smoke.py
+
       - name: Verify final head
         run: |
           python -m alembic current --check-heads

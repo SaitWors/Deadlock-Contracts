@@ -614,6 +614,8 @@ def decide_review(
 
             from .coin_rewards import settle_assignment
             settle_assignment(db, option.id)
+            from .extra_coin_rewards import record_assignment
+            record_assignment(db, option.id)
 
             reward_xp = option.reward_xp if option.status == "COMPLETED" else 0
             outcome = {

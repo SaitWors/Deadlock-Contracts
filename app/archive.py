@@ -20,7 +20,7 @@ from .services import archive_packs as packs
 from .services.archive_seed import release_artwork_path
 from .services.auth import require_csrf, require_user
 
-Rank = Literal["F", "E", "D", "C", "B", "A", "S", "SS", "SSS"]
+Rank = Literal["F", "E", "D", "C", "B", "A", "S", "SS", "SSS", "EX"]
 EconomyScope = Literal["REAL", "SANDBOX"]
 
 
@@ -86,7 +86,9 @@ def build_router(require_permission, effective_role):
     @router.get("/archive/meta")
     def meta(response: Response, user: User = Depends(require_user)):
         no_store(response)
-        return {"ranks": service.RANKS, "heroes": [{"key": key, "name": name} for key, name in service.HEROES.items()],
+        return {"ranks": service.CATALOG_RANKS, "hero_ranks": service.HERO_RANKS,
+                "heroes": [{"key": key, "name": name} for key, name in service.HEROES.items()],
+                "categories": ["HERO", "BASE"], "bases": [{"key": key, "name": name} for key, name in service.BASES.items()],
                 "can_publish": effective_role(user) in {"ADMIN", "OWNER"}, "frame_version": 1,
                 "can_manage_packs": effective_role(user) == "OWNER", "direct_costs": packs.DIRECT_COST,
                 "default_weights": packs.DEFAULT_WEIGHTS, "price_model": packs.PRICE_MODEL,
@@ -135,17 +137,27 @@ def build_router(require_permission, effective_role):
             item.status = "ASSISTED" if assisted else "SOLVED"
             item.completed_at = utcnow()
             service.credit_wallet(db, user.id, "cipher:" + item.id, "CIPHER", 30)
+            from .services.extra_coin_rewards import record_cipher
+            record_cipher(db, item)
         db.commit()
         return {"round": service.cipher_payload(item)}
 
-    def listing(db, statement, offset, *, private=False, staff=False):
+    def listing(db, statement, offset, *, private=False, staff=False, user_id=None, scope="REAL"):
         total = db.scalar(select(func.count()).select_from(statement.subquery()))
         rows = db.scalars(statement.order_by(ArchiveCard.updated_at.desc(), ArchiveCard.id).offset(offset).limit(18)).all()
-        return {"items": [service.card_payload(row, private=private, staff=staff) for row in rows], "total": total}
+        metadata = service.battle_metadata(db, rows)
+        items = [service.card_payload(row, private=private, staff=staff, battle=metadata.get(row.id)) for row in rows]
+        if user_id:
+            for card, item in zip(rows, items):
+                if card.rank == "EX":
+                    from .services.battle_service import ex_access
+                    item["ex_access"] = ex_access(db, user_id, card, scope)
+        return {"items": items, "total": total}
 
     @router.get("/archive/cards")
     def catalog(response: Response, mine: bool = False, hero: str = Query(default="", max_length=40), rank: Rank | None = None,
                 q: str = Query(default="", max_length=80), offset: int = Query(default=0, ge=0, le=100000),
+                scope: EconomyScope = "REAL",
                 user: User = Depends(require_user), db: Session = Depends(get_db)):
         no_store(response)
         statement = select(ArchiveCard)
@@ -157,7 +169,7 @@ def build_router(require_permission, effective_role):
         if q:
             escaped = q.replace("\\", "\\\\").replace("%", r"\%").replace("_", r"\_")
             statement = statement.where(or_(ArchiveCard.title.ilike(f"%{escaped}%", escape="\\"), ArchiveCard.artist.ilike(f"%{escaped}%", escape="\\")))
-        return listing(db, statement, offset, private=mine)
+        return listing(db, statement, offset, private=mine, user_id=user.id, scope=scope)
 
     @router.get("/archive/coverage")
     def coverage(response: Response, user: User = Depends(require_user), db: Session = Depends(get_db)):

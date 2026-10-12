@@ -28,7 +28,7 @@ class Decision(Strict):
 
 
 class NewOperation(Strict):
-    template: Literal["city_cases", "field_hospital", "five_witnesses"]
+    template: Literal["city_cases", "field_hospital", "five_witnesses", "quarter_defence"]
     days: Literal[1, 3, 7] = 7
 
 

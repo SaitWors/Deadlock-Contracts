@@ -9,6 +9,7 @@ import Cipher from "./Cipher"
 import PackShop from "./PackShop"
 import CollectionPage from "./CollectionPage"
 import CoinRewards from "./CoinRewards"
+import { accessReason } from "./battleAccess"
 import { useFavorites } from "./favorites"
 import { TransactionStatus, useTransaction } from "./transactions"
 import { RANKS, type Card, type EconomyScope, type Meta, type Wallet } from "./types"
@@ -288,6 +289,12 @@ export default function ArchivePage({
                           CONTRACT_REWARD: ["Контракт", "Contract"],
                           CASE_BONUS: ["Бонус дела", "Case bonus"],
                           COIN_CORRECTION: ["Исправление награды", "Reward correction"],
+                          PVE_WIN: ["Победа PvE", "PvE win"],
+                          DAILY_ACTIVITY: ["Активность за день", "Daily activity"],
+                          WEEKLY_COMMISSION: ["Недельный заказ", "Weekly commission"],
+                          TUTORIAL_ROUTE: ["Обучающий маршрут", "Tutorial route"],
+                          CONTRACT_MILESTONE: ["Рубеж контрактов", "Contract milestone"],
+                          BUREAU_OPERATION: ["Операция бюро", "Bureau operation"],
                         }[item.reason] || [item.reason, item.reason])[ru ? 0 : 1]
                       }
                       {item.source && <small> · {item.source}</small>}
@@ -400,7 +407,7 @@ export default function ArchivePage({
                 }}
               >
                 <option value="">{ru ? "Все ранги" : "All ranks"}</option>
-                {RANKS.map((r) => (
+                {meta.data.ranks.map((r) => (
                   <option key={r}>{r}</option>
                 ))}
               </select>
@@ -463,6 +470,7 @@ export default function ArchivePage({
                       disabled={
                         transaction.busy ||
                         !!transaction.pending ||
+                        (card.rank === "EX" && card.ex_access?.eligible === false) ||
                         !wallet.data ||
                         (wallet.data.available_balance ?? wallet.data.balance) <
                           meta.data!.direct_costs[card.rank]
@@ -478,6 +486,32 @@ export default function ArchivePage({
                         ? `Получить за ${meta.data!.direct_costs[card.rank]} монет`
                         : `Acquire for ${meta.data!.direct_costs[card.rank]} coins`}
                     </button>
+                  )}
+                  {view === "catalog" && card.rank === "EX" && (
+                    <>
+                      <p>
+                        {ru
+                          ? "База EX: 2 очка состава. Доступ: аккаунту 7 дней, 20 проверенных контрактов или 15 наградных PvE-побед, победа в испытании этого покровителя и покупка за 1800 монет."
+                          : "EX base: 2 squad points. Requires a 7-day account, 20 verified contracts or 15 reward-eligible PvE wins, this patron's trial win and a 1800 coin purchase."}
+                      </p>
+                      {card.ex_access?.reasons.map((reason) => (
+                        <small key={reason}>{accessReason(reason, ru)} · </small>
+                      ))}
+                      <a href="#arena/squad">
+                        {ru ? "Проверить доступ и пройти испытание" : "Check access & play trial"}
+                      </a>
+                    </>
+                  )}
+                  {typeof card.battle_eligible === "boolean" && (
+                    <p>
+                      {card.battle_eligible
+                        ? ru
+                          ? "Боевой вариант одобрен"
+                          : "Approved battle variant"
+                        : ru
+                          ? "Коллекционный дизайн: боевой допуск ещё не выдан"
+                          : "Collectible artwork: battle approval pending"}
+                    </p>
                   )}
                   {view === "mine" && (
                     <div className="archive-actions">

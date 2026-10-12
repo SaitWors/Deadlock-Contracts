@@ -40,6 +40,7 @@ export function NightshiftNav({
         ["packs", ru ? "Конверты" : "Envelopes", "mail"],
         ["studio", ru ? "Мастерская" : "Card studio", "palette"],
         ["wallet", ru ? "История монет" : "Coin history", "coins"],
+        ["arena", ru ? "Арена бюро" : "Bureau arena", "swords"],
       ],
     },
     {

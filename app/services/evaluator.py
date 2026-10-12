@@ -599,6 +599,8 @@ def evaluate_board(
             # separate durable coin event is delivered independently of XP.
             from .coin_rewards import settle_assignment
             settle_assignment(db, option.id)
+            from .extra_coin_rewards import record_assignment
+            record_assignment(db, option.id)
 
             db.add(
                 OutboxEvent(

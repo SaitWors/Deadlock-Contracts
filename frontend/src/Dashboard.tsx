@@ -38,6 +38,7 @@ import {
 } from "./i18n"
 
 const ArchivePage = lazy(() => import("./archive/ArchivePage"))
+const ArenaPage = lazy(() => import("./arena/ArenaPage"))
 const CoinRewardReceipt = lazy(() => import("./archive/CoinRewardReceipt"))
 const CardReviewDesk = lazy(() => import("./admin/CardReviewDesk"))
 const OwnerArchiveDesk = lazy(() => import("./admin/OwnerArchiveDesk"))
@@ -708,6 +709,7 @@ type Tab =
   | "wallet"
   | "packs"
   | "collection"
+  | "arena"
 type QuestFilter = "ALL" | "COMBAT" | "SUPPORT" | "ECONOMY" | "SURVIVAL"
 
 class ApiError extends Error {
@@ -1046,6 +1048,7 @@ export default function Dashboard({ initialSession }: { initialSession: SessionP
         "wallet",
         "packs",
         "collection",
+        "arena",
         "admin",
       ].includes(hash)
     )
@@ -1496,6 +1499,7 @@ export default function Dashboard({ initialSession }: { initialSession: SessionP
           active: "Активное дело",
           history: "История дел",
           archive: "Шифры и каталог",
+          arena: "Арена бюро",
           collection: "Моя коллекция",
           packs: "Конверты",
           studio: "Мастерская",
@@ -1513,6 +1517,7 @@ export default function Dashboard({ initialSession }: { initialSession: SessionP
           active: "Active case",
           history: "Case history",
           archive: "Ciphers & catalog",
+          arena: "Bureau arena",
           collection: "My collection",
           packs: "Envelopes",
           studio: "Card studio",
@@ -1530,6 +1535,7 @@ export default function Dashboard({ initialSession }: { initialSession: SessionP
     ["active", language === "ru" ? "АКТИВНОЕ ДЕЛО" : "ACTIVE CASE", "case"],
     ["history", language === "ru" ? "ИСТОРИЯ ДЕЛ" : "CASE HISTORY", "case"],
     ["archive", language === "ru" ? "АРХИВ КАРТОЧЕК" : "CARD ARCHIVE", "case"],
+    ["arena", language === "ru" ? "АРЕНА БЮРО" : "BUREAU ARENA", "case"],
     ["achievements", language === "ru" ? "ДОСТИЖЕНИЯ" : "ACHIEVEMENTS", "case"],
     ["bureaus", language === "ru" ? "СООБЩЕСТВА" : "COMMUNITIES", "hq"],
     ["leaderboard", language === "ru" ? "РЕЙТИНГ" : "LEADERBOARD", "case"],
@@ -2457,6 +2463,15 @@ export default function Dashboard({ initialSession }: { initialSession: SessionP
             </>
           )}
 
+          {tab === "arena" && (
+            <Suspense
+              fallback={
+                <p role="status">{language === "ru" ? "Открываем арену…" : "Opening arena…"}</p>
+              }
+            >
+              <ArenaPage csrf={csrf} accountKey={user.id} />
+            </Suspense>
+          )}
           {["archive", "studio", "wallet", "packs", "collection"].includes(tab) && (
             <Suspense
               fallback={
@@ -4019,7 +4034,11 @@ function AdminConsole({
 
       {section === "packs" && (
         <Suspense fallback={<p role="status">{copy("Конверты / Packs…")}</p>}>
-          <OwnerArchiveDesk csrf={csrf} permissions={auth.permissions} />
+          <OwnerArchiveDesk
+            csrf={csrf}
+            permissions={auth.permissions}
+            isOwner={auth.admin.access_role === "OWNER"}
+          />
         </Suspense>
       )}
       {section === "hero_votes" && (

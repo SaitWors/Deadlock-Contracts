@@ -7,9 +7,96 @@ import CardPreview from "./CardPreview"
 import type { EconomyScope, Pack } from "./types"
 import type { useTransaction } from "./transactions"
 
-export function PackOdds({ pack }: { pack: Pick<Pack, "odds" | "draws"> }) {
+export function PackOdds({
+  pack,
+}: {
+  pack: Pick<Pack, "odds" | "draws" | "slots" | "guarantees" | "rule_version">
+}) {
   const { language, locale } = useLanguage()
   const ru = language === "ru"
+  const odds = (items: Pack["odds"]) => (
+    <div>
+      {items.map((odd) => (
+        <span key={odd.rank}>
+          <b>{odd.rank}</b> {odd.percent.toLocaleString(locale, { maximumFractionDigits: 4 })}%
+        </span>
+      ))}
+    </div>
+  )
+  if (pack.rule_version === "packs-v2" && pack.slots)
+    return (
+      <div className="archive-pack-odds">
+        <p>
+          {ru
+            ? `Карточек: ${pack.draws}. Ранг → герой → иллюстрация. Количество дизайнов не меняет вероятность ранга или героя. Возможны дубли.`
+            : `${pack.draws} cards. Rank → hero → artwork. Artwork counts do not change rank or hero probabilities. Duplicates are possible.`}
+        </p>
+        {["ORDINARY", "B_PLUS"].map((kind) => {
+          const slots = pack.slots!.filter((slot) => slot.kind === kind)
+          return (
+            slots.length > 0 && (
+              <section key={kind}>
+                <h3>
+                  {slots.length} ×{" "}
+                  {kind === "B_PLUS"
+                    ? ru
+                      ? "Слот B+"
+                      : "B+ slot"
+                    : ru
+                      ? "Обычный слот"
+                      : "Ordinary slot"}
+                </h3>
+                {odds(slots[0].odds)}
+              </section>
+            )
+          )
+        })}
+        <p>
+          {ru
+            ? "Общая гарантия двух платных выпусков: 30 карт без A+ → минимум A; 120 без S+ → минимум S; 360 без SSS → SSS. При совпадении действует старшая гарантия. Бесплатные выдачи и прямые покупки счётчики не меняют."
+            : "Shared guarantee across both paid releases: 30 cards without A+ → at least A; 120 without S+ → at least S; 360 without SSS → SSS. The highest due guarantee wins. Free grants and direct purchases do not change counters."}
+        </p>
+        {pack.guarantees ? (
+          <>
+            <dl className="archive-guarantees">
+              {(["a", "s", "sss"] as const).map((key) => (
+                <div key={key}>
+                  <dt>
+                    {ru ? "Без" : "Without"} {key.toUpperCase()}
+                    {key !== "sss" ? "+" : ""}
+                  </dt>
+                  <dd>
+                    {pack.guarantees![`without_${key}`]} / {pack.guarantees!.thresholds[key]}
+                  </dd>
+                </div>
+              ))}
+            </dl>
+            <p>
+              <b>
+                {ru ? "Следующий платный слот" : "Next paid slot"}:{" "}
+                {pack.guarantees.next_minimum_rank
+                  ? `${ru ? "минимум" : "at least"} ${pack.guarantees.next_minimum_rank}`
+                  : ru
+                    ? "по базовой таблице"
+                    : "base table"}
+              </b>
+            </p>
+            {odds(pack.guarantees.next_slot_odds)}
+            <small>
+              {ru
+                ? "Таблица следующего слота учитывает вашу гарантию. После каждой карты счётчики пересчитываются; последующие слоты могут иметь другие шансы."
+                : "The next-slot table includes your guarantee. Counters update after every card; later slots can have different odds."}
+            </small>
+          </>
+        ) : (
+          <p role="status">
+            {ru
+              ? "Для покупки нужно обновить личные гарантии."
+              : "Refresh personal guarantees before purchasing."}
+          </p>
+        )}
+      </div>
+    )
   return (
     <div className="archive-pack-odds">
       <p>
@@ -193,7 +280,11 @@ function PackDetails({
     `/api/archive/packs/${id}?refresh=${revision}&scope=${scope}`,
   )
   const pack = data.data?.pack
-  const locked = transaction.busy || !!transaction.pending || !pack?.ready
+  const locked =
+    transaction.busy ||
+    !!transaction.pending ||
+    !pack?.ready ||
+    (pack?.rule_version === "packs-v2" && !pack.guarantees)
   const panel = useRef<HTMLElement>(null)
   useEffect(() => {
     panel.current?.focus({ preventScroll: true })
@@ -228,6 +319,9 @@ function PackDetails({
                   revision: pack.revision,
                   starter: false,
                   scope,
+                  ...(pack.rule_version === "packs-v2"
+                    ? { guarantee_revision: pack.guarantees!.revision }
+                    : {}),
                 })
               }
             >
