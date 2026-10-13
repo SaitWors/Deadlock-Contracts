@@ -52,7 +52,7 @@ def assert_webp(response, expected):
 def test_rules_seed_creates_no_parallel_archive_cards(db):
     seed_battle_catalogue(db); seed_battle_catalogue(db)
     assert db.scalar(select(func.count()).select_from(ArchiveCard)) == 0
-    assert db.scalar(select(func.count()).select_from(BattleDefinitionVersion)) == 14
+    assert db.scalar(select(func.count()).select_from(BattleDefinitionVersion)) == 46
 
 
 @pytest.mark.parametrize("status", ["PUBLISHED", "ARCHIVED"])
@@ -89,7 +89,7 @@ def test_original_starter_uses_existing_catalogue_ids_and_does_not_create_cards(
 def test_missing_original_starter_is_reported_before_any_issuance(db):
     seed_battle_catalogue(db); user = player(db)
     view = arena.bootstrap(db, user.id)
-    assert view["starter"] == {"claimed": False, "available": False, "missing_heroes": list(arena.STARTER)}
+    assert view["starter"] == {"claimed": False, "available": False, "missing_heroes": list(arena.STARTER), "cards": []}
     with pytest.raises(Exception) as error:
         arena.claim_starter(db, user.id, str(uuid4()))
     assert error.value.status_code == 409
@@ -115,7 +115,7 @@ def test_explicit_revocation_or_mismatch_cannot_fall_back_to_default_rules(db):
 
 def test_unsupported_owned_hero_is_visible_as_unavailable_without_aliasing(db):
     seed_battle_catalogue(db); user = player(db)
-    card = ArchiveCard(hero="nurse-harrow", rank="F", title="Original Nurse Harrow", status="PUBLISHED")
+    card = ArchiveCard(hero="unlisted-hero", rank="F", title="Unlisted hero", status="PUBLISHED")
     db.add(card); db.flush()
     item = ArchiveItem(user_id=user.id, card_id=card.id, operation_id=acquisition(db, user),
                        scope="REAL", state="OWNED", cost_basis=25)
@@ -123,7 +123,7 @@ def test_unsupported_owned_hero_is_visible_as_unavailable_without_aliasing(db):
     view = arena.bootstrap(db, user.id)
     assert not view["inventory"]
     assert view["unavailable_inventory"][0]["item_id"] == item.id
-    assert view["unavailable_inventory"][0]["card"]["hero"] == "nurse-harrow"
+    assert view["unavailable_inventory"][0]["card"]["hero"] == "unlisted-hero"
     assert view["unavailable_inventory"][0]["reason"] == "UNSUPPORTED_HERO"
 
 

@@ -41,6 +41,38 @@ for _key, _effects in {
 }.items():
     HEROES[_key]["ability"].update(_effects)
 
+# Archive roster additions use bounded arena presets until bespoke rules are
+# published. Each keeps its own identity; the original twelve definitions above
+# are untouched, and the insert-only seeder preserves every historical version.
+# New keys use the legacy resolver's generic targeted attack; Gwent derives its
+# varied deploy effects from their roles without changing that frozen resolver.
+_ROSTER_PRESETS = {
+    "TANK": (610, 65, 12, 90), "FIGHTER": (520, 85, 10, 110),
+    "SHOOTER": (410, 100, 5, 110), "SUPPORT": (470, 65, 5, 80),
+    "MAGE": (440, 90, 5, 100), "ASSASSIN": (410, 110, 5, 100), "ENGINEER": (500, 70, 12, 100),
+}
+for _key, _name, _role in (
+    ("apollo", "Apollo", "FIGHTER"), ("baba", "Baba", "MAGE"), ("billy", "Billy", "FIGHTER"),
+    ("calico", "Calico", "ASSASSIN"), ("celeste", "Celeste", "SUPPORT"),
+    ("deadman-danny", "Deadman Danny", "FIGHTER"), ("drifter", "Drifter", "ASSASSIN"),
+    ("graves", "Graves", "ENGINEER"), ("grey-talon", "Grey Talon", "SHOOTER"),
+    ("holliday", "Holliday", "SHOOTER"), ("lash", "Lash", "FIGHTER"),
+    ("mina", "Mina", "ASSASSIN"), ("mirage", "Mirage", "MAGE"), ("mo-krill", "Mo & Krill", "TANK"),
+    ("nurse-harrow", "Nurse Harrow", "SUPPORT"), ("paige", "Paige", "SUPPORT"),
+    ("paradox", "Paradox", "MAGE"), ("pocket", "Pocket", "MAGE"), ("rat-king", "Rat King", "ENGINEER"),
+    ("rem", "Rem", "SUPPORT"), ("shiv", "Shiv", "FIGHTER"), ("silver", "Silver", "ASSASSIN"),
+    ("sinclair", "Sinclair", "MAGE"), ("solomon", "Solomon", "FIGHTER"),
+    ("the-doorman", "The Doorman", "TANK"), ("victor", "Victor", "TANK"),
+    ("vindicta", "Vindicta", "SHOOTER"), ("violet", "Violet", "SHOOTER"), ("viscous", "Viscous", "TANK"),
+    ("vyper", "Vyper", "ASSASSIN"), ("warden", "Warden", "FIGHTER"), ("yamato", "Yamato", "FIGHTER"),
+):
+    _hp, _attack, _armor, _ability_damage = _ROSTER_PRESETS[_role]
+    _ability_rules = _ability(_name, f"{_ability_damage} физического урона врагу линии",
+                             f"{_ability_damage} physical damage to a lane enemy", "ENEMY")
+    _ability_rules["damage"] = _ability_damage
+    HEROES[_key] = {"key": _key, "name": _name, "role": _role, "hp": _hp, "attack": _attack,
+                   "armor": _armor, "ability": _ability_rules}
+
 BASES = {
     "ORDINARY": {"key": "ORDINARY", "name": {"ru": "Обычная база", "en": "Ordinary base"}, "cost": 0,
                  "ability": {"cost": 0, "target": "NONE", "name": {"ru": "Без умения", "en": "No ability"}}},

@@ -67,9 +67,36 @@ class BaseAbility(Strict):
     line: int | None = Field(default=None, ge=0, le=2, strict=True)
 
 
+class PlayCard(Strict):
+    type: Literal["PLAY"]
+    card_id: str = Field(min_length=1, max_length=80)
+    row: int | None = Field(default=None, ge=0, le=2, strict=True)
+    target_id: str | None = Field(default=None, min_length=1, max_length=80)
+
+
+class PassTurn(Strict):
+    type: Literal["PASS"]
+
+
+class Leader(Strict):
+    type: Literal["LEADER"]
+    row: int | None = Field(default=None, ge=0, le=2, strict=True)
+    target_id: str | None = Field(default=None, min_length=1, max_length=80)
+
+
+class Mulligan(Strict):
+    type: Literal["MULLIGAN"]
+    card_id: str = Field(min_length=1, max_length=80)
+
+
+class Ready(Strict):
+    type: Literal["READY"]
+
+
 class Plan(Command):
     expected_revision: int = Field(ge=1, strict=True)
-    actions: list[Annotated[Swap | HeroAbility | BaseAbility, Field(discriminator="type")]] = Field(max_length=2)
+    actions: list[Annotated[Swap | HeroAbility | BaseAbility | PlayCard | PassTurn | Leader | Mulligan | Ready,
+                            Field(discriminator="type")]] = Field(max_length=2)
 
 
 class Surrender(Command):

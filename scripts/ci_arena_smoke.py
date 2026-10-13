@@ -56,9 +56,12 @@ def main():
         assert starts[0] == starts[1] and starts[0]["status"] == 200, starts
         match_id = starts[0]["result"]["match"]["id"]
         plan_key = str(uuid4())
-        plans = race([plan_key, plan_key], lambda db, value: arena.submit_plan(db, user_id, match_id, value, 1, []))
-        assert plans[0] == plans[1] and plans[0]["result"]["match"]["round"] == 2, plans
-        competing = race([str(uuid4()), str(uuid4())], lambda db, value: arena.submit_plan(db, user_id, match_id, value, 2, []))
+        plans = race([plan_key, plan_key], lambda db, value: arena.submit_plan(db, user_id, match_id, value, 1, [{"type": "READY"}]))
+        assert plans[0] == plans[1] and plans[0]["result"]["match"]["state"]["phase"] == "PLAY", plans
+        own = plans[0]["result"]["match"]["state"]["sides"][0]
+        card = next(card for card in own["hand"] if card["kind"] == "UNIT")
+        action = {"type": "PLAY", "card_id": card["id"], "row": card["rows"][0]}
+        competing = race([str(uuid4()), str(uuid4())], lambda db, value: arena.submit_plan(db, user_id, match_id, value, 2, [action]))
         assert sorted(value["status"] for value in competing) == [200, 409], competing
         with SessionLocal() as db:
             assert db.scalar(select(func.count()).select_from(BattleAction).where(BattleAction.match_id == match_id)) == 2
@@ -110,9 +113,15 @@ def main():
         assert all(value["status"] == 200 for value in confirmed), confirmed
         peer_match_id = next(value["result"]["room"]["match_id"] for value in confirmed if value["result"]["room"]["match_id"])
         keys = {user_id: str(uuid4()), other_user_id: str(uuid4())}
-        sealed = race([user_id, other_user_id], lambda db, uid: arena.submit_plan(db, uid, peer_match_id, keys[uid], 1, []))
-        assert all(value["status"] == 200 for value in sealed), sealed
-        assert sorted(value["result"]["match"]["round"] for value in sealed) == [1, 2]
+        sealed = race([user_id, other_user_id], lambda db, uid: arena.submit_plan(db, uid, peer_match_id, keys[uid], 1, [{"type": "READY"}]))
+        # The second browser must refresh its optimistic revision, even during
+        # independent mulligans. Rejected commands leave no durable receipt.
+        assert sorted(value["status"] for value in sealed) == [200, 409], sealed
+        rejected = (user_id, other_user_id)[next(index for index, result in enumerate(sealed) if result["status"] == 409)]
+        with SessionLocal() as db:
+            view = arena.get_match(db, rejected, peer_match_id)["match"]
+            both_ready = arena.submit_plan(db, rejected, peer_match_id, keys[rejected], view["revision"], [{"type": "READY"}])
+            assert both_ready["match"]["state"]["phase"] == "PLAY"
         with SessionLocal() as db:
             purge_account_battles(db, other_user_id)
             db.execute(delete(User).where(User.id == other_user_id)); db.commit()
@@ -121,7 +130,7 @@ def main():
             assert arena.request_result(db, user_id, key)["result"] == starters[0]["result"]
             assert db.get(BattleMatch, peer_match_id) is None
             assert not db.scalar(select(func.count()).select_from(BattleItemReservation).where(BattleItemReservation.match_id == peer_match_id))
-        print("Arena concurrency OK: one starter/match/round, stale plans, 120/week, duplicate delivery, simultaneous PvP confirmations/plans, peer-deletion privacy")
+        print("Arena concurrency OK: one starter/match/turn, stale turns, 120/week, duplicate delivery, simultaneous PvP confirmations/readiness, peer-deletion privacy")
     finally:
         if user_id:
             with SessionLocal() as db:

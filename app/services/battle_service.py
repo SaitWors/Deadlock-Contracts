@@ -11,7 +11,7 @@ from sqlalchemy import delete, func, or_, select
 from ..battle_models import (BattleAction, BattleArtwork, BattleAssignment, BattleCommand, BattleDefinitionVersion,
     BattleItemReservation, BattleMatch, BattleRating, BattleSeason, BattleShowcase, BattleSquad)
 from ..models import ArchiveCard, ArchiveItem, ArchiveOperation, PublicProfile, User, utcnow, uuid4
-from . import card_battle as engine
+from . import card_battle as engine, gwent
 from .archive import aware, card_payload, lock_user
 
 MODES = {"TUTORIAL", "TRAINING", "ASSIGNED", "HARD", "TRIAL", "WEEKLY", "COPY"}
@@ -64,20 +64,10 @@ def _scope(scope):
 
 
 def display_rules(db=None):
-    rules = deepcopy(engine.RULES)
+    rules = gwent.display_rules()
     if db is not None:
-        from .arena_catalog_repair import is_pristine_arena_card
-        from .battle_definitions import definitions_for_cards
-        rows = list(db.scalars(select(ArchiveCard).where(ArchiveCard.status == "PUBLISHED",
-            ArchiveCard.image_digest.is_not(None), ArchiveCard.hero.in_([*engine.HEROES, *engine.BASES]))
-            .order_by((ArchiveCard.rank != "F"), ArchiveCard.id)))
-        definitions = definitions_for_cards(db, rows)
-        for card in rows:
-            group = "bases" if card.rank == "EX" else "heroes"
-            if (card.id not in definitions or card.hero not in rules[group]
-                    or "image_url" in rules[group][card.hero]): continue
-            if not card.image_data or is_pristine_arena_card(card): continue
-            rules[group][card.hero]["image_url"] = card_payload(card)["image_url"]
+        from .arena_artwork import decorate_rules
+        rules = decorate_rules(db, rules)
     return rules
 
 
@@ -86,25 +76,42 @@ def approved_definition(db, card):
     return definitions_for_cards(db, [card]).get(card.id) if card else None
 
 
-def _starter_cards(db, *, lock=False):
+def _starter_cards(db, *, user_id=None, lock=False):
+    from .arena_artwork import starter_cards
+    return starter_cards(db, user_id=user_id, lock=lock)
+
+
+def _starter_entitlement(db, user_id, scope):
+    suffix = ":sandbox" if scope == "SANDBOX" else ""
+    benefit = "battle_starter_v1" + suffix
+    old = db.scalar(select(ArchiveOperation).where(ArchiveOperation.user_id == user_id,
+        ArchiveOperation.benefit_key == benefit))
+    if old is None:
+        return benefit, False, False
     from .arena_catalog_repair import is_pristine_arena_card
-    query = select(ArchiveCard).where(ArchiveCard.hero.in_(STARTER), ArchiveCard.rank == "F",
-        ArchiveCard.status == "PUBLISHED", ArchiveCard.image_digest.is_not(None)).order_by(ArchiveCard.id)
-    if lock: query = query.with_for_update(read=True)
-    choices = {}
-    for card in db.scalars(query):
-        if card.image_data and not is_pristine_arena_card(card) and approved_definition(db, card):
-            choices.setdefault(card.hero, card)
-    return choices
+    sources = db.scalars(select(ArchiveCard).select_from(ArchiveItem).outerjoin(
+        ArchiveCard, ArchiveCard.id == ArchiveItem.card_id).where(ArchiveItem.operation_id == old.id))
+    repair = any(card is None or card.status == "REMOVED" or not card.image_data
+                 or is_pristine_arena_card(card) for card in sources)
+    if not repair:
+        return benefit, True, False
+    # A separate benefit preserves the original immutable receipt and prevents
+    # a second repair, even when the retired original items still exist.
+    benefit = "battle_starter_art_fix_v1" + suffix
+    claimed = db.scalar(select(ArchiveOperation.id).where(ArchiveOperation.user_id == user_id,
+        ArchiveOperation.benefit_key == benefit)) is not None
+    return benefit, claimed, True
 
 
 def starter_status(db, user_id, scope):
-    benefit = "battle_starter_v1" + (":sandbox" if scope == "SANDBOX" else "")
-    claimed = db.scalar(select(ArchiveOperation.id).where(ArchiveOperation.user_id == user_id,
-        ArchiveOperation.benefit_key == benefit)) is not None
-    cards = _starter_cards(db)
-    missing = [key for key in STARTER if key not in cards]
-    return dict(claimed=claimed, available=not claimed and not missing, missing_heroes=missing)
+    _, claimed, repair = _starter_entitlement(db, user_id, scope)
+    cards = _starter_cards(db, user_id=user_id)
+    missing = [] if len(cards) == 6 else [key for key in STARTER if key not in cards]
+    from .archive import battle_metadata
+    metadata = battle_metadata(db, list(cards.values()))
+    return dict(claimed=claimed, available=not claimed and not missing, missing_heroes=missing,
+                cards=[card_payload(card, battle=metadata.get(card.id)) for card in cards.values()],
+                **({"repair": True} if repair else {}))
 
 
 def ex_access(db, user_id, card=None, scope="REAL", patron_key=None):
@@ -157,6 +164,9 @@ def _items_snapshot(db, user_id, scope, slots, base_item_id, *, reserve_check=Tr
         if reserve_check and is_item_reserved(db, item.id):
             raise HTTPException(409, "An instance is reserved by an active match")
         card = db.get(ArchiveCard, item.card_id)
+        from .arena_catalog_repair import is_pristine_arena_card
+        if not card or card.status == "REMOVED" or not card.image_data or is_pristine_arena_card(card):
+            raise HTTPException(409, "Choose an existing illustrated card / Выберите существующую карту с иллюстрацией")
         definition = approved_definition(db, card)
         if not definition:
             raise HTTPException(409, "Artwork has no matching approved battle definition")
@@ -217,15 +227,14 @@ def claim_starter(db, user_id, request_key, scope="REAL"):
     _lock_users(db, user_id); _scope(scope)
     command, replay = _begin(db, user_id, request_key, "starter", {"scope": scope})
     if replay: return deepcopy(command.response)
-    benefit = "battle_starter_v1" + (":sandbox" if scope == "SANDBOX" else "")
-    old = db.scalar(select(ArchiveOperation).where(ArchiveOperation.user_id == user_id, ArchiveOperation.benefit_key == benefit))
-    if old:
+    benefit, claimed, repair = _starter_entitlement(db, user_id, scope)
+    if claimed:
         raise HTTPException(409, "Arena starter already claimed")
-    choices = _starter_cards(db, lock=True)
-    if any(key not in choices for key in STARTER):
-        raise HTTPException(409, "В каталоге нет полного стартового состава F. Используйте свою коллекцию / Original starter artwork is incomplete; use your collection")
-    cards = [choices[key] for key in STARTER]
-    operation, _ = begin(db, user_id, "BATTLE_STARTER", request_key, {}, scope=scope)
+    choices = _starter_cards(db, user_id=user_id, lock=True)
+    if len(choices) != 6:
+        raise HTTPException(409, "Нужны шесть разных героев с опубликованными иллюстрациями в пределах бюджета / Six distinct illustrated heroes within budget are required")
+    cards = list(choices.values())
+    operation, _ = begin(db, user_id, "BATTLE_STARTER", request_key, {"repair": True} if repair else {}, scope=scope)
     operation.benefit_key = benefit
     items = issue(db, operation, cards)
     slots = [{"item_id": item["id"], "line": index // 2, "position": "FRONT" if index % 2 == 0 else "BACK"}
@@ -233,8 +242,15 @@ def claim_starter(db, user_id, request_key, scope="REAL"):
     squad = db.scalar(select(BattleSquad).where(BattleSquad.user_id == user_id, BattleSquad.scope == scope))
     if not squad:
         squad = BattleSquad(user_id=user_id, scope=scope, revision=1, slots=slots); db.add(squad)
+    elif repair:
+        try:
+            _items_snapshot(db, user_id, scope, squad.slots, squad.base_item_id,
+                            reserve_check=False, lock_items=False)
+        except HTTPException:
+            squad.slots = slots; squad.base_item_id = None; squad.revision += 1
     # Build the immutable receipt before the single commit (archive.finish commits).
-    receipt = {"id": operation.id, "kind": "BATTLE_STARTER", "scope": scope, "delta": 0, "items": items}
+    receipt = {"id": operation.id, "kind": "BATTLE_STARTER", "scope": scope, "delta": 0, "items": items,
+               **({"repair": True} if repair else {})}
     response = {"squad": squad_payload(squad), "receipt": receipt}
     operation.result = receipt; command.response = deepcopy(response)
     db.commit()
@@ -287,14 +303,42 @@ def _assignment(db, user_id, scope, mode, assignment_id=None):
 def _new_match(db, user_id, opponent_id, mode, scope, first, second, *, assignment=None, season_id=None, patron_key=None):
     from .battle_catalog import identity
     first, second = deepcopy(first), deepcopy(second)
+    rules = display_rules(db)
+    # Loans use existing illustrated heroes. Selected physical cards retain
+    # their exact source metadata; a missing loan portrait never aliases art
+    # from a different hero without changing the actual selected hero key.
+    sources = {hero["hero_key"]: hero.get("card") for snapshot in (first, second)
+               for hero in snapshot["heroes"] if (hero.get("card") or {}).get("image_url")}
+    illustrated = {key: definition["card"] for key, definition in rules["heroes"].items()
+                   if definition.get("card", {}).get("image_url")}
+    for snapshot in (first, second):
+        used = {hero["hero_key"] for hero in snapshot["heroes"]
+                if (hero.get("card") or {}).get("image_url") or hero["hero_key"] in illustrated or hero["hero_key"] in sources}
+        for hero in snapshot["heroes"]:
+            if (hero.get("card") or {}).get("image_url"):
+                continue
+            key = hero["hero_key"]
+            card = illustrated.get(key) or sources.get(key)
+            if card is None:
+                candidate = next((name for name in illustrated if name not in used), None)
+                if candidate is None:
+                    candidate = next((name for name in sources if name not in used), None)
+                if candidate is not None:
+                    key = hero["hero_key"] = candidate
+                    used.add(key)
+                    card = illustrated.get(key) or sources.get(key)
+            if card:
+                hero["card"] = deepcopy(card)
+                hero["image_url"] = card["image_url"]
     for snapshot in (first, second):
         versions = snapshot.setdefault("definition_versions", {})
         for key in [hero["hero_key"] for hero in snapshot["heroes"]] + ([snapshot["base_key"]] if snapshot["base_key"] != "ORDINARY" else []):
             versions.setdefault(key, dict(id=identity("definition", key), version=1, category="HERO" if key in engine.HEROES else "BASE"))
-    rules = display_rules(db)
     # Each physical artwork keeps its own approved version, including mirror heroes.
-    state = engine.initial_state(first["heroes"], second["heroes"], base_a=first["base_key"], base_b=second["base_key"], rules=rules,
-                                 definitions_a=first.get("definitions"), definitions_b=second.get("definitions"))
+    shuffle_seed = uuid4()
+    first_side = "B" if mode in {"FRIENDLY", "RANKED"} and int(shuffle_seed[-1], 16) % 2 else "A"
+    state = gwent.initial_state(first["heroes"], second["heroes"], base_a=first["base_key"], base_b=second["base_key"], rules=rules,
+        definitions_a=first.get("definitions"), definitions_b=second.get("definitions"), seed=shuffle_seed, first_side=first_side)
     for side, snapshot in zip(state["sides"], (first, second)):
         if snapshot.get("base_card"):
             side["base"]["card"] = deepcopy(snapshot["base_card"])
@@ -312,7 +356,8 @@ def _new_match(db, user_id, opponent_id, mode, scope, first, second, *, assignme
         if is_item_reserved(db, item_id): raise HTTPException(409, "An instance is reserved")
         db.add(BattleItemReservation(item_id=item_id, match_id=match.id))
     if not opponent_id:
-        match.bot_plan = engine.bot_plan(state, difficulty="TUTORIAL" if mode == "TUTORIAL" else ("HARD" if mode in {"HARD", "TRIAL", "WEEKLY"} else "NORMAL"))
+        match.state, events = _advance_gwent_bot(state, mode)
+        match.last_events = events
     db.flush()
     return match
 
@@ -380,14 +425,22 @@ def _image_card_id(image_url):
     except ValueError: return None
 
 
+def _match_units(state):
+    for side in state.get("sides", []):
+        yield side.get("base", {})
+        for zone in ("heroes", "hand", "deck", "graveyard", "_mulligan_stash"):
+            yield from side.get(zone, [])
+        for row in side.get("rows", []):
+            yield from row
+
+
 def match_card(db, user_id, match_id, card_id):
     match = _owned_match(db, user_id, match_id)
     permitted = set()
-    for side in match.state.get("sides", []):
-        for unit in [*side.get("heroes", []), side.get("base", {})]:
-            if unit.get("card"): permitted.add(unit["card"]["id"])
-            image_id = _image_card_id(unit.get("image_url"))
-            if image_id: permitted.add(image_id)
+    for unit in _match_units(match.state):
+        if unit.get("card"): permitted.add(unit["card"]["id"])
+        image_id = _image_card_id(unit.get("image_url"))
+        if image_id: permitted.add(image_id)
     for side in ("A", "B"):
         base = match.snapshot.get(side, {}).get("base_card")
         if base: permitted.add(base["id"])
@@ -399,7 +452,9 @@ def match_card(db, user_id, match_id, card_id):
 
 def match_payload(db, match, user_id):
     side = "A" if match.user_id == user_id else "B"
-    pending = set(db.scalars(select(BattleAction.user_id).where(BattleAction.match_id == match.id, BattleAction.round == match.round))) if match.status == "ACTIVE" else set()
+    is_gwent = match.state.get("rules", {}).get("version") == gwent.VERSION
+    pending = set(db.scalars(select(BattleAction.user_id).where(BattleAction.match_id == match.id,
+        BattleAction.round == match.round))) if match.status == "ACTIVE" and not is_gwent else set()
     reward = match.reward
     if match.scope == "REAL" and match.status == "FINISHED":
         from .extra_coin_rewards import battle_receipt
@@ -411,13 +466,15 @@ def match_payload(db, match, user_id):
         if base:
             state_side["base"]["card"] = deepcopy(base)
             state_side["base"]["image_url"] = base.get("image_url")
-        for unit in [*state_side.get("heroes", []), state_side.get("base", {})]:
-            card = unit.get("card")
-            card_id = card["id"] if card and card.get("image_url") else _image_card_id(unit.get("image_url"))
-            if card_id:
-                url = f"/api/arena/matches/{match.id}/cards/{card_id}/image"
-                unit["image_url"] = url
-                if card and card.get("image_url"): card["image_url"] = url
+    for unit in _match_units(state):
+        card = unit.get("card")
+        card_id = card["id"] if card and card.get("image_url") else _image_card_id(unit.get("image_url"))
+        if card_id:
+            url = f"/api/arena/matches/{match.id}/cards/{card_id}/image"
+            unit["image_url"] = url
+            if card and card.get("image_url"): card["image_url"] = url
+    if is_gwent:
+        state = gwent.public_state(state, side)
     # Full squads are revealed only after both room/queue confirmations. Never expose pending actions or bot plan.
     return {"match": dict(id=match.id, mode=match.mode, scope=match.scope, status=match.status,
         expired=bool(match.status == "ACTIVE" and aware(match.updated_at) < utcnow() - MATCH_TTL),
@@ -454,6 +511,52 @@ def _complete(db, match, result):
     match.reward = settle_battle(db, match)
 
 
+def _advance_gwent_bot(state, mode):
+    events = []
+    difficulty = "TUTORIAL" if mode == "TUTORIAL" else ("HARD" if mode in {"HARD", "TRIAL", "WEEKLY"} else "NORMAL")
+    for _ in range(96):
+        bot = next(side for side in state["sides"] if side["side"] == "B")
+        if state["status"] != "ACTIVE":
+            return state, events
+        if state["phase"] == "MULLIGAN":
+            if bot["mulligan_done"]:
+                return state, events
+        elif state["turn_side"] != "B":
+            return state, events
+        state, emitted = gwent.apply_action(state, "B", gwent.bot_action(state, "B", difficulty))
+        events.extend(emitted)
+    raise RuntimeError("Gwent bot did not yield within the bounded turn budget")
+
+
+def _submit_gwent(db, match, command, user_id, request_key, side, actions):
+    if not isinstance(actions, list) or len(actions) != 1:
+        raise HTTPException(422, "Choose exactly one card action / Выберите одно действие")
+    try:
+        state, events = gwent.apply_action(match.state, side, actions[0])
+    except (ValueError, KeyError, TypeError) as error:
+        raise HTTPException(422, str(error)) from None
+    journal_turn = match.state["turn"] + 1
+    if journal_turn > 256:
+        raise HTTPException(409, "Command turn budget exhausted")
+    action = BattleAction(match_id=match.id, user_id=user_id, request_key=str(request_key),
+        round=journal_turn, signature=command.signature, actions=deepcopy(actions))
+    db.add(action)
+    if not match.opponent_user_id:
+        state, emitted = _advance_gwent_bot(state, match.mode)
+        events.extend(emitted)
+    match.state = state
+    match.round = state["round"]
+    match.revision += 1
+    match.last_events = events
+    match.updated_at = utcnow()
+    if state["status"] == "FINISHED":
+        _complete(db, match, state["result"])
+    db.flush()
+    result = match_payload(db, match, user_id)
+    action.response = deepcopy(result)
+    return _finish(db, command, result)
+
+
 def submit_plan(db, user_id, match_id, request_key, expected_revision, actions):
     raw = _owned_match(db, user_id, match_id)
     _lock_users(db, raw.user_id, raw.opponent_user_id)
@@ -465,6 +568,8 @@ def submit_plan(db, user_id, match_id, request_key, expected_revision, actions):
     if aware(match.updated_at) < utcnow() - MATCH_TTL:
         raise HTTPException(409, "Match expired; cancel it to release instances")
     side = "A" if match.user_id == user_id else "B"
+    if match.state.get("rules", {}).get("version") == gwent.VERSION:
+        return _submit_gwent(db, match, command, user_id, request_key, side, actions)
     try: engine.validate_plan(match.state, side, actions)
     except (ValueError, KeyError, TypeError) as error: raise HTTPException(422, str(error)) from None
     if db.scalar(select(BattleAction.id).where(BattleAction.match_id == match_id, BattleAction.round == match.round, BattleAction.user_id == user_id)):
@@ -519,19 +624,31 @@ def bootstrap(db, user_id, scope="REAL"):
     user = db.get(User, user_id)
     squad = db.scalar(select(BattleSquad).where(BattleSquad.user_id == user_id, BattleSquad.scope == scope))
     inventory, unavailable = [], []
+    rules = display_rules(db)
+    from .arena_catalog_repair import is_pristine_arena_card
     for item, card in db.execute(select(ArchiveItem, ArchiveCard).join(ArchiveCard, ArchiveCard.id == ArchiveItem.card_id)
         .where(ArchiveItem.user_id == user_id, ArchiveItem.state == "OWNED",
                ArchiveItem.scope.in_(["REAL", "SANDBOX"] if scope == "SANDBOX" else ["REAL"]))):
         definition = approved_definition(db, card)
+        if definition and (card.status == "REMOVED" or not card.image_data or is_pristine_arena_card(card)):
+            unavailable.append(dict(item_id=item.id, card=card_payload(card), reason="MISSING_ARTWORK"))
+            continue
         if not definition:
             unavailable.append(dict(item_id=item.id, card=card_payload(card),
                 reason="UNSUPPORTED_HERO" if card.hero not in engine.HEROES and card.rank != "EX" else "BATTLE_APPROVAL"))
             continue
         preview_rules = {**engine.RULES, "heroes": {**engine.HEROES, definition.key: definition.rules}}
+        stats = engine.stats(definition.key, card.rank, preview_rules) if definition.category == "HERO" else {"cost": 2, "max_hp": 1000}
+        if definition.category == "HERO":
+            stats.update(gwent.card_preview(definition.key, card.rank, definition=definition.rules, rules=rules))
+        resolved_definition = dict(id=definition.id, key=definition.key, category=definition.category,
+                                   version=definition.version, rules=deepcopy(definition.rules))
+        if definition.category == "BASE":
+            resolved_definition["combat_rules"] = gwent.patron_preview(definition.key, definition=definition.rules, rules=rules)
         inventory.append(dict(item_id=item.id, card=card_payload(card), hero_key=definition.key, category=definition.category,
             definition_key=definition.key, scope=item.scope, reserved=is_item_reserved(db, item.id),
-            definition=dict(id=definition.id, key=definition.key, category=definition.category, version=definition.version, rules=deepcopy(definition.rules)),
-            stats=engine.stats(definition.key, card.rank, preview_rules) if definition.category == "HERO" else {"cost": 2, "max_hp": 1000}))
+            definition=resolved_definition,
+            stats=stats))
     access = {key: ex_access(db, user_id, scope=scope, patron_key=key) for key in ("HIDDEN_KING", "ARCHMOTHER")}
     assignments = [dict(id=row.id, mode=row.mode, period_day=row.period_day.isoformat(), slot=row.slot,
         status=row.status, opponent=deepcopy(row.opponent)) for row in db.scalars(select(BattleAssignment).where(
@@ -540,7 +657,7 @@ def bootstrap(db, user_id, scope="REAL"):
     rating = db.get(BattleRating, (season.id, user_id)) if season else None
     showcase = db.get(BattleShowcase, user_id)
     first = access["HIDDEN_KING"]
-    return dict(account_key=user.id, rules=display_rules(db), squad=squad_payload(squad, scope), inventory=inventory,
+    return dict(account_key=user.id, rules=rules, squad=squad_payload(squad, scope), inventory=inventory,
         unavailable_inventory=unavailable, starter=starter_status(db, user_id, scope),
         assignments=assignments, active_matches=[dict(id=value.id, mode=value.mode, scope=value.scope, status=value.status,
             revision=value.revision, round=value.round, expired=aware(value.updated_at) < utcnow() - MATCH_TTL) for value in _active(db, user_id)],
