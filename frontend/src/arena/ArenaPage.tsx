@@ -3,11 +3,14 @@ import { useLanguage } from "../i18n"
 import { request, useResource } from "../community/api"
 import type { EconomyScope } from "../archive/types"
 import CoinRewards from "../archive/CoinRewards"
+import CardPreview from "../archive/CardPreview"
+import Icon from "../icons/Icon"
 import SquadEditor from "./SquadEditor"
 import BattleField from "./BattleField"
 import { useArenaCommand } from "./commands"
 import {
   localized,
+  isGwentMatch,
   seasonTitle,
   modes,
   type ArenaReply,
@@ -253,16 +256,33 @@ export default function ArenaPage({ csrf, accountKey }: { csrf: string; accountK
     ["rewards", ru ? "Награды" : "Rewards"],
   ]
   return (
-    <main className="arena-page">
+    <main
+      className="arena-page"
+      data-arena-view={matchID && match && isGwentMatch(match) ? "gwent" : undefined}
+    >
       <header className="arena-heading">
         <div>
-          <small>DEADLOCK CONTRACTS / THREE LANES</small>
+          <small>DEADLOCK CONTRACTS / CARD ARENA</small>
           <h1>{ru ? "Арена бюро" : "Bureau arena"}</h1>
           <p>
             {ru
-              ? "Шесть героев. Три линии. Один покровитель."
-              : "Six heroes. Three lanes. One patron."}
+              ? "Шесть героев. Двадцать четыре карты. Две победы в раундах."
+              : "Six heroes. Twenty-four cards. Two round wins."}
           </p>
+          <div className="arena-format">
+            <span>
+              <Icon name="layers" size={15} />
+              {ru ? "3 ряда" : "3 rows"}
+            </span>
+            <span>
+              <Icon name="shuffle" size={15} />
+              {ru ? "10 карт в руке" : "10 opening cards"}
+            </span>
+            <span>
+              <Icon name="crown" size={15} />
+              {ru ? "EX один раз за матч" : "EX once per match"}
+            </span>
+          </div>
         </div>
         <label>
           {ru ? "Коллекция" : "Collection"}
@@ -417,6 +437,12 @@ export default function ArenaPage({ csrf, accountKey }: { csrf: string; accountK
               {path[0] === "prepare" && preparation && (
                 <section className="arena-panel">
                   <h2>{modes[preparation.mode][ru ? 0 : 1]}</h2>
+                  <p className="arena-deck-explainer">
+                    <Icon name="layers" size={20} />
+                    {ru
+                      ? "6 героев × 3 копии + 6 тактик = 24 боевые карты. Одна карта за ход; выиграйте два раунда. Копии существуют только внутри матча."
+                      : "6 heroes × 3 copies + 6 tactics = 24 combat cards. One card per turn; win two rounds. Copies exist only inside the match."}
+                  </p>
                   <p>
                     {preparation.mode === "WEEKLY"
                       ? ru
@@ -624,15 +650,38 @@ export default function ArenaPage({ csrf, accountKey }: { csrf: string; accountK
               <section className="arena-panel arena-welcome">
                 <h2>{ru ? "Начни с шести героев" : "Start with six heroes"}</h2>
                 <p>
-                  {ru
-                    ? "Бесплатные опубликованные оригинальные карты F: Abrams, Bebop, Dynamo, Haze, Ivy и Seven. Боевой старт выдаётся один раз для выбранной коллекции."
-                    : "Free published original F cards: Abrams, Bebop, Dynamo, Haze, Ivy and Seven. The battle starter is granted once per collection."}
+                  {data.rules.version === "gwent-v1"
+                    ? ru
+                      ? "Бесплатный старт: шесть разных опубликованных карт с оригинальными иллюстрациями. Герои и ранги выбираются из доступных дизайнов в пределах 24 очков. Выдаётся один раз для выбранной коллекции."
+                      : "Your free starter contains six different published cards with original artwork. Available designs determine the heroes and ranks, within the 24-point budget. Granted once per collection."
+                    : ru
+                      ? "Бесплатные опубликованные оригинальные карты F: Abrams, Bebop, Dynamo, Haze, Ivy и Seven. Боевой старт выдаётся один раз для выбранной коллекции."
+                      : "Free published original F cards: Abrams, Bebop, Dynamo, Haze, Ivy and Seven. The battle starter is granted once per collection."}
                 </p>
+                {!!data.starter?.cards?.length && (
+                  <div
+                    className="arena-starter-cards"
+                    aria-label={ru ? "Карты боевого старта" : "Your starter cards"}
+                  >
+                    {data.starter.cards.map((card) => (
+                      <article key={card.id}>
+                        <CardPreview card={card} />
+                        <small>
+                          {card.hero_name} · {card.rank}
+                        </small>
+                      </article>
+                    ))}
+                  </div>
+                )}
                 {!data.starter?.claimed && data.starter?.available === false && (
                   <p className="arena-notice" role="status">
-                    {ru
-                      ? "Боевой старт пока недоступен: опубликованы не все оригинальные карты F."
-                      : "The battle starter is unavailable: some published original F cards are missing."}{" "}
+                    {data.rules.version === "gwent-v1"
+                      ? ru
+                        ? "Для боевого старта пока недостаточно разных опубликованных иллюстрированных карт в пределах бюджета."
+                        : "The starter needs enough different published illustrated cards within the budget."
+                      : ru
+                        ? "Боевой старт пока недоступен: опубликованы не все оригинальные карты F."
+                        : "The battle starter is unavailable: some published original F cards are missing."}{" "}
                     {!!data.starter.missing_heroes.length && (
                       <>
                         {ru ? "Нужны карты героев: " : "Missing hero cards: "}
@@ -745,7 +794,7 @@ export default function ArenaPage({ csrf, accountKey }: { csrf: string; accountK
                             : "Temporary loaned squad. Rewards use the existing PvE allowance."
                           : ru
                             ? "Без бесконечных наград. Учись позициям, энергии и способностям."
-                            : "No repeatable coin farming. Learn positions, energy and abilities."}
+                            : "No repeatable coin farming. Learn row choices, card conservation and when to pass."}
                       </p>
                       <button disabled={blocked} onClick={() => void start(mode)}>
                         {ru ? "Начать" : "Start"}

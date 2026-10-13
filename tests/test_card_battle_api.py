@@ -53,7 +53,7 @@ def test_auth_csrf_strict_inputs_scoped_request_recovery_and_no_store(community)
     first.headers["X-CSRF-Token"] = token
 
 
-def test_friendly_plans_are_sealed_until_both_players_submit(community):
+def test_friendly_hands_stay_hidden_while_players_finish_mulligan(community):
     factory, player = community
     _, first = player(); _, second = player(); _, outsider = player()
     ready(factory, first); ready(factory, second)
@@ -68,17 +68,17 @@ def test_friendly_plans_are_sealed_until_both_players_submit(community):
     started = second.post(f"/api/arena/rooms/{code}/confirm", json={**confirmation, "request_key": str(uuid4())}).json()["room"]
     match_id = started["match_id"]
     state = first.get(f"/api/arena/matches/{match_id}").json()["match"]
-    hero_id = state["state"]["sides"][0]["heroes"][0]["id"]
-    plan = {"request_key": str(uuid4()), "expected_revision": 1, "actions": [{"type": "HERO_ABILITY", "actor_id": hero_id}]}
+    plan = {"request_key": str(uuid4()), "expected_revision": 1, "actions": [{"type": "READY"}]}
     accepted = first.post(f"/api/arena/matches/{match_id}/plans", json=plan)
     assert accepted.status_code == 200, accepted.text
     before = second.get(f"/api/arena/matches/{match_id}").json()["match"]
-    assert before["opponent_submitted"] and before["round"] == 1
-    assert not before["last_events"] and not before["submitted"]
+    assert before["state"]["phase"] == "MULLIGAN" and before["round"] == 1
+    assert before["state"]["sides"][0]["mulligan_done"]
+    assert before["state"]["sides"][0]["hand"] == []
     assert "bot_plan" not in before and "snapshot" not in before and "actions" not in before
     assert first.post(f"/api/arena/matches/{match_id}/plans", json={**plan, "request_key": str(uuid4())}).status_code == 409
-    resolved = second.post(f"/api/arena/matches/{match_id}/plans", json={"request_key": str(uuid4()), "expected_revision": 1, "actions": []})
-    assert resolved.json()["match"]["round"] == 2
+    resolved = second.post(f"/api/arena/matches/{match_id}/plans", json={"request_key": str(uuid4()), "expected_revision": before["revision"], "actions": [{"type": "READY"}]})
+    assert resolved.json()["match"]["round"] == 1 and resolved.json()["match"]["state"]["phase"] == "PLAY"
 
 
 def test_duplicate_heroes_and_unapproved_art_are_rejected_server_side(community):
@@ -119,7 +119,7 @@ def test_owner_controls_require_existing_totp_elevation_and_matching_artwork(com
     assert client.get("/api/arena/definitions").status_code == 403
     elevate(factory, owner_id, client, role="PLAYER")
     definitions = client.get("/api/arena/definitions").json()["definitions"]
-    assert len(definitions) == 14
+    assert len(definitions) == 46
     abrams = next(value for value in definitions if value["key"] == "abrams")
     assert client.put("/api/arena/artwork-approval", json={"card_id": card_id("bebop", "F"), "definition_id": abrams["id"], "approved": True}).status_code == 422
     assert client.put("/api/arena/artwork-approval", json={"card_id": card_id("abrams", "F"), "definition_id": abrams["id"], "approved": True}).status_code == 200
@@ -161,7 +161,7 @@ def test_account_deletion_removes_peer_match_recovery_but_keeps_unrelated_receip
     first.post(f"/api/arena/rooms/{code}/confirm", json={"request_key": str(uuid4()), "squad_revision": 1})
     match_id = second.post(f"/api/arena/rooms/{code}/confirm", json={"request_key": str(uuid4()), "squad_revision": 1}).json()["room"]["match_id"]
     plan_key = str(uuid4())
-    accepted = first.post(f"/api/arena/matches/{match_id}/plans", json={"request_key": plan_key, "expected_revision": 1, "actions": []})
+    accepted = first.post(f"/api/arena/matches/{match_id}/plans", json={"request_key": plan_key, "expected_revision": 1, "actions": [{"type": "READY"}]})
     assert accepted.status_code == 200, accepted.text
     assert first.get(f"/api/arena/requests/{plan_key}").json()["result"]["match"]["id"] == match_id
     deleted = second.post("/api/account/delete", json={"confirmation": "DELETE"})

@@ -42,7 +42,7 @@ def test_catalogue_seed_is_insert_only_and_starter_is_independent_of_old_pack(db
     from app.models import ArchiveCard, ArchiveItem, ArchiveOperation
     seed(db)
     seed(db)
-    assert len(list(db.scalars(select(ArchiveCard)))) == 110
+    assert len(list(db.scalars(select(ArchiveCard)))) == 398
     user = player(db)
     key = str(uuid4())
     first = service().claim_starter(db, user.id, key, "REAL")
@@ -84,9 +84,9 @@ def test_plan_replay_stale_revision_foreign_owner_and_surrender(db):
     service().claim_starter(db, user.id, str(uuid4()), "REAL")
     match = service().start_match(db, user.id, {"request_key": str(uuid4()), "mode": "TRAINING", "scope": "REAL", "squad_revision": 1, "base_item_id": None})["match"]
     key = str(uuid4())
-    first = service().submit_plan(db, user.id, match["id"], key, match["revision"], [])
-    assert first["match"]["round"] == 2
-    assert first == service().submit_plan(db, user.id, match["id"], key, match["revision"], [])
+    first = service().submit_plan(db, user.id, match["id"], key, match["revision"], [{"type": "READY"}])
+    assert first["match"]["round"] == 1 and first["match"]["state"]["phase"] == "PLAY"
+    assert first == service().submit_plan(db, user.id, match["id"], key, match["revision"], [{"type": "READY"}])
     with pytest.raises(Exception) as failure:
         service().submit_plan(db, user.id, match["id"], str(uuid4()), 1, [])
     assert failure.value.status_code == 409
@@ -98,7 +98,7 @@ def test_plan_replay_stale_revision_foreign_owner_and_surrender(db):
     assert not service().is_item_reserved(db, match["state"]["sides"][0]["heroes"][0]["item_id"])
 
 
-def test_friendly_pvp_conceals_unsubmitted_plan_and_bases_until_both_confirm(db):
+def test_friendly_pvp_conceals_hand_and_bases_until_both_confirm(db):
     seed(db)
     first, second = player(db), player(db)
     for user in (first, second):
@@ -110,13 +110,14 @@ def test_friendly_pvp_conceals_unsubmitted_plan_and_bases_until_both_confirm(db)
     started = service().confirm_room(db, second.id, room["code"], str(uuid4()), 1, None)
     match_id = started["room"]["match_id"]
     match = service().get_match(db, first.id, match_id)["match"]
-    accepted = service().submit_plan(db, first.id, match_id, str(uuid4()), match["revision"], [])
-    assert accepted["match"]["round"] == 1 and accepted["match"]["submitted"]
+    accepted = service().submit_plan(db, first.id, match_id, str(uuid4()), match["revision"], [{"type": "READY"}])
+    assert accepted["match"]["round"] == 1 and accepted["match"]["state"]["phase"] == "MULLIGAN"
     view = service().get_match(db, second.id, match_id)["match"]
-    assert view["opponent_submitted"] and not view["submitted"]
+    assert view["state"]["sides"][0]["mulligan_done"] and not view["state"]["sides"][1]["mulligan_done"]
+    assert view["state"]["sides"][0]["hand"] == []
     assert "pending_plans" not in view
-    resolved = service().submit_plan(db, second.id, match_id, str(uuid4()), view["revision"], [])
-    assert resolved["match"]["round"] == 2
+    resolved = service().submit_plan(db, second.id, match_id, str(uuid4()), view["revision"], [{"type": "READY"}])
+    assert resolved["match"]["round"] == 1 and resolved["match"]["state"]["phase"] == "PLAY"
 
 
 def start(db, user, mode="TRAINING", scope="REAL", **extra):
@@ -128,6 +129,15 @@ def win(db, user, match):
     from app.battle_models import BattleMatch
     row = db.get(BattleMatch, match["id"])
     value = deepcopy(row.state)
+    if value.get("game") == "GWENT":
+        value.update(phase="PLAY", turn_side="A")
+        first, second = value["sides"]
+        card = next(card for card in first["hand"] if card["kind"] == "UNIT")
+        first["hand"].remove(card)
+        first.update(rows=[[card], [], []], passed=False, wins=1, mulligan_done=True)
+        second.update(rows=[[], [], []], hand=[], deck=[], passed=True, mulligan_done=True)
+        row.state = value; row.bot_plan = []; db.flush()
+        return service().submit_plan(db, user.id, match["id"], str(uuid4()), row.revision, [{"type": "PASS"}])["match"]
     for hero in value["sides"][1]["heroes"]: hero.update(hp=0, deaths=2, respawn_round=None)
     for guardian in value["sides"][1]["guardians"]: guardian["hp"] = 0
     value["sides"][1]["base"]["hp"] = 1
@@ -328,20 +338,22 @@ def test_ranked_queue_filters_suspended_candidates_and_experience_bucket(db):
 
 
 def test_owned_definition_preview_matches_actual_versioned_match_stats(db):
-    from app.battle_models import BattleArtwork, BattleDefinitionVersion
+    from app.battle_models import BattleArtwork, BattleDefinitionVersion, BattleMatch
     from app.services import card_battle
     seed(db); user = player(db)
     service().claim_starter(db, user.id, str(uuid4()), "REAL")
     rules = deepcopy(card_battle.HEROES["abrams"])
-    rules.update(hp=700, attack=80); rules["ability"]["shield"] = 150
+    rules.update(hp=700, attack=130); rules["ability"]["shield"] = 150
     rules["ability"]["description"] = {"ru": "Щит 150 себе", "en": "Shield self for 150"}
     definition = BattleDefinitionVersion(key="abrams", category="HERO", version=2, approved=True, rules=rules)
     db.add(definition); db.flush()
     db.get(BattleArtwork, card_id("abrams", "F")).definition_id = definition.id; db.commit()
     preview = next(value for value in service().bootstrap(db, user.id)["inventory"] if value["hero_key"] == "abrams")
     match = start(db, user)
-    actual = match["state"]["sides"][0]["heroes"][0]
-    assert preview["stats"]["max_hp"] == actual["max_hp"] == 700
-    assert preview["stats"]["attack"] == actual["attack"] == 80
+    state = db.get(BattleMatch, match["id"]).state
+    source = state["sides"][0]["heroes"][0]
+    actual = next(card for card in state["sides"][0]["hand"] + state["sides"][0]["deck"] if card["hero_key"] == "abrams")
+    assert preview["stats"]["power"] == actual["base_power"] == 8
     assert preview["definition"]["id"] == definition.id and preview["definition"]["version"] == 2
-    assert preview["definition"]["rules"]["ability"] == actual["ability"]
+    assert source["definition_id"] == definition.id and source["definition_version"] == 2
+    assert actual["description"] == preview["stats"]["description"]

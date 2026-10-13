@@ -1,9 +1,20 @@
 import { useEffect, useState } from "react"
 import { useLanguage } from "../i18n"
 import CardPreview from "../archive/CardPreview"
+import Icon from "../icons/Icon"
 import type { Bootstrap, Patron, Slot, Squad } from "./types"
 import { localized } from "./types"
 import { accessReason } from "../archive/battleAccess"
+const roleLabels: Record<string, [string, string]> = {
+  TANK: ["Танк", "Tank"],
+  SUPPORT: ["Поддержка", "Support"],
+  MAGE: ["Маг", "Mage"],
+  FIGHTER: ["Боец", "Fighter"],
+  SHOOTER: ["Стрелок", "Shooter"],
+  ENGINEER: ["Инженер", "Engineer"],
+  ASSASSIN: ["Убийца", "Assassin"],
+  HUNTER: ["Охотник", "Hunter"],
+}
 export default function SquadEditor({
   data,
   busy,
@@ -25,6 +36,7 @@ export default function SquadEditor({
     setSlots(data.squad.slots)
     setBase(data.squad.base_item_id)
   }, [data.squad.revision, data.squad.scope])
+  const gwent = data.rules.version === "gwent-v1"
   const heroes = data.inventory.filter((item) => item.category === "HERO")
   const selected = slots
     .map((slot) => heroes.find((item) => item.item_id === slot.item_id))
@@ -70,8 +82,8 @@ export default function SquadEditor({
       </div>
       <p>
         {ru
-          ? "Шесть разных героев. Ранг усиливает только HP и обычную атаку. EX занимает 2 очка из 24."
-          : "Six distinct heroes. Rank scales HP and basic attack only. EX uses 2 of 24 budget points."}
+          ? "Шесть разных иллюстрированных героев — по три боевые копии каждого и шесть тактик: колода из 24 карт. Ранг добавляет силу; EX занимает 2 очка бюджета."
+          : "Six illustrated heroes give you three combat copies each, plus six tactics: a 24-card deck. Rank adds strength; EX uses 2 budget points."}
       </p>
       {!!data.unavailable_inventory?.length && (
         <aside className="arena-notice">
@@ -87,13 +99,17 @@ export default function SquadEditor({
                 <b>
                   {item.card.hero_name} · {item.card.title} · {item.card.rank}
                 </b>{" "}
-                {item.reason === "UNSUPPORTED_HERO"
+                {item.reason === "MISSING_ARTWORK"
                   ? ru
-                    ? "Для этого героя пока нет одобренных правил боя."
-                    : "This hero has no approved battle rules yet."
-                  : ru
-                    ? "Эта карта ещё не одобрена для боёв."
-                    : "This card is not yet approved for battles."}
+                    ? "Для арены нужна опубликованная иллюстрированная карта."
+                    : "Arena play requires published card artwork."
+                  : item.reason === "UNSUPPORTED_HERO"
+                    ? ru
+                      ? "Для этого героя пока нет одобренных правил боя."
+                      : "This hero has no approved battle rules yet."
+                    : ru
+                      ? "Эта карта ещё не одобрена для боёв."
+                      : "This card is not yet approved for battles."}
               </li>
             ))}
           </ul>
@@ -108,18 +124,24 @@ export default function SquadEditor({
               owned.find((item) => item.item_id === base) ||
               owned.find((item) => !item.reserved) ||
               owned[0],
-            definition = preview?.definition?.rules || data.rules.bases[key],
+            definition = gwent
+              ? preview?.definition?.combat_rules || data.rules.bases[key]
+              : preview?.definition?.rules || data.rules.bases[key],
             access = data.progression.ex_access[key],
             chosen = key === "ORDINARY" ? !base : baseItem?.definition_key === key
           return (
             <article key={key} className="arena-patron" data-patron={key} data-selected={chosen}>
               <small>
-                {key === "ORDINARY" ? (ru ? "ОБЫЧНАЯ БАЗА" : "ORDINARY BASE") : "EX · BASE"}
+                {key === "ORDINARY"
+                  ? ru
+                    ? "ОБЫЧНЫЙ ПОКРОВИТЕЛЬ"
+                    : "ORDINARY PATRON"
+                  : "EX · PATRON"}
               </small>
               <h3>{localized(definition?.name, language) || key}</h3>
-              <p>
-                HP {preview?.stats.max_hp || 1000} · {ru ? "Стражи" : "Guardians"} 3 × 240 ·{" "}
-                {ru ? "Стоимость состава" : "Squad cost"} {key === "ORDINARY" ? 0 : 2}
+              <p className="arena-patron-cost">
+                <Icon name="crown" size={15} /> {ru ? "Стоимость состава" : "Squad cost"}{" "}
+                {key === "ORDINARY" ? 0 : 2}
               </p>
               {preview?.card && <CardPreview card={preview.card} />}
               {owned.length > 1 && (
@@ -141,12 +163,12 @@ export default function SquadEditor({
                   </select>
                 </label>
               )}
-              {definition?.passive && <p>{localized(definition.passive, language)}</p>}
+
               {definition?.ability && (
                 <p>
                   <b>{localized(definition.ability.name, language)}</b> ·{" "}
-                  {localized(definition.ability.description, language)} · ⚡3 ·{" "}
-                  {ru ? "Перезарядка 3 раунда" : "Cooldown 3 rounds"}
+                  {localized(definition.ability.description, language)}
+                  {key !== "ORDINARY" && <> · {ru ? "Один раз за матч" : "Once per match"}</>}
                 </p>
               )}
               {key !== "ORDINARY" && (
@@ -187,76 +209,90 @@ export default function SquadEditor({
           )
         })}
       </div>
-      <div className="arena-squad-lines">
-        {[0, 1, 2].map((line) => (
-          <fieldset key={line}>
-            <legend>
-              {ru ? "Линия" : "Lane"} {line + 1}
-            </legend>
-            {(["FRONT", "BACK"] as const).map((position) => {
-              const slot = slots.find(
-                  (value) => value.line === line && value.position === position,
-                ),
-                item = heroes.find((value) => value.item_id === slot?.item_id)
-              return (
-                <div key={position}>
-                  <label>
-                    {position === "FRONT"
-                      ? ru
-                        ? "Передний ряд"
-                        : "Front"
-                      : ru
-                        ? "Задний ряд"
-                        : "Back"}
-                    <select
-                      aria-label={`${ru ? "Линия" : "Lane"} ${line + 1} ${position}`}
-                      value={slot?.item_id || ""}
-                      onChange={(event) => setSlot(line, position, event.target.value)}
-                      disabled={busy}
-                    >
-                      <option value="">{ru ? "Выберите героя" : "Choose hero"}</option>
-                      {heroes.map((hero) => (
-                        <option key={hero.item_id} value={hero.item_id} disabled={hero.reserved}>
-                          {hero.card.hero_name} · {hero.card.rank} · {hero.stats.cost}{" "}
-                          {ru ? "очк." : "pts"}
-                          {hero.reserved ? (ru ? " · В бою" : " · In battle") : ""}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                  {item && (
-                    <>
-                      <CardPreview card={item.card} />
-                      <p>
-                        HP {item.stats.max_hp} · ⚔ {item.stats.attack} · {ru ? "Броня" : "Armor"}{" "}
-                        {item.stats.armor}% · {ru ? "Цена состава" : "Cost"} {item.stats.cost}
-                      </p>
-                      <p>
-                        {localized(
-                          (item.definition?.rules || data.rules.heroes[item.hero_key])?.role,
-                          language,
-                        )}
-                      </p>
-                      <p>
-                        {localized(
-                          (item.definition?.rules || data.rules.heroes[item.hero_key])?.ability
-                            ?.description,
-                          language,
-                        )}
-                      </p>
-                      {item.definition && (
-                        <small>
-                          {ru ? "Одобренный вариант" : "Approved definition"} · v
-                          {item.definition.version}
-                        </small>
-                      )}
-                    </>
-                  )}
+      <div className="arena-squad-cards" aria-label={ru ? "Шесть карт состава" : "Six squad cards"}>
+        {Array.from({ length: 6 }, (_, index) => {
+          const line = Math.floor(index / 2),
+            position = index % 2 ? ("BACK" as const) : ("FRONT" as const)
+          const slot = slots.find((value) => value.line === line && value.position === position)
+          const item = heroes.find((value) => value.item_id === slot?.item_id)
+          const definition =
+            item &&
+            (gwent
+              ? data.rules.heroes[item.hero_key]
+              : item.definition?.rules || data.rules.heroes[item.hero_key])
+          return (
+            <article key={index} className="arena-squad-card" data-filled={!!item}>
+              <header>
+                <small>
+                  {ru ? "ГЕРОЙ" : "HERO"} {String(index + 1).padStart(2, "0")}
+                </small>
+                <span>×3 {ru ? "в колоде" : "in deck"}</span>
+              </header>
+              {item ? (
+                <CardPreview card={item.card} />
+              ) : (
+                <div className="arena-card-slot-empty">
+                  <Icon name="plus" size={32} />
+                  <span>{ru ? "Выберите карту" : "Choose a card"}</span>
                 </div>
-              )
-            })}
-          </fieldset>
-        ))}
+              )}
+              <label>
+                <span className="arena-slot-label">
+                  {ru ? "Карта героя" : "Hero card"} {index + 1}
+                </span>
+                <select
+                  aria-label={`${ru ? "Карта героя" : "Hero card"} ${index + 1}`}
+                  value={slot?.item_id || ""}
+                  onChange={(event) => setSlot(line, position, event.target.value)}
+                  disabled={busy}
+                >
+                  <option value="">{ru ? "Выберите героя" : "Choose hero"}</option>
+                  {heroes.map((hero) => (
+                    <option key={hero.item_id} value={hero.item_id} disabled={hero.reserved}>
+                      {hero.card.hero_name} · {hero.card.rank} · {hero.stats.cost}{" "}
+                      {ru ? "очк." : "pts"}
+                      {hero.reserved ? (ru ? " · В бою" : " · In battle") : ""}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              {item && (
+                <>
+                  <div className="arena-squad-card-stats">
+                    <span>
+                      <Icon name="swords" size={14} />
+                      {ru ? "Сила" : "Strength"}{" "}
+                      {item.stats.power ??
+                        (definition?.base_power || 4) +
+                          (data.rules.ranks[item.card.rank]?.power_bonus || 0)}
+                    </span>
+                    <span>
+                      {item.stats.cost} {ru ? "очков" : "pts"}
+                    </span>
+                  </div>
+                  <p>
+                    {roleLabels[localized(definition?.role, language)]?.[ru ? 0 : 1] ||
+                      localized(definition?.role, language)}
+                  </p>
+                  <p>
+                    {localized(
+                      item.stats.description ||
+                        definition?.description ||
+                        definition?.ability?.description,
+                      language,
+                    )}
+                  </p>
+                  {item.definition && (
+                    <small>
+                      {ru ? "Одобренный вариант" : "Approved definition"} · v
+                      {item.definition.version}
+                    </small>
+                  )}
+                </>
+              )}
+            </article>
+          )
+        })}
       </div>
       {duplicates > 0 && (
         <p role="alert">

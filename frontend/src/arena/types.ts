@@ -26,13 +26,22 @@ export type Ability = {
 }
 export type Definition = {
   image_url?: string
+  base_power?: number
+  rows?: number[]
+  effect?: string
+  effect_amount?: number
   key?: string
   name: Text
   role?: Text
   cost?: number
   passive?: Text
   description?: Text
-  ability?: Ability
+  ability?: Omit<Ability, "cost" | "target"> & {
+    cost?: number
+    target?: Ability["target"] | "ROW"
+    effect?: string
+    effect_amount?: number
+  }
   hp?: number
   max_hp?: number
 }
@@ -43,6 +52,7 @@ export type RosterItem = {
     category: "HERO" | "BASE"
     version: number
     rules: Definition
+    combat_rules?: Definition
   }
   item_id: string
   card: Card
@@ -51,13 +61,21 @@ export type RosterItem = {
   definition_key: string
   scope: EconomyScope
   reserved: boolean
-  stats: { max_hp: number; attack: number; armor: number; cost: number }
+  stats: {
+    max_hp: number
+    attack: number
+    armor: number
+    cost: number
+    power?: number
+    effect?: string
+    description?: Text
+  }
 }
 export type Bootstrap = {
   account_key?: string
   rules: {
     version: string
-    ranks: Partial<Record<Rank, { coefficient_milli: number; cost: number }>>
+    ranks: Partial<Record<Rank, { coefficient_milli: number; cost: number; power_bonus?: number }>>
     budget: number
     max_rounds: number
     heroes: Record<string, Definition>
@@ -65,11 +83,11 @@ export type Bootstrap = {
   }
   squad: Squad
   inventory: RosterItem[]
-  starter?: { claimed: boolean; available: boolean; missing_heroes: string[] }
+  starter?: { claimed: boolean; available: boolean; missing_heroes: string[]; cards?: Card[] }
   unavailable_inventory?: {
     item_id: string
     card: Card
-    reason: "UNSUPPORTED_HERO" | "BATTLE_APPROVAL"
+    reason: "UNSUPPORTED_HERO" | "BATTLE_APPROVAL" | "MISSING_ARTWORK"
   }[]
   assignments: {
     id: string
@@ -142,11 +160,11 @@ export type Side = {
   guardians: { id: string; line: number; hp: number; max_hp: number; attack: number }[]
   heroes: Hero[]
 }
-export type Action =
+export type LegacyAction =
   | { type: "SWAP"; first_id: string; second_id: string }
   | { type: "HERO_ABILITY"; actor_id: string; target_id?: string }
   | { type: "BASE_ABILITY"; target_id?: string; line?: number }
-export type Match = {
+export type LegacyMatch = {
   expired?: boolean
   id: string
   mode: Mode
@@ -162,6 +180,85 @@ export type Match = {
   result: null | { winner_side: "A" | "B" | null; reason: string }
   reward: CoinReward | null
 }
+export type GwentCard = {
+  id: string
+  kind: "UNIT" | "SPECIAL"
+  hero_key: string | null
+  name: Text
+  rank: Rank | "TACTIC"
+  power: number
+  base_power: number
+  rows: number[]
+  effect: string
+  effect_amount: number
+  description: Text
+  protected: boolean
+  damage?: number
+  boost?: number
+  image_url?: string
+  card?: Card
+  item_id?: string
+  definition?: Record<string, unknown>
+}
+export type GwentSide = {
+  side: "A" | "B"
+  heroes: Hero[]
+  base: {
+    id: string
+    key: Patron
+    name?: Text
+    image_url?: string
+    card?: Card
+    rules?: Definition
+    ability?: {
+      name: Text
+      description: Text
+      effect?: string
+      effect_amount?: number
+      target?: "ENEMY" | "ROW" | "NONE"
+    }
+  }
+  hand: GwentCard[]
+  hand_count: number
+  deck: GwentCard[]
+  deck_count: number
+  rows: GwentCard[][]
+  graveyard: GwentCard[]
+  graveyard_count: number
+  passed: boolean
+  wins: number
+  score: number
+  row_scores: number[]
+  horns?: number[]
+  leader_used: boolean
+  mulligans_remaining: number
+  mulligan_done: boolean
+}
+export type GwentState = {
+  game: "GWENT"
+  rules?: Bootstrap["rules"]
+  round: number
+  turn: number
+  phase: "MULLIGAN" | "PLAY"
+  turn_side: "A" | "B"
+  weather: number[]
+  history: { round: number; score_a: number; score_b: number; winner_side: "A" | "B" | null }[]
+  status: string
+  result?: LegacyMatch["result"]
+  sides: GwentSide[]
+}
+export type GwentAction =
+  | { type: "PLAY"; card_id: string; row?: number; target_id?: string }
+  | { type: "PASS" }
+  | { type: "LEADER"; row?: number; target_id?: string }
+  | { type: "MULLIGAN"; card_id: string }
+  | { type: "READY" }
+export type Action = LegacyAction | GwentAction
+export type Match = Omit<LegacyMatch, "state"> & { state: LegacyMatch["state"] | GwentState }
+export type GwentMatch = Omit<Match, "state"> & { state: GwentState }
+export const isGwentMatch = (match: Match): match is GwentMatch =>
+  ("game" in match.state && match.state.game === "GWENT") ||
+  match.state.rules?.version === "gwent-v1"
 export type Room = {
   code: string
   scope?: EconomyScope

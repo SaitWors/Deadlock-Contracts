@@ -8,15 +8,16 @@ from urllib.parse import urlsplit
 
 
 LIMITS = {
-    # Arena, squad/room/season recovery, EX and scoped v2 pack disclosures:
-    # measured 794,657 B; the Arena UI is lazy and the public entry remains
-    # 301,583 B within its unchanged 310 KB limit.
+    # Gwent board, targeting/inspection and original illustrated preparation,
+    # plus the legacy renderer for already-started matches: measured 823,321 B.
+    # The Arena UI is lazy and the public entry remains 301,583 B within its
+    # unchanged 310 KB limit. The new feature receives a bounded 30 KB increase.
     # Hero portraits stay separate assets.
-    "javascript_total": 800_000,
+    "javascript_total": 830_000,
     "initial_javascript": 310_000,
-    # Five themes and responsive surfaces retain existing feature styles.
-    # ~441 KB including the lazy poll/editor stylesheet.
-    "css_total": 450_000,
+    # Five themes, responsive Gwent board/hand and existing legacy surfaces.
+    # Measured 468,676 B; retain a narrow 25 KB increase for the new stylesheet.
+    "css_total": 475_000,
     "largest_image": 600_000,
     # Three mascot poses + four city/interior WebPs, all < 290 KB individually.
     # Measured 2.96 MB for every asset including fonts; artwork below fold is lazy.

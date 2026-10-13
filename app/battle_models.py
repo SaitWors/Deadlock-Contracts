@@ -176,7 +176,9 @@ for _model, _checks in (
     (BattleAssignment, ("scope IN ('REAL', 'SANDBOX')", "slot BETWEEN 1 AND 3", "mode IN ('ASSIGNED', 'HARD')", "status IN ('OPEN', 'COMPLETED')")),
     (BattleMatch, ("scope IN ('REAL', 'SANDBOX')", "revision > 0", "round BETWEEN 1 AND 12", "status IN ('ACTIVE', 'FINISHED')",
                    "mode IN ('TUTORIAL', 'TRAINING', 'ASSIGNED', 'HARD', 'TRIAL', 'WEEKLY', 'COPY', 'FRIENDLY', 'RANKED')")),
-    (BattleAction, ("round BETWEEN 1 AND 12",)),
+    # Legacy entries use the combat round; gwent-v1 entries use its global
+    # command turn so several cards can be played within the same round.
+    (BattleAction, ("round BETWEEN 1 AND 256",)),
     (BattleRoom, ("scope IN ('REAL', 'SANDBOX')", "status IN ('WAITING', 'STARTED', 'CLOSED')")),
     (BattleSeason, ("ends_at > starts_at",)),
     (BattleRating, ("games >= 0", "wins >= 0 AND wins <= games")),

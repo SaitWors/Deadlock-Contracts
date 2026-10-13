@@ -27,19 +27,15 @@ export default function PublicSquad({ slug }: { slug: string }) {
         <span>{showcase.budget} / 24</span>
       </header>
       <p>{base}</p>
+      <p>
+        {ru ? "6 героев · 24 карты · 2 победы в раундах" : "6 heroes · 24 cards · 2 round wins"}
+      </p>
       <div className="dossier-card-showcase">
         {showcase.heroes.map((hero) => (
           <article key={`${hero.line}:${hero.position}`}>
             <CardPreview card={hero.card} />
             <p>
-              {ru ? "Линия" : "Lane"} {hero.line + 1} ·{" "}
-              {hero.position === "FRONT"
-                ? ru
-                  ? "Передний ряд"
-                  : "Front"
-                : ru
-                  ? "Задний ряд"
-                  : "Back"}
+              {hero.rank} · {ru ? "3 боевые карты" : "3 combat cards"}
             </p>
           </article>
         ))}

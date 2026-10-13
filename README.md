@@ -42,6 +42,7 @@ Backend remains authoritative: Companion/GEP evidence is accepted only through s
 - [публичное описание проекта на русском и английском](docs/public-project.md);
 - [арена бюро, EX, экономика и развёртывание миграции 0022](docs/development/bureau-arena.md);
 - [исправление коллекции после PR #50 и миграция 0023](docs/development/restore-original-collection.md);
+- [бои в стиле Гвинта, существующие арты и миграция 0024](docs/development/gwent-arena.md);
 
 - установка/обновление: `INSTALL_0.10.1_ALPHA9_RU.md`;
 - изменения: `RELEASE_NOTES_0.10.1_ALPHA9_RU.md`;
