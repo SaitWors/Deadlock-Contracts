@@ -15,8 +15,9 @@ import Leaderboard from "./community/Leaderboard"
 import Achievements from "./community/Achievements"
 import Bureaus from "./community/Bureaus"
 import ContractSigning from "./ContractSigning"
+import "./contract-board.css"
 import { signSelection, selectionState, type SigningSelection } from "./contract-signing"
-import { prefersReducedMotion, useRipple, useTilt } from "./motion"
+import { prefersReducedMotion, useRipple } from "./motion"
 import AnnouncementCenter from "./admin/AnnouncementCenter"
 import ReviewDesk from "./admin/ReviewDesk"
 import type { AdminReview } from "./admin/admin-types"
@@ -1003,10 +1004,12 @@ function ModeTabs({
   value,
   onChange,
   boards,
+  emptyLabel,
 }: {
   value: Mode
   onChange: (mode: Mode) => void
   boards: Board[]
+  emptyLabel: string
 }) {
   const { language } = useLanguage()
   return (
@@ -1016,7 +1019,7 @@ function ModeTabs({
       statuses={Object.fromEntries(
         MODES.map((mode) => {
           const board = boards.find((item) => item.game_match_mode === mode)
-          return [mode, board ? statusLabel(board.status, language) : t(language, "ЗАГРУЗКА")]
+          return [mode, board ? statusLabel(board.status, language) : emptyLabel]
         }),
       )}
     />
@@ -1090,6 +1093,8 @@ export default function Dashboard({ initialSession }: { initialSession: SessionP
   const [mode, setMode] = useState<Mode>("STANDARD")
   const [filter, setFilter] = useState<QuestFilter>("ALL")
   const [boardsPayload, setBoardsPayload] = useState<BoardsPayload | null>(null)
+  const [boardsLoading, setBoardsLoading] = useState(true)
+  const [boardsError, setBoardsError] = useState(false)
   const [historyCases, setHistoryCases] = useState<HistoryCase[]>([])
   const [historyTotal, setHistoryTotal] = useState(0)
   const [progression, setProgression] = useState<Progression | null>(null)
@@ -1115,7 +1120,6 @@ export default function Dashboard({ initialSession }: { initialSession: SessionP
   const historyMorePending = useRef(false)
   const xpRef = useRef<HTMLSpanElement>(null)
   const ripple = useRipple()
-  const cardTilt = useTilt(2)
   const history = useMemo(
     () => historyCases.flatMap((historyCase) => historyCase.items),
     [historyCases],
@@ -1151,24 +1155,35 @@ export default function Dashboard({ initialSession }: { initialSession: SessionP
 
   const loadBoards = useCallback(async () => {
     const request = ++boardsRequest.current
-    const data = await api<BoardsPayload>("/api/boards/today", csrf)
-    if (request !== boardsRequest.current) return
-    setBoardsPayload(data)
-    setSelected((previous) => {
-      const next = { ...previous }
-      for (const board of data.boards) {
-        const locked = board.options.filter((option) => option.selected).map((option) => option.id)
-        if (locked.length || board.status !== "OFFERED") {
-          next[board.game_match_mode] = new Set(locked)
-        } else {
-          const currentOptionIds = new Set(board.options.map((option) => option.id))
-          next[board.game_match_mode] = new Set(
-            [...previous[board.game_match_mode]].filter((id) => currentOptionIds.has(id)),
-          )
+    setBoardsLoading(true)
+    try {
+      const data = await api<BoardsPayload>("/api/boards/today", csrf)
+      if (request !== boardsRequest.current) return
+      setBoardsPayload(data)
+      setBoardsError(false)
+      setSelected((previous) => {
+        const next = { ...previous }
+        for (const board of data.boards) {
+          const locked = board.options
+            .filter((option) => option.selected)
+            .map((option) => option.id)
+          if (locked.length || board.status !== "OFFERED") {
+            next[board.game_match_mode] = new Set(locked)
+          } else {
+            const currentOptionIds = new Set(board.options.map((option) => option.id))
+            next[board.game_match_mode] = new Set(
+              [...previous[board.game_match_mode]].filter((id) => currentOptionIds.has(id)),
+            )
+          }
         }
-      }
-      return next
-    })
+        return next
+      })
+    } catch {
+      // A stale response must not overwrite a newer board or its feedback.
+      if (request === boardsRequest.current) setBoardsError(true)
+    } finally {
+      if (request === boardsRequest.current) setBoardsLoading(false)
+    }
   }, [csrf])
   const loadHistory = useCallback(async () => {
     if (historyMorePending.current) return
@@ -1377,6 +1392,8 @@ export default function Dashboard({ initialSession }: { initialSession: SessionP
         }),
     )
     boardsRequest.current++
+    setBoardsLoading(false)
+    setBoardsError(false)
     // Update directly from the authoritative response. A failed background refresh
     // must never turn a successful signature into a failed one.
     setBoardsPayload(
@@ -1689,6 +1706,14 @@ export default function Dashboard({ initialSession }: { initialSession: SessionP
             </button>
           )}
 
+          {boardsError && tab !== "quests" && (
+            <button type="button" className="dc-error" onClick={() => void loadBoards()}>
+              {language === "ru"
+                ? "Не удалось загрузить доску. Повторить загрузку"
+                : "Could not load the board. Retry loading"}
+            </button>
+          )}
+
           {tab === "home" && (
             <>
               <section className="ns-home-heading">
@@ -1810,21 +1835,26 @@ export default function Dashboard({ initialSession }: { initialSession: SessionP
           )}
 
           {tab === "quests" && (
-            <div className="dc-motion-contract-scene">
-              <div className="dc-motion-spotlight" aria-hidden="true" />
+            <div className="dc-motion-contract-scene dc-contract-dossier">
               <section className="dc-work-head dc-page-head dc-v3-quest-head dc-motion-contract-head">
                 <div>
-                  <p className="dc-eyebrow">
-                    {language === "ru" ? "Ежедневная доска" : "Daily board"} ·{" "}
-                    {expiryLabel(board?.expires_at, clock, language)}
+                  <h1>{language === "ru" ? "Доска контрактов" : "Contract board"}</h1>
+                  <p className="dc-board-intro">
+                    {language === "ru"
+                      ? "Выберите до трёх контрактов и подпишите дело перед матчем."
+                      : "Choose up to three contracts and sign your case before a match."}
                   </p>
-                  <h1>{t(language, "Соберите дело")}</h1>
-                  <p>
-                    {t(
-                      language,
-                      "Шесть контрактов на режим. Выберите до трёх. Каждый невыполненный контракт можно закрыть в одном из трёх подходящих матчей; прогресс между матчами не суммируется.",
-                    )}
-                  </p>
+                  <details className="dc-board-rules">
+                    <summary>
+                      {language === "ru" ? "Правила выполнения" : "How contracts work"}
+                    </summary>
+                    <p>
+                      {t(
+                        language,
+                        "Шесть контрактов на режим. Выберите до трёх. Каждый невыполненный контракт можно закрыть в одном из трёх подходящих матчей; прогресс между матчами не суммируется.",
+                      )}
+                    </p>
+                  </details>
                 </div>
                 <div className="dc-motion-head-controls">
                   <ModeTabs
@@ -1834,10 +1864,21 @@ export default function Dashboard({ initialSession }: { initialSession: SessionP
                       setFilter("ALL")
                     }}
                     boards={boards}
+                    emptyLabel={
+                      boardsLoading && !boardsPayload
+                        ? t(language, "ЗАГРУЗКА")
+                        : language === "ru"
+                          ? "Нет доски"
+                          : "No board"
+                    }
                   />
                   <div className="dc-v3-reroll-box dc-motion-reroll">
                     <span>{language === "ru" ? "Обновление доски" : "Board refresh"}</span>
-                    <strong>{boardsPayload?.refresh.remaining ?? 0}/1</strong>
+                    <strong>
+                      {boardsPayload
+                        ? `${boardsPayload.refresh.remaining}/${boardsPayload.refresh.free_per_day}`
+                        : "—"}
+                    </strong>
                     <button
                       className="dc-ghost btn-ghost"
                       disabled={
@@ -1846,10 +1887,7 @@ export default function Dashboard({ initialSession }: { initialSession: SessionP
                         !boardsPayload?.refresh.remaining ||
                         busy
                       }
-                      onClick={(e) => {
-                        ripple(e)
-                        void reroll()
-                      }}
+                      onClick={() => void reroll()}
                     >
                       {language === "ru" ? "Обновить 6 контрактов" : "Refresh 6 contracts"}
                     </button>
@@ -1857,47 +1895,83 @@ export default function Dashboard({ initialSession }: { initialSession: SessionP
                 </div>
               </section>
 
-              <section className="dc-deadline-strip">
-                <div>
-                  <span>{language === "ru" ? "Новая доска через" : "Board resets in"}</span>
-                  <strong>
-                    {countdownHms(board?.daily_reset_at || boardsPayload?.refresh.reset_at, clock)}
-                  </strong>
-                  <small>{t(language, "Каждый день в 06:00 МСК")}</small>
-                </div>
-
-                <div
-                  className={
-                    board && ["LOCKED", "VERIFYING", "REVIEW_REQUIRED"].includes(board.status)
-                      ? "active"
-                      : ""
-                  }
-                >
-                  <span>{language === "ru" ? "Время на дело" : "Case time remaining"}</span>
-                  <strong>
-                    {board && ["LOCKED", "VERIFYING", "REVIEW_REQUIRED"].includes(board.status)
-                      ? countdownHms(board.case_expires_at || board.expires_at, clock)
-                      : board?.status === "OFFERED"
-                        ? t(language, "НЕ ПРИНЯТО")
-                        : statusLabel(board?.status || "", language)}
-                  </strong>
-                  <small>{t(language, "24 часа с момента фиксации")}</small>
-                </div>
-
-                <div>
-                  <span>{language === "ru" ? "Попытки" : "Attempts"}</span>
-                  <strong>
-                    {board?.attempts_used ?? 0}/{board?.max_attempts ?? 3}
-                  </strong>
-                  <small>{t(language, "для невыполненных контрактов")}</small>
-                </div>
-              </section>
+              {boardsError && (
+                <section className="dc-board-feedback dc-board-feedback-error" role="alert">
+                  <SvgIcon name="triangle-alert" />
+                  <div>
+                    <strong>
+                      {language === "ru"
+                        ? "Не удалось загрузить доску"
+                        : "Could not load the board"}
+                    </strong>
+                    <p>
+                      {boardsPayload
+                        ? language === "ru"
+                          ? "Показаны последние полученные данные. Ваш выбор сохранён."
+                          : "Showing the last loaded board. Your selection is preserved."
+                        : language === "ru"
+                          ? "Проверьте соединение и повторите загрузку."
+                          : "Check your connection and try again."}
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    className="dc-ghost"
+                    disabled={boardsLoading}
+                    onClick={() => void loadBoards()}
+                  >
+                    {language === "ru" ? "Повторить загрузку" : "Retry loading"}
+                  </button>
+                </section>
+              )}
+              {!boardsPayload && boardsLoading && !boardsError && (
+                <section className="dc-board-feedback" role="status">
+                  <SvgIcon name="hourglass" />
+                  <div>
+                    <strong>
+                      {language === "ru" ? "Загружаем контракты…" : "Loading contracts…"}
+                    </strong>
+                    <p>
+                      {language === "ru"
+                        ? "Получаем актуальную доску и доступные обновления."
+                        : "Fetching your current board and available refreshes."}
+                    </p>
+                  </div>
+                </section>
+              )}
+              {boardsPayload && !board && (
+                <section className="dc-board-feedback" role="status">
+                  <SvgIcon name="layers" />
+                  <div>
+                    <strong>
+                      {language === "ru"
+                        ? "Для этого режима пока нет доски"
+                        : "No board for this mode yet"}
+                    </strong>
+                    <p>
+                      {language === "ru"
+                        ? "Выберите другой режим или загрузите данные повторно."
+                        : "Choose another mode or reload the board."}
+                    </p>
+                  </div>
+                  {!boardsError && (
+                    <button
+                      type="button"
+                      className="dc-ghost"
+                      disabled={boardsLoading}
+                      onClick={() => void loadBoards()}
+                    >
+                      {language === "ru" ? "Повторить загрузку" : "Retry loading"}
+                    </button>
+                  )}
+                </section>
+              )}
 
               {board && (
                 <>
                   <section key={`${mode}-${board.generation}`} className="dc-motion-mode-note">
                     <div>
-                      <span className="dc-live-dot" />
+                      <SvgIcon name="file-text" size={18} />
                       <b>{MODE_META[mode].title}</b>
                       <small>{t(language, MODE_META[mode].caption)}</small>
                     </div>
@@ -1906,7 +1980,7 @@ export default function Dashboard({ initialSession }: { initialSession: SessionP
 
                   {pendingReviewForBoard && (
                     <section className="dc-v3-auto-review-banner">
-                      <span>◌</span>
+                      <SvgIcon name="hourglass" />
                       <div>
                         <b>{language === "ru" ? "Автоматическая проверка" : "Automatic review"}</b>
                         <p>
@@ -1919,29 +1993,56 @@ export default function Dashboard({ initialSession }: { initialSession: SessionP
                     </section>
                   )}
 
-                  <div className="dc-filter-row dc-motion-filter-row">
+                  <div
+                    className="dc-filter-row dc-motion-filter-row"
+                    role="group"
+                    aria-label={language === "ru" ? "Категория контракта" : "Contract category"}
+                  >
                     {(["ALL", "COMBAT", "SUPPORT", "ECONOMY", "SURVIVAL"] as QuestFilter[]).map(
                       (item) => (
                         <button
                           key={item}
                           className={filter === item ? "active" : ""}
-                          onClick={(e) => {
-                            ripple(e)
-                            setFilter(item)
-                          }}
+                          aria-pressed={filter === item}
+                          onClick={() => setFilter(item)}
                         >
                           <i>{categoryGlyph(item)}</i>
                           {categoryLabel(item, language)}
-                          {item !== "ALL" && (
-                            <span>{board.options.filter((x) => x.category === item).length}</span>
-                          )}
+                          <span>
+                            {item === "ALL"
+                              ? board.options.length
+                              : board.options.filter((x) => x.category === item).length}
+                          </span>
                         </button>
                       ),
                     )}
                   </div>
 
+                  {visibleOptions.length === 0 && (
+                    <section className="dc-board-feedback" role="status">
+                      <SvgIcon name="layers" />
+                      <div>
+                        <strong>
+                          {language === "ru"
+                            ? "В этой категории нет контрактов"
+                            : "No contracts in this category"}
+                        </strong>
+                        <p>
+                          {language === "ru"
+                            ? "В остальных категориях могут быть подходящие задания."
+                            : "Other categories may have a suitable contract."}
+                        </p>
+                      </div>
+                      {filter !== "ALL" && (
+                        <button type="button" className="dc-ghost" onClick={() => setFilter("ALL")}>
+                          {language === "ru" ? "Показать все контракты" : "Show all contracts"}
+                        </button>
+                      )}
+                    </section>
+                  )}
+
                   <section className="dc-contract-grid dc-contract-board dc-v3-contract-grid dc-motion-contract-grid">
-                    {visibleOptions.map((option, index) => {
+                    {visibleOptions.map((option) => {
                       const chosen = selectedSet.has(option.id) || option.selected
                       const state =
                         board.status === "OFFERED"
@@ -1957,18 +2058,10 @@ export default function Dashboard({ initialSession }: { initialSession: SessionP
                           className={`contract-card dc-contract dc-v3-contract dc-motion-contract-card ${
                             chosen ? "selected" : ""
                           } rarity-${option.rarity.toLowerCase()} diff-${option.difficulty.toLowerCase()} cat-${option.category.toLowerCase()}`}
-                          style={{ "--card-index": index } as React.CSSProperties}
                           aria-pressed={chosen}
                           disabled={board.status !== "OFFERED" || busy}
-                          onClick={(e) => {
-                            ripple(e)
-                            toggle(option.id)
-                          }}
-                          onMouseMove={cardTilt.onMouseMove}
-                          onMouseLeave={cardTilt.onMouseLeave}
+                          onClick={() => toggle(option.id)}
                         >
-                          <div className="holo-overlay" />
-                          <div className="dc-motion-card-sheen" />
                           <div className="dc-contract-top">
                             <span>
                               {chosen && (
@@ -1979,7 +2072,7 @@ export default function Dashboard({ initialSession }: { initialSession: SessionP
                                 />
                               )}
                               <i>{categoryGlyph(option.category)}</i>
-                              {categoryLabel(option.category, language).toUpperCase()}
+                              {categoryLabel(option.category, language)}
                             </span>
                             <em>
                               {language === "ru" ? "ШАНС" : "DROP"} ~
@@ -2006,15 +2099,13 @@ export default function Dashboard({ initialSession }: { initialSession: SessionP
                               </span>
                               <span>
                                 {language === "ru" ? "НАГРАДА" : "REWARD"}
-                                <b className={chosen ? "neon-text" : ""}>+{option.reward_xp} XP</b>
+                                <b>+{option.reward_xp} XP</b>
                               </span>
                             </div>
                             <div className="dc-contract-foot">
                               <span>
                                 {MODE_META[mode].short} ·{" "}
-                                {language === "ru"
-                                  ? "ДО 3 ПОПЫТОК · АВТОПРОВЕРКА"
-                                  : "UP TO 3 ATTEMPTS · AUTO VERIFY"}
+                                {language === "ru" ? "Автопроверка" : "Auto verification"}
                               </span>
                               <strong className={chosen ? "chosen" : ""}>{state}</strong>
                             </div>
@@ -2030,7 +2121,7 @@ export default function Dashboard({ initialSession }: { initialSession: SessionP
                     }`}
                   >
                     <div className="dc-motion-selection-copy">
-                      <strong>
+                      <strong role="status" aria-live="polite" aria-atomic="true">
                         {selectedSet.size} / 3 {t(language, "выбрано")}
                       </strong>
                       {selectedOptions.length ? (
@@ -2061,8 +2152,7 @@ export default function Dashboard({ initialSession }: { initialSession: SessionP
                           <button
                             className="dc-ghost btn-ghost dc-motion-reset"
                             disabled={!selectedSet.size || busy}
-                            onClick={(e) => {
-                              ripple(e)
+                            onClick={() => {
                               setSelected((previous) => ({
                                 ...previous,
                                 [mode]: new Set(),
@@ -2074,10 +2164,7 @@ export default function Dashboard({ initialSession }: { initialSession: SessionP
                           <button
                             className="dc-primary btn-primary dc-motion-lock"
                             disabled={!selectedSet.size || busy}
-                            onClick={(e) => {
-                              ripple(e)
-                              openSigning()
-                            }}
+                            onClick={openSigning}
                           >
                             {selectedSet.size
                               ? language === "ru"
@@ -2127,6 +2214,46 @@ export default function Dashboard({ initialSession }: { initialSession: SessionP
                     </section>
                   )}
                 </>
+              )}
+              {board && (
+                <section className="dc-deadline-strip">
+                  <div>
+                    <span>{language === "ru" ? "Новая доска через" : "Board resets in"}</span>
+                    <strong>
+                      {countdownHms(
+                        board?.daily_reset_at || boardsPayload?.refresh.reset_at,
+                        clock,
+                      )}
+                    </strong>
+                    <small>{t(language, "Каждый день в 06:00 МСК")}</small>
+                  </div>
+
+                  <div
+                    className={
+                      board && ["LOCKED", "VERIFYING", "REVIEW_REQUIRED"].includes(board.status)
+                        ? "active"
+                        : ""
+                    }
+                  >
+                    <span>{language === "ru" ? "Время на дело" : "Case time remaining"}</span>
+                    <strong>
+                      {board && ["LOCKED", "VERIFYING", "REVIEW_REQUIRED"].includes(board.status)
+                        ? countdownHms(board.case_expires_at || board.expires_at, clock)
+                        : board?.status === "OFFERED"
+                          ? t(language, "НЕ ПРИНЯТО")
+                          : statusLabel(board?.status || "", language)}
+                    </strong>
+                    <small>{t(language, "24 часа с момента фиксации")}</small>
+                  </div>
+
+                  <div>
+                    <span>{language === "ru" ? "Попытки" : "Attempts"}</span>
+                    <strong>
+                      {board?.attempts_used ?? 0}/{board?.max_attempts ?? 3}
+                    </strong>
+                    <small>{t(language, "для невыполненных контрактов")}</small>
+                  </div>
+                </section>
               )}
             </div>
           )}
