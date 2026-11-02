@@ -1,222 +1,108 @@
-import Icon from "./icons/Icon"
-import React, { Suspense, useState, useEffect, useRef } from "react"
+import { lazy, Suspense, useState } from "react"
 import BureauHeader from "./BureauHeader"
+import Icon, { type IconName } from "./icons/Icon"
 import Leaderboard from "./community/Leaderboard"
-import { useRipple, useTilt } from "./motion"
-import logoImage from "@/imports/brand-hero.webp"
 import Mascot from "./Mascot"
-import { WorldGallery, CityLocals } from "./nightshift-layout"
-import { MCGCredit, t, useLanguage } from "./i18n"
 import PublicContent, { readPublicCopy } from "./PublicContent"
-import { publicUrl, resolvePublicRoute, legacyPublicUrl, type PublicPage } from "./publicRoutes"
+import { MCGCredit, useLanguage } from "./i18n"
+import { publicUrl, resolvePublicRoute, type PublicPage } from "./publicRoutes"
 
-type ContractCategory = "COMFORT" | "GROWTH" | "HERO" | "VARIETY" | "EVENT"
-type GameMode = "STANDARD" | "RANKED" | "STREET BRAWL"
-
-const GuestCipher = React.lazy(() => import("./archive/GuestCipher"))
-const ContractSigning = React.lazy(() => import("./ContractSigning"))
-
-const NAV_ITEMS: Array<{
-  id: Exclude<PublicPage, "home" | "try">
-  label: string
-}> = [
-  { id: "contracts", label: "Contracts" },
-  { id: "how", label: "How it works" },
-  { id: "cards", label: "Cards" },
-  { id: "about", label: "About" },
-  { id: "campaigns", label: "Campaigns · soon" },
-  { id: "leaderboards", label: "Leaderboard" },
-]
-
-interface Contract {
+const ContractSigning = lazy(() => import("./ContractSigning"))
+const asset = (name: string) => `${import.meta.env.BASE_URL}assets/ritual/${name}`
+type Mode = "STANDARD" | "RANKED" | "STREET_BRAWL"
+type ExampleContract = {
   id: number
-  category: ContractCategory
-  difficulty: string
-  title: string
-  condition: string
-  meta: string
-  xp: number
-  recommendation?: string
+  title: [string, string]
+  description: [string, string]
+  category: [string, string]
+  difficulty: [string, string]
+  icon: IconName
+  reward: number
 }
-
-const CONTRACTS: Contract[] = [
+const EXAMPLES: ExampleContract[] = [
   {
     id: 1,
-    category: "COMFORT",
-    difficulty: "RELIABLE",
-    title: "Надёжный партнёр",
-    condition: "Совершите не менее 10 содействий и умрите не более 7 раз.",
-    meta: "STANDARD · 1 MATCH · FINAL STATS",
-    xp: 120,
-    recommendation: "В последних матчах вы часто помогали команде.",
+    title: ["Веский аргумент", "A strong argument"],
+    description: [
+      "Нанеси героям противника не менее 30 000 урона за один матч.",
+      "Deal at least 30,000 damage to enemy heroes in one match.",
+    ],
+    category: ["УРОН", "DAMAGE"],
+    difficulty: ["Средний", "Standard"],
+    icon: "target",
+    reward: 180,
   },
   {
     id: 2,
-    category: "GROWTH",
-    difficulty: "FOCUSED",
-    title: "Убедительные доказательства",
-    condition: "Нанесите героям не менее 28 000 урона.",
-    meta: "STANDARD · 1 MATCH · FINAL STATS",
-    xp: 120,
-    recommendation: "Сильный урон героям — понятная и проверяемая цель.",
+    title: ["Надёжное плечо", "Someone to count on"],
+    description: [
+      "Помоги команде совершить не менее 12 убийств за один матч.",
+      "Record at least 12 assists in one match.",
+    ],
+    category: ["КОМАНДА", "TEAMWORK"],
+    difficulty: ["Лёгкий", "Easy"],
+    icon: "handshake",
+    reward: 120,
   },
   {
     id: 3,
-    category: "HERO",
-    difficulty: "SKILL",
-    title: "Специалист: Haze",
-    condition: "Сыграйте на Haze и войдите в верхнюю половину команды по урону героям.",
-    meta: "STANDARD · 1 MATCH · FINAL STATS",
-    xp: 200,
-    recommendation: "Вы давно не играли на Haze.",
+    title: ["Охотник за головами", "Bounty hunter"],
+    description: [
+      "Соверши не менее 8 убийств героев за один матч.",
+      "Eliminate at least 8 enemy heroes in one match.",
+    ],
+    category: ["УБИЙСТВА", "ELIMINATIONS"],
+    difficulty: ["Средний", "Standard"],
+    icon: "target",
+    reward: 200,
   },
   {
     id: 4,
-    category: "VARIETY",
-    difficulty: "LIGHT",
-    title: "Новые горизонты",
-    condition: "Сыграйте на герое, которого не выбирали последние 5 матчей.",
-    meta: "STANDARD · 1 MATCH · FINAL STATS",
-    xp: 150,
+    title: ["Сухой расчёт", "Calculated risk"],
+    description: [
+      "Заверши матч с не более чем 5 смертями.",
+      "Finish a match with no more than 5 deaths.",
+    ],
+    category: ["ВЫЖИВАНИЕ", "SURVIVAL"],
+    difficulty: ["Сложный", "Hard"],
+    icon: "shield-check",
+    reward: 240,
   },
   {
     id: 5,
-    category: "EVENT",
-    difficulty: "TEAM",
-    title: "Согласованный удар",
-    condition: "В группе из 3+ игроков совместно возьмите не менее 2 объектов.",
-    meta: "STANDARD · PARTY · FINAL STATS",
-    xp: 280,
-    recommendation: "Сезонное задание с повышенной наградой.",
+    title: ["Чувство локтя", "Together we stand"],
+    description: [
+      "Заверши матч с не менее чем 20 содействиями.",
+      "Finish a match with at least 20 assists.",
+    ],
+    category: ["КОМАНДА", "TEAMWORK"],
+    difficulty: ["Сложный", "Hard"],
+    icon: "users",
+    reward: 260,
   },
   {
     id: 6,
-    category: "GROWTH",
-    difficulty: "HARD",
-    title: "Чистое досье",
-    condition: "Завершите матч с соотношением убийств и смертей не ниже 2.0.",
-    meta: "STANDARD · 1 MATCH · FINAL STATS",
-    xp: 220,
-    recommendation: "Редкие задания дают больше опыта.",
+    title: ["Без права на ошибку", "Make every shot count"],
+    description: [
+      "Нанеси героям не менее 45 000 урона за один матч.",
+      "Deal at least 45,000 damage to enemy heroes in one match.",
+    ],
+    category: ["УРОН", "DAMAGE"],
+    difficulty: ["Сложный", "Hard"],
+    icon: "target",
+    reward: 280,
   },
 ]
 
-const CATEGORY_LABEL: Record<ContractCategory, string> = {
-  COMFORT: "STABILITY",
-  GROWTH: "GROWTH",
-  HERO: "HERO",
-  VARIETY: "VARIETY",
-  EVENT: "EVENT",
-}
-
-const CATEGORY_COLOR: Record<ContractCategory, string> = {
-  COMFORT: "#7297A6",
-  GROWTH: "var(--ns-accent)",
-  HERO: "#C49A57",
-  VARIETY: "#8A78AE",
-  EVENT: "#B65E58",
-}
-
-// ─── Curator typer ─────────────────────────────────────────────────
-function CuratorTyper() {
-  const { language } = useLanguage()
-  return <span style={{ color: "var(--ns-accent)" }}>{t(language, "Выберите цель до матча.")}</span>
-}
-
-// ─── Reveal wrapper ────────────────────────────────────────────────
-function Reveal({
-  children,
-  className = "",
-  delay = 0,
-  stagger = false,
-}: {
-  children: React.ReactNode
-  className?: string
-  delay?: number
-  stagger?: boolean
-}) {
-  const ref = useRef<HTMLDivElement>(null)
-  const [visible, setVisible] = useState(false)
-
-  useEffect(() => {
-    const el = ref.current
-    if (!el) return
-    const obs = new IntersectionObserver(
-      ([entry]) => {
-        if (entry.isIntersecting) {
-          setVisible(true)
-          obs.disconnect()
-        }
-      },
-      { threshold: 0.1 },
-    )
-    obs.observe(el)
-    return () => obs.disconnect()
-  }, [])
-
-  return (
-    <div
-      ref={ref}
-      className={`${stagger ? "stagger-children" : "reveal-section"} ${
-        visible ? "visible" : ""
-      } ${className}`}
-      style={delay ? { transitionDelay: `${delay}ms` } : {}}
-    >
-      {children}
-    </div>
-  )
-}
-
-// ─── Atoms ─────────────────────────────────────────────────────────
-function SteamIcon() {
-  return (
-    <svg
-      width="16"
-      height="16"
-      viewBox="0 0 24 24"
-      fill="currentColor"
-      aria-hidden="true"
-      className="shrink-0"
-    >
-      <path d="M11.979 0C5.678 0 .511 4.86.022 11.037l6.432 2.658c.545-.371 1.203-.59 1.912-.59.063 0 .125.004.188.006l2.861-4.142V8.91c0-2.495 2.028-4.524 4.524-4.524 2.494 0 4.524 2.031 4.524 4.527s-2.03 4.525-4.524 4.525h-.105l-4.076 2.911c0 .052.004.105.004.159 0 1.875-1.515 3.396-3.39 3.396-1.635 0-3.016-1.173-3.331-2.727L.436 15.27C1.862 20.307 6.486 24 11.979 24c6.627 0 11.999-5.373 11.999-12S18.605 0 11.979 0zM7.54 18.21l-1.473-.61c.262.543.714.999 1.314 1.25 1.297.539 2.793-.076 3.332-1.375.263-.63.264-1.319.005-1.949s-.75-1.121-1.377-1.383c-.624-.26-1.29-.249-1.878-.03l1.523.63c.956.4 1.409 1.5 1.009 2.455-.397.957-1.497 1.41-2.455 1.012H7.54zm11.415-9.303c0-1.662-1.353-3.015-3.015-3.015-1.665 0-3.015 1.353-3.015 3.015 0 1.665 1.35 3.015 3.015 3.015 1.663 0 3.015-1.35 3.015-3.015zm-5.273-.005c0-1.252 1.013-2.266 2.265-2.266 1.249 0 2.266 1.014 2.266 2.266 0 1.251-1.017 2.265-2.266 2.265-1.252 0-2.265-1.014-2.265-2.265z" />
-    </svg>
-  )
-}
-
-function AnimatedEyeLogo() {
-  return <Icon name="eye" size={22} />
-}
-
-function SteamButton({
-  large = false,
-  compact = false,
-  secondary = false,
-  onClick,
-}: {
-  large?: boolean
-  compact?: boolean
-  secondary?: boolean
-  onClick?: (e: React.MouseEvent<HTMLButtonElement>) => void
-}) {
-  const ripple = useRipple()
+function SignIn({ compact = false }: { compact?: boolean }) {
   const { language } = useLanguage()
   return (
-    <button
-      className={`bureau-steam-button ${secondary ? "btn-ghost" : "btn-primary"} ${compact ? "is-compact" : ""} ${large ? "is-large" : ""}`}
+    <a
+      className="bureau-steam-button btn-primary ritual-steam"
+      href="/auth/steam"
       aria-label={language === "ru" ? "Войти через Steam" : "Sign in with Steam"}
-      type="button"
-      onClick={(e) => {
-        ripple(e)
-
-        if (onClick) {
-          onClick(e)
-          return
-        }
-
-        window.location.assign("/auth/steam")
-      }}
     >
-      <SteamIcon />
+      <Icon name="user-round" size={17} />
       {compact
         ? language === "ru"
           ? "Войти"
@@ -224,46 +110,14 @@ function SteamButton({
         : language === "ru"
           ? "Войти через Steam"
           : "Sign in with Steam"}
-    </button>
+    </a>
   )
 }
 
-function Eyebrow({ children }: { children: React.ReactNode }) {
-  return (
-    <p
-      className="text-xs font-semibold tracking-[0.28em] uppercase mb-3"
-      style={{ color: "var(--ns-accent)" }}
-    >
-      {children}
-    </p>
-  )
-}
-
-function SectionHeading({
-  children,
-  className = "",
-}: {
-  children: React.ReactNode
-  className?: string
-}) {
-  return (
-    <h2
-      className={`font-bold leading-tight ${className}`}
-      style={{
-        fontFamily: "var(--font-body)",
-        fontSize: "clamp(28px, 4vw, 42px)",
-        color: "var(--ns-text)",
-      }}
-    >
-      {children}
-    </h2>
-  )
-}
-
-// ─── App ───────────────────────────────────────────────────────────
-// ─── Landing ───────────────────────────────────────────────────────
 export default function Landing() {
   const { language } = useLanguage()
+  const ru = language === "ru"
+  const lang = ru ? 0 : 1
   const route = resolvePublicRoute(window.location.pathname) || {
     page: "home" as PublicPage,
     language,
@@ -272,662 +126,417 @@ export default function Landing() {
   const copy = readPublicCopy({ page, language })
   const [selected, setSelected] = useState<number[]>([])
   const [previewOpen, setPreviewOpen] = useState(false)
-  const [gameMode, setGameMode] = useState<GameMode>("STANDARD")
-  const xpRef = useRef<HTMLSpanElement>(null)
-  const ripple = useRipple()
-  const cardTilt = useTilt(2)
-
-  useEffect(() => {
-    // Root hashes may belong to an authenticated dashboard. SessionApp resolves
-    // those only after it knows the visitor is a guest.
-    if (window.location.pathname !== "/") {
-      const legacy = legacyPublicUrl(window.location.hash, language)
-      if (legacy && legacy !== window.location.pathname) window.location.replace(legacy)
-    }
-  }, [language])
-
-  const navigate = (next: PublicPage) => window.location.assign(publicUrl(next, language))
-
-  const toggleContract = (id: number) => {
-    setSelected((prev) => {
-      if (prev.includes(id)) return prev.filter((x) => x !== id)
-      if (prev.length >= 3) return prev
-      return [...prev, id]
-    })
-    if (xpRef.current) {
-      xpRef.current.classList.remove("xp-pop")
-      void xpRef.current.offsetWidth
-      xpRef.current.classList.add("xp-pop")
-    }
-  }
-
-  const contracts = CONTRACTS.map((contract) => ({
-    ...contract,
-    title: t(language, contract.title),
-    condition: t(language, contract.condition),
-    recommendation: contract.recommendation ? t(language, contract.recommendation) : undefined,
-  }))
-  const totalXP = selected.reduce(
-    (sum, id) => sum + (contracts.find((contract) => contract.id === id)?.xp ?? 0),
+  const [mode, setMode] = useState<Mode>("STANDARD")
+  const boardPage = page === "contracts" || page === "try"
+  const total = EXAMPLES.filter((c) => selected.includes(c.id)).reduce(
+    (sum, c) => sum + c.reward,
     0,
+  )
+  const toggle = (id: number) =>
+    setSelected((current) =>
+      current.includes(id)
+        ? current.filter((x) => x !== id)
+        : current.length < 3
+          ? [...current, id]
+          : current,
+    )
+  const nav: { id: PublicPage; label: string }[] = [
+    { id: "contracts", label: ru ? "Контракты" : "Contracts" },
+    { id: "cards", label: ru ? "Коллекция" : "Collection" },
+    { id: "leaderboards", label: ru ? "Рейтинг" : "Leaderboard" },
+    { id: "how", label: ru ? "Как играть" : "How it works" },
+    { id: "about", label: ru ? "О проекте" : "About" },
+  ]
+  const board = (
+    <section
+      className="ritual-board ritual-container"
+      id="contract-board"
+      aria-labelledby="board-title"
+    >
+      <div className="ritual-section-heading">
+        <div>
+          <p className="ritual-kicker">
+            {ru ? "СНАЧАЛА ЦЕЛЬ. ПОТОМ МАТЧ." : "FIRST THE OBJECTIVE. THEN THE MATCH."}
+          </p>
+          <h2 id="board-title">{ru ? "Выбери своё дело." : "Choose your next case."}</h2>
+        </div>
+        <span className="ritual-demo">
+          <Icon name="eye" size={15} />
+          {ru ? "Демонстрационная доска" : "Demo board"}
+        </span>
+      </div>
+      <div className="ritual-board-toolbar">
+        <div className="ritual-modes" role="group" aria-label={ru ? "Режим игры" : "Game mode"}>
+          {(["STANDARD", "RANKED", "STREET_BRAWL"] as Mode[]).map((m) => (
+            <button
+              type="button"
+              key={m}
+              aria-pressed={mode === m}
+              onClick={() => {
+                setMode(m)
+                setSelected([])
+              }}
+            >
+              {
+                {
+                  STANDARD: ru ? "Обычный" : "Standard",
+                  RANKED: ru ? "Рейтинговый" : "Ranked",
+                  STREET_BRAWL: ru ? "Уличная драка" : "Street Brawl",
+                }[m]
+              }
+            </button>
+          ))}
+        </div>
+        <p>
+          {ru
+            ? "Выбери до трёх контрактов на один матч"
+            : "Choose up to three contracts for one match"}
+        </p>
+      </div>
+      <div className="ritual-contracts">
+        {EXAMPLES.map((c, i) => (
+          <button
+            type="button"
+            data-contract-choice={c.id}
+            key={c.id}
+            className={`ritual-contract ${selected.includes(c.id) ? "is-selected" : ""}`}
+            aria-pressed={selected.includes(c.id)}
+            disabled={selected.length === 3 && !selected.includes(c.id)}
+            onClick={() => toggle(c.id)}
+          >
+            <span className="ritual-contract-top">
+              <span>DC / {String(i + 1).padStart(3, "0")}</span>
+              <span className="ritual-choice-check">
+                <Icon name={selected.includes(c.id) ? "check" : "plus"} size={17} />
+              </span>
+            </span>
+            <span className="ritual-contract-category">
+              <Icon name={c.icon} size={17} />
+              {c.category[lang]}
+            </span>
+            <strong>{c.title[lang]}</strong>
+            <span className="ritual-contract-description">{c.description[lang]}</span>
+            <span className="ritual-contract-bottom">
+              <span>{c.difficulty[lang]}</span>
+              <b>
+                +{c.reward} <small>XP</small>
+              </b>
+            </span>
+          </button>
+        ))}
+      </div>
+      <div className="ritual-selection" aria-live="polite">
+        <div>
+          <span>{ru ? "ТВОЙ ВЫБОР" : "YOUR SELECTION"}</span>
+          <strong>
+            {selected.length} / 3 <small>{ru ? "контракта" : "contracts"}</small>
+          </strong>
+        </div>
+        <div className="ritual-selection-xp">
+          +{total} <span>XP</span>
+        </div>
+        <button
+          type="button"
+          className="btn-primary"
+          disabled={!selected.length}
+          onClick={() => setPreviewOpen(true)}
+        >
+          <Icon name="feather" size={18} />
+          {ru ? "Примерить подпись" : "Preview signing"}
+          <Icon name="arrow-up-right" size={18} />
+        </button>
+      </div>
+      <p className="ritual-board-note">
+        <Icon name="info" size={15} />
+        {ru
+          ? "Это пример выбора. После входа появятся твои реальные контракты, условия и награды."
+          : "This is a preview. Sign in for your real contracts, conditions and rewards."}
+      </p>
+    </section>
   )
 
   return (
-    <div className="bureau-public min-h-screen">
+    <div className="bureau-public ritual-public">
+      <a className="ritual-skip" href="#main-content">
+        {ru ? "К содержимому" : "Skip to content"}
+      </a>
+      <BureauHeader
+        items={nav.map((item) => ({ ...item, href: publicUrl(item.id, language) }))}
+        active={page === "try" ? "contracts" : page}
+        homeHref={publicUrl("home", language)}
+        onNavigate={(id) => window.location.assign(publicUrl(id as PublicPage, language))}
+        actions={<SignIn compact />}
+      />
+      <main id="main-content">
+        {page === "home" && (
+          <>
+            <section className="ritual-hero" aria-labelledby="ritual-title">
+              <img
+                className="ritual-city"
+                src={asset("covenant-city.webp")}
+                alt=""
+                width="1672"
+                height="941"
+                fetchPriority="high"
+              />
+              <div className="ritual-container ritual-hero-inner">
+                <div className="ritual-hero-copy">
+                  <div className="ritual-hero-eyebrow">
+                    <span />
+                    {ru ? "ДРУГАЯ СТОРОНА DEADLOCK" : "THE OTHER SIDE OF DEADLOCK"}
+                    <small>ALPHA</small>
+                  </div>
+                  <h1 id="ritual-title">
+                    <span className="sr-only">Deadlock Contracts: </span>
+                    {ru ? (
+                      <>
+                        Твой матч.
+                        <br />
+                        <em>Твои условия.</em>
+                      </>
+                    ) : (
+                      <>
+                        Your match.
+                        <br />
+                        <em>Your terms.</em>
+                      </>
+                    )}
+                  </h1>
+                  <p>
+                    {ru
+                      ? "В каждом матче есть что-то большее, чем победа. Бери контракты, ставь свою подпись и превращай игру в личную историю."
+                      : "Every match has more to offer than a win. Pick your contracts, sign the deal and turn every game into your own story."}
+                  </p>
+                  <div className="ritual-hero-actions">
+                    <a className="btn-primary" href={publicUrl("contracts", language)}>
+                      {ru ? "Выбрать контракт" : "Choose a contract"}
+                      <Icon name="arrow-up-right" size={20} />
+                    </a>
+                    <a className="ritual-text-link" href={publicUrl("how", language)}>
+                      <Icon name="video" size={17} />
+                      {ru ? "Как это работает" : "How it works"}
+                    </a>
+                  </div>
+                  <div className="ritual-hero-trust">
+                    <Icon name="shield-check" size={16} />
+                    {ru
+                      ? "Вход через Steam. Прогресс остаётся с тобой."
+                      : "Sign in with Steam. Make your progress count."}
+                  </div>
+                </div>
+                <a
+                  className="ritual-hero-scroll"
+                  href={publicUrl("contracts", language)}
+                  aria-label={ru ? "Открыть доску контрактов" : "Open the contract board"}
+                >
+                  <img src={asset("open-scroll.webp")} alt="" width="1024" height="1536" />
+                  <div className="ritual-scroll-ink">
+                    <span>DEADLOCK CONTRACTS</span>
+                    <Icon name="eye" size={34} />
+                    <small>{ru ? "ПЕРСОНАЛЬНОЕ ПОРУЧЕНИЕ" : "PERSONAL ASSIGNMENT"}</small>
+                    <strong>{ru ? "Веский\nаргумент" : "A strong\nargument"}</strong>
+                    <p>{EXAMPLES[0].description[lang]}</p>
+                    <div>
+                      <span>{ru ? "НАГРАДА" : "REWARD"}</span>
+                      <b>180 XP</b>
+                    </div>
+                    <span className="ritual-scroll-signature">
+                      {ru ? "Твоя история начинается здесь" : "Your story starts here"}
+                    </span>
+                  </div>
+                  <span className="ritual-scroll-tag">
+                    <Icon name="feather" size={16} />
+                    {ru ? "ОСТАЛОСЬ ПОДПИСАТЬ" : "YOUR SIGNATURE AWAITS"}
+                  </span>
+                </a>
+              </div>
+              <div className="ritual-hero-bottom ritual-container">
+                <span>
+                  01 — {ru ? "КОНТРАКТЫ НА СЛЕДУЮЩИЙ МАТЧ" : "CONTRACTS FOR YOUR NEXT MATCH"}
+                </span>
+                <a href="#contract-board">
+                  {ru ? "Листай, здесь твоё дело" : "Your next case is below"}
+                  <Icon name="arrow-down" size={15} />
+                </a>
+              </div>
+            </section>
+            <section
+              className="ritual-principles ritual-container"
+              aria-label={ru ? "Как работает прогресс" : "How progression works"}
+            >
+              {(
+                [
+                  [
+                    "file-text",
+                    ru ? "Выбирай осознанно" : "Choose your objective",
+                    ru
+                      ? "До трёх целей. Один матч. Твой стиль игры."
+                      : "Up to three objectives. One match. Your playstyle.",
+                  ],
+                  [
+                    "feather",
+                    ru ? "Скрепляй подписью" : "Put your name on it",
+                    ru
+                      ? "Условия зафиксированы до начала игры."
+                      : "Your conditions are locked before the match.",
+                  ],
+                  [
+                    "medal",
+                    ru ? "Собирай достижения" : "Make progress",
+                    ru
+                      ? "Проверенный результат, опыт и новые уровни."
+                      : "Verified results, XP and new levels.",
+                  ],
+                ] as [IconName, string, string][]
+              ).map(([icon, title, text], i) => (
+                <article key={title}>
+                  <span className="ritual-step-number">0{i + 1}</span>
+                  <Icon name={icon} size={23} />
+                  <div>
+                    <h2>{title}</h2>
+                    <p>{text}</p>
+                  </div>
+                </article>
+              ))}
+            </section>
+            {board}
+            <section className="ritual-daily ritual-container" aria-labelledby="daily-title">
+              <div className="ritual-daily-art">
+                <img
+                  src={asset("sealed-scroll.webp")}
+                  alt=""
+                  width="1774"
+                  height="887"
+                  loading="lazy"
+                />
+              </div>
+              <div>
+                <p className="ritual-kicker">
+                  {ru ? "ВОЗВРАЩАТЬСЯ ПРИЯТНО" : "SOMETHING TO COME BACK TO"}
+                </p>
+                <h2 id="daily-title">
+                  {ru ? "Новый день.\nНовый пак." : "A new day.\nA new pack."}
+                </h2>
+                <p>
+                  {ru
+                    ? "Ежедневный пак для твоей коллекции. Забирай бесплатно, открывай карточки героев и находи свои редкие экземпляры."
+                    : "A daily pack for your collection. Claim it for free, reveal hero cards and find your next rare favorite."}
+                </p>
+                <a className="ritual-text-link" href={publicUrl("cards", language)}>
+                  {ru ? "Больше о коллекции" : "Explore the collection"}
+                  <Icon name="arrow-up-right" size={18} />
+                </a>
+                <span className="ritual-daily-label">
+                  <Icon name="calendar-days" size={16} />
+                  {ru ? "Один пак в день · Бесплатно" : "One pack a day · Free"}
+                </span>
+              </div>
+            </section>
+            <section className="ritual-community ritual-container">
+              <div>
+                <p className="ritual-kicker">MANDARIN CREATOR GROUP</p>
+                <h2>{ru ? "У каждого игрока\nсвоя история." : "Every player\nhas a story."}</h2>
+                <p>
+                  {ru
+                    ? "Твой профиль, твои достижения и люди, с которыми хочется сыграть ещё один матч."
+                    : "Your profile, your achievements and the people who make one more match worth playing."}
+                </p>
+                <SignIn />
+              </div>
+              <Mascot className="ritual-curator" />
+            </section>
+          </>
+        )}
+        {boardPage && (
+          <>
+            <header className="ritual-page-heading ritual-container">
+              <p className="ritual-kicker">DEADLOCK CONTRACTS / {ru ? "КОНТРАКТЫ" : "CONTRACTS"}</p>
+              <h1>
+                {copy?.heading ||
+                  (ru ? "У следующего матча есть цель." : "Give your next match a purpose.")}
+              </h1>
+              <p>{copy?.intro}</p>
+            </header>
+            {board}
+          </>
+        )}
+        {page === "cards" && (
+          <>
+            <PublicContent copy={copy} />
+            <section className="ritual-collection-callout ritual-container">
+              <img src={asset("sealed-scroll.webp")} alt="" width="1774" height="887" />
+              <div>
+                <p className="ritual-kicker">{ru ? "ЕЖЕДНЕВНЫЙ ПАК" : "DAILY PACK"}</p>
+                <h2>{ru ? "Забирай. Открывай. Собирай." : "Claim. Reveal. Collect."}</h2>
+                <p>
+                  {ru
+                    ? "Один бесплатный пак на аккаунт в сутки. Следующая выдача — в 00:00 UTC (03:00 МСК)."
+                    : "One free pack per account per day. Resets at 00:00 UTC."}
+                </p>
+                <SignIn />
+              </div>
+            </section>
+          </>
+        )}
+        {!boardPage && !["home", "cards"].includes(page) && <PublicContent copy={copy} />}
+        {page === "leaderboards" && (
+          <div className="ritual-container ritual-ranking">
+            <Leaderboard />
+          </div>
+        )}
+        {page === "how" && (
+          <div className="ritual-container ritual-how-action">
+            <a className="btn-primary" href={publicUrl("contracts", language)}>
+              {ru ? "Попробовать подписание" : "Try signing"}
+              <Icon name="feather" size={17} />
+            </a>
+          </div>
+        )}
+      </main>
+      <footer className="ritual-footer ritual-container">
+        <a className="ritual-footer-brand" href={publicUrl("home", language)}>
+          <Icon name="eye" size={27} />
+          <strong>
+            DEADLOCK <span>CONTRACTS</span>
+          </strong>
+        </a>
+        <p>
+          {ru
+            ? "Неофициальный проект сообщества. Deadlock и Steam принадлежат Valve."
+            : "An unofficial community project. Deadlock and Steam belong to Valve."}
+        </p>
+        <nav aria-label={ru ? "Информация" : "Information"}>
+          <a href="/data-sources">{ru ? "Источники данных" : "Data sources"}</a>
+          <a href="/support">{ru ? "Поддержка" : "Support"}</a>
+          <a href="/privacy">{ru ? "Конфиденциальность" : "Privacy"}</a>
+          <a href="/terms">{ru ? "Правила" : "Terms"}</a>
+        </nav>
+        <MCGCredit language={language} />
+      </footer>
       {previewOpen && (
         <Suspense
           fallback={
-            <p className="ns-dialog-loading" role="status">
-              {language === "ru" ? "Открываем досье…" : "Opening the dossier…"}
+            <p role="status" className="ns-dialog-loading">
+              {ru ? "Открываем контракт…" : "Opening contract…"}
             </p>
           }
         >
           <ContractSigning
             preview
-            mode={gameMode}
-            operator={language === "ru" ? "Гость бюро" : "Bureau guest"}
-            options={contracts
-              .filter((contract) => selected.includes(contract.id))
-              .map((contract) => ({
-                id: String(contract.id),
-                title: contract.title,
-                description: contract.condition,
-                reward: contract.xp,
-              }))}
+            mode={mode}
+            operator={ru ? "Гость" : "Guest"}
+            options={EXAMPLES.filter((c) => selected.includes(c.id)).map((c) => ({
+              id: String(c.id),
+              title: c.title[lang],
+              description: c.description[lang],
+              reward: c.reward,
+            }))}
             changed={false}
             onClose={() => setPreviewOpen(false)}
             onSignIn={() => window.location.assign("/auth/steam")}
           />
         </Suspense>
       )}
-      <BureauHeader
-        active={page}
-        homeHref={publicUrl("home", language)}
-        items={NAV_ITEMS.map((item) => ({
-          id: item.id,
-          href: publicUrl(item.id, language),
-          label:
-            language === "ru"
-              ? {
-                  contracts: "Контракты",
-                  how: "Как это работает",
-                  cards: "Карточки",
-                  about: "О проекте",
-                  campaigns: "Кампании · скоро",
-                  leaderboards: "Рейтинг",
-                }[item.id]
-              : item.label,
-        }))}
-        onNavigate={(id) => navigate(id as PublicPage)}
-        actions={<SteamButton compact />}
-      />
-      {page !== "home" && page !== "try" && <PublicContent copy={copy} />}
-      {page === "cards" && <CityLocals showCatalogLink={false} />}
-      {page === "home" && (
-        <>
-          <section className="bureau-welcome" aria-labelledby="welcome-title">
-            <div className="bureau-welcome-copy">
-              <p className="bureau-welcome-eyebrow">
-                CITY NEVER SLEEPS · {language === "ru" ? "ГОРОДСКОЕ БЮРО" : "CITY BUREAU"}
-              </p>
-              <h1 id="welcome-title">
-                <span className="sr-only">Deadlock Contracts: </span>
-                {language === "ru" ? (
-                  <>
-                    У города
-                    <br />
-                    есть <em>дело к тебе.</em>
-                  </>
-                ) : (
-                  <>
-                    The city
-                    <br />
-                    has a <em>case for you.</em>
-                  </>
-                )}
-              </h1>
-              <p className="bureau-welcome-lead">
-                {copy?.intro ||
-                  (language === "ru"
-                    ? "Выбирайте контракты, собирайте карточки и найдите своё бюро. Начать можно прямо здесь — с небольшого шифра в браузере."
-                    : "Choose contracts, collect cards and find your bureau. Start right here with a short cipher in your browser.")}
-              </p>
-              <div className="bureau-welcome-actions">
-                <a className="btn-primary" href={publicUrl("try", language)}>
-                  {language === "ru" ? "Попробовать без входа" : "Try without signing in"}
-                  <Icon name="chevron-right" size={18} />
-                </a>
-                <SteamButton secondary />
-              </div>
-              <p className="bureau-welcome-trust">
-                <Icon name="shield-check" size={18} />
-                {language === "ru"
-                  ? "Авторизация проходит на стороне Steam; сайт не запрашивает ваш пароль Steam."
-                  : "Authorization happens on Steam; this site never asks for your Steam password."}
-              </p>
-            </div>
-            <div className="bureau-welcome-art">
-              <Mascot initialPose="idle" priority />
-            </div>
-            <a className="bureau-welcome-file" href={publicUrl("contracts", language)}>
-              <Icon name="file-text" size={26} />
-              <div>
-                <small>{language === "ru" ? "БЮРО ПРИНИМАЕТ ДЕЛА" : "THE BUREAU IS OPEN"}</small>
-                <b>
-                  {language === "ru" ? "Следующий матч — с целью." : "Your next match. A new goal."}
-                </b>
-              </div>
-              <Icon name="arrow-up-right" size={22} />
-            </a>
-          </section>
-          <section
-            className="bureau-paths"
-            aria-label={language === "ru" ? "Чем заняться в бюро" : "Explore the bureau"}
-          >
-            <article>
-              <Icon name="file-text" size={26} />
-              <div>
-                <h2>
-                  {language === "ru" ? "Следующий матч — с целью" : "Give your next match a goal"}
-                </h2>
-                <p>
-                  {language === "ru"
-                    ? "Зафиксируйте до трёх контрактов до матча. Сервис проверит итоговую статистику; выполненные условия принесут XP."
-                    : "Lock up to three contracts before a match. The service checks final stats; completed objectives earn XP."}
-                </p>
-                <a href={publicUrl("contracts", language)}>
-                  {language === "ru" ? "Попробовать подписание" : "Preview a contract"}
-                  <Icon name="chevron-right" size={16} />
-                </a>
-              </div>
-            </article>
-            <article>
-              <Icon name="images" size={26} />
-              <div>
-                <h2>
-                  {language === "ru" ? "Коллекция между матчами" : "A collection between matches"}
-                </h2>
-                <p>
-                  {language === "ru"
-                    ? "Решайте шифры, получайте монеты бюро и открывайте карточки. Монеты и матчевый XP считаются отдельно. Компаньон не нужен."
-                    : "Solve ciphers, earn Bureau coins and open cards. Coins are separate from match XP. No companion required."}
-                </p>
-                <a href={publicUrl("try", language)}>
-                  {language === "ru" ? "Разгадать первый шифр" : "Try your first cipher"}
-                  <Icon name="chevron-right" size={16} />
-                </a>
-              </div>
-            </article>
-          </section>
-          <CityLocals />
-          <WorldGallery />
-        </>
-      )}
-      {page === "contracts" && (
-        <>
-          {/* ── INTERACTIVE BOARD ── */}
-          <section className="bureau-contract-preview pt-32 pb-24 px-6 lg:px-8 relative overflow-hidden">
-            <div className="relative max-w-[1320px] mx-auto">
-              <Reveal>
-                <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-5 mb-10">
-                  <div>
-                    <Eyebrow>
-                      {language === "ru"
-                        ? "ПРОБНОЕ ПОДПИСАНИЕ · НЕ СОХРАНЯЕТСЯ"
-                        : "INTERACTIVE PREVIEW / NOT SAVED"}
-                    </Eyebrow>
-                    <SectionHeading>
-                      {t(language, "Выберите цель на следующий матч")}
-                    </SectionHeading>
-                    <p
-                      className="text-xs leading-relaxed mt-3 max-w-[620px]"
-                      style={{ color: "var(--ns-muted)" }}
-                    >
-                      {t(
-                        language,
-                        "Интерактивный пример. Выбор ниже не сохраняется и не создаёт настоящий контракт. Реальные контракты доступны после входа в кабинете.",
-                      )}
-                    </p>
-                  </div>
-                  <div
-                    className="ns-demo-modes"
-                    style={{
-                      border: "1px solid var(--ns-line)",
-                      boxShadow: "none",
-                    }}
-                  >
-                    {(["STANDARD", "RANKED", "STREET BRAWL"] as GameMode[]).map((mode, i) => (
-                      <button
-                        type="button"
-                        key={mode}
-                        onClick={(e) => {
-                          setGameMode(mode)
-                          setSelected([])
-                          ripple(e)
-                        }}
-                        className={`px-5 py-2 text-sm font-semibold transition-all duration-200 ${
-                          gameMode === mode ? "mode-tab-active" : ""
-                        }`}
-                        aria-pressed={gameMode === mode}
-                        style={{
-                          backgroundColor: gameMode === mode ? "var(--ns-soft)" : "transparent",
-                          color: gameMode === mode ? "var(--ns-accent)" : "var(--ns-muted)",
-                          borderRight: i < 2 ? "1px solid var(--ns-line)" : "none",
-                          fontFamily: "var(--font-body)",
-                          letterSpacing: "0.06em",
-                          textShadow: "none",
-                        }}
-                      >
-                        {mode}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              </Reveal>
-
-              <Reveal stagger>
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
-                  {contracts.map((c) => {
-                    const isSelected = selected.includes(c.id)
-                    const catColor = CATEGORY_COLOR[c.category]
-                    return (
-                      <button
-                        type="button"
-                        key={c.id}
-                        className={`ns-demo-contract contract-card border p-4 flex flex-col cursor-pointer select-none text-left w-full ${
-                          isSelected ? "selected" : ""
-                        }`}
-                        style={{
-                          backgroundColor: "var(--color-panel)",
-                          borderColor: isSelected ? "var(--ns-accent)" : "var(--ns-line)",
-                          borderRadius: "16px",
-                        }}
-                        onClick={() => toggleContract(c.id)}
-                        aria-pressed={isSelected}
-                        disabled={!isSelected && selected.length >= 3}
-                        aria-label={`${c.title}: ${c.condition}`}
-                        onMouseMove={cardTilt.onMouseMove}
-                        onMouseLeave={cardTilt.onMouseLeave}
-                      >
-                        {isSelected && (
-                          <div
-                            className="absolute top-2.5 right-2.5 w-5 h-5 rounded-full flex items-center justify-center text-[11px] font-bold"
-                            style={{
-                              backgroundColor: "var(--ns-accent)",
-                              color: "var(--ns-on-accent)",
-                              boxShadow: "none",
-                              zIndex: 2,
-                            }}
-                          >
-                            <Icon name="check" size={14} />
-                          </div>
-                        )}
-                        <div className="flex justify-between items-start mb-2 pr-6">
-                          <span
-                            className="text-[10px] font-bold tracking-widest"
-                            style={{
-                              color: catColor,
-                              fontFamily: "var(--font-body)",
-                              textShadow: "none",
-                            }}
-                          >
-                            {CATEGORY_LABEL[c.category]}
-                          </span>
-                        </div>
-                        <span
-                          className="text-[10px] font-semibold tracking-wider mb-2 self-start px-1.5 py-0.5"
-                          style={{
-                            backgroundColor: "var(--ns-elevated)",
-                            color: "var(--ns-muted)",
-                            borderRadius: "2px",
-                            border: "1px solid var(--ns-line)",
-                          }}
-                        >
-                          {c.difficulty}
-                        </span>
-                        <h3
-                          className="font-bold mb-2 flex-1"
-                          style={{
-                            fontFamily: "var(--font-body)",
-                            fontSize: "20px",
-                            color: "var(--color-cream)",
-                            lineHeight: 1.35,
-                          }}
-                        >
-                          {c.title}
-                        </h3>
-                        <p
-                          className="text-xs mb-4 flex-1 leading-relaxed"
-                          style={{ color: "var(--ns-muted)" }}
-                        >
-                          {c.condition}
-                        </p>
-                        <div
-                          className="mt-auto pt-3"
-                          style={{ borderTop: "1px solid var(--ns-line)" }}
-                        >
-                          <div className="text-[10px] mb-1.5" style={{ color: "var(--ns-muted)" }}>
-                            {gameMode} ·{" "}
-                            {language === "ru" ? "1 матч · Автопроверка" : "1 match · Auto verify"}
-                          </div>
-                          <div
-                            className="font-bold"
-                            style={{
-                              color: "var(--ns-accent)",
-                              fontFamily: "var(--font-body)",
-                              fontSize: "16px",
-                              textShadow: "none",
-                            }}
-                          >
-                            +{c.xp} XP
-                          </div>
-                        </div>
-                      </button>
-                    )
-                  })}
-                </div>
-              </Reveal>
-
-              {/* Selection tray */}
-              <Reveal>
-                <div
-                  className="ns-demo-selection border p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4 transition-all duration-300"
-                  style={{
-                    backgroundColor: selected.length > 0 ? "var(--ns-surface)" : "var(--ns-bg)",
-                    borderColor: selected.length > 0 ? "var(--ns-line)" : "var(--ns-line)",
-                    borderRadius: "16px",
-                    boxShadow: selected.length > 0 ? "var(--ns-shadow)" : "none",
-                  }}
-                >
-                  <div className="min-w-0">
-                    <div
-                      className="font-bold mb-1.5"
-                      style={{
-                        fontFamily: "var(--font-body)",
-                        fontSize: "18px",
-                        color: "var(--ns-text)",
-                      }}
-                    >
-                      {selected.length} / 3 {language === "ru" ? "выбрано" : "selected"}
-                    </div>
-                    {selected.length > 0 ? (
-                      <div className="flex flex-wrap gap-2">
-                        {selected.map((id) => {
-                          const c = contracts.find((x) => x.id === id)!
-                          return (
-                            <span
-                              key={id}
-                              className="text-xs px-2.5 py-1"
-                              style={{
-                                backgroundColor: "var(--ns-elevated)",
-                                color: "var(--ns-muted)",
-                                borderRadius: "3px",
-                                border: "1px solid var(--ns-line)",
-                              }}
-                            >
-                              {c.title}{" "}
-                              <span
-                                style={{
-                                  color: "var(--ns-accent)",
-                                  textShadow: "none",
-                                }}
-                              >
-                                +{c.xp} XP
-                              </span>
-                            </span>
-                          )
-                        })}
-                      </div>
-                    ) : (
-                      <p className="text-xs" style={{ color: "var(--ns-muted)" }}>
-                        {language === "ru"
-                          ? "Выберите до 3 из 6 предложений. В реальном кабинете пул меняется по режиму."
-                          : "Choose up to 3 of 6 offers. In the live dashboard, the pool changes by mode."}
-                      </p>
-                    )}
-                  </div>
-                  <div className="flex items-center gap-3 shrink-0">
-                    {selected.length > 0 && (
-                      <>
-                        <span
-                          ref={xpRef}
-                          className="xp-pop font-bold"
-                          style={{
-                            fontFamily: "var(--font-body)",
-                            fontSize: "22px",
-                            color: "var(--ns-accent)",
-                            textShadow: "none",
-                          }}
-                        >
-                          +{totalXP} XP
-                        </span>
-                        <button
-                          onClick={(e) => {
-                            setSelected([])
-                            ripple(e)
-                          }}
-                          className="text-xs px-3 py-2"
-                          style={{
-                            color: "var(--ns-muted)",
-                            border: "1px solid var(--ns-line)",
-                            borderRadius: "4px",
-                            transition: "color 0.2s, border-color 0.2s",
-                            position: "relative",
-                            overflow: "hidden",
-                          }}
-                          onMouseEnter={(e) => {
-                            e.currentTarget.style.color = "var(--ns-muted)"
-                            e.currentTarget.style.borderColor = "var(--ns-line)"
-                          }}
-                          onMouseLeave={(e) => {
-                            e.currentTarget.style.color = "var(--ns-muted)"
-                            e.currentTarget.style.borderColor = "var(--ns-line)"
-                          }}
-                        >
-                          {t(language, "Сбросить")}
-                        </button>
-                      </>
-                    )}
-                    <button
-                      className="btn-primary text-sm font-bold px-5 py-2.5"
-                      style={{
-                        backgroundColor:
-                          selected.length > 0 ? "var(--ns-fill)" : "var(--ns-elevated)",
-                        color: selected.length > 0 ? "var(--ns-text)" : "var(--ns-muted)",
-                        border: `1px solid ${selected.length > 0 ? "var(--ns-accent)" : "var(--ns-line)"}`,
-                        borderRadius: "4px",
-                        fontFamily: "var(--font-body)",
-                        letterSpacing: "0.05em",
-                        boxShadow: selected.length > 0 ? "var(--ns-shadow)" : "none",
-                      }}
-                      disabled={selected.length === 0}
-                      onClick={() => setPreviewOpen(true)}
-                    >
-                      {t(language, "ПРЕДПРОСМОТР · НЕ СОХРАНЯЕТСЯ")}
-                    </button>
-                  </div>
-                </div>
-              </Reveal>
-            </div>
-          </section>
-
-          <div className="flame-divider" />
-        </>
-      )}
-      {page === "try" && (
-        <Suspense
-          fallback={
-            <main className="guest-cipher" role="status">
-              {language === "ru" ? "Открываем учебный шифр…" : "Opening the teaching cipher…"}
-            </main>
-          }
-        >
-          <GuestCipher onHome={() => navigate("home")} />
-        </Suspense>
-      )}
-      {page === "leaderboards" && (
-        <div className="public-leaderboard">
-          <Leaderboard />
-        </div>
-      )}
-      {page === "home" && <PublicContent copy={copy} heading={false} />}
-      {/* ── FOOTER ── */}
-      <footer
-        className="ns-public-footer px-6 lg:px-8 py-12 relative"
-        style={{
-          borderTop: "1px solid var(--ns-line)",
-          backgroundColor: "var(--ns-on-accent)",
-          boxShadow: "none",
-        }}
-      >
-        <div className="max-w-[1320px] mx-auto grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8 mb-10">
-          <div className="sm:col-span-2 lg:col-span-2">
-            <img
-              src={logoImage}
-              alt="Deadlock Contracts"
-              className="logo-container"
-              style={{ height: "38px", width: "auto", marginBottom: "14px" }}
-            />
-            <p
-              className="text-xs leading-relaxed mb-5 max-w-[260px]"
-              style={{ color: "var(--ns-muted)" }}
-            >
-              {t(
-                language,
-                "Неофициальный проект для игроков Deadlock. Не связан с Valve Corporation.",
-              )}
-            </p>
-            <div className="flex flex-wrap gap-5">
-              {[
-                {
-                  label: language === "ru" ? "Поддержка" : "Support",
-                  href: `/${language}/support`,
-                },
-                {
-                  label: language === "ru" ? "Статус" : "Status",
-                  href: `/${language}/status`,
-                },
-                {
-                  label: language === "ru" ? "Изменения" : "Changelog",
-                  href: `/${language}/changelog`,
-                },
-                {
-                  label: language === "ru" ? "Источники данных" : "Data sources",
-                  href: `/${language}/data-sources`,
-                },
-              ].map((item) => (
-                <a
-                  key={item.href}
-                  href={item.href}
-                  className="text-xs nav-link transition-colors hover:text-[var(--ns-accent)]"
-                  style={{ color: "var(--ns-muted)" }}
-                >
-                  {item.label}
-                </a>
-              ))}
-            </div>
-          </div>
-          <div>
-            <div
-              className="text-[10px] font-bold tracking-widest uppercase mb-4"
-              style={{
-                color: "var(--ns-muted)",
-                fontFamily: "var(--font-body)",
-              }}
-            >
-              PLATFORM
-            </div>
-            {[
-              {
-                label: "CONTRACTS",
-                href: publicUrl("contracts", language),
-              },
-              {
-                label: language === "ru" ? "Карточки" : "Cards",
-                href: publicUrl("cards", language),
-              },
-              {
-                label: language === "ru" ? "О проекте" : "About",
-                href: publicUrl("about", language),
-              },
-              {
-                label: "HOW IT WORKS",
-                href: publicUrl("how", language),
-              },
-              {
-                label: "CAMPAIGNS · SOON",
-                href: publicUrl("campaigns", language),
-              },
-              {
-                label: "LEADERBOARD",
-                href: publicUrl("leaderboards", language),
-              },
-            ].map((item) => (
-              <a
-                key={item.href}
-                href={item.href}
-                className="nav-link block text-xs mb-3 transition-colors hover:text-[var(--ns-accent)]"
-                style={{ color: "var(--ns-muted)" }}
-              >
-                {t(language, item.label)}
-              </a>
-            ))}
-          </div>
-          <div>
-            <div
-              className="text-[10px] font-bold tracking-widest uppercase mb-4"
-              style={{
-                color: "var(--ns-muted)",
-                fontFamily: "var(--font-body)",
-              }}
-            >
-              DOCUMENTS
-            </div>
-            {[
-              {
-                label: language === "ru" ? "Данные" : "Privacy",
-                href: `/${language}/privacy`,
-              },
-              {
-                label: language === "ru" ? "Условия" : "Terms",
-                href: `/${language}/terms`,
-              },
-              {
-                label: language === "ru" ? "Источники данных" : "Data sources",
-                href: `/${language}/data-sources`,
-              },
-              {
-                label: language === "ru" ? "Контакт" : "Contact",
-                href: `/${language}/support`,
-              },
-            ].map((item) => (
-              <a
-                key={item.href}
-                href={item.href}
-                className="nav-link block text-xs mb-3 transition-colors hover:text-[var(--ns-accent)]"
-                style={{ color: "var(--ns-muted)" }}
-              >
-                {item.label}
-              </a>
-            ))}
-          </div>
-        </div>
-        <div
-          className="max-w-[1320px] mx-auto flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 pt-6"
-          style={{ borderTop: "1px solid var(--ns-line)" }}
-        >
-          <p className="text-[10px]" style={{ color: "var(--ns-muted)" }}>
-            © 2026 Deadlock Contracts · Community Project
-          </p>
-          <MCGCredit language={language} compact />
-          <div className="flex items-center gap-2">
-            <AnimatedEyeLogo />
-            <p className="text-[10px]" style={{ color: "var(--ns-muted)" }}>
-              {t(language, "Данные матчей предоставляют сторонние источники")}
-            </p>
-          </div>
-        </div>
-      </footer>
     </div>
   )
 }

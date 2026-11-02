@@ -12,8 +12,10 @@ from .battle_models import BattleArtwork, BattleDefinitionVersion
 from .community import Strict, no_store
 from .db import get_db
 from .models import ArchiveCard, AuditLog, User
-from .services import battle_service as service, battle_social as social
+from .services import battle_service as service
+from .services import battle_social as social
 from .services.auth import require_csrf, require_user
+from .services.retired_economy import retired_player_feature
 
 Scope = Literal["REAL", "SANDBOX"]
 
@@ -137,28 +139,28 @@ def build_router(require_permission=None, effective_role=None):
     # Existing owner permission dependency additionally enforces session TOTP elevation.
     owner_dependency = require_permission("archive.grant_self") if require_permission else require_user
 
-    @router.get("/arena/bootstrap")
+    @router.get("/arena/bootstrap", dependencies=[Depends(retired_player_feature)])
     def bootstrap(response: Response, scope: Scope = "REAL", user: User = Depends(require_user), db: Session = Depends(get_db)):
         _private(response); return service.bootstrap(db, user.id, scope)
 
-    @router.get("/arena/requests/{request_key}")
+    @router.get("/arena/requests/{request_key}", dependencies=[Depends(retired_player_feature)])
     def recovery(request_key: UUID, response: Response, user: User = Depends(require_user), db: Session = Depends(get_db)):
         _private(response); return service.request_result(db, user.id, str(request_key))
 
-    @router.post("/arena/starter", dependencies=[Depends(require_csrf)])
+    @router.post("/arena/starter", dependencies=[Depends(require_csrf), Depends(retired_player_feature)])
     def starter(body: Starter, response: Response, user: User = Depends(require_user), db: Session = Depends(get_db)):
         _private(response); return service.claim_starter(db, user.id, str(body.request_key), body.scope)
 
-    @router.put("/arena/squad", dependencies=[Depends(require_csrf)])
+    @router.put("/arena/squad", dependencies=[Depends(require_csrf), Depends(retired_player_feature)])
     def squad(body: Squad, response: Response, user: User = Depends(require_user), db: Session = Depends(get_db)):
         _private(response); return service.save_squad(db, user.id, body.expected_revision, body.scope,
             str(body.base_item_id) if body.base_item_id else None, [value.model_dump(mode="json") for value in body.slots])
 
-    @router.post("/arena/matches", dependencies=[Depends(require_csrf)])
+    @router.post("/arena/matches", dependencies=[Depends(require_csrf), Depends(retired_player_feature)])
     def start(body: Start, response: Response, user: User = Depends(require_user), db: Session = Depends(get_db)):
         _private(response); return service.start_match(db, user.id, body.model_dump(mode="json"))
 
-    @router.get("/arena/matches/{match_id}")
+    @router.get("/arena/matches/{match_id}", dependencies=[Depends(retired_player_feature)])
     def match(match_id: UUID, response: Response, user: User = Depends(require_user), db: Session = Depends(get_db)):
         _private(response); return service.get_match(db, user.id, str(match_id))
 
@@ -168,65 +170,65 @@ def build_router(require_permission=None, effective_role=None):
         return Response(card.image_data, media_type="image/webp", headers={
             "Cache-Control": "private, no-store", "X-Content-Type-Options": "nosniff"})
 
-    @router.post("/arena/matches/{match_id}/plans", dependencies=[Depends(require_csrf)])
+    @router.post("/arena/matches/{match_id}/plans", dependencies=[Depends(require_csrf), Depends(retired_player_feature)])
     def plan(match_id: UUID, body: Plan, response: Response, user: User = Depends(require_user), db: Session = Depends(get_db)):
         _private(response); return service.submit_plan(db, user.id, str(match_id), str(body.request_key), body.expected_revision,
             [value.model_dump(mode="json", exclude_none=True) for value in body.actions])
 
-    @router.post("/arena/matches/{match_id}/surrender", dependencies=[Depends(require_csrf)])
+    @router.post("/arena/matches/{match_id}/surrender", dependencies=[Depends(require_csrf), Depends(retired_player_feature)])
     def surrender(match_id: UUID, body: Surrender, response: Response, user: User = Depends(require_user), db: Session = Depends(get_db)):
         _private(response); return service.surrender(db, user.id, str(match_id), str(body.request_key), body.expected_revision)
 
-    @router.post("/arena/cleanup", dependencies=[Depends(require_csrf)])
+    @router.post("/arena/cleanup", dependencies=[Depends(require_csrf), Depends(retired_player_feature)])
     def cleanup(response: Response, user: User = Depends(require_user), db: Session = Depends(get_db)):
         _private(response); return service.cleanup_expired(db, user.id)
 
-    @router.post("/arena/rooms", dependencies=[Depends(require_csrf)])
+    @router.post("/arena/rooms", dependencies=[Depends(require_csrf), Depends(retired_player_feature)])
     def room_create(body: Starter, response: Response, user: User = Depends(require_user), db: Session = Depends(get_db)):
         _private(response); return social.create_room(db, user.id, str(body.request_key), body.scope)
 
-    @router.get("/arena/rooms/{code}")
+    @router.get("/arena/rooms/{code}", dependencies=[Depends(retired_player_feature)])
     def room_get(code: str, response: Response, user: User = Depends(require_user), db: Session = Depends(get_db)):
         _private(response); return social.get_room(db, user.id, code)
 
-    @router.post("/arena/rooms/{code}/join", dependencies=[Depends(require_csrf)])
+    @router.post("/arena/rooms/{code}/join", dependencies=[Depends(require_csrf), Depends(retired_player_feature)])
     def room_join(code: str, body: Command, response: Response, user: User = Depends(require_user), db: Session = Depends(get_db)):
         _private(response); return social.join_room(db, user.id, code, str(body.request_key))
 
-    @router.post("/arena/rooms/{code}/confirm", dependencies=[Depends(require_csrf)])
+    @router.post("/arena/rooms/{code}/confirm", dependencies=[Depends(require_csrf), Depends(retired_player_feature)])
     def room_confirm(code: str, body: Confirm, response: Response, user: User = Depends(require_user), db: Session = Depends(get_db)):
         _private(response); return social.confirm_room(db, user.id, code, str(body.request_key), body.squad_revision,
             str(body.base_item_id) if body.base_item_id else None)
 
-    @router.post("/arena/rooms/{code}/leave", dependencies=[Depends(require_csrf)])
+    @router.post("/arena/rooms/{code}/leave", dependencies=[Depends(require_csrf), Depends(retired_player_feature)])
     def room_leave(code: str, body: Command, response: Response, user: User = Depends(require_user), db: Session = Depends(get_db)):
         _private(response); return social.leave_room(db, user.id, code, str(body.request_key))
 
-    @router.post("/arena/queue", dependencies=[Depends(require_csrf)])
+    @router.post("/arena/queue", dependencies=[Depends(require_csrf), Depends(retired_player_feature)])
     def queue_join(body: Confirm, response: Response, user: User = Depends(require_user), db: Session = Depends(get_db)):
         _private(response); return social.join_queue(db, user.id, str(body.request_key), body.squad_revision,
             str(body.base_item_id) if body.base_item_id else None)
 
-    @router.get("/arena/queue")
+    @router.get("/arena/queue", dependencies=[Depends(retired_player_feature)])
     def queue_get(response: Response, user: User = Depends(require_user), db: Session = Depends(get_db)):
         _private(response); return social.queue_status(db, user.id)
 
-    @router.delete("/arena/queue", dependencies=[Depends(require_csrf)])
+    @router.delete("/arena/queue", dependencies=[Depends(require_csrf), Depends(retired_player_feature)])
     def queue_cancel(response: Response, user: User = Depends(require_user), db: Session = Depends(get_db)):
         _private(response); return social.cancel_queue(db, user.id)
 
-    @router.get("/arena/leaderboard")
+    @router.get("/arena/leaderboard", dependencies=[Depends(retired_player_feature)])
     def leaders(response: Response, user: User = Depends(require_user), db: Session = Depends(get_db)):
         _private(response); return social.leaderboard(db)
 
-    @router.put("/arena/showcase", dependencies=[Depends(require_csrf)])
+    @router.put("/arena/showcase", dependencies=[Depends(require_csrf), Depends(retired_player_feature)])
     def showcase(body: Showcase, response: Response, user: User = Depends(require_user), db: Session = Depends(get_db)):
         _private(response); return social.save_showcase(db, user.id, body.expected_revision, body.is_public,
             str(body.base_item_id) if body.base_item_id else None, [value.model_dump(mode="json") for value in body.slots])
 
     @router.get("/public/players/{slug}/arena/showcase")
     def public_showcase(slug: str, response: Response, db: Session = Depends(get_db)):
-        no_store(response); return social.public_showcase(db, slug)
+        raise HTTPException(410, "Arena showcase is retired")
 
     @router.get("/public/players/{slug}/arena/cards/{card_id}/image")
     def public_image(slug: str, card_id: UUID, db: Session = Depends(get_db)):

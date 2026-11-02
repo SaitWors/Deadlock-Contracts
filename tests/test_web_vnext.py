@@ -37,7 +37,7 @@ def test_fonts_are_self_hosted_and_csp_has_no_google_font_exception() -> None:
     combined = INDEX_CSS + VNEXT_CSS + SECURITY
     assert "fonts.googleapis.com" not in combined
     assert "fonts.gstatic.com" not in combined
-    assert "./imports/fonts/" in VNEXT_CSS
+    assert "./imports/city-fonts/city-fonts.css" in VNEXT_CSS
 
 
 def test_support_page_is_public() -> None:
@@ -69,18 +69,11 @@ def test_failed_alpha3_motion_helper_is_not_part_of_runtime() -> None:
 
 
 def test_public_navigation_and_verified_leaderboard_are_restored() -> None:
-    normalized_landing = " ".join(
-        LANDING.replace('"', "'").split()
-    ).casefold()
-
-    assert (
-        "{ id: 'campaigns', label: 'campaigns · soon' }"
-        in normalized_landing
-    )
-    assert (
-        "{ id: 'leaderboards', label: 'leaderboard' }"
-        in normalized_landing
-    )
+    assert 'id: "contracts"' in LANDING
+    assert 'id: "cards"' in LANDING
+    assert 'id: "leaderboards"' in LANDING
+    assert 'label: ru ? "Коллекция" : "Collection"' in LANDING
+    assert 'id: "campaigns",' not in LANDING
 
     assert "<Leaderboard" in LANDING and "<Leaderboard authenticated" in DASHBOARD
     assert '@app.get("/api/public/leaderboard")' in MAIN
@@ -103,8 +96,8 @@ def test_alpha11_public_release_hygiene() -> None:
     assert '"companion_manifest_version": "0.5.2.18"' in release
 
     assert 'href="#"' not in LANDING
-    assert "INTERACTIVE PREVIEW / NOT SAVED" in LANDING
-    assert "ПРЕДПРОСМОТР · НЕ СОХРАНЯЕТСЯ" in LANDING
+    assert "This is a preview. Sign in for your real contracts, conditions and rewards." in LANDING
+    assert "Примерить подпись" in LANDING
 
     legal = (
         ROOT / "app/static/legal.html"
@@ -123,8 +116,9 @@ def test_alpha11_public_release_hygiene() -> None:
 
 
 def test_landing_reveal_and_contract_preview_are_keyboard_accessible() -> None:
-    assert "IntersectionObserver" in LANDING
-    assert "aria-pressed={isSelected}" in LANDING
+    assert 'data-contract-choice={c.id}' in LANDING
+    assert 'aria-pressed={selected.includes(c.id)}' in LANDING
+    assert 'className="ritual-skip"' in LANDING
 
 
 def test_deploy_runs_migrations_before_recreating_services() -> None:

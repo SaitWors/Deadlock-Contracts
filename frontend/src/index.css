@@ -2,9 +2,9 @@
 
 @theme {
   --font-display: 'Jost', sans-serif;
-  --font-poster: 'Ruslan Display', Georgia, serif;
+  --font-poster: 'Jost', system-ui, sans-serif;
   --font-body: 'Jost', sans-serif;
-  --font-serif: 'Cormorant Garamond', serif;
+  --font-serif: 'Jost', system-ui, sans-serif;
   --color-void: #05070E;
   --color-page: #080C0B;
   --color-panel: #0E1512;

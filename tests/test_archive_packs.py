@@ -5,6 +5,7 @@ import pytest
 from sqlalchemy import func, select
 
 from app import main as main_module
+from app.archive_packs import RequestKey
 from app.models import (ArchiveCard, ArchiveItem, ArchiveLedger, ArchiveOperation, ArchivePack,
                         ArchivePackVersion, AuditLog, PublicProfile, RewardLedgerEntry, User)
 from app.services import archive, archive_packs as service
@@ -60,6 +61,36 @@ def buy(client, card_id, price=25, key=None):
     return client.post(f"/api/archive/cards/{card_id}/acquire", json={"request_key": key or str(uuid4()), "expected_price": price})
 
 
+# These helpers exercise preserved historical service math explicitly. Public
+# HTTP spending is retired and covered separately by test_daily_pack.py.
+def legacy_service_response(factory, action):
+    from fastapi import HTTPException
+    from httpx import Response
+    with factory() as db:
+        try:
+            return Response(200, json=action(db))
+        except HTTPException as exc:
+            db.rollback()
+            return Response(exc.status_code, json={"detail": exc.detail})
+
+
+def legacy_buy(factory, user_id, card_id, price=25, key=None, scope="REAL"):
+    from app.archive_packs import AcquireCard
+    return legacy_service_response(factory, lambda db: service.acquire(db, user_id, card_id,
+        AcquireCard(request_key=key or uuid4(), expected_price=price, scope=scope)))
+
+
+def legacy_open(factory, user_id, item, key=None, starter=False):
+    from app.archive_packs import OpenPack
+    return legacy_service_response(factory, lambda db: service.open_pack(db, user_id, item['id'],
+        OpenPack(request_key=key or uuid4(), revision=item['revision'], starter=starter)))
+
+
+def legacy_wallet(factory, user_id, scope="REAL"):
+    with factory() as db:
+        return archive.wallet_payload(db, user_id, 0, scope)
+
+
 def test_owner_is_allowlisted_identity_and_requires_elevation(community, owner):
     factory, player = community
     card_id = published(factory)
@@ -112,23 +143,23 @@ def test_pack_config_validation_and_csrf(community, owner):
     assert client.post("/api/owner/archive/packs", json=definition(card_id)).status_code == 422
 
 
-def test_paid_opening_is_atomic_private_and_idempotent_even_after_pack_edit(community, owner):
+def test_legacy_service_paid_opening_is_atomic_private_and_idempotent_even_after_pack_edit(community, owner):
     factory, player = community
     user_id, client = player(); _, other = player()
     card_id = published(factory)
     item = pack(owner[1], card_id, price=37, draws=3)
     fund(factory, user_id, 100)
     key = str(uuid4())
-    response = opening(client, item, key=key)
+    response = legacy_open(factory, user_id, item, key=key)
     assert response.status_code == 200, response.text
     receipt = response.json()
     assert receipt["delta"] == -37 and receipt["balance_after"] == 63
     assert [card["duplicate"] for card in receipt["items"]] == [False, True, True]
-    assert opening(client, item, key=key).json() == receipt
+    assert legacy_open(factory, user_id, item, key=key).json() == receipt
     update = owner[1].put(f"/api/owner/archive/packs/{item['id']}", json={**definition(card_id, price=77), "revision": 1})
     assert update.status_code == 200, update.text
-    assert opening(client, item, key=key).json() == receipt
-    assert opening(client, item).status_code == 409
+    assert legacy_open(factory, user_id, item, key=key).json() == receipt
+    assert legacy_open(factory, user_id, item).status_code == 409
     assert client.get(f"/api/archive/requests/{key}").json()["operation"] == receipt
     assert other.get(f"/api/archive/requests/{key}").json()["operation"] is None
     assert other.get("/api/archive/inventory").json()["total"] == 0
@@ -140,69 +171,69 @@ def test_paid_opening_is_atomic_private_and_idempotent_even_after_pack_edit(comm
         assert db.get(User, user_id).xp == 0 and db.scalar(select(func.count()).select_from(RewardLedgerEntry)) == 0
 
 
-def test_no_funds_unavailable_cards_and_unpublished_packs_do_not_charge(community, owner):
+def test_legacy_service_no_funds_unavailable_cards_and_unpublished_packs_do_not_charge(community, owner):
     factory, player = community
     user_id, client = player()
     card_id = published(factory)
     item = pack(owner[1], card_id)
-    assert opening(client, item).status_code == 409
+    assert legacy_open(factory, user_id, item).status_code == 409
     fund(factory, user_id, 100)
     with factory() as db:
         db.get(ArchiveCard, card_id).status = "ARCHIVED"; db.commit()
     assert not client.get(f"/api/archive/packs/{item['id']}").json()["pack"]["ready"]
-    assert opening(client, item).status_code == 409
+    assert legacy_open(factory, user_id, item).status_code == 409
     assert owner[1].post(f"/api/owner/archive/packs/{item['id']}/pause", json={"revision": 1}).status_code == 200
     assert client.get(f"/api/archive/packs/{item['id']}").status_code == 404
-    assert client.get("/api/archive/wallet").json()["balance"] == 100
+    assert legacy_wallet(factory, user_id)["balance"] == 100
     with factory() as db:
         assert db.scalar(select(func.count()).select_from(ArchiveOperation).where(ArchiveOperation.user_id == user_id)) == 0
         assert db.scalar(select(func.count()).select_from(ArchiveItem)) == 0
 
 
-def test_starter_is_once_per_account_across_packs(community, owner):
+def test_legacy_service_starter_is_once_per_account_across_packs(community, owner):
     factory, player = community
     user_id, client = player()
     card_id = published(factory)
     first = pack(owner[1], card_id, starter=True)
     second = pack(owner[1], card_id, starter=True)
     key = str(uuid4())
-    receipt = opening(client, first, key=key, starter=True)
+    receipt = legacy_open(factory, user_id, first, key=key, starter=True)
     assert receipt.status_code == 200, receipt.text
     assert receipt.json()["delta"] == 0 and receipt.json()["balance_after"] == 0
-    assert opening(client, first, key=key, starter=True).json() == receipt.json()
-    assert opening(client, second, starter=True).status_code == 409
+    assert legacy_open(factory, user_id, first, key=key, starter=True).json() == receipt.json()
+    assert legacy_open(factory, user_id, second, starter=True).status_code == 409
     assert client.get("/api/archive/packs").json()["starter_claimed"]
     with factory() as db:
         assert db.scalar(select(func.sum(ArchiveItem.cost_basis)).where(ArchiveItem.user_id == user_id)) == 0
 
 
-def test_direct_acquisition_quote_and_duplicate_refund_cannot_remove_last_copy(community, owner):
+def test_legacy_service_direct_acquisition_quote_and_duplicate_refund_cannot_remove_last_copy(community, owner):
     factory, player = community
-    user_id, client = player(); _, other = player()
+    user_id, client = player(); other_id, other = player()
     card_id = published(factory)
     fund(factory, user_id, 100)
-    assert buy(client, card_id, price=1).status_code == 409
-    first = buy(client, card_id)
+    assert legacy_buy(factory, user_id, card_id, price=1).status_code == 409
+    first = legacy_buy(factory, user_id, card_id)
     assert first.status_code == 200, first.text
-    key = str(uuid4()); second = buy(client, card_id, key=key)
+    key = str(uuid4()); second = legacy_buy(factory, user_id, card_id, key=key)
     assert second.status_code == 200, second.text
-    assert buy(client, card_id, key=key).json() == second.json()
+    assert legacy_buy(factory, user_id, card_id, key=key).json() == second.json()
     inventory = client.get("/api/archive/inventory?hero=abrams&rank=F&q=Released").json()
     assert inventory["total"] == 1 and inventory["items"][0]["quantity"] == 2
     duplicate = inventory["items"][0]["recycle"]
     assert duplicate["value"] == 5
     url = f"/api/archive/items/{duplicate['id']}/recycle"
     body = {"request_key": str(uuid4())}
-    assert other.post(url, json=body).status_code == 409
-    receipt = client.post(url, json=body)
+    assert legacy_service_response(factory, lambda db: service.recycle(db, other_id, duplicate["id"], RequestKey(**body))).status_code == 409
+    receipt = legacy_service_response(factory, lambda db: service.recycle(db, user_id, duplicate["id"], RequestKey(**body)))
     assert receipt.status_code == 200, receipt.text
     assert receipt.json()["balance_after"] == 55
-    assert client.post(url, json=body).json() == receipt.json()
-    assert client.post(url, json={"request_key": str(uuid4())}).status_code == 409
+    assert legacy_service_response(factory, lambda db: service.recycle(db, user_id, duplicate["id"], RequestKey(**body))).json() == receipt.json()
+    assert legacy_service_response(factory, lambda db: service.recycle(db, user_id, duplicate["id"], RequestKey(request_key=uuid4()))).status_code == 409
     with factory() as db:
         last = db.scalar(select(ArchiveItem).where(ArchiveItem.user_id == user_id, ArchiveItem.state == "OWNED"))
         last_id = last.id
-    assert client.post(f"/api/archive/items/{last_id}/recycle", json={"request_key": str(uuid4())}).status_code == 409
+    assert legacy_service_response(factory, lambda db: service.recycle(db, user_id, last_id, RequestKey(request_key=uuid4()))).status_code == 409
 
 
 def test_owner_grants_are_self_only_audited_bounded_and_not_recyclable(community, owner):
@@ -211,12 +242,9 @@ def test_owner_grants_are_self_only_audited_bounded_and_not_recyclable(community
     other_id, _ = player()
     card_id = published(factory, "SSS")
     body = {"request_key": str(uuid4()), "delta": 150, "note": "Test first envelope"}
-    first = client.post("/api/owner/archive/tokens", json=body)
-    assert first.status_code == 200, first.text
-    assert client.post("/api/owner/archive/tokens", json=body).json() == first.json()
-    assert client.post("/api/owner/archive/tokens", json={**body, "delta": 500}).status_code == 409
+    assert client.post("/api/owner/archive/tokens", json=body).status_code == 410
+    assert client.post("/api/owner/archive/tokens", json={**body, "scope": "REAL"}).status_code == 410
     assert client.post("/api/owner/archive/tokens", json={**body, "user_id": other_id}).status_code == 422
-    assert client.post("/api/owner/archive/tokens", json={**body, "request_key": str(uuid4()), "delta": -151}).status_code == 409
     grant = {"request_key": str(uuid4()), "quantity": 3, "note": "Testing card layout"}
     cards = client.post(f"/api/owner/archive/cards/{card_id}/grant", json=grant)
     assert cards.status_code == 200, cards.text
@@ -225,10 +253,10 @@ def test_owner_grants_are_self_only_audited_bounded_and_not_recyclable(community
     inventory = client.get("/api/archive/inventory?scope=SANDBOX").json()["items"][0]
     assert inventory["quantity"] == inventory["test_count"] == 3 and inventory["recycle"] is None
     item_id = cards.json()["items"][0]["id"]
-    assert client.post(f"/api/archive/items/{item_id}/recycle", json={"request_key": str(uuid4())}).status_code == 409
+    assert client.post(f"/api/archive/items/{item_id}/recycle", json={"request_key": str(uuid4())}).status_code == 410
     with factory() as db:
         rows = db.scalars(select(AuditLog).where(AuditLog.action.like("archive.owner_grant_%"))).all()
-        assert len(rows) == 2 and all(row.data["recipient_id"] == owner_id for row in rows)
+        assert len(rows) == 1 and all(row.data["recipient_id"] == owner_id for row in rows)
         assert service.balance(db, other_id) == 0
 
 
@@ -237,7 +265,7 @@ def test_archived_owned_art_survives_and_showcase_respects_both_privacy_switches
     user_id, client = player(public=True); _, other = player()
     card_id = published(factory); other_card = published(factory, "A")
     fund(factory, user_id)
-    assert buy(client, card_id).status_code == 200
+    assert legacy_buy(factory, user_id, card_id).status_code == 200
     body = {"revision": 0, "card_ids": [other_card], "is_public": True}
     assert client.put("/api/archive/showcase", json=body).status_code == 422
     assert client.put("/api/archive/showcase", json={**body, "card_ids": [card_id]}).status_code == 200
@@ -267,7 +295,7 @@ def test_inventory_and_receipts_delete_with_account_but_released_design_remains(
     user_id, client = player()
     card_id = published(factory)
     fund(factory, user_id)
-    assert buy(client, card_id).status_code == 200
+    assert legacy_buy(factory, user_id, card_id).status_code == 200
     assert client.post("/api/account/delete", json={"confirmation": "DELETE"}).status_code == 200
     with factory() as db:
         assert db.get(ArchiveCard, card_id) is not None

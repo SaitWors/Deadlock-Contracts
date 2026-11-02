@@ -214,7 +214,7 @@ def main() -> int:
             )
 
         if (
-            "INTERACTIVE PREVIEW / NOT SAVED"
+            "This is a preview. Sign in for your real contracts, conditions and rewards."
             not in landing
         ):
             fail(
@@ -223,7 +223,7 @@ def main() -> int:
             )
 
         if (
-            "ПРЕДПРОСМОТР · НЕ СОХРАНЯЕТСЯ"
+            "Примерить подпись"
             not in landing
         ):
             fail(

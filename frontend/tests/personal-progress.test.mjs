@@ -267,12 +267,12 @@ async function mount(env) {
 }
 
 // Removing the exact option handoff would open/sign a different contract.
-test("personal goal appears before the legacy hero and signs exactly one offered option through Dashboard", async () => {
+test("personal goal leads the workspace and signs exactly one offered option through Dashboard", async () => {
   const env = runtime()
   const root = await mount(env)
   const p = panel(env.doc)
   assert.ok(
-    p.compareDocumentPosition(env.doc.querySelector(".dc-command-hero")) &
+    p.compareDocumentPosition(env.doc.querySelector(".ritual-account-summary")) &
       env.w.Node.DOCUMENT_POSITION_FOLLOWING,
   )
   assert.match(p.textContent, /Цель STANDARD 0/)
@@ -286,7 +286,7 @@ test("personal goal appears before the legacy hero and signs exactly one offered
   const lock = env.calls.find(({ url }) => url === "/api/board/today/lock")
   assert.deepEqual(JSON.parse(lock.init.body), { option_ids: ["STANDARD-0"], mode: "STANDARD" })
   assert.equal(env.doc.querySelector(".signing-dialog").dataset.state, "signed")
-  assert.match(env.doc.querySelector(".ns-file-progress-label").textContent, /80 XP/)
+  assert.match(env.doc.querySelector(".ritual-account-summary").textContent, /80 XP/)
   await env.api.act(async () => root.unmount())
 })
 

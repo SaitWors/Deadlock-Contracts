@@ -2,8 +2,7 @@ import { useAdminCopy } from "./admin/admin-copy"
 import SvgIcon, { type IconName } from "./icons/Icon"
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react"
 import markImage from "@/imports/mark.svg"
-import Mascot from "./Mascot"
-import { NightshiftNav, WorldGallery, CityLocals } from "./nightshift-layout"
+import { NightshiftNav } from "./nightshift-layout"
 import ProfileStudio from "./ProfileStudio"
 import BureauHeader from "./BureauHeader"
 import AccountMenu from "./AccountMenu"
@@ -25,7 +24,6 @@ import ArchiveNextStep from "./archive/ArchiveNextStep"
 import { useHeroVotes } from "./hero-votes/useHeroVotes"
 import PersonalProgress from "./progress/PersonalProgress"
 import type { GoalRecommendation } from "./progress/types"
-import type { CoinReward } from "./archive/types"
 import {
   MCGCredit,
   apiLanguage,
@@ -39,8 +37,6 @@ import {
 } from "./i18n"
 
 const ArchivePage = lazy(() => import("./archive/ArchivePage"))
-const ArenaPage = lazy(() => import("./arena/ArenaPage"))
-const CoinRewardReceipt = lazy(() => import("./archive/CoinRewardReceipt"))
 const CardReviewDesk = lazy(() => import("./admin/CardReviewDesk"))
 const OwnerArchiveDesk = lazy(() => import("./admin/OwnerArchiveDesk"))
 const HeroVotesPage = lazy(() => import("./hero-votes/HeroVotesPage"))
@@ -152,7 +148,6 @@ type BoardsPayload = {
   boards: Board[]
 }
 type HistoryItem = {
-  coin_reward?: CoinReward | null
   assignment_id: string
   board_id: string
   game_match_mode: Mode
@@ -184,7 +179,6 @@ type HistoryItem = {
   case_expires_at?: string | null
 }
 type HistoryCase = {
-  coin_reward?: CoinReward | null
   board_id: string
   game_match_mode: Mode
   status: string
@@ -705,12 +699,8 @@ type Tab =
   | "leaderboard"
   | "achievements"
   | "bureaus"
-  | "archive"
-  | "studio"
-  | "wallet"
   | "packs"
   | "collection"
-  | "arena"
 type QuestFilter = "ALL" | "COMBAT" | "SUPPORT" | "ECONOMY" | "SURVIVAL"
 
 class ApiError extends Error {
@@ -1035,6 +1025,9 @@ export default function Dashboard({ initialSession }: { initialSession: SessionP
   const tabFromLocation = (): Tab => {
     const hash = window.location.hash.slice(1).split("/")[0]
     if (hash === "leaderboards") return "leaderboard"
+    if (["archive", "studio", "wallet", "cipher", "catalog", "catalogue"].includes(hash))
+      return "collection"
+    if (hash === "arena") return "quests"
     if (
       [
         "home",
@@ -1046,12 +1039,8 @@ export default function Dashboard({ initialSession }: { initialSession: SessionP
         "bureaus",
         "leaderboard",
         "hero-votes",
-        "archive",
-        "studio",
-        "wallet",
         "packs",
         "collection",
-        "arena",
         "admin",
       ].includes(hash)
     )
@@ -1083,10 +1072,18 @@ export default function Dashboard({ initialSession }: { initialSession: SessionP
   }
   useEffect(() => {
     const apply = () => {
-      setTabState(tabFromLocation())
+      const next = tabFromLocation()
+      setTabState(next)
+      if (
+        ["archive", "studio", "wallet", "cipher", "catalog", "catalogue", "arena"].includes(
+          window.location.hash.slice(1).split("/")[0],
+        )
+      )
+        window.history.replaceState(null, "", `#${next}`)
       setBureauSlug(window.location.hash.match(/^#bureaus\/([a-z0-9-]{3,32})$/)?.[1] || "")
       window.scrollTo({ top: 0, behavior: "instant" })
     }
+    apply()
     window.addEventListener("hashchange", apply)
     return () => window.removeEventListener("hashchange", apply)
   }, [])
@@ -1124,24 +1121,6 @@ export default function Dashboard({ initialSession }: { initialSession: SessionP
     () => historyCases.flatMap((historyCase) => historyCase.items),
     [historyCases],
   )
-  const coinReceiptRevision = useMemo(
-    () =>
-      historyCases
-        .flatMap((item) => [
-          item.coin_reward,
-          ...item.items.map((contract) => contract.coin_reward),
-        ])
-        .filter((reward): reward is CoinReward => !!reward)
-        .map((reward) => `${reward.source_id}:${reward.status}:${reward.amount}`)
-        .join("|"),
-    [historyCases],
-  )
-  useEffect(() => {
-    if (!coinReceiptRevision) return
-    setArchiveRevision((value) => value + 1)
-    window.dispatchEvent(new Event("dc-archive-wallet"))
-  }, [coinReceiptRevision])
-
   useEffect(() => {
     const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC"
     if (user.locale === language && user.timezone === timezone) return
@@ -1493,7 +1472,6 @@ export default function Dashboard({ initialSession }: { initialSession: SessionP
       .map((historyCase) => ({
         boardId: historyCase.board_id,
         items: historyCase.items,
-        coinReward: historyCase.coin_reward,
         mode: historyCase.game_match_mode,
         matchId:
           historyCase.items.find((item) => item.match_id)?.match_id ||
@@ -1507,43 +1485,34 @@ export default function Dashboard({ initialSession }: { initialSession: SessionP
 
   const shownName = safeName(user.display_name, language)
   const level = progression?.level || 1
-  const progressPct = progression?.progress_pct || 0
   const pageLabels: Record<string, string> =
     language === "ru"
       ? {
-          home: "Главная",
+          home: "Обзор",
           quests: "Контракты",
           active: "Активное дело",
           history: "История дел",
-          archive: "Шифры и каталог",
-          arena: "Арена бюро",
           collection: "Моя коллекция",
-          packs: "Конверты",
-          studio: "Мастерская",
-          wallet: "История монет",
-          bureaus: "Бюро игроков",
+          packs: "Ежедневный конверт",
+          bureaus: "Сообщества",
           achievements: "Достижения",
           leaderboard: "Рейтинг",
           "hero-votes": "Голосование",
-          profile: "Моё досье",
+          profile: "Профиль",
           admin: "Управление",
         }
       : {
-          home: "Home",
+          home: "Overview",
           quests: "Contracts",
           active: "Active case",
           history: "Case history",
-          archive: "Ciphers & catalog",
-          arena: "Bureau arena",
           collection: "My collection",
-          packs: "Envelopes",
-          studio: "Card studio",
-          wallet: "Coin history",
-          bureaus: "Player bureaus",
+          packs: "Daily pack",
+          bureaus: "Communities",
           achievements: "Achievements",
           leaderboard: "Leaderboard",
           "hero-votes": "Hero votes",
-          profile: "My dossier",
+          profile: "Profile",
           admin: "Staff console",
         }
   const nav: Array<[Tab, string, "hq" | "contract" | "case" | "profile" | "admin"]> = [
@@ -1551,8 +1520,8 @@ export default function Dashboard({ initialSession }: { initialSession: SessionP
     ["quests", language === "ru" ? "КОНТРАКТЫ" : "CONTRACTS", "contract"],
     ["active", language === "ru" ? "АКТИВНОЕ ДЕЛО" : "ACTIVE CASE", "case"],
     ["history", language === "ru" ? "ИСТОРИЯ ДЕЛ" : "CASE HISTORY", "case"],
-    ["archive", language === "ru" ? "АРХИВ КАРТОЧЕК" : "CARD ARCHIVE", "case"],
-    ["arena", language === "ru" ? "АРЕНА БЮРО" : "BUREAU ARENA", "case"],
+    ["collection", language === "ru" ? "КОЛЛЕКЦИЯ" : "COLLECTION", "case"],
+    ["packs", language === "ru" ? "ЕЖЕДНЕВНЫЙ КОНВЕРТ" : "DAILY PACK", "case"],
     ["achievements", language === "ru" ? "ДОСТИЖЕНИЯ" : "ACHIEVEMENTS", "case"],
     ["bureaus", language === "ru" ? "СООБЩЕСТВА" : "COMMUNITIES", "hq"],
     ["leaderboard", language === "ru" ? "РЕЙТИНГ" : "LEADERBOARD", "case"],
@@ -1567,7 +1536,7 @@ export default function Dashboard({ initialSession }: { initialSession: SessionP
     ])
 
   return (
-    <div className="dc-dashboard dc-redesign dc-v3 dc-vnext bureau-app ns-private min-h-screen community-dashboard">
+    <div className="dc-dashboard dc-redesign dc-v3 dc-vnext bureau-app ns-private ritual-workspace min-h-screen community-dashboard">
       {guideOpen && !signing && !announcements.some((item) => item.presentation === "MODAL") && (
         <BureauGuide
           onClose={closeGuide}
@@ -1615,7 +1584,7 @@ export default function Dashboard({ initialSession }: { initialSession: SessionP
       <BureauHeader
         breadcrumb={pageLabels[tab]}
         onHelp={() => setGuideOpen(true)}
-        active={["studio", "wallet", "packs", "collection"].includes(tab) ? "archive" : tab}
+        active={tab}
         mobileItems={Object.entries(pageLabels)
           .filter(([id]) => id !== "admin" || user.is_staff)
           .filter(([id]) => id !== "hero-votes" || heroVotes.data?.enabled)
@@ -1689,7 +1658,7 @@ export default function Dashboard({ initialSession }: { initialSession: SessionP
         <main className="dc-workspace">
           <div className="bureau-location">
             <span>
-              {language === "ru" ? "ВЫ В БЮРО" : "AT THE BUREAU"} / <b>{pageLabels[tab]}</b>
+              {language === "ru" ? "КАБИНЕТ ИГРОКА" : "PLAYER WORKSPACE"} / <b>{pageLabels[tab]}</b>
             </span>
             <button type="button" onClick={() => setGuideOpen(true)}>
               {language === "ru" ? "Как это работает?" : "How does it work?"}
@@ -1720,8 +1689,8 @@ export default function Dashboard({ initialSession }: { initialSession: SessionP
                 <div>
                   <p className="ns-eyebrow">
                     {language === "ru"
-                      ? "Личное бюро / Город не спит"
-                      : "Your bureau / City never sleeps"}
+                      ? "DEADLOCK CONTRACTS / ЛИЧНЫЙ КАБИНЕТ"
+                      : "DEADLOCK CONTRACTS / YOUR WORKSPACE"}
                   </p>
                   <h1>
                     {language === "ru" ? "На связи, " : "Welcome back, "}
@@ -1729,8 +1698,8 @@ export default function Dashboard({ initialSession }: { initialSession: SessionP
                   </h1>
                   <p>
                     {language === "ru"
-                      ? "У этого вечера есть потенциал. Выберите, каким он будет."
-                      : "Tonight has potential. Make it yours."}
+                      ? "Выбирай контракты. Играй матчи. Собирай карточки."
+                      : "Choose contracts. Play matches. Collect cards."}
                   </p>
                 </div>
                 <button className="dc-ghost" onClick={() => setTab("profile")}>
@@ -1755,82 +1724,29 @@ export default function Dashboard({ initialSession }: { initialSession: SessionP
                   boards.map((item) => [item.game_match_mode, statusLabel(item.status, language)]),
                 )}
               />
-              <section className="dc-command-hero dc-v3-hero progress-home-dossier">
-                <div className="dc-curator-stage">
-                  <Mascot initialPose="dossier" priority />
+              <section className="ritual-account-summary">
+                <div>
+                  <small>{language === "ru" ? "ТВОЙ ПРОГРЕСС" : "YOUR PROGRESS"}</small>
+                  <strong>
+                    {language === "ru" ? "Уровень" : "Level"} {level}
+                  </strong>
+                  <span>{(progression?.total_xp ?? user.xp).toLocaleString(locale)} XP</span>
                 </div>
-                <button className="ns-personal-file" onClick={() => setTab("profile")}>
-                  <span className="ns-file-label">
-                    {language === "ru" ? "Личное дело" : "Personal dossier"}
-                    <SvgIcon name="arrow-up-right" size={18} />
-                  </span>
-                  <span className="ns-file-identity">
-                    {user.avatar_url ? (
-                      <img src={user.avatar_url} alt="" />
-                    ) : (
-                      <span className="ns-file-avatar">
-                        <SvgIcon name="user-round" size={24} />
-                      </span>
-                    )}
-                    <span>
-                      <strong>{shownName}</strong>
-                      <small>
-                        {language === "ru" ? "Оперативник" : "Operative"} / {level}{" "}
-                        {language === "ru" ? "уровень" : "level"}
-                      </small>
-                    </span>
-                  </span>
-                  <span className="ns-file-progress-label">
-                    <span>
-                      {(progression?.total_xp ?? user.xp).toLocaleString(
-                        language === "ru" ? "ru-RU" : "en-US",
-                      )}{" "}
-                      XP
-                    </span>
-                    <span>
-                      {language === "ru" ? "Ур." : "Lv."} {level + 1}
-                    </span>
-                  </span>
+                <div>
+                  <small>{language === "ru" ? "ДО СЛЕДУЮЩЕГО УРОВНЯ" : "TO NEXT LEVEL"}</small>
+                  <strong>{progression?.xp_to_next ?? "—"} XP</strong>
                   <progress
-                    value={progressPct}
+                    value={progression?.progress_pct ?? 0}
                     max="100"
                     aria-label={language === "ru" ? "Прогресс уровня" : "Level progress"}
                   />
-                  <span className="ns-file-next">
-                    <small>
-                      {language === "ru" ? "До следующего уровня" : "To the next level"}
-                    </small>
-                    <strong>{progression?.xp_to_next ?? "—"} XP</strong>
-                  </span>
+                </div>
+                <button className="dc-ghost" onClick={() => setTab("profile")}>
+                  {language === "ru" ? "Открыть профиль" : "Open profile"}
+                  <SvgIcon name="arrow-up-right" size={18} />
                 </button>
               </section>
-              <div className="dc-curator-dialog ns-curator-note">
-                <span>{language === "ru" ? "КУРАТОР" : "CURATOR"}</span>
-                <p>
-                  {companion?.online && companion.game_running
-                    ? language === "ru"
-                      ? `Связь установлена. ${
-                          companion.current_match_id
-                            ? `Матч #${companion.current_match_id} обнаружен`
-                            : `Deadlock запущен · ${phaseLabel(companion.phase, language)}`
-                        }.`
-                      : `Link established. ${
-                          companion.current_match_id
-                            ? `Match #${companion.current_match_id} detected`
-                            : `Deadlock running · ${phaseLabel(companion.phase, language)}`
-                        }.`
-                    : companion?.paired
-                      ? language === "ru"
-                        ? "Компаньон привязан, но сейчас не в сети. Сайт продолжит искать матч автоматически."
-                        : "Companion is paired but currently offline. The site will keep looking for the match automatically."
-                      : language === "ru"
-                        ? "Компаньон пока проходит QA. Шифры, монеты, карточки и бюро уже доступны на сайте. Матчевые награды зависят от проверки результата."
-                        : "The Companion is in QA. Ciphers, coins, cards and bureaus are already available here. Match rewards depend on verification."}
-                </p>
-              </div>
               <ArchiveNextStep revision={archiveRevision} onNavigate={(next) => setTab(next)} />
-              <CityLocals onNavigate={(next) => setTab(next as Tab)} />
-              <WorldGallery onNavigate={(next) => setTab(next as Tab)} />
             </>
           )}
 
@@ -2517,11 +2433,6 @@ export default function Dashboard({ initialSession }: { initialSession: SessionP
                                     : statusLabel(item.status, language)}
                                 </em>
                               </div>
-                              {item.coin_reward && (
-                                <Suspense fallback={null}>
-                                  <CoinRewardReceipt reward={item.coin_reward} />
-                                </Suspense>
-                              )}
                               {(item.evaluations?.length || 0) > 1 && (
                                 <details className="dc-attempt-log">
                                   <summary>
@@ -2565,15 +2476,6 @@ export default function Dashboard({ initialSession }: { initialSession: SessionP
                           </span>
                           <strong>
                             {MODE_META[group.mode].short} · +{reward} XP
-                            {group.coinReward && (
-                              <>
-                                <br />
-                                <span>{language === "ru" ? "Бонус дела" : "Case bonus"}: </span>
-                                <Suspense fallback={null}>
-                                  <CoinRewardReceipt reward={group.coinReward} />
-                                </Suspense>
-                              </>
-                            )}
                           </strong>
                         </footer>
                       </div>
@@ -2590,26 +2492,20 @@ export default function Dashboard({ initialSession }: { initialSession: SessionP
             </>
           )}
 
-          {tab === "arena" && (
+          {["packs", "collection"].includes(tab) && (
             <Suspense
               fallback={
-                <p role="status">{language === "ru" ? "Открываем арену…" : "Opening arena…"}</p>
-              }
-            >
-              <ArenaPage csrf={csrf} accountKey={user.id} />
-            </Suspense>
-          )}
-          {["archive", "studio", "wallet", "packs", "collection"].includes(tab) && (
-            <Suspense
-              fallback={
-                <p role="status">{language === "ru" ? "Открываем архив…" : "Opening archive…"}</p>
+                <p role="status">
+                  {language === "ru" ? "Загрузка коллекции…" : "Loading collection…"}
+                </p>
               }
             >
               <ArchivePage
-                key={tab}
+                key={`${user.id}:${tab}`}
+                accountKey={user.id}
                 csrf={csrf}
-                mode={tab as "archive" | "studio" | "wallet" | "packs" | "collection"}
-                onWalletChange={() => setArchiveRevision((value) => value + 1)}
+                mode={tab as "packs" | "collection"}
+                onCollectionChange={() => setArchiveRevision((value) => value + 1)}
               />
             </Suspense>
           )}

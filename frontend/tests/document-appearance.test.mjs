@@ -38,11 +38,11 @@ test("standalone custom appearance keeps saved choices and is readable on its el
   ]) {
     const { dom, doc } = render({ theme: "custom", accent, radius: 26, motion: false })
     const style = doc.documentElement.style
-    assert.equal(style.getPropertyValue("--ns-radius"), "26px")
+    assert.equal(style.getPropertyValue("--ns-radius"), "8px")
     assert.equal(style.getPropertyValue("--ns-fill"), accent)
     assert.equal(doc.documentElement.dataset.motion, "reduced")
     assert.ok(
-      contrast(style.getPropertyValue("--ns-accent"), "#403347") >= 4.5,
+      contrast(style.getPropertyValue("--ns-accent"), "#202821") >= 4.5,
       "accent is readable on the actual custom elevated surface",
     )
     assert.ok(
@@ -70,22 +70,22 @@ test("web custom appearance keeps mid-tone saved fills readable", async () => {
       `button text on saved ${accent}`,
     )
     assert.ok(
-      contrast(style.getPropertyValue("--ns-accent"), "#403347") >= 4.5,
+      contrast(style.getPropertyValue("--ns-accent"), "#202821") >= 4.5,
       `link on saved ${accent}`,
     )
     dom.window.close()
   }
 })
 
-test("standalone theme switches preserve manual preferences and update City browser color", () => {
+test("standalone theme switches preserve manual preferences and update Ritual browser color", () => {
   const { dom, doc } = render({ theme: "custom", accent: "#785d83", radius: 24, motion: false })
   const select = doc.querySelector("select")
   for (const [theme, color] of Object.entries({
-    dark: "#181715",
-    light: "#eee6d5",
+    dark: "#0b0d0d",
+    light: "#eeeee7",
     black: "#000000",
-    custom: "#201921",
-    system: "#eee6d5",
+    custom: "#0b100d",
+    system: "#eeeee7",
   })) {
     select.value = theme
     select.dispatchEvent(new dom.window.Event("change"))
@@ -93,7 +93,7 @@ test("standalone theme switches preserve manual preferences and update City brow
     assert.deepEqual(JSON.parse(dom.window.localStorage.getItem("dc.ui.appearance")), {
       theme,
       accent: "#785d83",
-      radius: 24,
+      radius: 8,
       motion: false,
     })
   }

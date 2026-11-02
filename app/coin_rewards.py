@@ -10,6 +10,7 @@ from .db import get_db
 from .models import User
 from .services import coin_rewards as service
 from .services.auth import require_csrf, require_user
+from .services.retired_economy import retired_player_feature
 
 
 class Correction(Strict):
@@ -20,7 +21,7 @@ class Correction(Strict):
 def build_router(require_permission):
     router = APIRouter(prefix="/api", tags=["Coin rewards"])
 
-    @router.get("/archive/coin-rewards")
+    @router.get("/archive/coin-rewards", dependencies=[Depends(retired_player_feature)])
     def status(response: Response, user: User = Depends(require_user), db: Session = Depends(get_db)):
         no_store(response)
         from .services.extra_coin_rewards import status as extra_status

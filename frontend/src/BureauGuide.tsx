@@ -24,7 +24,7 @@ export default function BureauGuide({
   onNavigate,
 }: {
   onClose: () => void
-  onNavigate: (tab: "quests" | "active" | "archive" | "bureaus") => void
+  onNavigate: (tab: "quests" | "active" | "packs" | "bureaus") => void
 }) {
   const { language } = useLanguage()
   const ru = language === "ru"
@@ -45,7 +45,7 @@ export default function BureauGuide({
         },
         {
           title: "Сыграйте. Проверьте результат.",
-          text: "Запустите Deadlock и выполните подписанные условия в выбранном режиме. XP и монеты бюро начисляются после проверки матча; монеты учитывают дневной и недельный лимиты.",
+          text: "Запустите Deadlock и выполните подписанные условия в выбранном режиме. XP начисляется после проверки матча и подтверждения выполненных контрактов.",
           detail:
             "Откройте «Активное дело», чтобы увидеть попытки, срок и состояние проверки. На дело — 24 часа и до трёх подходящих матчей; прогресс разных матчей не складывается.",
           note: "Компаньон проходит QA. Если результат ещё проверяется, дождитесь подтверждения в деле: награда не начисляется сразу после игры.",
@@ -53,11 +53,11 @@ export default function BureauGuide({
         },
         {
           title: "Есть дело и без игры.",
-          text: "Пока компаньон проходит QA, в браузере уже можно разбирать шифры и собирать карточки героев.",
+          text: "Собирайте карточки героев из бесплатных ежедневных конвертов. В коллекции можно выбрать избранное и витрину профиля.",
           detail:
-            "Разберите шифр → получите монеты бюро → выберите карточку в каталоге или откройте конверт. До покупки видны цена, состав и шансы.",
-          note: "Монеты и XP — разные вещи. Монеты нужны для карточек, XP отражает выполненные контракты. Шифры работают без компаньёна.",
-          action: "Разобрать первый шифр",
+            "Откройте «Ежедневный конверт», проверьте доступность и получите карточки. Полученный конверт сохраняется на сервере; повтор запроса не выдаёт второй.",
+          note: "Новый конверт доступен каждый день в полночь UTC. Карточки появляются в коллекции сразу после подтверждения получения сервером.",
+          action: "Открыть ежедневный конверт",
         },
         {
           title: "Оставьте свой след.",
@@ -79,7 +79,7 @@ export default function BureauGuide({
         },
         {
           title: "Play. Check your result.",
-          text: "Launch Deadlock and complete the signed objectives in your chosen mode. XP and Bureau coins arrive after match verification; coins have daily and weekly limits.",
+          text: "Launch Deadlock and complete the signed objectives in your chosen mode. XP arrives after match verification confirms your completed contracts.",
           detail:
             "Open Active case to see attempts, the deadline and verification status. A case lasts 24 hours and allows up to three eligible matches; progress does not add up across matches.",
           note: "The Companion is in QA. If your result is still being checked, wait for confirmation in your case: rewards do not arrive immediately after a match.",
@@ -87,11 +87,11 @@ export default function BureauGuide({
         },
         {
           title: "A case without a match.",
-          text: "While the Companion is in QA, you can already solve ciphers and collect hero cards in your browser.",
+          text: "Collect hero cards from free daily packs. Save favorites and choose a showcase for your profile in Collection.",
           detail:
-            "Solve a cipher → earn Bureau coins → choose a card from the catalogue or open an envelope. Price, contents and odds are shown before purchase.",
-          note: "Coins and XP are separate. Coins are for cards; XP reflects completed contracts. Ciphers work without the Companion.",
-          action: "Solve your first cipher",
+            "Open Daily pack, check availability and claim your cards. Your claim is saved on the server; retrying cannot grant a second pack.",
+          note: "A new pack is available each day at midnight UTC. Cards appear in your collection as soon as the server confirms your claim.",
+          action: "Open daily pack",
         },
         {
           title: "Leave your mark.",
@@ -165,7 +165,7 @@ export default function BureauGuide({
         </div>
         <button
           className="bureau-action bureau-action-secondary"
-          onClick={() => onNavigate((["quests", "active", "archive", "bureaus"] as const)[step])}
+          onClick={() => onNavigate((["quests", "active", "packs", "bureaus"] as const)[step])}
         >
           {current.action}
         </button>

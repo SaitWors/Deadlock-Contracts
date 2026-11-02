@@ -1,9 +1,7 @@
-"""Reserve contract coins with final decisions; deliver through a separate outbox.
+"""Historical coin receipts and append-only admin corrections.
 
-The caller owns the transaction. Lock order is the existing settlement board,
-then user, entitlement and DAY/WEEK quotas. The user lock also serializes first
-quota insertion and archive spending. Policies are captured only while signing;
-delivery never invents a policy for an old assignment.
+Player issuance hooks intentionally return no reward after economy retirement.
+Legacy models, signed policies, receipts and correction validation are retained.
 """
 from __future__ import annotations
 
@@ -14,9 +12,17 @@ from fastapi import HTTPException
 from sqlalchemy import select
 
 from ..coin_models import CoinCorrection, CoinEntitlement, CoinPolicySnapshot, CoinQuota
-from ..config import settings
-from ..models import (ArchiveLedger, AuditLog, BoardOption, ContractBoard, Evaluation,
-                      Match, MatchParticipant, OutboxEvent, User, utcnow)
+from ..models import (
+    ArchiveLedger,
+    AuditLog,
+    BoardOption,
+    ContractBoard,
+    Evaluation,
+    Match,
+    MatchParticipant,
+    User,
+    utcnow,
+)
 from .archive import aware
 from .match_trust import provider_parts
 
@@ -45,30 +51,9 @@ def _lock_recipient(db, user_id):
 
 
 def snapshot_signing(db, board):
-    """Capture only newly locked selections. Never backfill a completed result."""
-    if not board.locked_at or board.status != "LOCKED":
-        return 0
-    # Production SessionLocal disables autoflush; selected/status were just
-    # changed by lock_board and must reach SQL before its selection query.
-    db.flush()
-    selected = list(db.scalars(select(BoardOption).where(
-        BoardOption.board_id == board.id, BoardOption.selected.is_(True)).order_by(BoardOption.id)))
-    if not selected or any(option.status != "LOCKED" or option.settled_at for option in selected):
-        return 0
-    count = 0
-    for option in selected:
-        existing = db.scalar(select(CoinPolicySnapshot.id).where(CoinPolicySnapshot.assignment_id == option.id))
-        if existing:
-            continue
-        db.add(CoinPolicySnapshot(user_id=board.user_id, assignment_id=option.id, board_id=board.id,
-                                 policy_version=POLICY_VERSION, mode=board.game_match_mode,
-                                 difficulty=option.difficulty,
-                                 amount=CONTRACT_REWARDS.get(board.game_match_mode, {}).get(option.difficulty, 0),
-                                 case_bonus=CASE_BONUS.get(board.game_match_mode, 0), selected_count=len(selected),
-                                 signed_at=_utc(board.locked_at)))
-        count += 1
-    db.flush()
-    return count
+    # Permanent retirement: flags and queued legacy jobs cannot issue coins.
+    """Player coin issuance is retired; historical records remain available to admin correction tools."""
+    return 0
 
 
 def _receipt(row):
@@ -175,70 +160,15 @@ def _quota(db, user_id, kind, start):
 
 
 def _reserve(db, *, user_id, source_type, source_id, nominal, snapshot, evaluation=None, match=None, reason=None):
-    existing = db.scalar(select(CoinEntitlement).where(CoinEntitlement.user_id == user_id,
-        CoinEntitlement.source_type == source_type, CoinEntitlement.source_id == source_id).with_for_update())
-    if existing:
-        return existing
-    day = _utc(match.ended_at).date() if match and match.ended_at else None
-    week = day - timedelta(days=day.weekday()) if day else None
-    amount = 0
-    eligible = reason is None
-    if eligible:
-        daily, weekly = _quota(db, user_id, "DAY", day), _quota(db, user_id, "WEEK", week)
-        remaining_day, remaining_week = max(0, DAILY_LIMIT - daily.used), max(0, WEEKLY_LIMIT - weekly.used)
-        amount = min(nominal, remaining_day, remaining_week)
-        reason = "AWARDED" if amount == nominal else ("WEEKLY_LIMIT" if remaining_week <= remaining_day else "DAILY_LIMIT")
-        daily.used += amount
-        weekly.used += amount
-    row = CoinEntitlement(user_id=user_id, source_type=source_type, source_id=source_id,
-                          policy_version=snapshot.policy_version if snapshot else POLICY_VERSION,
-                          policy_snapshot_id=snapshot.id if snapshot else None,
-                          evaluation_id=evaluation.id if evaluation else None, match_id=match.id if match else None,
-                          period_day=day, period_week=week, nominal_amount=nominal, amount=amount, eligible=eligible,
-                          reason=reason, status="RESERVED" if eligible else "REJECTED")
-    db.add(row)
-    db.flush()
-    if eligible:
-        db.add(OutboxEvent(event_type="coin.reward", aggregate_id=row.id, payload={"entitlement_id": row.id, "user_id": user_id}))
-    db.flush()
-    return row
+    # Permanent retirement: flags and queued legacy jobs cannot issue coins.
+    """Player coin issuance is retired; historical records remain available to admin correction tools."""
+    return None
 
 
 def settle_assignment(db, assignment_id, context=None):
-    """Reserve a definitive award and delivery obligation in the settlement tx."""
-    option = db.get(BoardOption, assignment_id)
-    if option is None:
-        raise ValueError("Contract assignment not found")
-    board = db.get(ContractBoard, option.board_id)
-    user = _lock_recipient(db, board.user_id) if board else None
-    if user is None:
-        return None
-    existing = db.scalar(select(CoinEntitlement).where(CoinEntitlement.user_id == user.id,
-        CoinEntitlement.source_type == "assignment", CoinEntitlement.source_id == option.id).with_for_update())
-    if existing:
-        return _receipt(existing)
-    snapshot = db.scalar(select(CoinPolicySnapshot).where(CoinPolicySnapshot.assignment_id == option.id))
-    evaluation = db.get(Evaluation, option.final_evaluation_id) if option.final_evaluation_id else None
-    match = db.get(Match, evaluation.match_id) if evaluation else None
-    reason = _eligibility(db, user, option, board, snapshot, evaluation, match)
-    row = _reserve(db, user_id=user.id, source_type="assignment", source_id=option.id,
-                   nominal=snapshot.amount if snapshot else 0, snapshot=snapshot,
-                   evaluation=evaluation, match=match, reason=reason)
-    selected = list(db.scalars(select(BoardOption).where(BoardOption.board_id == board.id,
-                                                        BoardOption.selected.is_(True)).order_by(BoardOption.id)))
-    if snapshot and snapshot.selected_count >= 2 and len(selected) == snapshot.selected_count:
-        decisions = list(db.scalars(select(CoinEntitlement).where(CoinEntitlement.user_id == user.id,
-            CoinEntitlement.source_type == "assignment", CoinEntitlement.source_id.in_([value.id for value in selected]))))
-        if (len(decisions) == len(selected)
-                and all(value.eligible and value.status in {"RESERVED", "DELIVERED"} for value in decisions)
-                and all(_still_valid(db, value) for value in decisions)
-                and all(value.status == "COMPLETED" for value in selected)):
-            # An older match may be approved after a newer attempt. Anchor the
-            # bonus to actual completion time, independent of moderation order.
-            last = max(decisions, key=lambda value: (aware(db.get(Match, value.match_id).ended_at), value.id))
-            _reserve(db, user_id=user.id, source_type="case", source_id=board.id, nominal=snapshot.case_bonus,
-                     snapshot=snapshot, evaluation=db.get(Evaluation, last.evaluation_id), match=db.get(Match, last.match_id))
-    return _receipt(row)
+    # Permanent retirement: flags and queued legacy jobs cannot issue coins.
+    """Player coin issuance is retired; historical records remain available to admin correction tools."""
+    return None
 
 
 def _still_valid(db, row):
@@ -266,30 +196,9 @@ def _still_valid(db, row):
 
 
 def deliver_entitlement(db, entitlement_id):
-    row = db.get(CoinEntitlement, entitlement_id)
-    if row is None:
-        return None  # Deleted account: its private obligations were deleted too.
-    if _lock_recipient(db, row.user_id) is None:
-        return None
-    row = db.scalar(select(CoinEntitlement).where(CoinEntitlement.id == entitlement_id).with_for_update()
-                    .execution_options(populate_existing=True))
-    if row.status != "RESERVED":
-        return _receipt(row)
-    if not _still_valid(db, row):
-        row.status, row.reason = "INVALIDATED", "RESULT_CHANGED"
-        db.flush()
-        return _receipt(row)
-    if row.amount:
-        from .archive import credit_wallet
-        from .extra_coin_rewards import REASONS
-        source = "coin:" + row.id
-        credit_wallet(db, row.user_id, source=source,
-                      reason=REASONS.get(row.source_type, "CONTRACT" if row.source_type == "assignment" else "CASE_BONUS"),
-                      delta=row.amount, scope="REAL")
-        row.ledger_source = source
-    row.status, row.delivered_at = "DELIVERED", utcnow()
-    db.flush()
-    return _receipt(row)
+    # Permanent retirement: flags and queued legacy jobs cannot issue coins.
+    """Player coin issuance is retired; historical records remain available to admin correction tools."""
+    return None
 
 
 def _case_correction_result(db, correction, *, reverse_case=False):
@@ -380,6 +289,6 @@ def status(db, user_id, *, now=None):
     receipts = list(db.scalars(select(CoinEntitlement).where(CoinEntitlement.user_id == user_id)
                               .order_by(CoinEntitlement.created_at.desc(), CoinEntitlement.id).limit(30)))
     return {"policy_version": POLICY_VERSION,
-            "enabled": settings.coin_rewards_enabled and settings.reward_settlement_enabled,
+            "enabled": False,
             "contract_rewards": CONTRACT_REWARDS, "case_bonus": CASE_BONUS, "quotas": quotas,
             "receipts": [_receipt(row) for row in receipts]}

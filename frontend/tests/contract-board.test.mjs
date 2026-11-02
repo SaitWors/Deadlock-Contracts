@@ -33,9 +33,9 @@ const response = (data, ok = true) => ({ ok, status: ok ? 200 : 503, json: async
 const button = (element, text) =>
   [...element.querySelectorAll("button")].find((item) => item.textContent.includes(text))
 
-async function mount({ language = "ru", boardRequest } = {}) {
+async function mount({ language = "ru", boardRequest, hash = "quests" } = {}) {
   const dom = new JSDOM('<div id="mount"></div>', {
-    url: "https://qa.invalid/#quests",
+    url: `https://qa.invalid/#${hash}`,
     runScripts: "outside-only",
     pretendToBeVisual: true,
   })
@@ -62,6 +62,10 @@ async function mount({ language = "ru", boardRequest } = {}) {
     calls.push({ url, init })
     if (url === "/api/boards/today")
       return boardRequest ? boardRequest() : response(boardsPayload())
+    if (url.includes("/api/archive/meta"))
+      return response({ heroes: [], ranks: [], account_key: "board-account" })
+    if (url.includes("/api/archive/"))
+      return response({ items: [], total: 0, card_ids: [], is_public: false, revision: 0 })
     return response(auxiliaryResponse(url))
   }
   w.eval(code)
@@ -218,3 +222,16 @@ test("switching modes resets the category but retains separate selections", asyn
   })
   assert.equal(doc.querySelectorAll('.dc-motion-contract-card[aria-pressed="true"]').length, 1)
 })
+
+for (const route of ["archive", "wallet", "cipher", "catalog", "studio", "arena"])
+  test(`retired #${route} deep link opens the supported workspace`, async () => {
+    const { w, doc, calls } = await mount({ hash: route, language: "en" })
+    assert.equal(w.location.hash, route === "arena" ? "#quests" : "#collection")
+    assert.equal(doc.querySelector('.ns-sidebar [data-nav="arena"]'), null)
+    assert.equal(doc.querySelector('.ns-sidebar [data-nav="archive"]'), null)
+    assert.equal(doc.querySelector('.ns-sidebar [data-nav="wallet"]'), null)
+    assert.equal(
+      calls.some(({ url }) => /archive\/wallet|api\/arena|archive\/cipher/.test(url)),
+      false,
+    )
+  })

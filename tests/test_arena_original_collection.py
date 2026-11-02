@@ -9,7 +9,7 @@ from sqlalchemy import func, select
 
 from app.battle_models import BattleArtwork, BattleDefinitionVersion
 from app.models import ArchiveCard, ArchiveItem, ArchiveOperation
-from app.services import battle_service as arena
+from app.services import battle_service as arena, battle_social as social
 from app.services.archive import battle_metadata
 from app.services.battle_catalog import seed_battle_catalogue
 from test_card_battle_service import db, player  # noqa: F401
@@ -175,14 +175,14 @@ def test_original_archived_opponent_art_is_private_to_battle_participants(commun
         for user_id in (first_id, second_id):
             _, slots = originals(session, session.get(User, user_id), status="ARCHIVED")
             arena.save_squad(session, user_id, 0, "REAL", None, slots)
-    room = first.post("/api/arena/rooms", json={"request_key": str(uuid4()), "scope": "REAL"}).json()["room"]
-    code = room["code"]
-    assert second.post(f"/api/arena/rooms/{code}/join", json={"request_key": str(uuid4())}).status_code == 200
-    for client in (first, second):
-        response = client.post(f"/api/arena/rooms/{code}/confirm", json={"request_key": str(uuid4()), "squad_revision": 1})
-        assert response.status_code == 200, response.text
-    match_id = response.json()["room"]["match_id"]
-    match = first.get(f"/api/arena/matches/{match_id}").json()["match"]
+    # Historical setup uses preserved services; retired player routes cannot
+    # create a new match. The actual private artwork route remains under test.
+    with factory() as session:
+        code = social.create_room(session, first_id, str(uuid4()))["room"]["code"]
+        social.join_room(session, second_id, code, str(uuid4()))
+        social.confirm_room(session, first_id, code, str(uuid4()), 1, None)
+        match_id = social.confirm_room(session, second_id, code, str(uuid4()), 1, None)["room"]["match_id"]
+        match = arena.get_match(session, first_id, match_id)["match"]
     enemy = match["state"]["sides"][1]["heroes"][0]["card"]
     with factory() as session:
         artwork = session.get(ArchiveCard, enemy["id"]).image_data
@@ -193,7 +193,8 @@ def test_original_archived_opponent_art_is_private_to_battle_participants(commun
 
 
 def test_purchased_original_art_flows_through_catalog_inventory_squad_and_battle(community):
-    from test_archive_packs import buy, fund
+    from test_archive_packs import legacy_buy, legacy_wallet, fund
+    from test_bureau_operations import elevate
 
     factory, make_player = community
     user_id, client = make_player()
@@ -203,28 +204,27 @@ def test_purchased_original_art_flows_through_catalog_inventory_squad_and_battle
         expected = {card.id: card.image_data for card in cards}
         session.commit()
     fund(factory, user_id, 500)
+    elevate(factory, user_id, client, role="ADMIN")
     catalog = client.get("/api/archive/cards").json()
     assert catalog["total"] == 6
     slots = []
     for index, card in enumerate(catalog["items"]):
         assert_webp(client.get(card["image_url"]), expected[card["id"]])
         key = str(uuid4())
-        receipt = buy(client, card["id"], key=key)
+        receipt = legacy_buy(factory, user_id, card["id"], key=key)
         assert receipt.status_code == 200, receipt.text
-        assert buy(client, card["id"], key=key).json() == receipt.json()
+        assert legacy_buy(factory, user_id, card["id"], key=key).json() == receipt.json()
         slots.append({"item_id": receipt.json()["items"][0]["id"], "line": index // 2,
                       "position": "FRONT" if index % 2 == 0 else "BACK"})
-    inventory = client.get("/api/arena/bootstrap").json()["inventory"]
+    with factory() as session:
+        inventory = arena.bootstrap(session, user_id)["inventory"]
     assert {row["item_id"] for row in inventory} == {slot["item_id"] for slot in slots}
     for row in inventory:
         assert_webp(client.get(row["card"]["image_url"]), expected[row["card"]["id"]])
-    squad = client.put("/api/arena/squad", json={"expected_revision": 0, "scope": "REAL",
-        "base_item_id": None, "slots": slots})
-    assert squad.status_code == 200, squad.text
-    response = client.post("/api/arena/matches", json={"request_key": str(uuid4()), "mode": "TRAINING",
-        "scope": "REAL", "squad_revision": 1})
-    assert response.status_code == 200, response.text
-    for hero in response.json()["match"]["state"]["sides"][0]["heroes"]:
+    with factory() as session:
+        arena.save_squad(session, user_id, 0, "REAL", None, slots)
+        match = arena.start_match(session, user_id, {"request_key": str(uuid4()), "mode": "TRAINING", "scope": "REAL", "squad_revision": 1})["match"]
+    for hero in match["state"]["sides"][0]["heroes"]:
         assert_webp(client.get(hero["image_url"]), expected[hero["card"]["id"]])
-    assert client.get("/api/archive/wallet").json()["balance"] == 350
+    assert legacy_wallet(factory, user_id)["balance"] == 350
     assert client.get("/api/archive/inventory").json()["total"] == 6

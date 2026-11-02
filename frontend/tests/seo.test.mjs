@@ -229,3 +229,36 @@ test("legacy public links resolve to documents while private hashes are untouche
   for (const hash of ["#archive", "#bureaus/night-shift", "#profile", "#admin", "#unknown"])
     assert.equal(api.legacyPublicUrl(hash, "ru"), null)
 })
+
+test("Ritual public home offers match contracts and a free daily pack without retired economy", async () => {
+  const env = await mount({ url: "/ru/", page: "home", language: "ru" })
+  assert.match(env.doc.querySelector("h1")?.textContent || "", /Твой матч/i)
+  assert.match(env.doc.body.textContent, /Ежедневный пак/)
+  assert.doesNotMatch(
+    env.doc.body.textContent,
+    /CITY NEVER SLEEPS|монет|жетон|шифр|Арена Бюро|каталог/i,
+  )
+  assert.equal(
+    env.doc.querySelector("video"),
+    null,
+    "signing media must not load on the public homepage",
+  )
+  await close(env)
+})
+
+test("public contract preview caps selection at three and never creates a real case", async () => {
+  const env = await mount({ url: "/en/contracts", page: "contracts", language: "en" })
+  const choices = [...env.doc.querySelectorAll("button[data-contract-choice]")]
+  assert.equal(choices.length, 6)
+  for (const choice of choices.slice(0, 4)) {
+    await env.api.act(async () => choice.click())
+  }
+  assert.equal(env.doc.querySelectorAll('[data-contract-choice][aria-pressed="true"]').length, 3)
+  assert.equal(choices[3].disabled, true)
+  assert.ok(env.doc.body.textContent.includes("Demo board"))
+  assert.equal(
+    env.calls.some((url) => /boards.*lock/.test(url)),
+    false,
+  )
+  await close(env)
+})

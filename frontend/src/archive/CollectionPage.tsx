@@ -13,20 +13,18 @@ import {
   type Receipt,
   type Showcase,
 } from "./types"
-import { ReceiptView, type useTransaction } from "./transactions"
+import PackReveal from "./PackReveal"
 
 export default function CollectionPage({
   csrf,
   meta,
   revision,
-  transaction,
   favorites,
   scope,
 }: {
   csrf: string
   meta: Meta
   revision: number
-  transaction: ReturnType<typeof useTransaction>
   favorites: FavoriteControls
   scope: EconomyScope
 }) {
@@ -97,8 +95,8 @@ export default function CollectionPage({
       <h2>{ru ? "Моя коллекция" : "My collection"}</h2>
       <p>
         {ru
-          ? "Здесь находятся полученные экземпляры. Последняя копия каждого дизайна остаётся у тебя; платные дубли возвращают 20% своей доли цены, с округлением вниз."
-          : "These are your owned copies. Keep the last copy of each design; paid duplicates refund 20% of their share of the price, rounded down."}
+          ? "Твои полученные карточки. Добавляй любимые в избранное и выбирай до трёх для витрины профиля."
+          : "Your owned cards. Save your favorites and choose up to three for your profile showcase."}
       </p>
       {(error || inventory.error || showcase.error || history.error || coverage.error) && (
         <p role="alert">
@@ -280,8 +278,8 @@ export default function CollectionPage({
                 ? "В избранном пока нет подходящих карточек. Отметь понравившиеся звёздочкой в коллекции или при открытии конверта."
                 : "No matching favorites. Star a card in your collection or while opening an envelope."
               : ru
-                ? "Здесь пока нет карточек. Загляни в конверты или выбери конкретную карточку в каталоге."
-                : "No matching cards yet. Open an envelope or choose a card in the catalogue."}
+                ? "Здесь пока нет карточек. Получи бесплатный ежедневный конверт."
+                : "No matching cards yet. Claim your free daily pack."}
           </p>
         </div>
       )}
@@ -294,17 +292,6 @@ export default function CollectionPage({
           >
             <CardSurface card={item.card} />
             <h3 className="archive-item-title">{item.card.title}</h3>
-            {typeof item.card.battle_eligible === "boolean" && (
-              <p>
-                {item.card.battle_eligible
-                  ? ru
-                    ? "Боевой вариант одобрен"
-                    : "Approved battle variant"
-                  : ru
-                    ? "Коллекционный дизайн: боевой допуск ещё не выдан"
-                    : "Collectible artwork: battle approval pending"}
-              </p>
-            )}
             <p>
               {ru ? "Экземпляров" : "Copies"}: {item.quantity}
               {item.test_count > 0
@@ -323,20 +310,6 @@ export default function CollectionPage({
                 {ru ? "В витрину профиля" : "Feature on profile"}
               </label>
             )}
-            {item.recycle && (
-              <button
-                disabled={transaction.busy || !!transaction.pending}
-                onClick={() =>
-                  void transaction.execute(`/api/archive/items/${item.recycle!.id}/recycle`, {
-                    scope,
-                  })
-                }
-              >
-                {ru
-                  ? `Обменять один дубль: +${item.recycle.value} монет`
-                  : `Recycle one duplicate: +${item.recycle.value} coins`}
-              </button>
-            )}
           </article>
         ))}
       </div>
@@ -347,12 +320,12 @@ export default function CollectionPage({
         <summary>{ru ? "История открытий и выдачи" : "Opening & grant history"}</summary>
         {history.data?.items.map((item) => (
           <button key={item.id} onClick={() => setReceipt({ ...item, scope: item.scope ?? scope })}>
-            {item.pack?.title || item.kind} · {new Date(item.created_at).toLocaleString()} ·{" "}
-            {item.delta > 0 ? "+" : ""}
-            {item.delta} <Icon name="coins" size={18} />
+            {item.pack?.title || (ru ? "Выдача карточек" : "Card delivery")} ·{" "}
+            {new Date(item.created_at).toLocaleString()} · {item.items.length}{" "}
+            {ru ? "карточек" : "cards"}
           </button>
         ))}
-        {history.data?.total === 0 && <p>{ru ? "Операций пока нет." : "No transactions yet."}</p>}
+        {history.data?.total === 0 && <p>{ru ? "Получений пока нет." : "No deliveries yet."}</p>}
         {history.data && (
           <Pager
             offset={historyOffset}
@@ -362,7 +335,10 @@ export default function CollectionPage({
           />
         )}
         {receipt && (
-          <ReceiptView key={receipt.id} receipt={receipt} onClose={() => setReceipt(null)} />
+          <div>
+            <PackReveal key={receipt.id} receipt={receipt} favorites={favorites} />
+            <button onClick={() => setReceipt(null)}>{ru ? "Закрыть" : "Close"}</button>
+          </div>
         )}
       </details>
     </section>

@@ -1,19 +1,11 @@
-import Icon from "../icons/Icon"
 import { useEffect, useState, type FormEvent } from "react"
 import { request, useResource } from "../community/api"
 import { useLanguage } from "../i18n"
 import { Pager } from "../archive/ArchivePage"
 import CardPreview from "../archive/CardPreview"
-import { PackOdds } from "../archive/PackShop"
-import {
-  RANKS,
-  type Card,
-  type EconomyScope,
-  type Meta,
-  type Pack,
-  type Recommendation,
-} from "../archive/types"
-import { TransactionStatus, useTransaction } from "../archive/transactions"
+import PackReveal from "../archive/PackReveal"
+import { RANKS, type Card, type Meta, type Pack } from "../archive/types"
+import { useTransaction } from "../archive/transactions"
 import "../archive/archive.css"
 import "../archive/packs.css"
 import OwnerArenaDesk from "./OwnerArenaDesk"
@@ -50,13 +42,13 @@ function OwnerContent({ csrf, isOwner }: { csrf: string; isOwner: boolean }) {
   const [editing, setEditing] = useState<string | "new" | null>(null)
   const [error, setError] = useState("")
   const [busy, setBusy] = useState(false)
-  const [delta, setDelta] = useState(150)
   const [quantity, setQuantity] = useState(1)
   const [note, setNote] = useState("")
-  const [scope, setScope] = useState<EconomyScope>("SANDBOX")
   const [card, setCard] = useState<Card | null>(null)
-  const tx = useTransaction(csrf, meta.data?.account_key || "", () =>
-    window.dispatchEvent(new Event("dc-archive-wallet")),
+  const tx = useTransaction(
+    csrf,
+    meta.data?.account_key ? `${meta.data.account_key}:sandbox-card-grants` : "",
+    () => {},
   )
   const pause = async (pack: Pack) => {
     setBusy(true)
@@ -102,7 +94,34 @@ function OwnerContent({ csrf, isOwner }: { csrf: string; isOwner: boolean }) {
         </p>
       )}
       {(!meta.data || packs.loading) && <p role="status">{ru ? "Загрузка…" : "Loading…"}</p>}
-      <TransactionStatus transaction={tx} />
+      {tx.error && <p role="alert">{tx.error}</p>}
+      {tx.pending && (
+        <div role="status" className="archive-pending">
+          <p>
+            {ru
+              ? "Тестовая выдача сохранена. При обрыве связи проверь результат или повтори запрос."
+              : "Your test grant is saved. Check its result or retry after a connection error."}
+          </p>
+          <div className="archive-actions">
+            <button disabled={tx.busy} onClick={() => void tx.recover()}>
+              {ru ? "Проверить результат" : "Check result"}
+            </button>
+            <button disabled={tx.busy} onClick={() => void tx.retry()}>
+              {ru ? "Повторить выдачу" : "Retry grant"}
+            </button>
+          </div>
+        </div>
+      )}
+      {tx.receipt && (
+        <section
+          className="archive-panel"
+          aria-label={ru ? "Полученные тестовые карточки" : "Granted sandbox cards"}
+        >
+          <p>{ru ? "Тестовые карточки сохранены." : "Sandbox cards saved."}</p>
+          <PackReveal key={tx.receipt.id} receipt={tx.receipt} />
+          <button onClick={tx.clearReceipt}>{ru ? "Закрыть результат" : "Close result"}</button>
+        </section>
+      )}
       {isOwner && meta.data && <OwnerArenaDesk csrf={csrf} accountKey={meta.data.account_key} />}
       {meta.data && (
         <>
@@ -128,8 +147,7 @@ function OwnerContent({ csrf, isOwner }: { csrf: string; isOwner: boolean }) {
                   <article key={pack.id}>
                     <h3>{pack.title}</h3>
                     <p>
-                      {pack.price} <Icon name="coins" size={18} /> · {pack.draws}{" "}
-                      {ru ? "карточек" : "cards"} ·{" "}
+                      {pack.draws} {ru ? "карточек" : "cards"} ·{" "}
                       {pack.active
                         ? ru
                           ? "Опубликован"
@@ -147,7 +165,7 @@ function OwnerContent({ csrf, isOwner }: { csrf: string; isOwner: boolean }) {
                     )}
                     <div className="archive-actions">
                       <button onClick={() => setEditing(pack.id)}>
-                        {ru ? "Редактировать состав и цену" : "Edit contents & price"}
+                        {ru ? "Редактировать состав" : "Edit contents"}
                       </button>
                       {pack.active && (
                         <button disabled={busy} onClick={() => void pause(pack)}>
@@ -176,30 +194,9 @@ function OwnerContent({ csrf, isOwner }: { csrf: string; isOwner: boolean }) {
             </summary>
             <p>
               {ru
-                ? "Получатель — твой текущий аккаунт. Тестовые монеты и экземпляры сохраняются отдельно. Каждая выдача записывается в аудит с причиной."
-                : "Recipient: your current account. Sandbox coins and copies are stored separately. Every grant is audited with its reason."}
+                ? "Получатель — твой текущий аккаунт. Тестовые карточки сохраняются отдельно от основной коллекции. Укажи причину выдачи."
+                : "Recipient: your current account. Sandbox cards are stored separately from your main collection. Give a reason for the grant."}
             </p>
-            <label>
-              {ru ? "Область выдачи" : "Grant scope"}
-              <select
-                aria-label={ru ? "Область выдачи" : "Grant scope"}
-                value={scope}
-                disabled={tx.busy || !!tx.pending}
-                onChange={(event) => setScope(event.target.value as EconomyScope)}
-              >
-                <option value="SANDBOX">{ru ? "Тестовая выдача" : "Sandbox test grant"}</option>
-                <option value="REAL">
-                  {ru ? "Ручная корректировка основного баланса" : "Manual real balance correction"}
-                </option>
-              </select>
-            </label>
-            {scope === "REAL" && (
-              <p>
-                {ru
-                  ? "Ручная корректировка основного баланса. Укажи причину изменения настоящих монет или экземпляров."
-                  : "Manual real balance correction. Explain why real coins or copies need an adjustment."}
-              </p>
-            )}
             <label>
               {ru ? "Для чего выдача" : "Reason for grant"}
               <input
@@ -214,41 +211,11 @@ function OwnerContent({ csrf, isOwner }: { csrf: string; isOwner: boolean }) {
                 }
               />
             </label>
-            <div className="archive-owner-grant">
-              <label>
-                {ru
-                  ? "Изменение монет (можно со знаком минус)"
-                  : "Coin adjustment (negative allowed)"}
-                <input
-                  type="number"
-                  value={delta}
-                  min={-1000000}
-                  max={1000000}
-                  step={1}
-                  onChange={(event) => setDelta(Number(event.target.value))}
-                />
-              </label>
-              <button
-                disabled={
-                  tx.busy ||
-                  !!tx.pending ||
-                  note.trim().length < 3 ||
-                  !Number.isInteger(delta) ||
-                  !delta ||
-                  Math.abs(delta) > 1000000
-                }
-                onClick={() => void tx.execute("/api/owner/archive/tokens", { delta, note, scope })}
-              >
-                {ru
-                  ? `Изменить свой баланс на ${delta > 0 ? "+" : ""}${delta} монет`
-                  : `Adjust my balance by ${delta > 0 ? "+" : ""}${delta} coins`}
-              </button>
-            </div>
             <h3>{ru ? "Выдать себе карточку" : "Grant myself a card"}</h3>
             <p>
               {ru
-                ? "Выбери опубликованный дизайн. Бесплатные тестовые экземпляры помечаются и не дают монет при обмене дублей."
-                : "Choose a published design. Free test copies are labelled and have no token refund."}
+                ? "Выбери опубликованный дизайн для тестовой коллекции."
+                : "Choose a published design for your sandbox collection."}
             </p>
             <CardPicker meta={meta.data} selected={card ? [card.id] : []} onPick={setCard} />
             {card && (
@@ -280,7 +247,7 @@ function OwnerContent({ csrf, isOwner }: { csrf: string; isOwner: boolean }) {
                     void tx.execute(`/api/owner/archive/cards/${card.id}/grant`, {
                       quantity,
                       note,
-                      scope,
+                      scope: "SANDBOX",
                     })
                   }
                 >
@@ -353,13 +320,12 @@ function PackForm({
   const ru = language === "ru"
   const [title, setTitle] = useState(initial?.title || "")
   const [description, setDescription] = useState(initial?.description || "")
-  const [price, setPrice] = useState(initial?.price || 30)
+  const price = initial?.price ?? 30
   const [draws, setDraws] = useState(initial?.draws || 1)
   const [active, setActive] = useState(initial?.active || false)
-  const [starter, setStarter] = useState(initial?.starter || false)
+  const starter = initial?.starter ?? false
   const [entries, setEntries] = useState(initial?.entries || [])
   const [preview, setPreview] = useState<{
-    recommendation: Recommendation
     odds: Pack["odds"]
   } | null>(null)
   const [error, setError] = useState("")
@@ -387,11 +353,11 @@ function PackForm({
     setPreviewError("")
     if (!entries.length) return
     const timer = setTimeout(() => {
-      request<{ recommendation: Recommendation; odds: Pack["odds"] }>(
-        "/api/owner/archive/packs/preview",
-        csrf,
-        { method: "POST", body: previewBody, signal: abort.signal },
-      )
+      request<{ odds: Pack["odds"] }>("/api/owner/archive/packs/preview", csrf, {
+        method: "POST",
+        body: previewBody,
+        signal: abort.signal,
+      })
         .then((value) => {
           if (!abort.signal.aborted) setPreview(value)
         })
@@ -463,19 +429,6 @@ function PackForm({
               onChange={(event) => setDescription(event.target.value)}
             />
           </label>
-          <label>
-            {ru ? "Цена в монетах — задаёт OWNER" : "Coin price — set by OWNER"}
-            <input
-              type="number"
-              min={1}
-              max={100000}
-              step={1}
-              required
-              value={price}
-              disabled={versionTwo}
-              onChange={(event) => setPrice(Number(event.target.value))}
-            />
-          </label>
           <label className="archive-check">
             <input
               type="checkbox"
@@ -484,76 +437,42 @@ function PackForm({
             />
             {ru ? "Опубликовать и разрешить открытие" : "Publish and allow opening"}
           </label>
-          <label className="archive-check">
-            <input
-              type="checkbox"
-              checked={starter}
-              disabled={versionTwo}
-              onChange={(event) => setStarter(event.target.checked)}
-            />
-            {ru
-              ? "Разрешить выбор как стартового (один бесплатный конверт на аккаунт)"
-              : "Allow as a starter (one free pack per account)"}
-          </label>
         </fieldset>
         {versionTwo ? (
-          <div className="archive-price-advice">
+          <div className="archive-odds-preview">
             <h3>{ru ? "Фиксированные правила выпуска" : "Fixed release rules"}</h3>
             <p>
               {ru
-                ? "Цена и слоты заданы моделью v2. Переименование и редактирование иллюстраций не сбрасывает общие гарантии. Для продажи нужны одобренные боевые герои всех обещанных рангов; EX в конверты не входит."
-                : "Price and slots are fixed by v2. Renaming or artwork edits do not reset shared guarantees. Every promised rank needs approved battle heroes; EX is excluded."}
+                ? "Количество карточек и порядок слотов для этого выпуска фиксированы. Для каждого указанного ранга нужны подходящие опубликованные карточки. EX в конверты не входит."
+                : "Card count and slot order are fixed for this release. Every listed rank needs eligible published cards. EX cards are excluded."}
             </p>
             <PackOdds pack={initial} />
           </div>
         ) : (
-          <div className="archive-price-advice" aria-live="polite">
+          <div className="archive-odds-preview" aria-live="polite">
             {previewError && (
               <p role="alert">
                 {previewError}
                 <button type="button" onClick={() => setPreviewRetry((value) => value + 1)}>
-                  {ru ? "Повторить расчёт" : "Retry estimate"}
+                  {ru ? "Повторить расчёт" : "Retry odds"}
                 </button>
               </p>
             )}
             {preview ? (
-              <>
-                <h3>
-                  {ru ? "Рекомендованная цена" : "Recommended price"}:{" "}
-                  {preview.recommendation.price} <Icon name="coins" size={18} />
-                </h3>
-                <p>
-                  {ru
-                    ? `Средняя цена прямого получения этого состава: ${preview.recommendation.expected_direct_cost} монет. Для случайного конверта — скидка 45%, округление вверх до 5 монет. Только шифры дают до 150 монет в неделю: ${preview.recommendation.weeks_at_150} недели накопления. Монеты контрактов — дополнительный источник.`
-                    : `Expected direct acquisition cost: ${preview.recommendation.expected_direct_cost} coins. Random packs receive a 45% discount, rounded up to 5 coins. Ciphers alone provide up to 150 coins per week: ${preview.recommendation.weeks_at_150} weeks. Contract coins are an additional source.`}
-                </p>
-                <button
-                  type="button"
-                  disabled={busy}
-                  onClick={() => setPrice(preview.recommendation.price)}
-                >
-                  {ru ? "Поставить рекомендованную цену" : "Use recommended price"}
-                </button>
-                <PackOdds pack={{ odds: preview.odds, draws }} />
-              </>
+              <PackOdds pack={{ odds: preview.odds, draws }} />
             ) : (
               !previewError && (
                 <p>
                   {entries.length
                     ? ru
-                      ? "Пересчитываем рекомендацию…"
-                      : "Updating recommendation…"
+                      ? "Обновляем шансы…"
+                      : "Updating odds…"
                     : ru
-                      ? "Выбери карточки, чтобы рассчитать цену."
-                      : "Choose cards to estimate the price."}
+                      ? "Выбери карточки, чтобы рассчитать шансы."
+                      : "Choose cards to calculate odds."}
                 </p>
               )
             )}
-            <small>
-              {ru
-                ? "Это начальная модель баланса, а не рыночная оценка. Последнее слово за владельцем."
-                : "This is an initial balancing model, not a market valuation. The owner sets the final price."}
-            </small>
           </div>
         )}
         <h3>{ru ? `Состав: ${entries.length} / 400` : `Pool: ${entries.length} / 400`}</h3>
@@ -642,6 +561,42 @@ function PackForm({
         }
       />
     </div>
+  )
+}
+
+function PackOdds({ pack }: { pack: Pick<Pack, "odds" | "draws" | "slots"> }) {
+  const { language, locale } = useLanguage()
+  const ru = language === "ru"
+  const odds = (items: Pack["odds"]) => (
+    <div>
+      {items.map((item) => (
+        <span key={item.rank}>
+          <b>{item.rank}</b> {item.percent.toLocaleString(locale, { maximumFractionDigits: 4 })}
+          %{" "}
+        </span>
+      ))}
+    </div>
+  )
+  return (
+    <section className="archive-pack-odds">
+      <h3>{ru ? "Шансы рангов" : "Rank probabilities"}</h3>
+      <p>
+        {ru
+          ? `Карточек в конверте: ${pack.draws}. Возможны дубли.`
+          : `${pack.draws} cards per pack. Duplicates are possible.`}
+      </p>
+      {pack.slots?.length
+        ? pack.slots.map((slot, index) => (
+            <section key={index}>
+              <h4>
+                {ru ? "Слот" : "Slot"} {index + 1}
+                {slot.kind === "B_PLUS" ? " · B+" : ""}
+              </h4>
+              {odds(slot.odds)}
+            </section>
+          ))
+        : odds(pack.odds)}
+    </section>
   )
 }
 

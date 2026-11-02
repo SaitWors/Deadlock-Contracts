@@ -24,7 +24,7 @@ const environments = []
 after(() => {
   for (const dom of environments) dom.window.close()
 })
-function runtime(language = "ru") {
+function runtime(language = "ru", reducedMotion = true) {
   // No network resources or browser navigation. JSDOM cannot validate layout,
   // native modal focus trapping, touch interaction, or the animation's appearance.
   const dom = new JSDOM('<button id="trigger">Sign</button><main id="mount"></main>', {
@@ -39,7 +39,28 @@ function runtime(language = "ru") {
     port2 = { postMessage: () => w.setTimeout(() => this.port1.onmessage?.(), 0) }
   }
   w.localStorage.setItem("dc.ui.language", language)
-  w.matchMedia = () => ({ matches: true, addEventListener() {}, removeEventListener() {} })
+  const motionListeners = new Set()
+  const motionMedia = {
+    get matches() {
+      return reducedMotion
+    },
+    addEventListener(_event, listener) {
+      motionListeners.add(listener)
+    },
+    removeEventListener(_event, listener) {
+      motionListeners.delete(listener)
+    },
+  }
+  w.matchMedia = (query) =>
+    query.includes("prefers-reduced-motion")
+      ? motionMedia
+      : { matches: true, addEventListener() {}, removeEventListener() {} }
+  w.setReducedMotion = (next) => {
+    reducedMotion = next
+    for (const listener of motionListeners) listener({ matches: next })
+  }
+  w.HTMLMediaElement.prototype.play = async function () {}
+  w.HTMLMediaElement.prototype.pause = function () {}
   w.HTMLDialogElement.prototype.showModal = function () {
     this.setAttribute("open", "")
   }
@@ -252,8 +273,8 @@ const options = [
     reward: 200,
   },
 ]
-async function mount(props = {}, language = "ru") {
-  const env = runtime(language)
+async function mount(props = {}, language = "ru", reducedMotion = true) {
+  const env = runtime(language, reducedMotion)
   let instance
   const trigger = env.document.getElementById("trigger")
   trigger.focus()
@@ -637,12 +658,12 @@ for (const language of ["ru", "en"]) {
       instance = api.mountLanding(document.getElementById("mount"))
     })
     const preview = [...document.querySelectorAll("button")].find((button) =>
-      /НЕ СОХРАНЯЕТСЯ|NOT SAVED/.test(button.textContent),
+      /Примерить подпись|Preview signing/.test(button.textContent),
     )
     assert.ok(preview)
     assert.equal(preview.disabled, true)
-    const cards = [...document.querySelectorAll(".contract-card")]
-    const title = cards[0].querySelector("h3").textContent
+    const cards = [...document.querySelectorAll("[data-contract-choice]")]
+    const title = cards[0].querySelector("strong").textContent
     await api.act(async () => cards[0].click())
     assert.equal(preview.disabled, false)
     preview.focus()
@@ -666,11 +687,232 @@ for (const language of ["ru", "en"]) {
     assert.equal(cards[0].getAttribute("aria-pressed"), "true")
     await api.act(async () =>
       [...document.querySelectorAll("button")]
-        .find((button) => button.textContent.trim() === "RANKED")
+        .find((button) => /^(Рейтинговый|Ranked)$/.test(button.textContent.trim()))
         .click(),
     )
-    assert.equal(document.querySelectorAll('.contract-card[aria-pressed="true"]').length, 0)
+    assert.equal(document.querySelectorAll('[data-contract-choice][aria-pressed="true"]').length, 0)
     assert.equal(preview.disabled, true)
     await api.act(async () => instance.unmount())
   })
 }
+
+test("full motion seals only a confirmed receipt, then plays the supplied roll and can skip", async () => {
+  let resolve
+  let signs = 0
+  const env = await mount(
+    {
+      onSign: () => {
+        signs++
+        return new Promise((done) => {
+          resolve = done
+        })
+      },
+    },
+    "en",
+    false,
+  )
+  assert.ok(env.document.querySelector(".signing-scroll"))
+  await env.api.act(async () => env.button("Place seal").click())
+  assert.equal(env.document.querySelector("video"), null)
+  assert.equal(env.document.querySelector(".signing-seal"), null)
+  await env.api.act(async () => resolve(locked()))
+  assert.equal(env.document.querySelector("dialog").dataset.state, "sealing")
+  assert.equal(env.document.querySelector("video"), null)
+  await env.api.act(async () =>
+    env.document
+      .querySelector(".signing-ceremony .signing-seal")
+      .dispatchEvent(new env.w.Event("animationend", { bubbles: true })),
+  )
+  const video = env.document.querySelector("video")
+  assert.ok(video)
+  assert.match(video.getAttribute("src"), /assets\/ritual\/scroll-seal\.mp4$/)
+  assert.equal(video.muted, true)
+  assert.equal(video.playsInline, true)
+  let pauses = 0
+  video.pause = () => pauses++
+  await env.api.act(async () => env.button("Skip animation").click())
+  assert.equal(env.document.querySelector("dialog").dataset.state, "signed")
+  assert.match(env.document.querySelector(".signing-receipt").textContent, /board-a/)
+  assert.match(
+    env.document.querySelector(".signing-sealed-scroll").getAttribute("src"),
+    /sealed-scroll\.webp$/,
+  )
+  assert.equal(pauses, 1)
+  assert.equal(signs, 1)
+  assert.equal(env.document.activeElement, env.document.querySelector(".signing-heading h2"))
+  await env.api.act(async () => env.instance.unmount())
+})
+
+test("reduced motion goes straight to the static receipt without video", async () => {
+  const env = await mount({}, "en")
+  await env.api.act(async () => env.button("Place seal").click())
+  assert.equal(env.document.querySelector("dialog").dataset.state, "signed")
+  assert.equal(env.document.querySelector("video"), null)
+  assert.ok(env.document.querySelector(".signing-sealed-scroll"))
+  assert.ok(env.button("Open case"))
+  await env.api.act(async () => env.instance.unmount())
+})
+
+for (const event of ["ended", "error"]) {
+  test(`video ${event} finishes with the confirmed receipt`, async () => {
+    const env = await mount({}, "en", false)
+    await env.api.act(async () => env.button("Place seal").click())
+    await env.api.act(async () =>
+      env.document
+        .querySelector(".signing-ceremony .signing-seal")
+        .dispatchEvent(new env.w.Event("animationend", { bubbles: true })),
+    )
+    await env.api.act(async () =>
+      env.document.querySelector("video").dispatchEvent(new env.w.Event(event)),
+    )
+    assert.ok(env.button("Open case"))
+    assert.equal(env.document.querySelector("video"), null)
+    assert.match(env.document.querySelector(".signing-receipt").textContent, /board-a/)
+    await env.api.act(async () => env.instance.unmount())
+  })
+}
+
+test("Escape skips a confirmed ceremony before closing the receipt", async () => {
+  let closes = 0
+  const env = await mount({ onClose: () => closes++ }, "en", false)
+  await env.api.act(async () => env.button("Place seal").click())
+  await env.api.act(async () =>
+    env.document
+      .querySelector("dialog")
+      .dispatchEvent(new env.w.Event("cancel", { cancelable: true })),
+  )
+  assert.equal(closes, 0)
+  assert.ok(env.button("Open case"))
+  await env.api.act(async () =>
+    env.document
+      .querySelector("dialog")
+      .dispatchEvent(new env.w.Event("cancel", { cancelable: true })),
+  )
+  assert.equal(closes, 1)
+  await env.api.act(async () => env.instance.unmount())
+})
+
+test("enabling reduced motion during playback cancels media and shows the receipt", async () => {
+  const env = await mount({}, "en", false)
+  await env.api.act(async () => env.button("Place seal").click())
+  await env.api.act(async () =>
+    env.document
+      .querySelector(".signing-ceremony .signing-seal")
+      .dispatchEvent(new env.w.Event("animationend", { bubbles: true })),
+  )
+  let pauses = 0
+  env.document.querySelector("video").pause = () => pauses++
+  await env.api.act(async () => env.w.setReducedMotion(true))
+  assert.equal(pauses, 1)
+  assert.equal(env.document.querySelector("dialog").dataset.state, "signed")
+  assert.ok(env.button("Open case"))
+  assert.equal(env.document.querySelector("video"), null)
+  await env.api.act(async () => env.instance.unmount())
+})
+
+test("an empty confirmation cannot create a seal, receipt or animation", async () => {
+  const env = await mount({ onSign: async () => undefined }, "en", false)
+  await env.api.act(async () => env.button("Place seal").click())
+  assert.equal(env.document.querySelector(".signing-seal"), null)
+  assert.equal(env.document.querySelector("video"), null)
+  assert.equal(env.document.querySelector(".signing-receipt"), null)
+  assert.equal(env.button("Place seal").disabled, false)
+  assert.match(env.document.querySelector('[role="alert"]').textContent, /check the case first/)
+  await env.api.act(async () => env.instance.unmount())
+})
+
+test("blocked autoplay falls back to the confirmed static receipt", async () => {
+  const env = await mount({}, "en", false)
+  env.w.HTMLMediaElement.prototype.play = async () => {
+    throw new Error("autoplay blocked")
+  }
+  await env.api.act(async () => env.button("Place seal").click())
+  await env.api.act(async () =>
+    env.document
+      .querySelector(".signing-ceremony .signing-seal")
+      .dispatchEvent(new env.w.Event("animationend", { bubbles: true })),
+  )
+  assert.equal(env.document.querySelector("video"), null)
+  assert.ok(env.button("Open case"))
+  assert.match(env.document.querySelector(".signing-receipt").textContent, /board-a/)
+  await env.api.act(async () => env.instance.unmount())
+})
+
+test("a stalled roll has a bounded fallback and unmount clears its media and timer", async () => {
+  const env = await mount({}, "en", false)
+  const callbacks = new Map()
+  let id = 100000
+  const setTimeout = env.w.setTimeout.bind(env.w)
+  const clearTimeout = env.w.clearTimeout.bind(env.w)
+  env.w.setTimeout = (callback, delay, ...args) => {
+    if (delay === 650 || delay === 8000) {
+      callbacks.set(++id, { callback, delay })
+      return id
+    }
+    return setTimeout(callback, delay, ...args)
+  }
+  env.w.clearTimeout = (timer) => {
+    callbacks.delete(timer)
+    clearTimeout(timer)
+  }
+  await env.api.act(async () => env.button("Place seal").click())
+  assert.equal([...callbacks.values()][0].delay, 650)
+  await env.api.act(async () => [...callbacks.values()][0].callback())
+  assert.equal(env.document.querySelector("dialog").dataset.state, "rolling")
+  assert.equal([...callbacks.values()][0].delay, 8000)
+  await env.api.act(async () => [...callbacks.values()][0].callback())
+  assert.ok(env.button("Open case"))
+  assert.equal(callbacks.size, 0)
+  await env.api.act(async () => env.instance.unmount())
+
+  const second = await mount({}, "en", false)
+  const secondTimers = new Set()
+  const secondSetTimeout = second.w.setTimeout.bind(second.w)
+  const secondClearTimeout = second.w.clearTimeout.bind(second.w)
+  second.w.setTimeout = (callback, delay, ...args) => {
+    const timer = secondSetTimeout(callback, delay, ...args)
+    if (delay === 650 || delay === 8000) secondTimers.add(timer)
+    return timer
+  }
+  second.w.clearTimeout = (timer) => {
+    secondTimers.delete(timer)
+    secondClearTimeout(timer)
+  }
+  let pauses = 0
+  second.w.HTMLMediaElement.prototype.pause = () => pauses++
+  await second.api.act(async () => second.button("Place seal").click())
+  await second.api.act(async () =>
+    second.document
+      .querySelector(".signing-ceremony .signing-seal")
+      .dispatchEvent(new second.w.Event("animationend", { bubbles: true })),
+  )
+  assert.ok(second.document.querySelector("video"))
+  await second.api.act(async () => second.instance.unmount())
+  assert.equal(pauses, 1)
+  assert.equal(secondTimers.size, 0)
+  assert.equal(second.document.activeElement, second.trigger)
+})
+
+test("a confirmation arriving after unmount cannot start a ceremony", async () => {
+  let resolve
+  const env = await mount(
+    {
+      onSign: () =>
+        new Promise((done) => {
+          resolve = done
+        }),
+    },
+    "en",
+    false,
+  )
+  let plays = 0
+  env.w.HTMLMediaElement.prototype.play = async () => {
+    plays++
+  }
+  await env.api.act(async () => env.button("Place seal").click())
+  await env.api.act(async () => env.instance.unmount())
+  await env.api.act(async () => resolve(locked()))
+  assert.equal(plays, 0)
+  assert.equal(env.document.querySelector("dialog"), null)
+  assert.equal(env.document.activeElement, env.trigger)
+})
