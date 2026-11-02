@@ -1,3 +1,4 @@
+import BureauAtmosphere from "./BureauAtmosphere"
 import { lazy, Suspense, useState } from "react"
 import BureauHeader from "./BureauHeader"
 import Icon, { type IconName } from "./icons/Icon"
@@ -257,6 +258,7 @@ export default function Landing() {
 
   return (
     <div className="bureau-public ritual-public">
+      <BureauAtmosphere />
       <a className="ritual-skip" href="#main-content">
         {ru ? "К содержимому" : "Skip to content"}
       </a>
@@ -342,6 +344,14 @@ export default function Landing() {
                   </span>
                 </a>
               </div>
+              <img
+                className="ritual-bureau-desk"
+                src={asset("bureau-desk.avif")}
+                alt=""
+                width="1024"
+                height="683"
+                decoding="async"
+              />
               <div className="ritual-hero-bottom ritual-container">
                 <span>
                   01 — {ru ? "КОНТРАКТЫ НА СЛЕДУЮЩИЙ МАТЧ" : "CONTRACTS FOR YOUR NEXT MATCH"}

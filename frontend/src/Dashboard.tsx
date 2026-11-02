@@ -1,3 +1,4 @@
+import BureauAtmosphere from "./BureauAtmosphere"
 import { useAdminCopy } from "./admin/admin-copy"
 import SvgIcon, { type IconName } from "./icons/Icon"
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react"
@@ -1537,6 +1538,7 @@ export default function Dashboard({ initialSession }: { initialSession: SessionP
 
   return (
     <div className="dc-dashboard dc-redesign dc-v3 dc-vnext bureau-app ns-private ritual-workspace min-h-screen community-dashboard">
+      <BureauAtmosphere />
       {guideOpen && !signing && !announcements.some((item) => item.presentation === "MODAL") && (
         <BureauGuide
           onClose={closeGuide}
@@ -1548,8 +1550,10 @@ export default function Dashboard({ initialSession }: { initialSession: SessionP
       )}
       {signing && (
         <ContractSigning
+          key={user.id}
           mode={MODE_META[signing.board.game_match_mode].title}
           operator={shownName}
+          accountId={user.id}
           options={signing.board.options
             .filter((option) => signing.selection.optionIds.includes(option.id))
             .map((option) => ({

@@ -239,7 +239,7 @@ test("Ritual public home offers match contracts and a free daily pack without re
     /CITY NEVER SLEEPS|монет|жетон|шифр|Арена Бюро|каталог/i,
   )
   assert.equal(
-    env.doc.querySelector("video"),
+    env.doc.querySelector('video[src*="scroll-seal"]'),
     null,
     "signing media must not load on the public homepage",
   )

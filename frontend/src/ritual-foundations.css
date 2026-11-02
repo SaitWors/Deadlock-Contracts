@@ -51,25 +51,7 @@
   position: relative;
   isolation: isolate;
 }
-:root[data-theme] :is(.bureau-public.ritual-public, .bureau-app.ritual-workspace)::before {
-  content: "";
-  display: block;
-  position: fixed;
-  inset: 72px 0 0;
-  z-index: -1;
-  background: url("./imports/ritual/contract-seal.avif") no-repeat calc(50% + 260px) -140px / 1080px;
-  opacity: .22;
-  mix-blend-mode: normal;
-  pointer-events: none;
-}
-:root[data-theme] .bureau-app.ritual-workspace::before {
-  background-position: calc(50% + 220px) -160px;
-  opacity: .12;
-}
-:root[data-theme="light"] :is(.bureau-public.ritual-public, .bureau-app.ritual-workspace)::before {
-  filter: brightness(.32);
-  opacity: .2;
-}
+:root[data-theme] :is(.bureau-public.ritual-public, .bureau-app.ritual-workspace)::before { content: none; display: none; }
 
 :root[data-theme] :is(.bureau-public.ritual-public, .bureau-app.ritual-workspace) :is(.btn-primary, .btn-ghost, .dc-primary, .dc-ghost, .dc-secondary, .archive-primary, .bureau-action, .ritual-text-link) {
   display: inline-flex;

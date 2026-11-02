@@ -59,3 +59,11 @@ export function mountLanding(element: HTMLElement) {
   )
   return { unmount: () => root.unmount() }
 }
+
+export * from "../src/signature-state"
+import BureauAtmosphere from "../src/BureauAtmosphere"
+export function mountAtmosphere(element: HTMLElement) {
+  const root = createRoot(element)
+  root.render(<BureauAtmosphere />)
+  return { unmount: () => root.unmount() }
+}
