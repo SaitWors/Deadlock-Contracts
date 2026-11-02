@@ -1,4 +1,4 @@
-"""Verify arena commands and bounded PvE rewards against PostgreSQL row locks."""
+"""Verify preserved historical Arena locks and retired reward issuance on PostgreSQL."""
 from concurrent.futures import ThreadPoolExecutor
 from datetime import timedelta
 from threading import Barrier
@@ -7,14 +7,19 @@ from uuid import uuid4
 from fastapi import HTTPException
 from sqlalchemy import delete, func, select
 
-from app.battle_models import BattleAction, BattleAssignment, BattleItemReservation, BattleMatch
+from app.battle_models import (
+    BattleAction,
+    BattleAssignment,
+    BattleItemReservation,
+    BattleMatch,
+)
 from app.coin_models import CoinEntitlement, CoinQuota
 from app.db import SessionLocal, engine
 from app.models import ArchiveLedger, OutboxEvent, User, utcnow
-from app.services import battle_service as arena, extra_coin_rewards as rewards
-from app.services.battle_catalog import seed_battle_catalogue
-from app.services.coin_rewards import deliver_entitlement
+from app.services import battle_service as arena
+from app.services import extra_coin_rewards as rewards
 from app.services.arena_privacy import purge_account_battles
+from app.services.battle_catalog import seed_battle_catalogue
 from scripts.ci_original_archive_fixture import seed_original_archive_fixture
 
 
@@ -69,8 +74,8 @@ def main():
             arena.surrender(db, user_id, match_id, str(uuid4()), 3)
         with SessionLocal() as db:
             assert not db.scalar(select(func.count()).select_from(BattleItemReservation).where(BattleItemReservation.match_id == match_id))
-            # 15 eligible wins fill the weekly 120; the sixteenth reserves an
-            # immutable zero decision and still counts toward EX progression.
+            # Historical gameplay records remain valid fixtures, but retired
+            # settlement must not mint currency or new economic progress facts.
             monday = rewards.periods(utcnow())[1]
             at = utcnow().replace(hour=12, minute=0, second=0, microsecond=0)
             at = at - timedelta(days=(at.date()-monday).days)
@@ -89,20 +94,16 @@ def main():
 
         reserved = race(ids, lambda db, value: rewards.settle_battle(db, db.get(BattleMatch, value)))
         assert all(value["status"] == 200 for value in reserved)
-        amounts = [value["result"]["amount"] for value in reserved]
-        assert sum(amounts) == 120 and sorted(amounts) == [0]+[8]*15, amounts
+        assert all(value["result"] is None for value in reserved), reserved
         repeated = race([ids[0], ids[0]], lambda db, value: rewards.settle_battle(db, db.get(BattleMatch, value)))
-        assert repeated[0] == repeated[1]
+        assert repeated[0] == repeated[1] and repeated[0]["result"] is None
         with SessionLocal() as db:
-            rights = list(db.scalars(select(CoinEntitlement.id).where(CoinEntitlement.user_id == user_id)))
-        delivered = race(rights+rights, deliver_entitlement)
-        assert all(value["status"] == 200 and value["result"]["status"] == "DELIVERED" for value in delivered)
-        with SessionLocal() as db:
-            assert rewards.eligible_pve_win_count(db, user_id) == 16
-            assert db.scalar(select(func.sum(ArchiveLedger.delta)).where(ArchiveLedger.user_id == user_id, ArchiveLedger.reason == "PVE_WIN")) == 120
-            assert db.scalar(select(func.sum(ArchiveLedger.delta)).where(ArchiveLedger.user_id == user_id, ArchiveLedger.reason == "WEEKLY_COMMISSION")) == 60
-            assert db.scalar(select(func.count()).select_from(CoinEntitlement).where(CoinEntitlement.user_id == user_id, CoinEntitlement.source_type == "weekly")) == 1
-            assert db.scalar(select(CoinQuota.used).where(CoinQuota.user_id == user_id, CoinQuota.source == "PVE", CoinQuota.period_kind == "WEEK")) == 120
+            assert rewards.eligible_pve_win_count(db, user_id) == 0
+            assert db.scalar(select(func.count()).select_from(BattleAssignment).where(BattleAssignment.user_id == user_id)) == 16
+            for model in (CoinEntitlement, CoinQuota, ArchiveLedger):
+                assert db.scalar(select(func.count()).select_from(model).where(model.user_id == user_id)) == 0
+            assert not db.scalar(select(func.count()).select_from(OutboxEvent).where(
+                OutboxEvent.event_type == "coin.reward", OutboxEvent.payload["user_id"].as_string() == user_id))
             other = User(display_name="Arena peer smoke")
             db.add(other); db.flush(); other_user_id = other.id; db.commit()
         with SessionLocal() as db:
@@ -130,7 +131,7 @@ def main():
             assert arena.request_result(db, user_id, key)["result"] == starters[0]["result"]
             assert db.get(BattleMatch, peer_match_id) is None
             assert not db.scalar(select(func.count()).select_from(BattleItemReservation).where(BattleItemReservation.match_id == peer_match_id))
-        print("Arena concurrency OK: one starter/match/turn, stale turns, 120/week, duplicate delivery, simultaneous PvP confirmations/readiness, peer-deletion privacy")
+        print("Historical Arena concurrency OK: one starter/match/turn, stale turns, no new currency, simultaneous PvP confirmations/readiness, peer-deletion privacy")
     finally:
         if user_id:
             with SessionLocal() as db:
