@@ -261,3 +261,10 @@ html[data-theme="light"] .ritual-daily-art img { filter: drop-shadow(0 20px 20px
   .ritual-public *, .ritual-public *::before, .ritual-public *::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; }
 }
 html[data-motion="reduced"] .ritual-public *, html[data-motion="reduced"] .ritual-public *::before, html[data-motion="reduced"] .ritual-public *::after { animation: none !important; transition: none !important; }
+
+/* Original bureau props ground the landing in a working occult office. */
+.ritual-hero { overflow:hidden; }
+.ritual-bureau-desk { position:absolute; width:390px; right:max(20px,calc((100% - 1240px)/2)); bottom:42px; height:auto; z-index:-1; opacity:.87; pointer-events:none; }
+.ritual-hero-scroll { margin-bottom:65px; }
+@media(max-width:1000px){.ritual-bureau-desk{width:300px;right:-25px;bottom:42px;opacity:.6}}
+@media(max-width:600px){.ritual-bureau-desk{width:270px;right:-42px;bottom:53px;opacity:.55}.ritual-hero-scroll{margin-bottom:80px}}

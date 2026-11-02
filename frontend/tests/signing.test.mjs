@@ -280,6 +280,7 @@ async function mount(props = {}, language = "ru", reducedMotion = true) {
   trigger.focus()
   const base = {
     mode: "Standard",
+    accountId: "qa-account",
     operator: "Тестовый исполнитель",
     options,
     changed: false,
@@ -390,6 +391,66 @@ test("pending freezes the autograph and a failed confirmation keeps it available
   assert.equal(env.document.querySelector(".signing-autograph").textContent, "Night operator")
   assert.equal(env.button("Place seal").disabled, false)
   assert.match(env.document.querySelector('[role="alert"]').textContent, /selection is preserved/)
+  await env.api.act(async () => env.instance.unmount())
+})
+
+test("a personal autograph survives reopening and is isolated from another account", async () => {
+  const env = await mount({}, "en")
+  await env.api.act(async () => {
+    const input = env.document.querySelector('input[name="signature"]')
+    Object.getOwnPropertyDescriptor(env.w.HTMLInputElement.prototype, "value").set.call(
+      input,
+      "Night clerk",
+    )
+    input.dispatchEvent(new env.w.Event("input", { bubbles: true }))
+  })
+  await env.api.act(async () => env.instance.unmount())
+  await env.api.act(async () => {
+    env.instance = env.api.mountSigning(env.document.getElementById("mount"), env.base)
+  })
+  assert.equal(env.document.querySelector('input[name="signature"]').value, "Night clerk")
+  await env.api.act(async () => env.instance.unmount())
+  await env.api.act(async () => {
+    env.instance = env.api.mountSigning(env.document.getElementById("mount"), {
+      ...env.base,
+      accountId: "second-account",
+    })
+  })
+  assert.equal(env.document.querySelector('input[name="signature"]').value, env.base.operator)
+  await env.api.act(async () => env.instance.unmount())
+})
+
+test("drawn signature can be undone, cleared, and reopened without SVG markup storage", async () => {
+  const env = await mount({}, "en")
+  assert.ok(env.button("Draw"), "Drawing alternative is available")
+  await env.api.act(async () => env.button("Draw").click())
+  const svg = env.document.querySelector(".signature-pad")
+  svg.getBoundingClientRect = () => ({ x: 0, y: 0, left: 0, top: 0, width: 400, height: 120 })
+  svg.setPointerCapture = () => {}
+  svg.hasPointerCapture = () => false
+  const pointer = async (name, x, y) =>
+    env.api.act(async () => {
+      const event = new env.w.MouseEvent(name, { bubbles: true, button: 0, clientX: x, clientY: y })
+      Object.defineProperty(event, "pointerId", { value: 1 })
+      svg.dispatchEvent(event)
+    })
+  await pointer("pointerdown", 20, 80)
+  await pointer("pointermove", 150, 30)
+  await pointer("pointerup", 240, 70)
+  assert.equal(svg.querySelectorAll("path").length, 1)
+  await pointer("pointerdown", 270, 20)
+  await pointer("pointerup", 270, 20)
+  assert.equal(svg.querySelectorAll("path").length, 2, "Tapped dots are part of the autograph")
+  await env.api.act(async () => env.instance.unmount())
+  await env.api.act(async () => {
+    env.instance = env.api.mountSigning(env.document.getElementById("mount"), env.base)
+  })
+  assert.equal(env.document.querySelectorAll(".signature-pad path").length, 2)
+  assert.ok(!env.w.localStorage.getItem("dc.signature.v1:qa-account").includes("<"))
+  await env.api.act(async () => env.button("Undo stroke").click())
+  assert.equal(env.document.querySelectorAll(".signature-pad path").length, 1)
+  await env.api.act(async () => env.button("Clear").click())
+  assert.equal(env.document.querySelectorAll(".signature-pad path").length, 0)
   await env.api.act(async () => env.instance.unmount())
 })
 test("cancel preserves selection and never signs", async () => {
@@ -696,9 +757,9 @@ for (const language of ["ru", "en"]) {
   })
 }
 
-test("full motion seals only a confirmed receipt, then plays the supplied roll and can skip", async () => {
-  let resolve
-  let signs = 0
+test("native imprint stays on the document, waits for a receipt and skips without resubmitting", async () => {
+  let resolve,
+    signs = 0
   const env = await mount(
     {
       onSign: () => {
@@ -711,66 +772,44 @@ test("full motion seals only a confirmed receipt, then plays the supplied roll a
     "en",
     false,
   )
-  assert.ok(env.document.querySelector(".signing-scroll"))
+  const paper = env.document.querySelector(".signing-scroll")
   await env.api.act(async () => env.button("Place seal").click())
-  assert.equal(env.document.querySelector("video"), null)
-  assert.equal(env.document.querySelector(".signing-seal"), null)
+  assert.equal(paper.querySelector(".signing-seal"), null)
   await env.api.act(async () => resolve(locked()))
   assert.equal(env.document.querySelector("dialog").dataset.state, "sealing")
   assert.equal(env.document.querySelector("video"), null)
-  await env.api.act(async () =>
-    env.document
-      .querySelector(".signing-ceremony .signing-seal")
-      .dispatchEvent(new env.w.Event("animationend", { bubbles: true })),
-  )
-  const video = env.document.querySelector("video")
-  assert.ok(video)
-  assert.match(video.getAttribute("src"), /assets\/ritual\/scroll-seal\.mp4$/)
-  assert.equal(video.muted, true)
-  assert.equal(video.playsInline, true)
-  let pauses = 0
-  video.pause = () => pauses++
+  assert.ok(paper.querySelector(".signing-seal"))
+  assert.equal(paper.querySelectorAll(".signing-terms li").length, 2)
   await env.api.act(async () => env.button("Skip animation").click())
   assert.equal(env.document.querySelector("dialog").dataset.state, "signed")
-  assert.match(env.document.querySelector(".signing-receipt").textContent, /board-a/)
-  assert.match(
-    env.document.querySelector(".signing-sealed-scroll").getAttribute("src"),
-    /sealed-scroll\.webp$/,
-  )
-  assert.equal(pauses, 1)
+  assert.match(paper.querySelector(".signing-receipt").textContent, /board-a/)
   assert.equal(signs, 1)
   assert.equal(env.document.activeElement, env.document.querySelector(".signing-heading h2"))
   await env.api.act(async () => env.instance.unmount())
 })
 
-test("reduced motion goes straight to the static receipt without video", async () => {
+test("reduced motion goes straight to the signed document and keeps terms visible", async () => {
   const env = await mount({}, "en")
   await env.api.act(async () => env.button("Place seal").click())
   assert.equal(env.document.querySelector("dialog").dataset.state, "signed")
   assert.equal(env.document.querySelector("video"), null)
-  assert.ok(env.document.querySelector(".signing-sealed-scroll"))
+  assert.equal(env.document.querySelectorAll(".signing-terms li").length, 2)
   assert.ok(env.button("Open case"))
   await env.api.act(async () => env.instance.unmount())
 })
 
-for (const event of ["ended", "error"]) {
-  test(`video ${event} finishes with the confirmed receipt`, async () => {
-    const env = await mount({}, "en", false)
-    await env.api.act(async () => env.button("Place seal").click())
-    await env.api.act(async () =>
-      env.document
-        .querySelector(".signing-ceremony .signing-seal")
-        .dispatchEvent(new env.w.Event("animationend", { bubbles: true })),
-    )
-    await env.api.act(async () =>
-      env.document.querySelector("video").dispatchEvent(new env.w.Event(event)),
-    )
-    assert.ok(env.button("Open case"))
-    assert.equal(env.document.querySelector("video"), null)
-    assert.match(env.document.querySelector(".signing-receipt").textContent, /board-a/)
-    await env.api.act(async () => env.instance.unmount())
-  })
-}
+test("stamp animation completion unlocks the confirmed receipt action", async () => {
+  const env = await mount({}, "en", false)
+  await env.api.act(async () => env.button("Place seal").click())
+  await env.api.act(async () =>
+    env.document
+      .querySelector(".signing-seal")
+      .dispatchEvent(new env.w.Event("animationend", { bubbles: true })),
+  )
+  assert.ok(env.button("Open case"))
+  assert.match(env.document.querySelector(".signing-receipt").textContent, /board-a/)
+  await env.api.act(async () => env.instance.unmount())
+})
 
 test("Escape skips a confirmed ceremony before closing the receipt", async () => {
   let closes = 0
@@ -792,21 +831,12 @@ test("Escape skips a confirmed ceremony before closing the receipt", async () =>
   await env.api.act(async () => env.instance.unmount())
 })
 
-test("enabling reduced motion during playback cancels media and shows the receipt", async () => {
+test("enabling reduced motion during the imprint immediately shows the receipt action", async () => {
   const env = await mount({}, "en", false)
   await env.api.act(async () => env.button("Place seal").click())
-  await env.api.act(async () =>
-    env.document
-      .querySelector(".signing-ceremony .signing-seal")
-      .dispatchEvent(new env.w.Event("animationend", { bubbles: true })),
-  )
-  let pauses = 0
-  env.document.querySelector("video").pause = () => pauses++
   await env.api.act(async () => env.w.setReducedMotion(true))
-  assert.equal(pauses, 1)
   assert.equal(env.document.querySelector("dialog").dataset.state, "signed")
   assert.ok(env.button("Open case"))
-  assert.equal(env.document.querySelector("video"), null)
   await env.api.act(async () => env.instance.unmount())
 })
 
@@ -814,83 +844,41 @@ test("an empty confirmation cannot create a seal, receipt or animation", async (
   const env = await mount({ onSign: async () => undefined }, "en", false)
   await env.api.act(async () => env.button("Place seal").click())
   assert.equal(env.document.querySelector(".signing-seal"), null)
-  assert.equal(env.document.querySelector("video"), null)
   assert.equal(env.document.querySelector(".signing-receipt"), null)
   assert.equal(env.button("Place seal").disabled, false)
   assert.match(env.document.querySelector('[role="alert"]').textContent, /check the case first/)
   await env.api.act(async () => env.instance.unmount())
 })
 
-test("blocked autoplay falls back to the confirmed static receipt", async () => {
-  const env = await mount({}, "en", false)
-  env.w.HTMLMediaElement.prototype.play = async () => {
-    throw new Error("autoplay blocked")
-  }
-  await env.api.act(async () => env.button("Place seal").click())
-  await env.api.act(async () =>
-    env.document
-      .querySelector(".signing-ceremony .signing-seal")
-      .dispatchEvent(new env.w.Event("animationend", { bubbles: true })),
-  )
-  assert.equal(env.document.querySelector("video"), null)
-  assert.ok(env.button("Open case"))
-  assert.match(env.document.querySelector(".signing-receipt").textContent, /board-a/)
-  await env.api.act(async () => env.instance.unmount())
-})
-
-test("a stalled roll has a bounded fallback and unmount clears its media and timer", async () => {
-  const env = await mount({}, "en", false)
-  const callbacks = new Map()
-  let id = 100000
-  const setTimeout = env.w.setTimeout.bind(env.w)
-  const clearTimeout = env.w.clearTimeout.bind(env.w)
-  env.w.setTimeout = (callback, delay, ...args) => {
-    if (delay === 650 || delay === 8000) {
-      callbacks.set(++id, { callback, delay })
-      return id
+test("a missing animationend has a bounded fallback and unmount clears the timer", async () => {
+  for (const complete of [true, false]) {
+    const env = await mount({}, "en", false)
+    const callbacks = new Map()
+    let id = 100000
+    const originalSet = env.w.setTimeout.bind(env.w),
+      originalClear = env.w.clearTimeout.bind(env.w)
+    env.w.setTimeout = (callback, delay, ...args) => {
+      if (delay === 1400) {
+        callbacks.set(++id, callback)
+        return id
+      }
+      return originalSet(callback, delay, ...args)
     }
-    return setTimeout(callback, delay, ...args)
+    env.w.clearTimeout = (timer) => {
+      callbacks.delete(timer)
+      originalClear(timer)
+    }
+    await env.api.act(async () => env.button("Place seal").click())
+    assert.equal(callbacks.size, 1)
+    if (complete) {
+      await env.api.act(async () => [...callbacks.values()][0]())
+      assert.ok(env.button("Open case"))
+      assert.equal(callbacks.size, 0)
+    }
+    await env.api.act(async () => env.instance.unmount())
+    assert.equal(callbacks.size, 0)
+    assert.equal(env.document.activeElement, env.trigger)
   }
-  env.w.clearTimeout = (timer) => {
-    callbacks.delete(timer)
-    clearTimeout(timer)
-  }
-  await env.api.act(async () => env.button("Place seal").click())
-  assert.equal([...callbacks.values()][0].delay, 650)
-  await env.api.act(async () => [...callbacks.values()][0].callback())
-  assert.equal(env.document.querySelector("dialog").dataset.state, "rolling")
-  assert.equal([...callbacks.values()][0].delay, 8000)
-  await env.api.act(async () => [...callbacks.values()][0].callback())
-  assert.ok(env.button("Open case"))
-  assert.equal(callbacks.size, 0)
-  await env.api.act(async () => env.instance.unmount())
-
-  const second = await mount({}, "en", false)
-  const secondTimers = new Set()
-  const secondSetTimeout = second.w.setTimeout.bind(second.w)
-  const secondClearTimeout = second.w.clearTimeout.bind(second.w)
-  second.w.setTimeout = (callback, delay, ...args) => {
-    const timer = secondSetTimeout(callback, delay, ...args)
-    if (delay === 650 || delay === 8000) secondTimers.add(timer)
-    return timer
-  }
-  second.w.clearTimeout = (timer) => {
-    secondTimers.delete(timer)
-    secondClearTimeout(timer)
-  }
-  let pauses = 0
-  second.w.HTMLMediaElement.prototype.pause = () => pauses++
-  await second.api.act(async () => second.button("Place seal").click())
-  await second.api.act(async () =>
-    second.document
-      .querySelector(".signing-ceremony .signing-seal")
-      .dispatchEvent(new second.w.Event("animationend", { bubbles: true })),
-  )
-  assert.ok(second.document.querySelector("video"))
-  await second.api.act(async () => second.instance.unmount())
-  assert.equal(pauses, 1)
-  assert.equal(secondTimers.size, 0)
-  assert.equal(second.document.activeElement, second.trigger)
 })
 
 test("a confirmation arriving after unmount cannot start a ceremony", async () => {
@@ -915,4 +903,86 @@ test("a confirmation arriving after unmount cannot start a ceremony", async () =
   assert.equal(plays, 0)
   assert.equal(env.document.querySelector("dialog"), null)
   assert.equal(env.document.activeElement, env.trigger)
+})
+
+test("malformed and oversized stored signatures safely fall back to the operator", () => {
+  const { api, w } = runtime()
+  for (const raw of [
+    "<svg onload=alert(1)>",
+    "{}",
+    JSON.stringify({
+      mode: "draw",
+      text: "x",
+      strokes: [
+        [
+          [2, 0],
+          [0, 1],
+        ],
+      ],
+    }),
+    JSON.stringify({
+      mode: "draw",
+      text: "x",
+      strokes: [Array.from({ length: 1601 }, () => [0, 0])],
+    }),
+    " ".repeat(50001),
+  ]) {
+    w.localStorage.setItem("dc.signature.v1:a", raw)
+    const value = api.readSignature("a", "Clerk")
+    assert.equal(value.text, "Clerk")
+    assert.equal(value.strokes.length, 0)
+  }
+})
+
+test("blocked signature storage never blocks signing and shows a truthful notice", async () => {
+  const env = await mount({}, "en")
+  env.w.Storage.prototype.setItem = () => {
+    throw new Error("storage blocked")
+  }
+  await env.api.act(async () => {
+    const input = env.document.querySelector('input[name="signature"]')
+    Object.getOwnPropertyDescriptor(env.w.HTMLInputElement.prototype, "value").set.call(
+      input,
+      "Local clerk",
+    )
+    input.dispatchEvent(new env.w.Event("input", { bubbles: true }))
+  })
+  assert.match(env.document.querySelector(".signature-hint").textContent, /could not save/)
+  await env.api.act(async () => env.button("Place seal").click())
+  assert.ok(env.button("Open case"))
+  assert.equal(env.document.querySelector(".signing-autograph").textContent, "Local clerk")
+  await env.api.act(async () => env.instance.unmount())
+})
+
+test("ambient background pauses when hidden, honors reduced motion and keeps a poster on playback failure", async () => {
+  const { api, w, document } = runtime("en", false)
+  let hidden = false,
+    plays = 0,
+    pauses = 0,
+    instance
+  Object.defineProperty(document, "hidden", { configurable: true, get: () => hidden })
+  w.HTMLMediaElement.prototype.play = async function () {
+    plays++
+    throw new Error("autoplay blocked")
+  }
+  w.HTMLMediaElement.prototype.pause = function () {
+    pauses++
+  }
+  await api.act(async () => {
+    instance = api.mountAtmosphere(document.getElementById("mount"))
+  })
+  assert.equal(plays, 1)
+  assert.equal(document.querySelector(".bureau-atmosphere").dataset.playing, "false")
+  assert.ok(document.querySelector(".bureau-atmosphere img"))
+  assert.equal(document.querySelector("video").muted, true)
+  await api.act(async () => {
+    hidden = true
+    document.dispatchEvent(new w.Event("visibilitychange"))
+  })
+  assert.ok(pauses > 0)
+  assert.equal(document.querySelector(".bureau-atmosphere").dataset.moving, "false")
+  await api.act(async () => w.setReducedMotion(true))
+  assert.equal(document.querySelector("video"), null)
+  assert.ok(document.querySelector(".bureau-atmosphere img"))
+  await api.act(async () => instance.unmount())
 })

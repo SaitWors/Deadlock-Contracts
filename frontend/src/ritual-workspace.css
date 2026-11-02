@@ -178,3 +178,7 @@ html[data-theme] .bureau-app.ritual-workspace .bureau-guide-note { background:va
 html[data-theme] .bureau-app.ritual-workspace .bureau-guide-footer { background:var(--ns-surface); border-top:1px solid var(--ns-line); }
 html[data-theme] .bureau-app.ritual-workspace .pack-reveal[data-theme=archive] { background:var(--ns-surface); border:1px solid var(--ns-line); border-radius:var(--ns-radius); color:var(--ns-text); box-shadow:0 25px 70px #0009; }
 html[data-theme] .bureau-app.ritual-workspace .pack-reveal[data-theme=archive] button { border-radius:var(--ns-small); }
+
+/* Status text is ink on paper, including the locked/waiting state. */
+html[data-theme] .bureau-app.ritual-workspace .dc-contract-dossier .dc-motion-contract-card .dc-contract-foot :is(strong,b) { color:#36513e!important; background:transparent!important; }
+html[data-theme] .bureau-app.ritual-workspace .dc-contract-dossier .dc-motion-contract-card .dc-contract-foot strong.chosen { color:#89392e!important; }

@@ -1,0 +1,17 @@
+/* The supplied occult loop is scenery, never a video player. */
+:root[data-theme] .bureau-atmosphere{position:fixed;inset:0;z-index:-1;overflow:hidden;pointer-events:none;isolation:isolate;background:transparent}
+:root[data-theme] .bureau-atmosphere-film{position:absolute;inset:0;mix-blend-mode:screen;opacity:.74;filter:sepia(1) saturate(1.2) hue-rotate(74deg) brightness(1.4);mask-image:linear-gradient(90deg,#000, #000c 60%,#0006)}
+:root[data-theme] .bureau-atmosphere-film :is(img,video){position:absolute;width:100%;height:100%;object-fit:cover;object-position:20% center}
+:root[data-theme] .bureau-atmosphere-film video{opacity:0}
+:root[data-theme] .bureau-atmosphere[data-playing=true] video{opacity:1}
+:root[data-theme] .bureau-atmosphere-glow{position:absolute;inset:0;background:radial-gradient(ellipse at 12% 10%,#73ba8540,transparent 56%),radial-gradient(ellipse at 70% 78%,#6388661b,transparent 50%);mix-blend-mode:screen}
+:root[data-theme] .bureau-soul-motes{position:absolute;inset:0}
+:root[data-theme] .bureau-soul-motes i{position:absolute;left:var(--mote-x);top:var(--mote-y);width:2px;height:2px;border-radius:50%;background:#cef3cd;box-shadow:0 0 5px #b8efbc,0 0 12px #91c897;opacity:.4;animation:bureau-soul-rise var(--mote-time) var(--mote-delay) linear infinite}
+:root[data-theme] .bureau-soul-motes i:nth-child(3n){width:3px;height:3px}
+:root[data-theme] .bureau-atmosphere[data-moving=false] .bureau-soul-motes i{animation-play-state:paused}
+:root[data-theme=light] .bureau-atmosphere-film{mix-blend-mode:multiply;filter:invert(1) sepia(.6) saturate(.5);opacity:.22}
+:root[data-theme=light] .bureau-atmosphere-glow{background:radial-gradient(ellipse at 10% 10%,#a7ad8040,transparent 65%);mix-blend-mode:multiply}
+:root[data-theme=light] .bureau-soul-motes{display:none}
+@keyframes bureau-soul-rise{0%{transform:translate(0,35px);opacity:0}20%{opacity:.6}80%{opacity:.3}100%{transform:translate(22px,-95px);opacity:0}}
+@media(max-width:600px){:root[data-theme] .bureau-atmosphere-film{opacity:.55;mask-image:linear-gradient(#000,#0007)}:root[data-theme] .bureau-soul-motes i:nth-child(n+10){display:none}}
+@media(prefers-reduced-motion:reduce){:root[data-theme] .bureau-soul-motes i{animation:none}}
