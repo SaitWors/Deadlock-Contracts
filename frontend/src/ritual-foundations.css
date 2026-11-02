@@ -1,0 +1,177 @@
+/* Shared Ritual foundations: local typography, control geometry and decorative art. */
+@font-face {
+  font-family: "Valve Oracle";
+  src: url("./imports/ritual/valveoracle-semibold.woff2") format("woff2");
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Inter";
+  src: url("./imports/ritual/inter-cyrillic-400-normal.woff2") format("woff2");
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  unicode-range: U+0301, U+0400-045F, U+0490-0491, U+04B0-04B1, U+2116;
+}
+@font-face {
+  font-family: "Inter";
+  src: url("./imports/ritual/inter-latin-400-normal.woff2") format("woff2");
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: "Inter";
+  src: url("./imports/ritual/inter-cyrillic-700-normal.woff2") format("woff2");
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  unicode-range: U+0301, U+0400-045F, U+0490-0491, U+04B0-04B1, U+2116;
+}
+@font-face {
+  font-family: "Inter";
+  src: url("./imports/ritual/inter-latin-700-normal.woff2") format("woff2");
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
+:root[data-theme] {
+  --font-number: "Valve Oracle", "Inter", system-ui, sans-serif;
+  --ritual-control-height: 44px;
+  --ritual-control-padding: 16px;
+  --ritual-control-radius: 3px;
+}
+
+/* The seal belongs to both shells, not just the landing hero. It never captures input. */
+:root[data-theme] :is(.bureau-public.ritual-public, .bureau-app.ritual-workspace) {
+  position: relative;
+  isolation: isolate;
+}
+:root[data-theme] :is(.bureau-public.ritual-public, .bureau-app.ritual-workspace)::before {
+  content: "";
+  display: block;
+  position: fixed;
+  inset: 72px 0 0;
+  z-index: -1;
+  background: url("./imports/ritual/contract-seal.avif") no-repeat calc(50% + 260px) -140px / 1080px;
+  opacity: .22;
+  mix-blend-mode: normal;
+  pointer-events: none;
+}
+:root[data-theme] .bureau-app.ritual-workspace::before {
+  background-position: calc(50% + 220px) -160px;
+  opacity: .12;
+}
+:root[data-theme="light"] :is(.bureau-public.ritual-public, .bureau-app.ritual-workspace)::before {
+  filter: brightness(.32);
+  opacity: .2;
+}
+
+:root[data-theme] :is(.bureau-public.ritual-public, .bureau-app.ritual-workspace) :is(.btn-primary, .btn-ghost, .dc-primary, .dc-ghost, .dc-secondary, .archive-primary, .bureau-action, .ritual-text-link) {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  box-sizing: border-box;
+  min-height: var(--ritual-control-height);
+  padding: 11px var(--ritual-control-padding);
+  border-radius: var(--ritual-control-radius);
+  font: 700 13px/20px var(--font-body);
+  letter-spacing: 0;
+  text-transform: none;
+  text-decoration: none;
+  box-shadow: none;
+  transition: background-color .16s, border-color .16s, color .16s;
+}
+:root[data-theme] :is(.bureau-public.ritual-public, .bureau-app.ritual-workspace) :is(.btn-primary, .btn-ghost, .dc-primary, .dc-ghost, .dc-secondary, .archive-primary, .bureau-action, .ritual-text-link):hover {
+  transform: none;
+}
+:root[data-theme] :is(.bureau-public.ritual-public, .bureau-app.ritual-workspace) :is(.btn-primary, .btn-ghost, .dc-primary, .dc-ghost, .dc-secondary, .archive-primary, .bureau-action, .ritual-text-link) > svg {
+  width: 17px;
+  height: 17px;
+  flex: 0 0 17px;
+}
+:root[data-theme] :is(.bureau-header .ns-theme-trigger, .bureau-menu-toggle) {
+  width: var(--ritual-control-height);
+  height: var(--ritual-control-height);
+  min-height: var(--ritual-control-height);
+  padding: 0;
+  border: 1px solid var(--ns-line);
+  border-radius: var(--ritual-control-radius);
+  background: var(--ns-surface);
+}
+:root[data-theme] .bureau-header .dc-language-switch :is(a, button) {
+  min-height: var(--ritual-control-height);
+  padding-block: 0;
+}
+:root[data-theme] .bureau-header :is(.ns-header-help, .dc-companion-chip, .bureau-profile-trigger) {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: var(--ritual-control-height);
+  padding: 5px 12px;
+  border: 1px solid var(--ns-line);
+  border-radius: var(--ritual-control-radius);
+  background: var(--ns-surface);
+  color: var(--ns-text);
+}
+:root[data-theme] :is(.bureau-public.ritual-public, .bureau-app.ritual-workspace) .ns-brand-wordmark {
+  font-family: var(--font-display);
+  font-weight: 600;
+  letter-spacing: .02em;
+}
+
+:root[data-theme] :is(.ritual-selection strong, .ritual-selection-xp, .ritual-contract-bottom > b, .ritual-step-number, .ritual-scroll-ink b, .dc-kpi-grid strong, .dc-motion-card-meta b, .archive-collection-count strong, .progress-goal-stat strong) {
+  font-family: var(--font-number);
+  font-weight: 600;
+  font-variant-numeric: lining-nums tabular-nums;
+  letter-spacing: .01em;
+}
+
+@media (max-width: 800px) {
+  :root[data-theme] :is(.bureau-public.ritual-public, .bureau-app.ritual-workspace)::before {
+    background-position: calc(50% + 170px) -25px;
+    background-size: 860px;
+  }
+}
+@media (max-width: 540px) {
+  :root[data-theme] :is(.bureau-public.ritual-public, .bureau-app.ritual-workspace)::before {
+    inset-block-start: 64px;
+    background-position: calc(50% + 110px) 100px;
+    background-size: 700px;
+    opacity: .18;
+  }
+  :root[data-theme] .ritual-public .ns-brand-wordmark {
+    font-size: 18px;
+  }
+}
+
+:root[data-theme] .bureau-header .bureau-profile-trigger { height: var(--ritual-control-height); box-sizing: border-box; font-size: 12px; line-height: 16px; }
+
+/* Compact account controls keep a square avatar instead of shrinking it into desktop padding. */
+@media (max-width: 767px) {
+  :root[data-theme] .bureau-app.ritual-workspace .bureau-profile-trigger {
+    width: var(--ritual-control-height);
+    min-width: var(--ritual-control-height);
+    flex: 0 0 var(--ritual-control-height);
+    padding: 0;
+    gap: 0;
+  }
+  :root[data-theme] .bureau-app.ritual-workspace .bureau-profile-trigger > :is(img, span:first-child) {
+    width: 32px;
+    height: 32px;
+    min-width: 32px;
+    flex: 0 0 32px;
+  }
+  :root[data-theme] .bureau-app.ritual-workspace .bureau-profile-trigger > :is(span:nth-child(2), i) {
+    display: none;
+  }
+}
+:root[data-theme="light"] .bureau-app.ritual-workspace::before { opacity: .12; }
+@media (max-width: 540px) {
+  :root[data-theme] .bureau-app.ritual-workspace::before { opacity: .12; }
+}
