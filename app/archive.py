@@ -19,6 +19,7 @@ from .services import archive as service
 from .services import archive_packs as packs
 from .services.archive_seed import release_artwork_path
 from .services.auth import require_csrf, require_user
+from .services.retired_economy import retired_player_feature
 
 Rank = Literal["F", "E", "D", "C", "B", "A", "S", "SS", "SSS", "EX"]
 EconomyScope = Literal["REAL", "SANDBOX"]
@@ -94,14 +95,14 @@ def build_router(require_permission, effective_role):
                 "default_weights": packs.DEFAULT_WEIGHTS, "price_model": packs.PRICE_MODEL,
                 "economy_scopes": service.ECONOMY_SCOPES, "account_key": user.id}
 
-    @router.get("/archive/wallet")
+    @router.get("/archive/wallet", dependencies=[Depends(retired_player_feature)])
     def wallet(response: Response, offset: int = Query(default=0, ge=0, le=100000),
                scope: EconomyScope = "REAL",
                user: User = Depends(require_user), db: Session = Depends(get_db)):
         no_store(response)
         return service.wallet_payload(db, user.id, offset, scope)
 
-    @router.post("/archive/cipher", dependencies=[Depends(require_csrf)])
+    @router.post("/archive/cipher", dependencies=[Depends(require_csrf), Depends(retired_player_feature)])
     def start(user: User = Depends(require_user), db: Session = Depends(get_db)):
         service.lock_user(db, user.id)
         week = service.week_start()
@@ -116,7 +117,7 @@ def build_router(require_permission, effective_role):
         db.commit()
         return {"round": service.cipher_payload(current)}
 
-    @router.post("/archive/cipher/{round_id}/guess", dependencies=[Depends(require_csrf)])
+    @router.post("/archive/cipher/{round_id}/guess", dependencies=[Depends(require_csrf), Depends(retired_player_feature)])
     def guess(round_id: UUID, payload: Guess, user: User = Depends(require_user), db: Session = Depends(get_db)):
         service.lock_user(db, user.id)
         item = db.scalar(select(ArchiveCipher).where(ArchiveCipher.id == str(round_id), ArchiveCipher.user_id == user.id).with_for_update())
@@ -159,6 +160,8 @@ def build_router(require_permission, effective_role):
                 q: str = Query(default="", max_length=80), offset: int = Query(default=0, ge=0, le=100000),
                 scope: EconomyScope = "REAL",
                 user: User = Depends(require_user), db: Session = Depends(get_db)):
+        if not mine and effective_role(user) not in {"ADMIN", "OWNER"}:
+            retired_player_feature(user)
         no_store(response)
         statement = select(ArchiveCard)
         statement = statement.where(ArchiveCard.creator_id == user.id, ArchiveCard.status != "REMOVED") if mine else statement.where(ArchiveCard.status == "PUBLISHED")
@@ -173,6 +176,8 @@ def build_router(require_permission, effective_role):
 
     @router.get("/archive/coverage")
     def coverage(response: Response, user: User = Depends(require_user), db: Session = Depends(get_db)):
+        if effective_role(user) not in {"ADMIN", "OWNER"}:
+            retired_player_feature(user)
         no_store(response)
         rows = db.execute(select(ArchiveCard.hero, ArchiveCard.rank, func.count()).where(ArchiveCard.status == "PUBLISHED")
                           .group_by(ArchiveCard.hero, ArchiveCard.rank)).all()

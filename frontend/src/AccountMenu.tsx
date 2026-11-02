@@ -4,21 +4,19 @@ import Icon from "./icons/Icon"
 import { useEffect, useId, useRef, useState } from "react"
 import { request, useResource } from "./community/api"
 import { useLanguage } from "./i18n"
-import type { Wallet } from "./archive/types"
 import "./account-menu.css"
 
 export default function AccountMenu({
   user,
   level,
   csrf,
-  revision,
   onNavigate,
   onOpenGuide,
 }: {
   user: { display_name: string; avatar_url: string | null; xp: number; is_staff: boolean }
   level: number
   csrf: string
-  revision: number
+  revision?: number
   onNavigate: (tab: string) => void
   onOpenGuide?: () => void
 }) {
@@ -31,15 +29,9 @@ export default function AccountMenu({
   const root = useRef<HTMLDivElement>(null)
   const trigger = useRef<HTMLButtonElement>(null)
   const first = useRef<HTMLButtonElement>(null)
-  const wallet = useResource<Wallet>(`/api/archive/wallet?view=${revision}`)
   const bureau = useResource<{ my_bureau: BureauSummary | null }>(
     `/api/bureaus?menu=${open ? "open" : "closed"}`,
   )
-  useEffect(() => {
-    const refresh = () => wallet.reload()
-    window.addEventListener("dc-archive-wallet", refresh)
-    return () => window.removeEventListener("dc-archive-wallet", refresh)
-  }, [])
   useEffect(() => {
     if (!open) return
     first.current?.focus()
@@ -88,10 +80,7 @@ export default function AccountMenu({
         <span>
           <b>{user.display_name}</b>
           <small>
-            LVL {level} · <Icon name="coins" size={14} />{" "}
-            {wallet.data
-              ? (wallet.data.available_balance ?? wallet.data.balance).toLocaleString(locale)
-              : "—"}
+            LVL {level} · {user.xp.toLocaleString(locale)} XP
           </small>
         </span>
         <Icon name="chevron-down" size={16} />
@@ -109,37 +98,8 @@ export default function AccountMenu({
               LVL {level} · {user.xp.toLocaleString(locale)} XP
             </span>
           </header>
-          <div className="bureau-wallet-strip">
-            <div>
-              <small>{ru ? "Монеты бюро" : "Bureau coins"}</small>
-              <b>
-                <Icon name="coins" />{" "}
-                {wallet.data
-                  ? (wallet.data.available_balance ?? wallet.data.balance).toLocaleString(locale)
-                  : "—"}
-              </b>
-              {!!wallet.data?.debt && (
-                <small>
-                  {ru ? "Долг" : "Debt"}: {wallet.data.debt.toLocaleString(locale)}
-                </small>
-              )}
-            </div>
-            <button ref={first} onClick={() => go("archive")}>
-              {ru ? "Заработать" : "Earn coins"}
-            </button>
-          </div>
-          {wallet.error && (
-            <p role="alert">
-              {ru ? "Не удалось обновить баланс." : "Could not refresh balance."}
-              <button onClick={wallet.reload}>{ru ? "Повторить" : "Retry"}</button>
-            </p>
-          )}
           <div className="bureau-profile-links">
-            <button onClick={() => go("arena")}>
-              {ru ? "Арена бюро" : "Bureau arena"}
-              <Icon name="swords" />
-            </button>
-            <button onClick={() => go("profile")}>
+            <button ref={first} onClick={() => go("profile")}>
               {ru ? "Мой профиль и настройки" : "Profile & settings"}
               <Icon name="arrow-up-right" />
             </button>
@@ -167,27 +127,14 @@ export default function AccountMenu({
               <Icon name="arrow-up-right" />
             </button>
           </div>
-          <button className="bureau-studio-callout" onClick={() => go("studio")}>
-            <small>CARD STUDIO</small>
-            <b>{ru ? "Создать карточку" : "Create a card"}</b>
-            <span>F · E · D · C · B · A · S · SS · SSS</span>
-          </button>
           <div className="bureau-profile-links">
             <button onClick={() => go("packs")}>
-              {ru ? "Конверты архива" : "Archive envelopes"}
+              {ru ? "Ежедневный конверт" : "Daily pack"}
               <Icon name="mail" />
             </button>
             <button onClick={() => go("collection")}>
               {ru ? "Моя коллекция" : "My collection"}
               <Icon name="layers" />
-            </button>
-            <button onClick={() => go("studio")}>
-              {ru ? "Мои карточки и заявки" : "My designs & submissions"}
-              <Icon name="layers" />
-            </button>
-            <button onClick={() => go("wallet")}>
-              {ru ? "История монет" : "Coin history"}
-              <Icon name="coins" />
             </button>
             <button onClick={() => go("history")}>
               {ru ? "История контрактов" : "Contract history"}

@@ -24,29 +24,25 @@ export function NightshiftNav({
     ru = language === "ru"
   const groups: { label: string; links: [string, string, IconName][] }[] = [
     {
-      label: ru ? "ТВОИ ДЕЛА" : "YOUR CASES",
+      label: ru ? "ИГРА" : "PLAY",
       links: [
-        ["home", ru ? "Главная" : "Home", "house"],
+        ["home", ru ? "Обзор" : "Overview", "house"],
         ["quests", ru ? "Контракты" : "Contracts", "file-text"],
         ["active", ru ? "Активное дело" : "Active case", "briefcase-business"],
         ["history", ru ? "История дел" : "Case history", "archive"],
       ],
     },
     {
-      label: ru ? "ГОРОДСКОЙ АРХИВ" : "CITY ARCHIVE",
+      label: ru ? "КОЛЛЕКЦИЯ" : "COLLECTION",
       links: [
-        ["archive", ru ? "Шифры и каталог" : "Ciphers & catalog", "lock-keyhole"],
         ["collection", ru ? "Моя коллекция" : "My collection", "layers"],
-        ["packs", ru ? "Конверты" : "Envelopes", "mail"],
-        ["studio", ru ? "Мастерская" : "Card studio", "palette"],
-        ["wallet", ru ? "История монет" : "Coin history", "coins"],
-        ["arena", ru ? "Арена бюро" : "Bureau arena", "swords"],
+        ["packs", ru ? "Ежедневный конверт" : "Daily pack", "mail"],
       ],
     },
     {
-      label: ru ? "СВОИ ЛЮДИ" : "YOUR PEOPLE",
+      label: ru ? "СООБЩЕСТВО" : "COMMUNITY",
       links: [
-        ["bureaus", ru ? "Бюро игроков" : "Player bureaus", "building-2"],
+        ["bureaus", ru ? "Сообщества" : "Communities", "building-2"],
         ["achievements", ru ? "Достижения" : "Achievements", "medal"],
         ["leaderboard", ru ? "Рейтинг" : "Leaderboard", "trophy"],
         ...(votesEnabled
@@ -58,7 +54,7 @@ export function NightshiftNav({
               ] as [string, string, IconName],
             ]
           : []),
-        ["profile", ru ? "Моё досье" : "My dossier", "user-round"],
+        ["profile", ru ? "Профиль" : "Profile", "user-round"],
         ...(staff
           ? [
               ["admin", ru ? "Управление" : "Staff console", "shield-check"] as [
@@ -118,7 +114,7 @@ export function NightshiftNav({
           <span>
             <b>{user?.display_name || (ru ? "Моё досье" : "My dossier")}</b>
             <small>
-              {ru ? "Оперативник" : "Operative"} / {level ?? 1}
+              {ru ? "Уровень" : "Level"} {level ?? 1}
             </small>
           </span>
           <Icon name="arrow-up-right" size={17} />
@@ -238,7 +234,7 @@ export function CityLocals({
 }) {
   const { language } = useLanguage(),
     ru = language === "ru"
-  const label = ru ? "В городской каталог" : "Explore the catalogue"
+  const label = ru ? "Открыть коллекцию" : "Explore the collection"
   return (
     <section className="city-locals" aria-labelledby="city-locals-heading">
       <header>
@@ -251,7 +247,7 @@ export function CityLocals({
             <button
               type="button"
               className="city-locals-link"
-              onClick={() => onNavigate("archive")}
+              onClick={() => onNavigate("collection")}
             >
               {label}
               <Icon name="arrow-up-right" size={19} />

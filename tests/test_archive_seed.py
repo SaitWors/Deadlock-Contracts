@@ -22,7 +22,7 @@ from app.models import (ArchiveCard, ArchiveFavorite, ArchiveItem, ArchiveLedger
 from app.services.seed import seed_missions
 from app.services.archive_seed import RELEASE_CARD_IDS
 from test_archive import create, decide
-from test_archive_packs import buy, fund, published
+from test_archive_packs import legacy_buy, legacy_wallet, fund, published
 from test_bureau_operations import elevate
 from test_player_community import community
 
@@ -45,7 +45,11 @@ def release(community, monkeypatch):
     factory, player = community
     monkeypatch.setattr(main_module, "engine", factory.kw["bind"])
     monkeypatch.setattr(main_module, "SessionLocal", factory)
-    return factory, player
+    def staff_player(*args, **kwargs):
+        uid, client = player(*args, **kwargs)
+        elevate(factory, uid, client, role="ADMIN")
+        return uid, client
+    return factory, staff_player
 
 
 def test_startup_adds_six_collectible_cards_with_valid_credited_artwork(release):
@@ -128,7 +132,7 @@ def test_restart_preserves_admin_archival_and_existing_collection_state(release)
     elevate(factory, admin_id, admin, role="ADMIN")
     existing_id = published(factory, rank="A")
     fund(factory, user_id, 500)
-    receipt = buy(client, existing_id, price=380).json()
+    receipt = legacy_buy(factory, user_id, existing_id, price=380).json()
     assert client.put(f"/api/archive/favorites/{existing_id}", json={"favorite": True}).status_code == 200
     config = {"title": "Existing pool", "description": "Keep this release", "price": 30, "draws": 1,
               "entries": [{"card_id": existing_id, "rank": "A", "weight": 7}], "price_model": 1}
@@ -154,7 +158,7 @@ def test_restart_preserves_admin_archival_and_existing_collection_state(release)
     assert client.get("/api/archive/cards?hero=nurse-harrow").json()["total"] == 0
     assert client.get("/api/archive/cards?q=City Never Sleeps").json()["total"] == 5
     assert client.get("/api/archive/cards?q=Released A").json()["items"][0]["id"] == existing_id
-    assert client.get("/api/archive/wallet").json()["balance"] == 120
+    assert legacy_wallet(factory, user_id)["balance"] == 120
     inventory = client.get("/api/archive/inventory").json()
     assert inventory["total"] == 1
     assert inventory["items"][0]["card"]["id"] == existing_id
@@ -227,14 +231,14 @@ def test_seeded_card_purchase_retry_uses_original_receipt_without_double_charge(
     card_id = card[0]["id"]
     fund(factory, user_id, 30)
     request_key = str(uuid4())
-    first = buy(client, card_id, key=request_key)
+    first = legacy_buy(factory, user_id, card_id, key=request_key)
     assert first.status_code == 200, first.text
     restart()
-    replay = buy(client, card_id, key=request_key)
+    replay = legacy_buy(factory, user_id, card_id, key=request_key)
     assert replay.status_code == 200 and replay.json() == first.json()
     assert first.json()["delta"] == -25 and first.json()["balance_after"] == 5
     assert first.json()["items"][0]["card"]["hero_name"] == "Violet"
-    assert client.get("/api/archive/wallet").json()["balance"] == 5
+    assert legacy_wallet(factory, user_id)["balance"] == 5
     inventory = client.get("/api/archive/inventory").json()
     assert inventory["total"] == 1 and inventory["items"][0]["quantity"] == 1
     with factory() as db:

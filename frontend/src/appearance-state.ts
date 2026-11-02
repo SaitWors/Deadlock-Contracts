@@ -3,8 +3,8 @@ export type Appearance = { theme: ThemeMode; accent: string; radius: number; mot
 export const APPEARANCE_KEY = "dc.ui.appearance"
 export const defaultAppearance: Appearance = {
   theme: "dark",
-  accent: "#d6a2d1",
-  radius: 22,
+  accent: "#aec69b",
+  radius: 4,
   motion: true,
 }
 export const themeModes: ThemeMode[] = ["system", "light", "dark", "black", "custom"]
@@ -19,8 +19,8 @@ export function normalizeAppearance(value: unknown): Appearance {
         : defaultAppearance.accent,
     radius:
       typeof p.radius === "number" && Number.isFinite(p.radius)
-        ? Math.max(12, Math.min(28, p.radius))
-        : 22,
+        ? Math.max(0, Math.min(8, p.radius))
+        : 4,
     motion: p.motion !== false,
   }
 }
@@ -58,10 +58,10 @@ export function applyAppearance(
   root.dataset.motion = p.motion ? "full" : "reduced"
   root.style.colorScheme = actual === "light" ? "light" : "dark"
   root.style.setProperty("--ns-radius", `${p.radius}px`)
-  root.style.setProperty("--ns-small", `${Math.min(14, Math.round(p.radius * 0.55))}px`)
+  root.style.setProperty("--ns-small", `${Math.min(4, Math.round(p.radius * 0.55))}px`)
   if (actual === "custom") {
     let accent = p.accent
-    for (let i = 1; contrast(accent, "#403347") < 4.5 && i <= 20; i++) {
+    for (let i = 1; contrast(accent, "#202821") < 4.5 && i <= 20; i++) {
       accent =
         "#" +
         rgb(p.accent)
@@ -85,6 +85,6 @@ export function applyAppearance(
     .querySelector('meta[name="theme-color"]')
     ?.setAttribute(
       "content",
-      { light: "#eee6d5", dark: "#181715", black: "#000000", custom: "#201921" }[actual],
+      { light: "#eeeee7", dark: "#0b0d0d", black: "#000000", custom: "#0b100d" }[actual],
     )
 }

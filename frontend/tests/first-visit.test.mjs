@@ -5,7 +5,6 @@ import { build } from "vite"
 import { JSDOM } from "jsdom"
 
 let code
-let authenticatedCss
 const environments = []
 
 before(async () => {
@@ -22,23 +21,6 @@ before(async () => {
     },
   })
   code = result[0].output.find((item) => item.type === "chunk").code
-
-  const authenticated = await build({
-    configFile: false,
-    logLevel: "silent",
-    publicDir: false,
-    resolve: { alias: { "@": path.resolve("src") } },
-    define: { "process.env.NODE_ENV": '"production"' },
-    build: {
-      write: false,
-      minify: true,
-      lib: { entry: "tests/bureau-entry.tsx", name: "AuthenticatedHome", formats: ["iife"] },
-    },
-  })
-  authenticatedCss = authenticated[0].output
-    .filter((item) => item.type === "asset" && item.fileName.endsWith(".css"))
-    .map((item) => String(item.source))
-    .join("\n")
 })
 
 after(() => environments.forEach((dom) => dom.window.close()))
@@ -162,229 +144,75 @@ async function mountGuest(options = {}) {
   return { ...env, root }
 }
 
-async function choose(api, doc, names) {
-  for (const name of names)
-    await api.act(async () => button(doc.querySelector(".guest-symbol-picker"), name).click())
-}
-
-test("authenticated home production bundle owns its archive stats styles", () => {
-  assert.ok(
-    authenticatedCss.includes(".bureau-callout-stats"),
-    "authenticated Dashboard CSS omitted ArchiveNextStep stats",
-  )
-})
-
-test("the public trial document opens a guest cipher instead of falling back home", async () => {
-  const { api, doc } = runtime({ pathname: "/ru/try" })
-  let root
-  await api.act(async () => {
-    root = api.mountLanding(doc.getElementById("mount"))
-  })
-  assert.match(doc.querySelector("main").textContent, /Учебный шифр/)
-  await api.act(async () => root.unmount())
-})
-
-test("guest selection blocks duplicates, a fifth symbol and incomplete submission", async () => {
-  const { api, doc, root } = await mountGuest()
-  const submit = button(doc, "Проверить")
-  assert.equal(submit.disabled, true)
-  await choose(api, doc, ["Компас", "Часы", "Руки", "Документы"])
-  assert.equal(doc.querySelectorAll(".guest-choice li").length, 4)
-  assert.equal(button(doc.querySelector(".guest-symbol-picker"), "Компас").disabled, true)
-  assert.equal(button(doc.querySelector(".guest-symbol-picker"), "Хамелеон").disabled, true)
-  assert.equal(submit.disabled, false)
-  await api.act(async () => root.unmount())
-})
-
-test("guest guess reports exact and misplaced symbols with visible history", async () => {
-  const { api, doc, root } = await mountGuest()
-  await choose(api, doc, ["Компас", "Руки", "Часы", "Документы"])
-  await api.act(async () => button(doc, "Проверить").click())
-  assert.match(doc.querySelector('[aria-live="polite"]').textContent, /2 на месте · 2 не на месте/)
-  assert.match(doc.querySelector(".guest-history").textContent, /Попытка 1/)
-  assert.equal(doc.querySelectorAll(".guest-history li").length, 1)
-  await api.act(async () => root.unmount())
-})
-
-test("guest can solve the teaching code and receives only a Steam continuation", async () => {
+test("the public trial document is a contract preview with no retired cipher", async () => {
   const { api, doc, root, calls } = await mountGuest()
-  await choose(api, doc, ["Компас", "Часы", "Руки", "Документы"])
-  await api.act(async () => button(doc, "Проверить").click())
-  assert.match(doc.querySelector('[aria-live="polite"]').textContent, /Шифр раскрыт/)
-  assert.match(doc.querySelector(".guest-solution").textContent, /Компас.*Часы.*Руки.*Документы/)
+  assert.equal(doc.querySelectorAll("[data-contract-choice]").length, 6)
+  assert.equal(doc.querySelector(".guest-symbol-picker"), null)
+  assert.match(doc.querySelector("main").textContent, /пример|Демонстрационная/)
   assert.equal(
-    doc.querySelector('.guest-solution a[href="/auth/steam"]').textContent.includes("Steam"),
-    true,
+    calls.some(([url]) => /cipher|wallet|coins/.test(String(url))),
+    false,
   )
-  assert.match(doc.querySelector(".guest-solution").textContent, /монеты не начислены/i)
-  assert.equal(calls.length, 0)
   await api.act(async () => root.unmount())
 })
 
-test("six failed guesses unlock guidance, reveal the answer and reset cleanly", async () => {
+test("changing public match mode clears the trial selection", async () => {
   const { api, doc, root } = await mountGuest()
-  for (let attempt = 0; attempt < 6; attempt += 1) {
-    await choose(api, doc, ["Хамелеон", "Документы", "Сыщики", "Руки"])
-    await api.act(async () => button(doc, "Проверить").click())
-  }
-  assert.match(doc.querySelector('[aria-live="polite"]').textContent, /Шесть попыток закончились/)
-  await api.act(async () => button(doc, "Показать разбор").click())
-  assert.match(doc.querySelector(".guest-solution").textContent, /Компас.*Часы.*Руки.*Документы/)
-  await api.act(async () => button(doc, "Начать заново").click())
-  assert.equal(doc.querySelectorAll(".guest-history li").length, 0)
-  assert.equal(button(doc, "Проверить").disabled, true)
+  const first = doc.querySelector("[data-contract-choice]")
+  await api.act(async () => first.click())
+  assert.equal(first.getAttribute("aria-pressed"), "true")
+  await api.act(async () => button(doc.querySelector(".ritual-modes"), "Рейтинговый").click())
+  assert.equal(doc.querySelectorAll('[data-contract-choice][aria-pressed="true"]').length, 0)
+  assert.equal(button(doc, "Примерить подпись").disabled, true)
   await api.act(async () => root.unmount())
 })
 
-test("guest can request an early guided explanation in English", async () => {
-  const { api, doc, root } = await mountGuest({ language: "en" })
-  await api.act(async () => button(doc, "Show explanation").click())
-  assert.match(
-    doc.querySelector(".guest-solution").textContent,
-    /Compass.*Hourglass.*Hands.*Documents/,
-  )
-  assert.match(doc.querySelector(".guest-solution").textContent, /no coins were awarded/i)
-  await api.act(async () => root.unmount())
-})
-
-test("the prominent home trial links to the teaching document", async () => {
+test("the prominent home action leads to contract selection without a cipher", async () => {
   const { api, doc } = runtime({ pathname: "/en/", language: "en" })
   let root
   await api.act(async () => {
     root = api.mountLanding(doc.getElementById("mount"))
   })
-  assert.match(doc.getElementById("mount").textContent, /never asks for your Steam password/)
-  assert.equal(
-    doc.querySelector('.bureau-welcome-actions a[href="/en/try"]').textContent,
-    "Try without signing in",
+  assert.match(
+    doc.querySelector('.ritual-hero-actions a[href="/en/contracts"]').textContent,
+    /Choose a contract/,
   )
+  assert.equal(doc.querySelector('.ritual-hero-actions a[href="/en/try"]'), null)
+  assert.ok(doc.querySelector('a[href="/auth/steam"]'))
   await api.act(async () => root.unmount())
 })
 
-test("dashboard continues the open server round instead of offering a new cipher", async () => {
-  const { api, doc } = runtime({ hash: "#home" })
+test("dashboard directs players to the free daily pack without requesting coin state", async () => {
+  const { api, doc, calls } = runtime({ hash: "#home" })
   let root
   await api.act(async () => {
     root = api.mountDashboard(doc.getElementById("mount"), session)
   })
-  assert.match(doc.querySelector(".dc-home-archive-callout").textContent, /Продолжить шифр/)
+  assert.match(doc.querySelector(".ritual-next-step").textContent, /новый конверт/)
+  assert.doesNotMatch(doc.body.textContent, /Продолжить шифр|монеты|Шифры и каталог/i)
+  assert.equal(
+    calls.some(({ url }) => url.includes("archive/wallet")),
+    false,
+  )
   await api.act(async () => root.unmount())
 })
 
-const wallet = {
-  balance: 73,
-  currency: "ARCHIVE_TOKEN",
-  weekly_limit: 5,
-  reward: 41,
-  completed: 2,
-  reset_at: "2026-09-14T00:00:00Z",
-  round: null,
-  history: [],
-  history_total: 0,
-}
-
-test("next step loading state withholds economic claims and keeps collection and bureaus available", async () => {
-  let resolveWallet
-  const destinations = []
-  const { api, doc } = runtime({
-    fetchImpl: () =>
-      new Promise((resolve) => {
-        resolveWallet = resolve
-      }),
-  })
-  let root
-  await api.act(async () => {
-    root = api.mountNextStep(doc.getElementById("mount"), {
-      revision: 9,
-      onNavigate: (destination) => destinations.push(destination),
+for (const language of ["ru", "en"])
+  test(`${language}: home collection callout opens the daily pack and makes no economic claim`, async () => {
+    const destinations = []
+    const { api, doc, calls } = runtime({ language })
+    let root
+    await api.act(async () => {
+      root = api.mountNextStep(doc.getElementById("mount"), {
+        revision: 4,
+        onNavigate: (destination) => destinations.push(destination),
+      })
     })
+    assert.equal(calls.length, 0)
+    assert.doesNotMatch(doc.body.textContent, /coins|cipher|монет|шифр/i)
+    await api.act(async () =>
+      button(doc, language === "ru" ? "Открыть конверт" : "Open daily pack").click(),
+    )
+    assert.deepEqual(destinations, ["packs"])
+    await api.act(async () => root.unmount())
   })
-  assert.match(doc.querySelector('[role="status"]').textContent, /Загружаем/)
-  assert.equal(button(doc, "Разобрать шифр"), undefined)
-  assert.equal(doc.querySelector(".bureau-callout-stats"), null)
-  await api.act(async () => button(doc, "Моя коллекция").click())
-  await api.act(async () => button(doc, "Сообщества").click())
-  assert.deepEqual(destinations, ["collection", "bureaus"])
-  await api.act(async () => resolveWallet(response(wallet)))
-  await api.act(async () => root.unmount())
-})
-
-test("next step reports wallet error, retries the same view and then uses server reward fields", async () => {
-  let attempts = 0
-  const { api, doc, calls } = runtime({
-    language: "en",
-    fetchImpl: async () => {
-      attempts += 1
-      if (attempts === 1) return { ok: false, json: async () => ({ detail: "wallet unavailable" }) }
-      return response(wallet)
-    },
-  })
-  const destinations = []
-  let root
-  await api.act(async () => {
-    root = api.mountNextStep(doc.getElementById("mount"), {
-      revision: 4,
-      onNavigate: (destination) => destinations.push(destination),
-    })
-  })
-  assert.match(doc.querySelector('[role="alert"]').textContent, /Could not load archive status/)
-  assert.ok(button(doc, "My collection"))
-  assert.ok(button(doc, "Communities"))
-  await api.act(async () => button(doc, "Retry").click())
-  assert.equal(calls.length, 2)
-  assert.ok(calls.every(({ url }) => url === "/api/archive/wallet?view=4"))
-  assert.match(doc.querySelector(".bureau-callout-stats").textContent, /73 coins/)
-  assert.match(doc.querySelector(".bureau-callout-stats").textContent, /Reward per cipher/)
-  assert.match(doc.querySelector(".bureau-callout-stats").textContent, /\+41 coins/)
-  assert.match(doc.querySelector(".bureau-callout-stats").textContent, /2 \/ 5/)
-  await api.act(async () => button(doc, "Decode a cipher").click())
-  await api.act(async () => button(doc, "My collection").click())
-  await api.act(async () => button(doc, "Communities").click())
-  assert.deepEqual(destinations, ["archive", "collection", "bureaus"])
-  await api.act(async () => root.unmount())
-})
-
-test("next step continues an open round and uses the archive callback", async () => {
-  const destinations = []
-  const openWallet = {
-    ...wallet,
-    round: {
-      id: "round-3",
-      slot: 3,
-      status: "OPEN",
-      revision: 8,
-      guesses: [{ symbols: [0, 1, 2, 3], exact: 1, misplaced: 2 }],
-      solution: null,
-    },
-  }
-  const { api, doc } = runtime({ fetchImpl: async () => response(openWallet) })
-  let root
-  await api.act(async () => {
-    root = api.mountNextStep(doc.getElementById("mount"), {
-      revision: 2,
-      onNavigate: (destination) => destinations.push(destination),
-    })
-  })
-  await api.act(async () => button(doc, "Продолжить шифр").click())
-  assert.deepEqual(destinations, ["archive"])
-  await api.act(async () => root.unmount())
-})
-
-test("next step sends an exhausted player to collection and shows localized reset time", async () => {
-  const destinations = []
-  const { api, doc } = runtime({
-    fetchImpl: async () => response({ ...wallet, completed: 5 }),
-  })
-  let root
-  await api.act(async () => {
-    root = api.mountNextStep(doc.getElementById("mount"), {
-      revision: 1,
-      onNavigate: (destination) => destinations.push(destination),
-    })
-  })
-  assert.match(doc.querySelector(".dc-home-archive-callout").textContent, /14\.09\.2026/)
-  assert.match(doc.querySelector(".bureau-callout-stats").textContent, /Награда за шифр/)
-  await api.act(async () => button(doc, "Открыть коллекцию").click())
-  assert.deepEqual(destinations, ["collection"])
-  await api.act(async () => root.unmount())
-})

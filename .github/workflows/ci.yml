@@ -187,19 +187,22 @@ jobs:
         run: |
           python scripts/ci_community_smoke.py
 
-      - name: Verify archive currency concurrency
+      - name: Verify retired archive HTTP boundaries
         run: python scripts/ci_archive_smoke.py
 
-      - name: Verify contract coin concurrency
+      - name: Verify coin retirement and historical corrections
         run: python scripts/ci_coin_smoke.py
 
-      - name: Verify pack opening concurrency
+      - name: Verify free daily pack concurrency and UTC replay
+        run: python scripts/ci_daily_pack_smoke.py
+
+      - name: Verify historical pack accounting concurrency
         run: python scripts/ci_pack_smoke.py
 
-      - name: Verify paid pack v2 guarantees and rollback
+      - name: Verify historical v2 guarantees and rollback
         run: python scripts/ci_pack_v2_smoke.py
 
-      - name: Verify arena commands and bounded reward concurrency
+      - name: Verify historical Arena locks and retired rewards
         run: python scripts/ci_arena_smoke.py
 
       - name: Verify final head

@@ -55,12 +55,16 @@ export default function ContractSigning(props: SigningProps) {
   const dialog = useRef<HTMLDialogElement>(null)
   const heading = useRef<HTMLHeadingElement>(null)
   const inFlight = useRef(false)
+  const mounted = useRef(true)
+  const video = useRef<HTMLVideoElement>(null)
   const titleId = useId()
   const descriptionId = useId()
   const termsId = useId()
   const signatureId = useId()
   const signatureHintId = useId()
-  const [state, setState] = useState<"review" | "pending" | "signed">("review")
+  const [state, setState] = useState<"review" | "pending" | "sealing" | "rolling" | "signed">(
+    "review",
+  )
   const [receipt, setReceipt] = useState<SigningReceipt | null>(null)
   const [error, setError] = useState("")
   const [stale, setStale] = useState(false)
@@ -68,9 +72,13 @@ export default function ContractSigning(props: SigningProps) {
   const unavailable = changed || stale
   const autograph = signature.trim() || operator
   const reward = options.reduce((sum, option) => sum + option.reward, 0)
-  const step = state === "signed" ? 2 : state === "pending" ? 1 : 0
+  const confirmed = state === "sealing" || state === "rolling" || state === "signed"
+  const animating = state === "sealing" || state === "rolling"
+  const step = confirmed ? 2 : state === "pending" ? 1 : 0
+  const asset = (file: string) => `${import.meta.env.BASE_URL}assets/ritual/${file}`
 
   useEffect(() => {
+    mounted.current = true
     const element = dialog.current!
     const trigger = document.activeElement as HTMLElement | null
     const overflow = document.body.style.overflow
@@ -78,6 +86,7 @@ export default function ContractSigning(props: SigningProps) {
     document.body.style.overflow = "hidden"
     heading.current?.focus()
     return () => {
+      mounted.current = false
       element.close()
       document.body.style.overflow = overflow
       const targets = [
@@ -89,11 +98,46 @@ export default function ContractSigning(props: SigningProps) {
     }
   }, [])
   useEffect(() => {
-    if (state === "signed") heading.current?.focus()
+    if (state === "sealing" || state === "signed") heading.current?.focus()
   }, [state])
 
+  // Every visual success is downstream of the authoritative receipt. The short
+  // seal and supplied film are presentation only; skipping never submits again.
+  useEffect(() => {
+    if (!animating) return
+    if (reducedMotion) {
+      setState("signed")
+      return
+    }
+    const timeout = window.setTimeout(
+      () => setState(state === "sealing" ? "rolling" : "signed"),
+      state === "sealing" ? 650 : 8000,
+    )
+    return () => window.clearTimeout(timeout)
+  }, [state, reducedMotion, animating])
+
+  useEffect(() => {
+    if (state !== "rolling" || reducedMotion) return
+    const element = video.current
+    if (!element) return
+    let active = true
+    const failed = () => {
+      if (active) setState("signed")
+    }
+    try {
+      const playback = element.play()
+      playback?.catch(failed)
+    } catch {
+      failed()
+    }
+    return () => {
+      active = false
+      element.pause()
+    }
+  }, [state, reducedMotion])
+
   const sign = async () => {
-    if (inFlight.current || state === "signed" || unavailable) return
+    if (inFlight.current || confirmed || unavailable) return
     if (props.preview) {
       setState("signed")
       return
@@ -102,10 +146,21 @@ export default function ContractSigning(props: SigningProps) {
     setState("pending")
     setError("")
     try {
-      const confirmed = await props.onSign()
-      setReceipt(confirmed)
-      setState("signed")
+      const confirmedReceipt = await props.onSign()
+      if (!mounted.current) return
+      if (
+        !confirmedReceipt?.id ||
+        !confirmedReceipt.locked_at ||
+        !Number.isFinite(Date.parse(confirmedReceipt.locked_at)) ||
+        !Number.isFinite(Date.parse(confirmedReceipt.expires_at)) ||
+        !Number.isInteger(confirmedReceipt.max_attempts) ||
+        confirmedReceipt.max_attempts < 1
+      )
+        throw new SigningUnconfirmedError()
+      setReceipt(confirmedReceipt)
+      setState(reducedMotion ? "signed" : "sealing")
     } catch (reason) {
+      if (!mounted.current) return
       if (reason instanceof SelectionChangedError) setStale(true)
       else
         setError(
@@ -132,13 +187,14 @@ export default function ContractSigning(props: SigningProps) {
       aria-describedby={descriptionId}
       onCancel={(event) => {
         event.preventDefault()
-        if (!inFlight.current) onClose()
+        if (animating) setState("signed")
+        else if (!inFlight.current) onClose()
       }}
     >
       <div className="signing-folder-bar">
         <div className="signing-folder-label">
           <Icon name="file-text" size={18} />
-          <span>{ru ? "Досье контракта" : "Contract dossier"}</span>
+          <span>{ru ? "Ритуал контракта" : "The contract ritual"}</span>
           <span className="signing-mode">{mode}</span>
         </div>
         <button
@@ -153,7 +209,10 @@ export default function ContractSigning(props: SigningProps) {
       <div className="signing-document">
         <header className="signing-heading">
           <div>
-            <p className="signing-eyebrow">DEADLOCK CONTRACTS · {ru ? "БЮРО" : "BUREAU"}</p>
+            <p className="signing-eyebrow">
+              DEADLOCK CONTRACTS <span aria-hidden="true">/</span>{" "}
+              {preview ? "DEMO" : ru ? "ТВОЁ СЛОВО" : "YOUR WORD"}
+            </p>
             <h2 ref={heading} tabIndex={-1} id={titleId}>
               {preview
                 ? state === "signed"
@@ -163,7 +222,7 @@ export default function ContractSigning(props: SigningProps) {
                   : ru
                     ? "Пример подписания"
                     : "Try signing a contract"
-                : state === "signed"
+                : confirmed
                   ? ru
                     ? "Условия зафиксированы"
                     : "Terms are sealed"
@@ -178,7 +237,7 @@ export default function ContractSigning(props: SigningProps) {
             ? ru
               ? "Посмотрите, как выглядит договор. Настоящее дело можно открыть после входа через Steam."
               : "Preview your contract. Sign in with Steam to open a real case."
-            : state === "signed"
+            : confirmed
               ? ru
                 ? "Бюро подтвердило контракт. Выполните выбранные условия до окончания срока дела."
                 : "The bureau confirmed your contract. Complete the selected terms before the case deadline."
@@ -211,8 +270,12 @@ export default function ContractSigning(props: SigningProps) {
             </li>
           ))}
         </ol>
-        <div className="signing-layout">
-          <section className="signing-terms-panel" aria-labelledby={termsId}>
+        <div className="signing-layout" hidden={confirmed}>
+          <section
+            className="signing-terms-panel signing-scroll"
+            aria-labelledby={termsId}
+            style={{ borderImageSource: `url("${asset("open-scroll.webp")}")` }}
+          >
             <div className="signing-section-heading">
               <h3 id={termsId}>{ru ? "Выбранные условия" : "Selected terms"}</h3>
               <span>{String(options.length).padStart(2, "0")}</span>
@@ -270,7 +333,7 @@ export default function ContractSigning(props: SigningProps) {
                   <path d="M2 12C58 3 124 9 168 6c31-2 54-4 70-3" pathLength="1" />
                 </svg>
               </div>
-              {state !== "signed" && (
+              {!confirmed && (
                 <div className="signing-signature-field">
                   <label htmlFor={signatureId}>
                     {ru ? "Ваша подпись" : "Your signature"}
@@ -296,10 +359,122 @@ export default function ContractSigning(props: SigningProps) {
                 </div>
               )}
             </div>
+            {!confirmed && (
+              <>
+                {unavailable && (
+                  <p className="signing-error" role="alert">
+                    {ru
+                      ? "Доска изменилась. Вернитесь к контрактам и проверьте актуальные условия."
+                      : "The board has changed. Return to the contracts and review the current terms."}
+                  </p>
+                )}
+                {error && !unavailable && (
+                  <p className="signing-error" role="alert">
+                    {error}
+                  </p>
+                )}
+                <p className="signing-acknowledgment">
+                  <Icon name="clipboard-check" size={19} />
+                  <span>
+                    {preview
+                      ? ru
+                        ? "Пробная печать покажет результат подписания. Для настоящего контракта нужен вход через Steam."
+                        : "The sample seal previews the signing result. Sign in with Steam to create a real contract."
+                      : ru
+                        ? "Ставя печать, вы подтверждаете выбранные условия. Дело откроется после подтверждения бюро."
+                        : "By placing your seal, you confirm the selected terms. Your case opens after the bureau confirms."}
+                  </span>
+                </p>
+                <div className="signing-actions">
+                  <button
+                    className="signing-secondary"
+                    disabled={state === "pending"}
+                    onClick={onClose}
+                  >
+                    {ru ? "Вернуться к выбору" : "Back to selection"}
+                  </button>
+                  <button
+                    className="signing-primary"
+                    disabled={state === "pending" || unavailable}
+                    onClick={() => void sign()}
+                  >
+                    {state === "pending" ? (
+                      <span className="signing-spinner" aria-hidden="true" />
+                    ) : (
+                      <Icon name="shield-check" size={18} />
+                    )}
+                    {state === "pending"
+                      ? ru
+                        ? "Подтверждаем…"
+                        : "Confirming…"
+                      : preview
+                        ? ru
+                          ? "Поставить пробную печать"
+                          : "Place sample seal"
+                        : ru
+                          ? "Поставить печать"
+                          : "Place seal"}
+                  </button>
+                </div>
+                <p className="signing-progress" role="status">
+                  {state === "pending"
+                    ? ru
+                      ? "Ожидаем подтверждения бюро…"
+                      : "Waiting for confirmation from the bureau…"
+                    : ""}
+                </p>
+              </>
+            )}
           </aside>
         </div>
+        {animating && (
+          <section
+            className="signing-ceremony"
+            aria-label={ru ? "Контракт подтверждён" : "Contract confirmed"}
+          >
+            <div className="signing-ceremony-stage">
+              {state === "sealing" ? (
+                <div
+                  className="signing-seal"
+                  aria-hidden="true"
+                  onAnimationEnd={(event) => {
+                    if (event.target === event.currentTarget) setState("rolling")
+                  }}
+                >
+                  <Icon name="check" size={27} />
+                  <span>{ru ? "Принято" : "Accepted"}</span>
+                  <small>DEADLOCK CONTRACTS</small>
+                </div>
+              ) : (
+                <video
+                  ref={video}
+                  src={asset("scroll-seal.mp4")}
+                  autoPlay
+                  muted
+                  playsInline
+                  preload="auto"
+                  onEnded={() => setState("signed")}
+                  onError={() => setState("signed")}
+                  aria-label={
+                    ru ? "Свиток контракта запечатывается" : "Your contract scroll is being sealed"
+                  }
+                />
+              )}
+            </div>
+            <p role="status">
+              {ru
+                ? "Контракт подтверждён. Скрепляем твоё слово."
+                : "Contract confirmed. Your word, sealed."}
+            </p>
+            <button type="button" className="signing-secondary" onClick={() => setState("signed")}>
+              {ru ? "Пропустить анимацию" : "Skip animation"}
+              <Icon name="arrow-up-right" size={16} />
+            </button>
+          </section>
+        )}
         {state === "signed" ? (
           <div className="signing-success" role="status">
+            <img className="signing-sealed-scroll" src={asset("sealed-scroll.webp")} alt="" />
             <div className="signing-confirmed-heading">
               <div className="signing-seal" aria-hidden="true">
                 <Icon name="check" size={20} />
@@ -315,6 +490,10 @@ export default function ContractSigning(props: SigningProps) {
                     ? "Бюро приняло условия. Ваше дело открыто."
                     : "The bureau accepted your terms. Your case is open."}
               </p>
+            </div>
+            <div className="signing-receipt-signature">
+              <span>{ru ? "Подпись исполнителя" : "Operator signature"}</span>
+              <span className="signing-autograph">{autograph}</span>
             </div>
             {!preview && receipt && (
               <dl className="signing-receipt">
@@ -360,72 +539,7 @@ export default function ContractSigning(props: SigningProps) {
               <Icon name="arrow-up-right" size={18} />
             </button>
           </div>
-        ) : (
-          <>
-            {unavailable && (
-              <p className="signing-error" role="alert">
-                {ru
-                  ? "Доска изменилась. Вернитесь к контрактам и проверьте актуальные условия."
-                  : "The board has changed. Return to the contracts and review the current terms."}
-              </p>
-            )}
-            {error && !unavailable && (
-              <p className="signing-error" role="alert">
-                {error}
-              </p>
-            )}
-            <p className="signing-acknowledgment">
-              <Icon name="clipboard-check" size={19} />
-              <span>
-                {preview
-                  ? ru
-                    ? "Пробная печать покажет результат подписания. Для настоящего контракта нужен вход через Steam."
-                    : "The sample seal previews the signing result. Sign in with Steam to create a real contract."
-                  : ru
-                    ? "Ставя печать, вы подтверждаете выбранные условия. Дело откроется после подтверждения бюро."
-                    : "By placing your seal, you confirm the selected terms. Your case opens after the bureau confirms."}
-              </span>
-            </p>
-            <div className="signing-actions">
-              <button
-                className="signing-secondary"
-                disabled={state === "pending"}
-                onClick={onClose}
-              >
-                {ru ? "Вернуться к выбору" : "Back to selection"}
-              </button>
-              <button
-                className="signing-primary"
-                disabled={state === "pending" || unavailable}
-                onClick={() => void sign()}
-              >
-                {state === "pending" ? (
-                  <span className="signing-spinner" aria-hidden="true" />
-                ) : (
-                  <Icon name="shield-check" size={18} />
-                )}
-                {state === "pending"
-                  ? ru
-                    ? "Подтверждаем…"
-                    : "Confirming…"
-                  : preview
-                    ? ru
-                      ? "Поставить пробную печать"
-                      : "Place sample seal"
-                    : ru
-                      ? "Поставить печать"
-                      : "Place seal"}
-              </button>
-            </div>
-            <p className="signing-progress" role="status">
-              {state === "pending"
-                ? ru
-                  ? "Ожидаем подтверждения бюро…"
-                  : "Waiting for confirmation from the bureau…"
-                : ""}
-            </p>
-          </>
-        )}
+        ) : null}
       </div>
     </dialog>
   )

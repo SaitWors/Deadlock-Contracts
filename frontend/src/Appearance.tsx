@@ -126,16 +126,16 @@ function AppearanceDialog({ onClose }: { onClose: () => void }) {
     ? {
         system: "Вслед за устройством",
         light: "Бумага и чернила",
-        dark: "Город не спит",
+        dark: "Тёмный контракт",
         black: "Глубокий чёрный",
-        custom: "Фиолетовый квартал",
+        custom: "Своя палитра",
       }
     : {
         system: "Follow your device",
         light: "Paper and ink",
-        dark: "City after dark",
+        dark: "Dark contract",
         black: "Pure black canvas",
-        custom: "Violet district",
+        custom: "Your own palette",
       }
   return (
     <dialog
@@ -238,8 +238,8 @@ function AppearanceDialog({ onClose }: { onClose: () => void }) {
         <input
           id={rangeId}
           type="range"
-          min="12"
-          max="28"
+          min="0"
+          max="8"
           step="1"
           value={appearance.radius}
           onChange={(e) => update({ radius: Number(e.target.value) })}

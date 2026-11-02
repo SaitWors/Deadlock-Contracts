@@ -137,7 +137,7 @@ test("saved radius is bounded and manual motion preference is applied", async ()
   const r = await mounted({
     theme: { theme: "custom", accent: "invalid", radius: 999, motion: false },
   })
-  assert.equal(r.doc.documentElement.style.getPropertyValue("--ns-radius"), "28px")
+  assert.equal(r.doc.documentElement.style.getPropertyValue("--ns-radius"), "8px")
   assert.equal(r.doc.documentElement.dataset.motion, "reduced")
 })
 test("mascot has three natural poses with a working manual pose control", async () => {

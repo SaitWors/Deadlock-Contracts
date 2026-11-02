@@ -2,10 +2,10 @@ import Icon from "./icons/Icon"
 import { useLanguage } from "./i18n"
 
 const items = [
-  ["home", "Главная", "Home", "house"],
+  ["home", "Обзор", "Overview", "house"],
   ["quests", "Контракты", "Contracts", "file-text"],
-  ["active", "Дело", "Case", "briefcase-business"],
-  ["leaderboard", "Рейтинг", "Ranking", "chart-no-axes-column-increasing"],
+  ["collection", "Карточки", "Collection", "layers"],
+  ["packs", "Конверт", "Daily pack", "mail"],
   ["profile", "Профиль", "Profile", "user-round"],
 ] as const
 export default function BureauBottomNav({

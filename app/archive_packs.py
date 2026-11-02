@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from uuid import UUID
 from typing import Literal
+from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Response
 from pydantic import Field, field_validator
@@ -11,11 +11,20 @@ from sqlalchemy.orm import Session
 from .archive import EconomyScope, Rank, Revision
 from .community import Strict, no_store
 from .db import get_db
-from .models import (ArchiveCard, ArchiveOperation, ArchivePack, ArchivePackVersion,
-                     ArchiveShowcase, PublicProfile, User, utcnow)
+from .models import (
+    ArchiveCard,
+    ArchiveOperation,
+    ArchivePack,
+    ArchivePackVersion,
+    ArchiveShowcase,
+    PublicProfile,
+    User,
+    utcnow,
+)
 from .services import archive_packs as service
 from .services.archive import lock_user
 from .services.auth import require_csrf, require_user
+from .services.retired_economy import retired_player_feature
 
 
 class Entry(Strict):
@@ -48,6 +57,11 @@ class PackEdit(PackDesign):
 class RequestKey(Strict):
     request_key: UUID
     scope: EconomyScope = "REAL"
+
+
+class DailyPackClaim(Strict):
+    idempotency_key: UUID
+    scope: Literal["REAL"] = "REAL"
 
 
 class OpenPack(RequestKey):
@@ -122,6 +136,18 @@ def build_router(require_permission, effective_role):
         rows = db.scalars(statement.order_by(ArchivePack.created_at.desc(), ArchivePack.id).offset(offset).limit(8)).all()
         return {"items": [service.pack_payload(db, row, user_id=user_id, scope=scope) for row in rows], "total": total}
 
+    @router.get("/archive/daily-pack")
+    def daily_pack(response: Response, scope: Literal["REAL"] = "REAL",
+                   user: User = Depends(require_user), db: Session = Depends(get_db)):
+        no_store(response)
+        return service.daily_status(db, user.id, scope)
+
+    @router.post("/archive/daily-pack/claim", dependencies=[Depends(require_csrf)])
+    def claim_daily_pack(payload: DailyPackClaim, response: Response,
+                         user: User = Depends(require_user), db: Session = Depends(get_db)):
+        no_store(response)
+        return service.claim_daily_pack(db, user.id, payload.idempotency_key, payload.scope)
+
     @router.get("/archive/packs")
     def catalog(response: Response, offset: int = Query(default=0, ge=0, le=100000),
                 scope: EconomyScope = "REAL",
@@ -141,11 +167,11 @@ def build_router(require_permission, effective_role):
             raise HTTPException(404, "Pack not found")
         return {"pack": service.pack_payload(db, pack, detailed=True, user_id=user.id, scope=scope)}
 
-    @router.post("/archive/packs/{pack_id}/open", dependencies=[Depends(require_csrf)])
+    @router.post("/archive/packs/{pack_id}/open", dependencies=[Depends(require_csrf), Depends(retired_player_feature)])
     def open_pack(pack_id: UUID, payload: OpenPack, user: User = Depends(require_user), db: Session = Depends(get_db)):
         return service.open_pack(db, user.id, str(pack_id), payload)
 
-    @router.post("/archive/cards/{card_id}/acquire", dependencies=[Depends(require_csrf)])
+    @router.post("/archive/cards/{card_id}/acquire", dependencies=[Depends(require_csrf), Depends(retired_player_feature)])
     def acquire(card_id: UUID, payload: AcquireCard, user: User = Depends(require_user), db: Session = Depends(get_db)):
         return service.acquire(db, user.id, str(card_id), payload)
 
@@ -170,7 +196,7 @@ def build_router(require_permission, effective_role):
         no_store(response)
         return service.set_favorite(db, user.id, str(card_id), payload.favorite, payload.scope)
 
-    @router.post("/archive/items/{item_id}/recycle", dependencies=[Depends(require_csrf)])
+    @router.post("/archive/items/{item_id}/recycle", dependencies=[Depends(require_csrf), Depends(retired_player_feature)])
     def recycle(item_id: UUID, payload: RequestKey, user: User = Depends(require_user), db: Session = Depends(get_db)):
         return service.recycle(db, user.id, str(item_id), payload)
 
@@ -190,7 +216,8 @@ def build_router(require_permission, effective_role):
                 scope: EconomyScope = "REAL",
                 user: User = Depends(require_user), db: Session = Depends(get_db)):
         no_store(response)
-        statement = select(ArchiveOperation).where(ArchiveOperation.user_id == user.id, ArchiveOperation.scope == scope)
+        statement = select(ArchiveOperation).where(ArchiveOperation.user_id == user.id, ArchiveOperation.scope == scope,
+                                                    ArchiveOperation.kind != "DAILY_PACK_REPLAY")
         total = db.scalar(select(func.count()).select_from(statement.subquery()))
         rows = db.scalars(statement.order_by(ArchiveOperation.created_at.desc(), ArchiveOperation.id).offset(offset).limit(10)).all()
         return {"items": [service.receipt_payload(row) for row in rows], "total": total}
@@ -302,6 +329,7 @@ def build_router(require_permission, effective_role):
 
     @router.post("/owner/archive/tokens", dependencies=[Depends(require_csrf)])
     def grant_tokens(payload: GrantTokens, owner: User = Depends(require_permission("archive.grant_self")), db: Session = Depends(get_db)):
+        retired_player_feature(owner)
         kind = "OWNER_REAL_ADJUSTMENT" if payload.scope == "REAL" else "OWNER_TOKENS"
         operation, replay = service.begin(db, owner.id, kind, payload.request_key,
                                            {"delta": payload.delta, "note": payload.note}, scope=payload.scope)

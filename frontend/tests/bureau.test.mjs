@@ -139,10 +139,7 @@ test("first visit explains the bureau, can skip, remembers this account and reop
   })
   assert.ok(doc.querySelector(".bureau-guide[open]"))
   assert.match(doc.activeElement.textContent, /Ваш матч/)
-  assert.equal(
-    doc.querySelector(".dc-mobile-bottom-nav [aria-current=page]").textContent,
-    "Главная",
-  )
+  assert.equal(doc.querySelector(".dc-mobile-bottom-nav [aria-current=page]").textContent, "Обзор")
   assert.equal(doc.querySelectorAll(".dc-mobile-bottom-nav button").length, 5)
   assert.equal(doc.querySelector(".dc-home-archive-callout .dc-auth-account-button"), null)
   await api.act(async () => button(doc, "Осмотрюсь сам").click())
@@ -182,10 +179,10 @@ for (const language of ["ru", "en"])
     await api.act(async () => button(doc, language === "ru" ? "Дальше" : "Next").click())
     assert.match(
       doc.querySelector(".bureau-guide-note").textContent,
-      language === "ru" ? /Монеты и XP/ : /Coins and XP/,
+      language === "ru" ? /полночь UTC/ : /midnight UTC/,
     )
     await api.act(async () => doc.querySelector(".bureau-guide-content>.bureau-action").click())
-    assert.equal(actions.pop(), "archive")
+    assert.equal(actions.pop(), "packs")
     await api.act(async () => button(doc, language === "ru" ? "Дальше" : "Next").click())
     await api.act(async () => doc.querySelector(".bureau-guide-content>.bureau-action").click())
     assert.equal(actions.pop(), "bureaus")
@@ -360,19 +357,19 @@ test("background history refresh retains all loaded pages and updates older verd
     await api.act(async () => button(doc, "LOAD MORE").click())
     assert.equal(doc.querySelectorAll(".dc-case-file").length, 201)
     const lastCase = [...doc.querySelectorAll(".dc-case-file")].at(-1)
-    assert.match(lastCase.textContent, /Pending.*5 coins.*24.*Daily limit/)
-    assert.match(lastCase.textContent, /Case bonus.*\+10 coins/)
+    assert.match(lastCase.textContent, /History contract 200/)
+    assert.doesNotMatch(lastCase.textContent, /coins|Case bonus|Daily limit/)
     updated = true
     const beforeRefresh = historyCalls.length
     await api.act(async () => refresh())
     assert.equal(doc.querySelectorAll(".dc-case-file").length, 201)
     assert.ok(doc.querySelector(".dc-case-archive").textContent.includes("Updated older verdict"))
-    assert.match(
+    assert.doesNotMatch(
       [...doc.querySelectorAll(".dc-case-file")].at(-1).textContent,
-      /\+5 coins.*24.*Daily limit/,
+      /coins|Daily limit/,
     )
     assert.ok(historyCalls.slice(beforeRefresh).some((url) => url.includes("offset=200")))
-    assert.match(doc.querySelector(".bureau-profile-trigger small").textContent, /5$/)
+    assert.match(doc.querySelector(".bureau-profile-trigger small").textContent, /XP$/)
     assert.equal(button(doc, "LOAD MORE"), undefined)
   } finally {
     if (root) await api.act(async () => root.unmount())

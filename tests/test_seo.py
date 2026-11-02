@@ -303,7 +303,7 @@ def test_forwarded_host_cannot_poison_public_canonical_links(client):
     assert "attacker.invalid" not in response.text
 
 
-def test_crawlable_pages_share_the_city_document_shell_without_obsolete_brand_art():
+def test_crawlable_pages_share_the_ritual_document_shell_without_obsolete_brand_art():
     from app.seo import render_public_page, render_not_found
     shell = '<!doctype html><html><head></head><body><div id="root"></div></body></html>'
     source = render_public_page("cards", "en", "https://example.invalid", shell)
@@ -312,7 +312,8 @@ def test_crawlable_pages_share_the_city_document_shell_without_obsolete_brand_ar
     assert doc.elements("script", src="/static/document-appearance.js")
     assert doc.elements("div", **{"class": "city-public bureau-public min-h-screen"})
     assert not doc.elements("img", src="/static/assets/logo-horizontal.svg")
-    assert "CITY NEVER SLEEPS" in " ".join(doc.text)
+    assert "DEADLOCK CONTRACTS · YOUR MATCH. YOUR TERMS." in " ".join(doc.text)
+    assert "CITY NEVER SLEEPS" not in " ".join(doc.text)
     missing = Document(render_not_found("https://example.invalid", "en"))
     assert missing.elements("div", **{"class": "city-public"})
     assert missing.elements("main", **{"class": "public-document city-not-found"})

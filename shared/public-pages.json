@@ -1,168 +1,344 @@
 {
   "home": {
-    "slug": "", "index": true,
+    "slug": "",
+    "index": true,
     "ru": {
-      "label": "Главная", "title": "Deadlock Contracts — контракты, карточки и бюро для Deadlock",
-      "description": "Выбирайте контракты для матчей Deadlock, собирайте карточки героев и вступайте в бюро игроков. Начните с бесплатного учебного шифра без входа в Steam.",
-      "heading": "Deadlock Contracts: у каждого матча своя цель",
-      "intro": "Неофициальный проект для игроков Deadlock: контракты на следующий матч, коллекционные карточки и собственное бюро. Начните с небольшого шифра прямо в браузере.",
+      "label": "Главная",
+      "title": "Deadlock Contracts — твой матч, твои условия",
+      "description": "Контракты на матчи Deadlock, личный прогресс, достижения и бесплатный ежедневный пак карточек героев.",
+      "heading": "Твой матч. Твои условия.",
+      "intro": "В каждом матче есть что-то большее, чем победа. Выбирай контракты, ставь подпись и превращай игру в личную историю.",
       "sections": [
-        {"heading": "Контракты до матча", "text": "Выберите режим и зафиксируйте до трёх доступных заданий до начала игры. Результат проверяется по данным матча; за выполненные условия начисляется опыт. Если статистика ещё не поступила, проверка может занять время."},
-        {"heading": "Архив между матчами", "text": "Решайте шифры, получайте жетоны архива и собирайте карточки героев. Коллекция, профиль и бюро доступны на сайте без компаньона. Учебный шифр можно попробовать без входа; сохранение прогресса требует аккаунта."},
-        {"heading": "Вход через Steam", "text": "Авторизация проходит на сайте Steam. Deadlock Contracts не запрашивает пароль Steam. Проект находится в открытой бете, не связан с Valve и не даёт преимуществ внутри игры."}
+        {
+          "heading": "Начни с цели",
+          "text": "Выбери режим и до трёх контрактов до начала матча. У каждого есть конкретные условия и награда в XP. После подписания выбор фиксируется."
+        },
+        {
+          "heading": "Проверь результат",
+          "text": "Сыграй матч и дождись проверки доступной статистики. В личном кабинете видны состояние дела, подтверждённый результат и полученный опыт."
+        },
+        {
+          "heading": "Возвращайся за коллекцией",
+          "text": "Каждый день доступен один бесплатный пак карточек. Открой его, сохрани любимые карты и оформи собственный профиль."
+        }
       ]
     },
     "en": {
-      "label": "Home", "title": "Deadlock Contracts — match challenges, hero cards and bureaus",
-      "description": "Choose challenges for your Deadlock matches, collect hero cards and join a player bureau. Try a free teaching cipher in your browser without Steam sign-in.",
-      "heading": "Deadlock Contracts: give every match a goal",
-      "intro": "An unofficial project for Deadlock players: challenges for your next match, collectible hero cards and your own bureau. Start with a short cipher in your browser.",
+      "label": "Home",
+      "title": "Deadlock Contracts — your match, your terms",
+      "description": "Match contracts for Deadlock, personal progression, achievements and a free daily pack of hero cards.",
+      "heading": "Your match. Your terms.",
+      "intro": "Every match has more to offer than a win. Pick your contracts, sign the deal and turn every game into your own story.",
       "sections": [
-        {"heading": "Contracts before a match", "text": "Choose a mode and lock up to three available objectives before playing. Match data is used to verify the result; completed objectives earn XP. Verification can take time while statistics are unavailable."},
-        {"heading": "An archive between matches", "text": "Solve ciphers, earn archive tokens and collect hero cards. Collections, profiles and bureaus work on the website without the companion. Try the teaching cipher without signing in; an account is required to save progress."},
-        {"heading": "Sign in through Steam", "text": "Authentication takes place on Steam's website. Deadlock Contracts never asks for your Steam password. This open-beta community project is not affiliated with Valve and provides no in-game advantage."}
+        {
+          "heading": "Start with an objective",
+          "text": "Choose a mode and up to three contracts before the match. Each has specific conditions and an XP reward. Signing locks in your selection."
+        },
+        {
+          "heading": "See your result",
+          "text": "Play your match and wait for available statistics to be checked. Your dashboard shows the case status, confirmed result and earned XP."
+        },
+        {
+          "heading": "Come back for your collection",
+          "text": "One free card pack is available each day. Reveal it, save your favorites and make your profile your own."
+        }
       ]
     }
   },
   "contracts": {
-    "slug": "contracts", "index": true,
+    "slug": "contracts",
+    "index": true,
     "ru": {
-      "label": "Контракты", "title": "Контракты для Deadlock — задания на матч | Deadlock Contracts",
-      "description": "Как выбрать и подписать контракты перед матчем Deadlock: условия заданий, отдельные режимы, проверка итоговой статистики и награды XP. Попробуйте подписание.",
-      "heading": "Контракты для Deadlock",
-      "intro": "Контракт — это цель на следующий подходящий матч. Вы заранее выбираете условия, а после игры сервис проверяет результат по доступной статистике.",
+      "label": "Контракты",
+      "title": "Контракты на следующий матч | Deadlock Contracts",
+      "description": "Выбери до трёх контрактов для матча Deadlock. Посмотри условия, попробуй подписание свитка и получай XP за подтверждённые результаты.",
+      "heading": "У следующего матча есть цель.",
+      "intro": "Выбирай задания под свой стиль игры. Проверь условия, поставь подпись и выходи в город.",
       "sections": [
-        {"heading": "Выбор и подписание", "text": "После входа откройте доску нужного режима, прочитайте условия и выберите до трёх контрактов. Подпишите их до начала матча: зафиксированные условия нельзя менять. Standard, Ranked и Street Brawl ведут отдельные дела."},
-        {"heading": "Проверка и опыт", "text": "Начисление XP зависит от подтверждённых условий, а не от нажатия кнопки или анимации. Ожидание данных и внутренний разбор отображаются в статусе дела. Условия и доступность отдельных заданий могут меняться в ходе беты."},
-        {"heading": "Демонстрация не сохраняет контракт", "text": "Доска ниже демонстрирует выбор и подписание. Она не создаёт реальное дело и не начисляет опыт. Ваши настоящие контракты, история и награды находятся в кабинете после входа через Steam."}
+        {
+          "heading": "Конкретные условия",
+          "text": "Контракт проверяет измеримый результат: например, урон героям, содействия или убийства. Всегда читай условия выбранного задания."
+        },
+        {
+          "heading": "Выбор до матча",
+          "text": "В одном деле может быть до трёх контрактов. Подписание фиксирует именно выбранный набор, режим и условия. Сервер подтверждает создание дела."
+        },
+        {
+          "heading": "Пример и настоящее дело",
+          "text": "Публичная доска показывает примеры и анимацию подписания. Для настоящих заданий и сохранения прогресса войди через Steam."
+        }
       ]
     },
     "en": {
-      "label": "Contracts", "title": "Contracts for Deadlock — match challenges | Deadlock Contracts",
-      "description": "Learn how to choose and sign Deadlock contracts before a match: objectives, separate modes, final-stat verification and XP rewards. Preview contract signing.",
-      "heading": "Contracts for Deadlock",
-      "intro": "A contract is a goal for your next eligible match. Choose its conditions before playing; the service then checks the result against available match statistics.",
+      "label": "Contracts",
+      "title": "Contracts for your next match | Deadlock Contracts",
+      "description": "Choose up to three contracts for your next Deadlock match. Review conditions, try scroll signing and earn XP for verified results.",
+      "heading": "Give your next match a purpose.",
+      "intro": "Choose objectives that fit your playstyle. Review the terms, sign the deal and head into the city.",
       "sections": [
-        {"heading": "Choose and sign", "text": "After signing in, open the board for your mode, read the conditions and select up to three contracts. Sign before the match starts: locked conditions cannot change. Standard, Ranked and Street Brawl have separate cases."},
-        {"heading": "Verification and XP", "text": "XP depends on verified objectives, not on a button press or animation. Your case status shows when data is pending or an internal review is needed. Objectives and their availability may change during the beta."},
-        {"heading": "The preview does not save a contract", "text": "The board below demonstrates selection and signing. It creates no real case and grants no XP. Your actual contracts, history and rewards are in your dashboard after Steam sign-in."}
+        {
+          "heading": "Specific conditions",
+          "text": "Contracts check measurable outcomes such as hero damage, assists or eliminations. Always read the selected objective’s conditions."
+        },
+        {
+          "heading": "Choose before playing",
+          "text": "A case holds up to three contracts. Signing locks in the chosen set, mode and conditions. The server confirms that the case was created."
+        },
+        {
+          "heading": "Preview and real cases",
+          "text": "The public board demonstrates sample objectives and signing. Sign in with Steam for your own real contracts and saved progression."
+        }
       ]
     }
   },
   "how": {
-    "slug": "how-it-works", "index": true,
+    "slug": "how-it-works",
+    "index": true,
     "ru": {
-      "label": "Как это работает", "title": "Как работает Deadlock Contracts — руководство игрока",
-      "description": "Начните играть с Deadlock Contracts: вход через Steam, выбор цели до матча, проверка результата, карточки и жетоны архива. Что доступно без компаньона.",
-      "heading": "Как начать в Deadlock Contracts",
-      "intro": "На сайте есть два независимых пути: игровые контракты с проверкой результата и архив с шифрами и карточками. Начните с того, что вам интереснее.",
+      "label": "Как играть",
+      "title": "Как работают контракты | Deadlock Contracts",
+      "description": "Выбор режима, подписание свитка, проверка матча и XP: как начать играть с Deadlock Contracts.",
+      "heading": "Три шага до нового дела.",
+      "intro": "Выбери цель до матча. Скрепи её подписью. Забери заслуженный результат.",
       "sections": [
-        {"heading": "1. Познакомьтесь с бюро", "text": "Откройте учебный шифр без регистрации или пример подписания контракта. Это демонстрации: они не тратят валюту, не сохраняют прогресс и не требуют компаньона."},
-        {"heading": "2. Сохраните свой прогресс", "text": "Войдите через Steam. В кабинете можно выполнять задания архива, собирать карточки, настраивать профиль и участвовать в бюро игроков. Жетоны архива и опыт за игровые контракты — разные показатели."},
-        {"heading": "3. Подпишите контракт до игры", "text": "Выберите доступный режим и задания, проверьте условия и подпишите дело до матча. Затем следите за его статусом: сервису нужны подходящий матч и достаточные данные для проверки. Задержка статистики не означает мгновенное поражение."},
-        {"heading": "Это мод для Deadlock или отдельный сайт?", "text": "Deadlock Contracts — отдельный сайт с заданиями для матчей Deadlock, игры Valve. Он не заменяет файлы игры и не добавляет боевые способности. Вы выбираете контракт до матча, играете в Deadlock и следите за проверкой результата в кабинете."},
-        {"heading": "Можно ли придумать любое задание?", "text": "Сейчас игрок выбирает задания из доступной доски своего режима. Выполнение проверяется по указанным условиям и доступной статистике матча. Произвольный текст не становится автоматически проверяемым контрактом; ориентируйтесь на условия конкретного задания."},
-        {"heading": "Что можно попробовать без регистрации?", "text": "Публичные страницы, демонстрация подписания и учебный шифр доступны без входа. Для сохранения реальных контрактов, карточек и прогресса нужен вход через Steam. Паки открываются за жетоны архива; карточки остаются внутри сайта и не являются предметами инвентаря Steam."},
-        {"heading": "Что с компаньоном?", "text": "Deadlock Contracts Companion находится в разработке и на проверке Overwolf. Его установка не требуется для шифров, коллекции и бюро на сайте. Компаньон передаёт поддерживаемые игровые сигналы, но сам по себе не начисляет опыт. Не передавайте другим доступ к своему аккаунту Overwolf."}
+        {
+          "heading": "01. Выбери контракт",
+          "text": "Войди через Steam и открой доску своего режима. Выбери до трёх заданий, прочитай условия, сложность и награду."
+        },
+        {
+          "heading": "02. Подпиши и сыграй",
+          "text": "Проверь выбранный набор и подпиши свиток. Когда сервер подтвердит дело, появятся печать и анимация сворачивания. Затем сыграй подходящий матч в Deadlock."
+        },
+        {
+          "heading": "03. Дождись проверки",
+          "text": "Результат проверяется по доступным данным матча и поддерживаемым сигналам компаньона. При задержке источника статус покажет ожидание; неподтверждённые условия не дают автоматической награды."
+        },
+        {
+          "heading": "Коллекция между матчами",
+          "text": "Забирай бесплатный ежедневный пак. Выдача обновляется в 00:00 UTC — это 03:00 по Москве. Открытые карточки сохраняются в коллекции на сайте."
+        },
+        {
+          "heading": "Это мод для Deadlock или отдельный сайт?",
+          "text": "Это отдельный неофициальный сайт с заданиями для матчей. Он не заменяет игровые файлы и не добавляет боевые способности. Выбор, подписание и прогресс доступны в кабинете."
+        }
       ]
     },
     "en": {
-      "label": "How it works", "title": "How Deadlock Contracts works — player guide",
-      "description": "Get started with Steam sign-in, pre-match objectives, result verification, collectible cards and archive tokens. Learn what works without the companion.",
-      "heading": "Getting started with Deadlock Contracts",
-      "intro": "There are two independent paths: match contracts with verified results, and an archive with ciphers and cards. Start with the one you enjoy.",
+      "label": "How it works",
+      "title": "How contracts work | Deadlock Contracts",
+      "description": "Choose a mode, sign the scroll, verify your match and earn XP: get started with Deadlock Contracts.",
+      "heading": "Three steps to your next case.",
+      "intro": "Choose a goal before the match. Put your name on it. Get the result you earned.",
       "sections": [
-        {"heading": "1. Explore the bureau", "text": "Try the teaching cipher without registering, or preview contract signing. These demos spend no currency, save no progress and need no companion."},
-        {"heading": "2. Save your progress", "text": "Sign in through Steam. Your dashboard lets you complete archive activities, collect cards, customize a profile and join player bureaus. Archive tokens and XP from match contracts are separate values."},
-        {"heading": "3. Sign before playing", "text": "Choose an available mode and objectives, review the conditions and sign your case before the match. Follow its status: verification needs an eligible match and sufficient data. Delayed statistics do not mean an immediate failure."},
-        {"heading": "Is this a Deadlock mod or a separate website?", "text": "Deadlock Contracts is a separate website with match challenges for Deadlock, Valve's game. It does not replace game files or add combat abilities. Choose a contract before a match, play Deadlock and follow result verification in your dashboard."},
-        {"heading": "Can I create any objective I want?", "text": "Players currently select objectives from the available board for their mode. Verification uses each objective's stated conditions and available match statistics. Arbitrary text does not become an automatically verifiable contract; check the conditions of the specific objective."},
-        {"heading": "What can I try without registering?", "text": "Public guides, the signing preview and the teaching cipher work without sign-in. Saving real contracts, cards and progress requires Steam sign-in. Packs use archive tokens; cards stay on the website and are not Steam inventory items."},
-        {"heading": "What about the companion?", "text": "Deadlock Contracts Companion is in development and under Overwolf review. It is not required for website ciphers, collections or bureaus. It supplies supported game signals but cannot award XP by itself. Never share access to your Overwolf account."}
+        {
+          "heading": "01. Choose a contract",
+          "text": "Sign in with Steam and open your mode’s board. Choose up to three objectives and review their conditions, difficulty and XP reward."
+        },
+        {
+          "heading": "02. Sign and play",
+          "text": "Review your selected set and sign the scroll. Once the server confirms your case, the seal and rolling animation appear. Then play an eligible match in Deadlock."
+        },
+        {
+          "heading": "03. Wait for verification",
+          "text": "Results use available match data and supported companion signals. If a provider is delayed, the status shows that the case is waiting. Unconfirmed conditions do not receive automatic rewards."
+        },
+        {
+          "heading": "Collect between matches",
+          "text": "Claim a free daily pack. Availability resets at 00:00 UTC. Revealed cards are saved in your website collection."
+        },
+        {
+          "heading": "Is this a Deadlock mod or a separate website?",
+          "text": "It is a separate, unofficial website with match objectives. It does not replace game files or add combat abilities. Your dashboard handles contract selection, signing and progression."
+        }
       ]
     }
   },
   "cards": {
-    "slug": "cards", "index": true,
+    "slug": "cards",
+    "index": true,
     "ru": {
-      "label": "Карточки", "title": "Карточки героев Deadlock и паки | Deadlock Contracts",
-      "description": "Собирайте карточки героев Deadlock от F до SSS, открывайте паки за жетоны архива и сохраняйте избранное. Как работают коллекция, редкость и мастерская карточек.",
-      "heading": "Коллекционные карточки героев Deadlock",
-      "intro": "Архив — коллекция внутри Deadlock Contracts. Решайте шифры, копите жетоны и открывайте опубликованные паки с карточками. Компаньон для этого не нужен.",
+      "label": "Коллекция",
+      "title": "Коллекция и ежедневные паки | Deadlock Contracts",
+      "description": "Бесплатный пак карточек героев Deadlock каждый день. Коллекция, редкость, избранные карты и витрина профиля.",
+      "heading": "Твоя коллекция. Твои находки.",
+      "intro": "Один бесплатный пак каждый день. Герои Deadlock, редкие экземпляры и карточки, которые хочется оставить на витрине.",
       "sections": [
-        {"heading": "Редкость и коллекция", "text": "Карточки разделены на ранги F, E, D, C, B, A, S, SS и SSS. В коллекции можно искать нужных героев и сохранять избранное. Каталог пополняется постепенно; наличие ранга не означает, что все герои уже представлены."},
-        {"heading": "Па́ки и жетоны архива", "text": "Перед открытием смотрите цену и состав доступного пака. Жетоны — внутренняя валюта сайта, отдельная от XP. Сервер сохраняет результат открытия; анимация лишь показывает его. Карточки не являются предметами Steam и не меняют игровой баланс."},
-        {"heading": "Мастерская сообщества", "text": "Игроки могут предлагать оформление карточек. Публикация в общем каталоге проходит модерацию, а состав и цены паков настраивает владелец проекта. Используйте изображения, на которые у вас есть права."}
+        {
+          "heading": "Ежедневный пак",
+          "text": "Войди через Steam и забери один доступный пак за день. Следующая выдача обновляется в 00:00 UTC (03:00 МСК). Повторный запрос показывает тот же результат и не выдаёт дополнительные карты."
+        },
+        {
+          "heading": "Карточки остаются у тебя",
+          "text": "Результат сохраняется сервером до анимации открытия. Карты доступны в твоей коллекции: ищи героев, отмечай избранное и выбирай витрину профиля."
+        },
+        {
+          "heading": "Редкость и оформление",
+          "text": "Коллекция использует ранги F, E, D, C, B, A, S, SS и SSS. Это коллекционные карточки внутри сайта. Они не являются предметами Steam и не меняют баланс Deadlock."
+        }
       ]
     },
     "en": {
-      "label": "Cards", "title": "Deadlock hero cards and packs | Deadlock Contracts",
-      "description": "Collect Deadlock hero cards from F to SSS, open packs with archive tokens and save your favorites. Explore the collection, rarity system and community card workshop.",
-      "heading": "Collectible Deadlock hero cards",
-      "intro": "The archive is a collection inside Deadlock Contracts. Solve ciphers, earn tokens and open published card packs. No companion is needed.",
+      "label": "Collection",
+      "title": "Collection and daily packs | Deadlock Contracts",
+      "description": "A free pack of Deadlock hero cards every day. Your collection, rarities, favorites and profile showcase.",
+      "heading": "Your collection. Your discoveries.",
+      "intro": "One free pack every day. Deadlock heroes, rare finds and cards worth putting on display.",
       "sections": [
-        {"heading": "Rarity and your collection", "text": "Card ranks are F, E, D, C, B, A, S, SS and SSS. Search your collection by hero and save favorites. The catalog grows gradually; a rarity tier does not mean every hero already has a card."},
-        {"heading": "Packs and archive tokens", "text": "Review an available pack's price and contents before opening it. Tokens are website currency, separate from XP. The server saves each opening result; the animation only reveals it. Cards are not Steam items and do not affect game balance."},
-        {"heading": "The community workshop", "text": "Players can propose card designs. Shared-catalog publication requires moderation; the project owner configures pack contents and prices. Use artwork you have permission to publish."}
+        {
+          "heading": "A daily pack",
+          "text": "Sign in with Steam and claim one available pack per day. Availability resets at 00:00 UTC. Repeating the request shows the same result without awarding extra cards."
+        },
+        {
+          "heading": "Your cards stay with you",
+          "text": "The server saves the result before the reveal animation. Search your collection by hero, save your favorites and choose a profile showcase."
+        },
+        {
+          "heading": "Rarity and artwork",
+          "text": "Collection ranks are F, E, D, C, B, A, S, SS and SSS. These are website collectibles, not Steam items, and they do not affect Deadlock’s game balance."
+        }
       ]
     }
   },
   "about": {
-    "slug": "about", "index": true,
+    "slug": "about",
+    "index": true,
     "ru": {
-      "label": "О проекте", "title": "О Deadlock Contracts — проект сообщества Deadlock",
-      "description": "Что такое Deadlock Contracts: неофициальный проект с контрактами, карточками, достижениями и бюро. Открытая бета, источники данных, поддержка и связь с командой.",
-      "heading": "О проекте Deadlock Contracts",
-      "intro": "Deadlock Contracts добавляет цели для матчей и место для сообщества между играми: контракты, карточки, достижения, профили и бюро игроков.",
+      "label": "О проекте",
+      "title": "О проекте | Deadlock Contracts",
+      "description": "Независимый проект сообщества Deadlock: контракты на матч, достижения, карточки и личный прогресс.",
+      "heading": "У каждой игры есть продолжение.",
+      "intro": "Deadlock Contracts — место для твоего прогресса. Здесь матчи превращаются в выполненные дела, достижения и личную коллекцию.",
       "sections": [
-        {"heading": "Проект сообщества", "text": "Это независимый неофициальный сервис. Deadlock и Steam принадлежат Valve; Deadlock Contracts не связан с Valve и не является официальной частью игры. Сайт работает в открытой бете и продолжает развиваться."},
-        {"heading": "Откуда берутся данные", "text": "Вход использует Steam OpenID, сведения профиля — Steam Web API, а проверка матчей — доступные данные сторонних источников Deadlock. Полнота и скорость обновления статистики зависят от этих источников."},
-        {"heading": "Участвуйте в развитии", "text": "Попробуйте учебный шифр, создайте профиль или расскажите о неудобствах через страницу поддержки. Изменения публикуются в журнале обновлений; правила обработки данных и условия использования доступны без входа."}
+        {
+          "heading": "Сделано игроками",
+          "text": "Независимый неофициальный проект Mandarin Creator Group. Deadlock и Steam принадлежат Valve. Сервис находится в альфе и продолжает развиваться."
+        },
+        {
+          "heading": "Проверяемый прогресс",
+          "text": "Вход работает через Steam OpenID. Проверка использует доступные данные Deadlock API и поддерживаемые сигналы компаньона. Полнота и скорость данных зависят от источника."
+        },
+        {
+          "heading": "Помоги сделать лучше",
+          "text": "Расскажи об ошибке или неудобстве через страницу поддержки. Правила, конфиденциальность, источники данных и журнал обновлений доступны без входа."
+        }
       ]
     },
     "en": {
-      "label": "About", "title": "About Deadlock Contracts — a Deadlock community project",
-      "description": "What is Deadlock Contracts? An unofficial community project with match challenges, hero cards, achievements and bureaus. Open beta, data sources and support.",
-      "heading": "About Deadlock Contracts",
-      "intro": "Deadlock Contracts adds goals for matches and a place for the community between games: contracts, cards, achievements, profiles and player bureaus.",
+      "label": "About",
+      "title": "About the project | Deadlock Contracts",
+      "description": "An independent Deadlock community project: match contracts, achievements, hero cards and personal progression.",
+      "heading": "There is more to every match.",
+      "intro": "Deadlock Contracts is a home for your progress. Turn matches into completed cases, achievements and a collection of your own.",
       "sections": [
-        {"heading": "A community project", "text": "This is an independent, unofficial service. Deadlock and Steam belong to Valve; Deadlock Contracts is not affiliated with Valve or an official part of the game. The website is in open beta and continues to evolve."},
-        {"heading": "Where data comes from", "text": "Sign-in uses Steam OpenID, profile information uses Steam Web API, and match verification relies on available third-party Deadlock data. The completeness and timeliness of match statistics depend on those sources."},
-        {"heading": "Help shape the project", "text": "Try the teaching cipher, create a profile or report confusing behavior through the support page. Release notes describe updates; data-processing rules and terms are accessible without signing in."}
+        {
+          "heading": "Made by players",
+          "text": "An independent, unofficial Mandarin Creator Group project. Deadlock and Steam belong to Valve. The service is in alpha and continues to evolve."
+        },
+        {
+          "heading": "Progress backed by evidence",
+          "text": "Sign-in uses Steam OpenID. Verification uses available Deadlock API data and supported companion signals. Data completeness and update speed depend on the provider."
+        },
+        {
+          "heading": "Help make it better",
+          "text": "Share bugs or friction through the support page. Terms, privacy, data sources and the changelog are available without signing in."
+        }
       ]
     }
   },
   "leaderboards": {
-    "slug": "leaderboard", "index": true,
+    "slug": "leaderboard",
+    "index": true,
     "ru": {
-      "label": "Рейтинг", "title": "Рейтинг игроков Deadlock Contracts — проверенные контракты",
+      "label": "Рейтинг",
+      "title": "Рейтинг игроков Deadlock Contracts — проверенные контракты",
       "description": "Рейтинг участников Deadlock Contracts по подтверждённым контрактным наградам. Сравните прогресс игроков: это рейтинг проекта, отдельный от ранга и MMR Deadlock.",
       "heading": "Рейтинг игроков Deadlock Contracts",
       "intro": "Сравните прогресс участников по подтверждённым наградам за контракты. Это рейтинг проекта, а не официальный рейтинг Deadlock или оценка MMR.",
       "sections": [
-        {"heading": "Что учитывается", "text": "Таблица опирается на подтверждённые контрактные награды. Тестовые начисления администратора не дают места в рейтинге. Жетоны архива и коллекция карточек не заменяют матчевый XP."},
-        {"heading": "Актуальные результаты", "text": "Таблица ниже загружает результаты с сервера. Если данные временно недоступны, попробуйте позже. Свой прогресс и место можно смотреть и из кабинета, не выходя из аккаунта."}
+        {
+          "heading": "Что учитывается",
+          "text": "Таблица опирается на подтверждённые награды за контракты. Тестовые начисления администратора не дают места в рейтинге."
+        },
+        {
+          "heading": "Актуальные результаты",
+          "text": "Таблица ниже загружает результаты с сервера. Если данные временно недоступны, попробуйте позже. Свой прогресс и место можно смотреть и из кабинета, не выходя из аккаунта."
+        }
       ]
     },
     "en": {
-      "label": "Leaderboard", "title": "Deadlock Contracts leaderboard — verified contract rewards",
+      "label": "Leaderboard",
+      "title": "Deadlock Contracts leaderboard — verified contract rewards",
       "description": "Compare Deadlock Contracts players by verified contract rewards. This community leaderboard tracks project progress, separately from your Deadlock rank or MMR.",
       "heading": "Deadlock Contracts player leaderboard",
       "intro": "Compare participants by verified contract rewards. This is the project's leaderboard, not an official Deadlock ranking or an MMR estimate.",
       "sections": [
-        {"heading": "What counts", "text": "The table uses verified contract rewards. Administrative test grants do not earn a place in the standings. Archive tokens and card collections do not replace match XP."},
-        {"heading": "Current standings", "text": "The table below loads current results from the server. If data is temporarily unavailable, try again later. Your progress and position are also available in the dashboard without signing out."}
+        {
+          "heading": "What counts",
+          "text": "Only verified contract rewards count toward the standings. Administrative test grants do not count."
+        },
+        {
+          "heading": "Current standings",
+          "text": "The table below loads current results from the server. If data is temporarily unavailable, try again later. Your dashboard also shows your progress and place in the standings."
+        }
       ]
     }
   },
   "try": {
-    "slug": "try", "index": false,
-    "ru": {"label": "Попробовать", "title": "Учебный шифр без входа | Deadlock Contracts", "description": "Попробуйте учебный шифр архива без входа в Steam. Демонстрация не начисляет наград и не сохраняет прогресс.", "heading": "Учебный шифр архива", "intro": "Попробуйте механику без входа и установки компаньона. Чтобы сохранять прогресс и получать награды за задания архива, войдите через Steam.", "sections": []},
-    "en": {"label": "Try it", "title": "Try a teaching cipher without signing in | Deadlock Contracts", "description": "Try an archive teaching cipher without Steam sign-in. This demonstration grants no rewards and does not save progress.", "heading": "Archive teaching cipher", "intro": "Try the mechanic without signing in or installing the companion. Sign in through Steam to save progress and earn rewards from archive activities.", "sections": []}
+    "slug": "try",
+    "index": false,
+    "ru": {
+      "label": "Подписание",
+      "title": "Попробовать подписание контракта | Deadlock Contracts",
+      "description": "Выбор контракта и анимация подписания свитка без регистрации. Демонстрация без сохранения результатов.",
+      "heading": "Попробуй поставить подпись.",
+      "intro": "Демонстрационная доска: выбери до трёх заданий и посмотри подписание свитка. Настоящее дело появится после входа через Steam.",
+      "sections": [
+        {
+          "heading": "Без регистрации",
+          "text": "Это демонстрация интерфейса и анимации. Она не создаёт настоящее дело, не выдаёт XP и не сохраняет результаты."
+        },
+        {
+          "heading": "Свой контракт",
+          "text": "После входа доска покажет реальные доступные задания. Сервер зафиксирует выбор и проверит подходящий матч."
+        }
+      ]
+    },
+    "en": {
+      "label": "Signing preview",
+      "title": "Try contract signing | Deadlock Contracts",
+      "description": "Choose contracts and try the scroll signing animation without registering. A preview without saved rewards.",
+      "heading": "Try putting your name on it.",
+      "intro": "Demo board: choose up to three objectives and preview scroll signing. Sign in with Steam to start a real case.",
+      "sections": [
+        {
+          "heading": "No registration required",
+          "text": "This demonstrates the interface and animation. It does not create a real case, award XP or save results."
+        },
+        {
+          "heading": "Your own contract",
+          "text": "After signing in, your board shows real available objectives. The server records your selection and verifies an eligible match."
+        }
+      ]
+    }
   },
   "campaigns": {
-    "slug": "campaigns", "index": false,
-    "ru": {"label": "Кампании · скоро", "title": "Кампании в разработке | Deadlock Contracts", "description": "Кампании Deadlock Contracts готовятся. Пока доступны ежедневные контракты, карточки и шифры архива.", "heading": "Кампании ещё в разработке", "intro": "Большие серии дел появятся отдельным обновлением. Сейчас можно выбрать контракт на матч или познакомиться с архивом карточек.", "sections": []},
-    "en": {"label": "Campaigns · soon", "title": "Campaigns in development | Deadlock Contracts", "description": "Deadlock Contracts campaigns are in development. Explore daily contracts, collectible cards and archive ciphers in the meantime.", "heading": "Campaigns are still in development", "intro": "Longer case series will arrive in a separate update. For now, choose a match contract or explore the card archive.", "sections": []}
+    "slug": "campaigns",
+    "index": false,
+    "ru": {
+      "label": "Кампании · скоро",
+      "title": "Кампании в разработке | Deadlock Contracts",
+      "description": "Кампании готовятся. Сейчас доступны контракты на матчи, коллекция и ежедневный пак.",
+      "heading": "Кампании ещё в разработке",
+      "intro": "Большие серии дел появятся отдельным обновлением. Сейчас можно выбрать контракт на матч или познакомиться с архивом карточек.",
+      "sections": []
+    },
+    "en": {
+      "label": "Campaigns · soon",
+      "title": "Campaigns in development | Deadlock Contracts",
+      "description": "Campaigns are planned. Match contracts, your collection and a free daily pack are available now.",
+      "heading": "Campaigns are still in development",
+      "intro": "Longer case series will arrive in a separate update. For now, choose a match contract or explore the card archive.",
+      "sections": []
+    }
   }
 }

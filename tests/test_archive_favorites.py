@@ -7,9 +7,20 @@ from sqlalchemy import func, select, text
 from app.main import app
 from app.models import ArchiveItem, ArchiveLedger, ArchiveOperation, SessionToken, User, utcnow
 from app.services.auth import COOKIE_NAME, csrf_token, hash_token
-from test_archive_packs import buy, fund, published
+from test_archive_packs import published
 
 pytest_plugins = ("test_player_community",)
+
+
+def owned(factory, user_id, card_id):
+    """Seed an existing collection item without invoking retired acquisition."""
+    with factory() as db:
+        operation = ArchiveOperation(user_id=user_id, request_key=str(uuid4()), signature="fixture",
+                                     kind="OWNER_CARD", scope="REAL", result={"historical": True})
+        db.add(operation); db.flush()
+        db.add(ArchiveItem(user_id=user_id, card_id=card_id, operation_id=operation.id, cost_basis=25, scope="REAL"))
+        db.commit()
+
 
 
 def test_favorite_owned_card_is_private_idempotent_and_removable(community):
@@ -17,8 +28,7 @@ def test_favorite_owned_card_is_private_idempotent_and_removable(community):
     user_id, client = player("Collector")
     _, other = player("Other")
     card_id = published(factory)
-    fund(factory, user_id)
-    assert buy(client, card_id).status_code == 200
+    owned(factory, user_id, card_id)
 
     with factory() as db:
         before = (
@@ -57,8 +67,7 @@ def test_favorite_requires_auth_csrf_and_strict_payload(community):
     factory, player = community
     user_id, client = player()
     card_id = published(factory)
-    fund(factory, user_id)
-    assert buy(client, card_id).status_code == 200
+    owned(factory, user_id, card_id)
 
     csrf = client.headers.pop("X-CSRF-Token")
     assert client.put(f"/api/archive/favorites/{card_id}", json={"favorite": True}).status_code == 403
@@ -76,9 +85,8 @@ def test_inventory_marks_and_filters_favorites_before_total_and_pagination(commu
     favorite = published(factory, rank="A", hero="haze")
     other = published(factory, rank="A", hero="haze")
     unrelated = published(factory, rank="F", hero="abrams")
-    fund(factory, user_id, 1000)
     for card_id in (favorite, other, unrelated):
-        assert buy(client, card_id, price={"A": 380, "F": 25}["A" if card_id in (favorite, other) else "F"]).status_code == 200
+        owned(factory, user_id, card_id)
     assert client.put(f"/api/archive/favorites/{favorite}", json={"favorite": True}).status_code == 200
 
     inventory = client.get("/api/archive/inventory?hero=haze&rank=A&q=Released").json()
@@ -90,17 +98,16 @@ def test_inventory_marks_and_filters_favorites_before_total_and_pagination(commu
     assert filtered["items"][0]["favorite"] is True
 
 
-def test_favorite_survives_duplicate_recycling_and_deletes_with_account(community):
+def test_favorite_survives_retired_recycling_and_deletes_with_account(community):
     factory, player = community
     user_id, client = player()
     _, other = player()
     card_id = published(factory)
-    fund(factory, user_id)
-    assert buy(client, card_id).status_code == 200
-    assert buy(client, card_id).status_code == 200
+    owned(factory, user_id, card_id)
+    owned(factory, user_id, card_id)
     assert client.put(f"/api/archive/favorites/{card_id}", json={"favorite": True}).status_code == 200
     duplicate = client.get("/api/archive/inventory").json()["items"][0]["recycle"]
-    assert client.post(f"/api/archive/items/{duplicate['id']}/recycle", json={"request_key": str(uuid4())}).status_code == 200
+    assert client.post(f"/api/archive/items/{duplicate['id']}/recycle", json={"request_key": str(uuid4())}).status_code == 410
     client.close()
 
     token = uuid4().hex
@@ -116,7 +123,8 @@ def test_favorite_survives_duplicate_recycling_and_deletes_with_account(communit
         assert other.get("/api/archive/favorites").json() == {"card_ids": []}
 
         with factory() as db:
-            db.scalar(select(ArchiveItem).where(ArchiveItem.user_id == user_id, ArchiveItem.state == "OWNED")).state = "RECYCLED"
+            for item in db.scalars(select(ArchiveItem).where(ArchiveItem.user_id == user_id, ArchiveItem.state == "OWNED")):
+                item.state = "RECYCLED"
             db.commit()
         assert reopened.put(f"/api/archive/favorites/{card_id}", json={"favorite": False}).json() == {
             "card_id": card_id, "favorite": False}

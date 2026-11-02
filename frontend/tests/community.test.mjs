@@ -719,3 +719,24 @@ test("staff queue sends the report revision and preserves a stale decision for r
   assert.equal(doc.querySelector("script"), null)
   await api.act(async () => root.unmount())
 })
+
+test("public dossier shows collectibles without Arena showcase requests or links", async () => {
+  const calls = []
+  const { api, doc } = runtime(async (url) => {
+    calls.push(String(url))
+    return String(url).includes("/arena/")
+      ? response({ showcase: null })
+      : response({ profile: profile() })
+  }, "en")
+  let root
+  await api.act(async () => {
+    root = api.mount(doc.getElementById("mount"), "publicDossier", { slug: "profile-test" })
+  })
+  assert.ok(doc.querySelector(".dossier-identity"))
+  assert.equal(
+    calls.some((url) => url.includes("/arena/")),
+    false,
+  )
+  assert.equal(doc.querySelector('a[href*="#arena"]'), null)
+  await api.act(async () => root.unmount())
+})

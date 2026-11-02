@@ -1,556 +1,98 @@
-import Icon from "../icons/Icon"
-import { ArchiveScene } from "../nightshift-layout"
-import { useEffect, useState } from "react"
-import { request, useResource } from "../community/api"
+import { useState } from "react"
+import { useResource } from "../community/api"
 import { useLanguage } from "../i18n"
-import CardPreview from "./CardPreview"
-import CardStudio, { CardStatus } from "./CardStudio"
-import Cipher from "./Cipher"
-import PackShop from "./PackShop"
 import CollectionPage from "./CollectionPage"
-import CoinRewards from "./CoinRewards"
-import { accessReason } from "./battleAccess"
+import DailyPack from "./DailyPack"
 import { useFavorites } from "./favorites"
-import { TransactionStatus, useTransaction } from "./transactions"
-import { RANKS, type Card, type EconomyScope, type Meta, type Wallet } from "./types"
+import type { Meta } from "./types"
 import "./archive.css"
 import "./packs.css"
-import "./nightshift-archive.css"
 
 export default function ArchivePage({
   csrf,
-  mode = "archive",
+  mode = "collection",
+  accountKey = "",
+  onCollectionChange,
   onWalletChange,
 }: {
   csrf: string
   mode?: "archive" | "studio" | "wallet" | "packs" | "collection"
-  onWalletChange: () => void
+  accountKey?: string
+  onCollectionChange?: () => void
+  onWalletChange?: () => void
 }) {
-  const { language, locale } = useLanguage()
+  const { language } = useLanguage()
   const ru = language === "ru"
-  const [view, setView] = useState(
-    mode === "studio" ? "mine" : mode === "archive" ? "cipher" : mode,
-  )
-  const [hero, setHero] = useState("")
-  const [rank, setRank] = useState("")
-  const [query, setQuery] = useState("")
-  const [search, setSearch] = useState("")
-  const [offset, setOffset] = useState(0)
-  const [historyOffset, setHistoryOffset] = useState(0)
-  const [editing, setEditing] = useState<Card | "new" | null>(null)
-  const [busy, setBusy] = useState(false)
-  const [error, setError] = useState("")
-  const [notice, setNotice] = useState("")
-  const [collectionRevision, setCollectionRevision] = useState(0)
-  const [scope, setScope] = useState<EconomyScope>("REAL")
-  const activeScope = ["cipher", "mine"].includes(view) ? "REAL" : scope
+  const [view, setView] = useState(mode === "packs" ? "packs" : "collection")
+  const [revision, setRevision] = useState(0)
   const meta = useResource<Meta>("/api/archive/meta")
-  const favorites = useFavorites(csrf, meta.data?.account_key || "", activeScope)
-  const wallet = useResource<Wallet>(
-    `/api/archive/wallet?offset=${historyOffset}&scope=${activeScope}`,
-  )
-  useEffect(() => {
-    const refresh = () => wallet.reload()
-    window.addEventListener("dc-archive-wallet", refresh)
-    return () => window.removeEventListener("dc-archive-wallet", refresh)
-  }, [])
-  const cards = useResource<{ items: Card[]; total: number }>(
-    `/api/archive/cards?mine=${view === "mine"}&hero=${encodeURIComponent(hero)}&rank=${encodeURIComponent(rank)}&q=${encodeURIComponent(search)}&offset=${offset}&scope=${activeScope}`.replace(
-      "&rank=&",
-      "&",
-    ),
-  )
-  const coverage = useResource<{ items: { hero: string; rank: string; count: number }[] }>(
-    "/api/archive/coverage",
-  )
-  const transaction = useTransaction(csrf, meta.data?.account_key || "", () => {
-    wallet.reload()
-    onWalletChange()
-    setCollectionRevision((value) => value + 1)
-  })
-  const receiptScope = transaction.receipt?.scope ?? activeScope
-  const receiptFavorites = useFavorites(
-    csrf,
-    receiptScope === activeScope ? "" : meta.data?.account_key || "",
-    receiptScope,
-  )
-  const chooseView = (next: string) => {
-    setView(next)
-    setOffset(0)
-    setEditing(null)
-    setError("")
-    setNotice("")
+  const account = accountKey || meta.data?.account_key || ""
+  const favorites = useFavorites(csrf, account, "REAL")
+  const changed = () => {
+    setRevision((value) => value + 1)
+    onCollectionChange?.()
+    // Retain the prop for old embedders without fetching or displaying a wallet.
+    onWalletChange?.()
   }
-  const authorAction = async (card: Card, action: string) => {
-    setBusy(true)
-    setError("")
-    try {
-      await request(`/api/archive/cards/${card.id}/${action}`, csrf, {
-        method: "POST",
-        body: JSON.stringify({ revision: card.revision }),
-      })
-      cards.reload()
-      setNotice(ru ? "Состояние карточки обновлено." : "Card status updated.")
-    } catch (reason) {
-      setError((reason as Error).message)
-      cards.reload()
-    } finally {
-      setBusy(false)
-    }
-  }
-  if (!meta.data)
-    return (
-      <section className="archive-page">
-        <p role={meta.error ? "alert" : "status"}>
-          {meta.error || (ru ? "Открываем архив…" : "Opening archive…")}
-        </p>
-        {meta.error && <button onClick={meta.reload}>{ru ? "Повторить" : "Retry"}</button>}
-      </section>
-    )
   return (
-    <section className="archive-page" data-view={view}>
+    <section className="archive-page ritual-collection" data-view={view}>
       <header className="archive-heading">
         <div>
-          <small>DEADLOCK CONTRACTS / ARCHIVE BUREAU</small>
+          <small>DEADLOCK CONTRACTS / {ru ? "КОЛЛЕКЦИЯ" : "COLLECTION"}</small>
           <h1>
-            {
-              (
-                {
-                  collection: ru ? "Истории в твоих руках." : "Stories in your hands.",
-                  catalog: ru ? "Каталог карточек." : "The card catalogue.",
-                  mine: ru ? "Студия карточек." : "Card studio.",
-                  packs: ru ? "Что внутри?" : "What's inside?",
-                  cipher: ru ? "У города есть секреты." : "The city has secrets.",
-                  wallet: ru ? "История монет." : "Coin history.",
-                } as Record<string, string>
-              )[view]
-            }
+            {view === "packs"
+              ? ru
+                ? "Ежедневный конверт"
+                : "Daily pack"
+              : ru
+                ? "Твоя коллекция"
+                : "Your collection"}
           </h1>
           <p>
             {ru
-              ? "Расшифровывай документы. Открывай конверты. Собирай свою коллекцию."
-              : "Decode documents. Open envelopes. Build your collection."}
+              ? "Карточки героев из ежедневных конвертов. Собирай и выбирай любимые."
+              : "Hero cards from your daily packs. Collect them and keep your favorites."}
           </p>
         </div>
-        <div className="archive-balance">
-          <small>
-            {activeScope === "SANDBOX"
-              ? ru
-                ? "Тестовые монеты"
-                : "Sandbox coins"
-              : ru
-                ? "Монеты бюро"
-                : "Bureau coins"}
-          </small>
-          <strong>
-            <Icon name="coins" size={18} />{" "}
-            {wallet.data
-              ? (wallet.data.available_balance ?? wallet.data.balance).toLocaleString(locale)
-              : "—"}
-          </strong>
-          {!!wallet.data?.debt && (
-            <small>
-              {ru ? "Долг" : "Debt"}: {wallet.data.debt.toLocaleString(locale)}
-            </small>
-          )}
-        </div>
       </header>
-      {["collection", "catalog"].includes(view) && <ArchiveScene />}
-      <nav className="archive-tabs" aria-label={ru ? "Разделы архива" : "Archive sections"}>
-        {[
-          ["cipher", ru ? "Шифр бюро" : "Cipher"],
-          ["packs", ru ? "Конверты" : "Envelopes"],
-          ["collection", ru ? "Моя коллекция" : "My collection"],
-          ["catalog", ru ? "Каталог" : "Catalogue"],
-          ["mine", ru ? "Мои карточки" : "My designs"],
-          ["wallet", ru ? "История монет" : "Coin history"],
-        ].map(([key, label]) => (
-          <button
-            key={key}
-            aria-current={view === key ? "page" : undefined}
-            onClick={() => chooseView(key)}
-          >
-            {label}
-          </button>
-        ))}
+      <nav className="archive-tabs" aria-label={ru ? "Коллекция" : "Collection"}>
+        <button
+          aria-current={view === "collection" ? "page" : undefined}
+          onClick={() => setView("collection")}
+        >
+          {ru ? "Моя коллекция" : "My collection"}
+        </button>
+        <button
+          aria-current={view === "packs" ? "page" : undefined}
+          onClick={() => setView("packs")}
+        >
+          {ru ? "Ежедневный конверт" : "Daily pack"}
+        </button>
       </nav>
-      {!["cipher", "mine"].includes(view) && (
-        <label className="archive-filters">
-          {ru ? "Счёт и коллекция" : "Wallet & collection"}
-          <select
-            aria-label={ru ? "Область экономики" : "Economy scope"}
-            value={scope}
-            disabled={transaction.busy}
-            onChange={(event) => {
-              setScope(event.target.value as EconomyScope)
-              setHistoryOffset(0)
-              setOffset(0)
-            }}
-          >
-            <option value="REAL">{ru ? "Основной счёт" : "Real economy"}</option>
-            <option value="SANDBOX">{ru ? "Тестовый счёт" : "Sandbox"}</option>
-          </select>
-          {scope === "SANDBOX" && (
-            <small>
-              {ru
-                ? "Покупки тестовыми монетами создают тестовые экземпляры."
-                : "Sandbox purchases create test copies."}
-            </small>
-          )}
-        </label>
+      {view === "packs" && (
+        <DailyPack
+          key={account}
+          accountKey={account}
+          csrf={csrf}
+          favorites={favorites}
+          onClaimed={changed}
+        />
       )}
-      {(error || cards.error || wallet.error) && (
-        <p role="alert">
-          {error || cards.error || wallet.error}{" "}
-          <button
-            onClick={() => {
-              setError("")
-              cards.reload()
-              wallet.reload()
-            }}
-          >
-            {ru ? "Обновить" : "Refresh"}
-          </button>
+      {view === "collection" && !meta.data && (
+        <p role={meta.error ? "alert" : "status"}>
+          {meta.error || (ru ? "Загрузка коллекции…" : "Loading collection…")}
+          {meta.error && <button onClick={meta.reload}>{ru ? "Повторить" : "Retry"}</button>}
         </p>
       )}
-      {notice && <p role="status">{notice}</p>}
-      <TransactionStatus
-        transaction={transaction}
-        favorites={receiptScope === activeScope ? favorites : receiptFavorites}
-      />
-      {view === "packs" && (
-        <PackShop
-          key={activeScope}
-          scope={activeScope}
-          revision={collectionRevision}
-          balance={wallet.data?.available_balance ?? wallet.data?.balance ?? 0}
-          transaction={transaction}
-        />
-      )}
-      {view === "collection" && (
+      {view === "collection" && meta.data && (
         <CollectionPage
-          key={activeScope}
-          scope={activeScope}
+          key={account}
+          csrf={csrf}
+          meta={meta.data}
+          scope="REAL"
           favorites={favorites}
-          csrf={csrf}
-          meta={meta.data}
-          revision={collectionRevision}
-          transaction={transaction}
+          revision={revision}
         />
-      )}
-      {view === "cipher" && wallet.data && (
-        <Cipher
-          wallet={wallet.data}
-          csrf={csrf}
-          onEarned={() => {
-            wallet.reload()
-            onWalletChange()
-          }}
-        />
-      )}
-      {(view === "cipher" || view === "wallet") && !wallet.data && !wallet.error && (
-        <p role="status">{ru ? "Загружаем счёт…" : "Loading wallet…"}</p>
-      )}
-      {view === "wallet" && wallet.data && (
-        <>
-          {activeScope === "REAL" && <CoinRewards />}
-          <div className="archive-panel">
-            <h2>{ru ? "История монет" : "Coin history"}</h2>
-            <p>
-              {ru ? "Доступно" : "Available"}:{" "}
-              {wallet.data.available_balance ?? wallet.data.balance} ·{" "}
-              {ru ? "Итоговый баланс" : "Net balance"}:{" "}
-              {wallet.data.net_balance ?? wallet.data.balance} · {ru ? "Долг" : "Debt"}:{" "}
-              {wallet.data.debt ?? 0}
-            </p>
-            <p>
-              {ru
-                ? "Монеты тратятся на конверты или конкретные карточки в каталоге. История показывает источник каждой операции. Новые награды сначала погашают долг. XP за матчи учитывается отдельно."
-                : "Spend coins on envelopes or specific catalogue cards. Each entry identifies its source. New rewards repay debt first. Match XP is separate."}
-            </p>
-            {wallet.data.history.length ? (
-              <ul className="archive-ledger">
-                {wallet.data.history.map((item) => (
-                  <li key={item.id}>
-                    <span>{new Date(item.created_at).toLocaleString(locale)}</span>
-                    <span>
-                      {
-                        ({
-                          CIPHER: ["Шифр бюро", "Bureau cipher"],
-                          PACK_OPEN: ["Открытие конверта", "Pack opening"],
-                          DIRECT_CARD: ["Получение карточки", "Direct card"],
-                          RECYCLE: ["Обмен дубля", "Duplicate recycling"],
-                          OWNER_TOKENS: ["Корректировка OWNER", "OWNER adjustment"],
-                          OWNER_REAL_ADJUSTMENT: [
-                            "Ручная корректировка основного баланса",
-                            "Manual real balance correction",
-                          ],
-                          CONTRACT: ["Контракт", "Contract"],
-                          CONTRACT_REWARD: ["Контракт", "Contract"],
-                          CASE_BONUS: ["Бонус дела", "Case bonus"],
-                          COIN_CORRECTION: ["Исправление награды", "Reward correction"],
-                          PVE_WIN: ["Победа PvE", "PvE win"],
-                          DAILY_ACTIVITY: ["Активность за день", "Daily activity"],
-                          WEEKLY_COMMISSION: ["Недельный заказ", "Weekly commission"],
-                          TUTORIAL_ROUTE: ["Обучающий маршрут", "Tutorial route"],
-                          CONTRACT_MILESTONE: ["Рубеж контрактов", "Contract milestone"],
-                          BUREAU_OPERATION: ["Операция бюро", "Bureau operation"],
-                        }[item.reason] || [item.reason, item.reason])[ru ? 0 : 1]
-                      }
-                      {item.source && <small> · {item.source}</small>}
-                    </span>
-                    <b>
-                      {item.delta > 0 ? "+" : ""}
-                      {item.delta} <Icon name="coins" size={18} />
-                    </b>
-                  </li>
-                ))}
-              </ul>
-            ) : (
-              <p>{ru ? "Пока нет операций на этом счёте." : "No entries in this wallet yet."}</p>
-            )}
-            <Pager
-              offset={historyOffset}
-              total={wallet.data.history_total}
-              size={20}
-              setOffset={setHistoryOffset}
-            />
-          </div>
-        </>
-      )}
-      {view === "mine" && editing && (
-        <CardStudio
-          key={editing === "new" ? "new" : `${editing.id}:${editing.revision}`}
-          card={editing === "new" ? undefined : editing}
-          meta={meta.data}
-          csrf={csrf}
-          onCancel={() => setEditing(null)}
-          onSaved={() => {
-            setEditing(null)
-            cards.reload()
-            setNotice(
-              ru
-                ? "Черновик сохранён. Проверь его и отправь администратору."
-                : "Draft saved. Check it and submit for review.",
-            )
-          }}
-        />
-      )}
-      {["catalog", "mine"].includes(view) && !editing && (
-        <>
-          <div className="archive-section-heading">
-            <div>
-              <h2>
-                {view === "mine"
-                  ? ru
-                    ? "Мастерская оперативника"
-                    : "Operative's studio"
-                  : ru
-                    ? "Каталог карточек"
-                    : "Card catalogue"}
-              </h2>
-              <p>
-                {view === "mine"
-                  ? ru
-                    ? "Создание доступно каждому. Публикация — после проверки администратором."
-                    : "Anyone can design. An administrator reviews each publication."
-                  : ru
-                    ? "Опубликованные дизайны. Наличие в каталоге ещё не означает владение карточкой."
-                    : "Published designs. A catalogue entry does not grant ownership."}
-              </p>
-            </div>
-            {view === "mine" && (
-              <button
-                className="archive-primary"
-                onClick={() => {
-                  setEditing("new")
-                  setError("")
-                  setNotice("")
-                }}
-              >
-                {ru ? "+ Создать карточку" : "+ Create card"}
-              </button>
-            )}
-          </div>
-          <form
-            className="archive-filters"
-            onSubmit={(e) => {
-              e.preventDefault()
-              setSearch(query)
-              setOffset(0)
-            }}
-          >
-            <label>
-              {ru ? "Герой" : "Hero"}
-              <select
-                value={hero}
-                onChange={(e) => {
-                  setHero(e.target.value)
-                  setOffset(0)
-                }}
-              >
-                <option value="">{ru ? "Все герои" : "All heroes"}</option>
-                {meta.data.heroes.map((h) => (
-                  <option key={h.key} value={h.key}>
-                    {h.name}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label>
-              {ru ? "Ранг" : "Rank"}
-              <select
-                value={rank}
-                onChange={(e) => {
-                  setRank(e.target.value)
-                  setOffset(0)
-                }}
-              >
-                <option value="">{ru ? "Все ранги" : "All ranks"}</option>
-                {meta.data.ranks.map((r) => (
-                  <option key={r}>{r}</option>
-                ))}
-              </select>
-            </label>
-            <label>
-              {ru ? "Название или автор" : "Title or artist"}
-              <input value={query} maxLength={80} onChange={(e) => setQuery(e.target.value)} />
-            </label>
-            <button type="submit">{ru ? "Найти" : "Search"}</button>
-          </form>
-          {hero && view === "catalog" && (
-            <div
-              className="archive-coverage"
-              aria-label={ru ? "Заполнение рангов героя" : "Hero rank coverage"}
-            >
-              {RANKS.map((r) => {
-                const count =
-                  coverage.data?.items.find((i) => i.hero === hero && i.rank === r)?.count || 0
-                return (
-                  <span key={r} data-filled={count > 0}>
-                    {r} <b>{count}</b>
-                  </span>
-                )
-              })}
-            </div>
-          )}
-          {cards.loading ? (
-            <p role="status">{ru ? "Загружаем карточки…" : "Loading cards…"}</p>
-          ) : !cards.data?.items.length ? (
-            <div className="archive-empty">
-              <Icon name="layers" size={28} />
-              <h3>{ru ? "Здесь начинается коллекция" : "The collection starts here"}</h3>
-              <p>
-                {view === "mine"
-                  ? ru
-                    ? "Создай первый дизайн: изображение, герой и рамка нужного ранга."
-                    : "Create your first design: artwork, hero and a rank frame."
-                  : ru
-                    ? "По этим условиям пока нет опубликованных карточек. Первые дизайны появятся после проверки."
-                    : "No published cards match yet. Designs appear after review."}
-              </p>
-            </div>
-          ) : (
-            <div className="archive-grid">
-              {cards.data.items.map((card) => (
-                <article key={card.id}>
-                  <CardPreview card={card} />
-                  <CardStatus card={card} />
-                  <h3 className="archive-item-title">{card.title}</h3>
-                  <p>{card.description}</p>
-                  <small>{card.artist}</small>
-                  {card.source_url && (
-                    <a href={card.source_url} target="_blank" rel="noopener noreferrer">
-                      {ru ? "Источник изображения" : "Artwork source"}
-                    </a>
-                  )}
-                  {card.review_note && <p className="archive-review-note">{card.review_note}</p>}
-                  {view === "catalog" && meta.data!.direct_costs && (
-                    <button
-                      disabled={
-                        transaction.busy ||
-                        !!transaction.pending ||
-                        (card.rank === "EX" && card.ex_access?.eligible === false) ||
-                        !wallet.data ||
-                        (wallet.data.available_balance ?? wallet.data.balance) <
-                          meta.data!.direct_costs[card.rank]
-                      }
-                      onClick={() =>
-                        void transaction.execute(`/api/archive/cards/${card.id}/acquire`, {
-                          expected_price: meta.data!.direct_costs[card.rank],
-                          scope: activeScope,
-                        })
-                      }
-                    >
-                      {ru
-                        ? `Получить за ${meta.data!.direct_costs[card.rank]} монет`
-                        : `Acquire for ${meta.data!.direct_costs[card.rank]} coins`}
-                    </button>
-                  )}
-                  {view === "catalog" && card.rank === "EX" && (
-                    <>
-                      <p>
-                        {ru
-                          ? "База EX: 2 очка состава. Доступ: аккаунту 7 дней, 20 проверенных контрактов или 15 наградных PvE-побед, победа в испытании этого покровителя и покупка за 1800 монет."
-                          : "EX base: 2 squad points. Requires a 7-day account, 20 verified contracts or 15 reward-eligible PvE wins, this patron's trial win and a 1800 coin purchase."}
-                      </p>
-                      {card.ex_access?.reasons.map((reason) => (
-                        <small key={reason}>{accessReason(reason, ru)} · </small>
-                      ))}
-                      <a href="#arena/squad">
-                        {ru ? "Проверить доступ и пройти испытание" : "Check access & play trial"}
-                      </a>
-                    </>
-                  )}
-                  {typeof card.battle_eligible === "boolean" && (
-                    <p>
-                      {card.battle_eligible
-                        ? ru
-                          ? "Боевой вариант одобрен"
-                          : "Approved battle variant"
-                        : ru
-                          ? "Коллекционный дизайн: боевой допуск ещё не выдан"
-                          : "Collectible artwork: battle approval pending"}
-                    </p>
-                  )}
-                  {view === "mine" && (
-                    <div className="archive-actions">
-                      {["DRAFT", "REJECTED"].includes(card.status) && (
-                        <>
-                          <button disabled={busy} onClick={() => setEditing(card)}>
-                            {ru ? "Редактировать" : "Edit"}
-                          </button>
-                          <button disabled={busy} onClick={() => void authorAction(card, "submit")}>
-                            {ru ? "На проверку" : "Submit"}
-                          </button>
-                          <button
-                            disabled={busy}
-                            onClick={() => {
-                              if (
-                                window.confirm(ru ? "Удалить этот черновик?" : "Remove this draft?")
-                              )
-                                void authorAction(card, "remove")
-                            }}
-                          >
-                            {ru ? "Удалить" : "Remove"}
-                          </button>
-                        </>
-                      )}
-                      {card.status === "PENDING" && (
-                        <button disabled={busy} onClick={() => void authorAction(card, "withdraw")}>
-                          {ru ? "Отозвать заявку" : "Withdraw"}
-                        </button>
-                      )}
-                    </div>
-                  )}
-                </article>
-              ))}
-            </div>
-          )}
-          {cards.data && (
-            <Pager offset={offset} total={cards.data.total} size={18} setOffset={setOffset} />
-          )}
-        </>
       )}
     </section>
   )
@@ -565,21 +107,21 @@ export function Pager({
   offset: number
   total: number
   size: number
-  setOffset: (offset: number) => void
+  setOffset: (value: number) => void
 }) {
   const { language } = useLanguage()
-  if (!total) return null
+  if (total <= size) return null
   return (
-    <div className="archive-pager">
+    <nav className="archive-pager" aria-label={language === "ru" ? "Страницы" : "Pages"}>
       <button disabled={!offset} onClick={() => setOffset(Math.max(0, offset - size))}>
         {language === "ru" ? "Назад" : "Previous"}
       </button>
       <span>
-        {Math.min(offset + 1, total)}–{Math.min(offset + size, total)} / {total}
+        {Math.floor(offset / size) + 1} / {Math.ceil(total / size)}
       </span>
       <button disabled={offset + size >= total} onClick={() => setOffset(offset + size)}>
         {language === "ru" ? "Далее" : "Next"}
       </button>
-    </div>
+    </nav>
   )
 }

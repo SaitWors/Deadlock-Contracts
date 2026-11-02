@@ -5,16 +5,39 @@ import hashlib
 import json
 import secrets
 from collections import Counter
+from datetime import datetime, time, timedelta, timezone
 from uuid import NAMESPACE_URL, uuid5
 
 from fastapi import HTTPException
 from sqlalchemy import Integer, func, select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import undefer
 
-from ..models import (ArchiveCard, ArchiveFavorite, ArchiveItem, ArchiveLedger, ArchiveOperation, ArchivePack,
-                      ArchivePackVersion, ArchiveShowcase, AuditLog, PublicProfile)
-from .archive import ECONOMY_SCOPES, HEROES, MAX_BALANCE, RANKS, aware, battle_metadata, card_payload, lock_user, wallet_state
+from ..models import (
+    ArchiveCard,
+    ArchiveFavorite,
+    ArchiveItem,
+    ArchiveLedger,
+    ArchiveOperation,
+    ArchivePack,
+    ArchivePackVersion,
+    ArchiveShowcase,
+    AuditLog,
+    PublicProfile,
+    utcnow,
+)
 from . import pack_rules
+from .archive import (
+    ECONOMY_SCOPES,
+    HEROES,
+    MAX_BALANCE,
+    RANKS,
+    aware,
+    battle_metadata,
+    card_payload,
+    lock_user,
+    wallet_state,
+)
 
 # Internal collection balance, not a cash value or an external market estimate.
 DIRECT_COST = {**dict(zip(pack_rules.RANKS, (25, 40, 70, 120, 220, 380, 700, 1300, 2600))), "EX": 1800}
@@ -210,7 +233,7 @@ def finish(db, operation, *, delta=0, items=None, extra=None, allow_debt=False):
     current = balance(db, operation.user_id, operation.scope)
     if delta < 0 and not allow_debt and max(0, current) < -delta:
         raise HTTPException(409, "Недостаточно жетонов / Not enough tokens")
-    if current + delta > MAX_BALANCE:
+    if delta > 0 and current + delta > MAX_BALANCE:
         raise HTTPException(409, "Достигнут предел баланса / Balance limit reached")
     if delta:
         db.add(ArchiveLedger(user_id=operation.user_id, source="operation:" + operation.id, reason=operation.kind,
@@ -520,3 +543,123 @@ def profile_cards(db, user_id, *, public_slug=None):
             card["image_url"] = f"/api/public/players/{public_slug}/archive/cards/{card_id}/image"
         result.append(card)
     return {"show_cards": visible, "cards": result}
+
+
+def _daily_window(scope, now=None):
+    day = aware(now or utcnow()).astimezone(timezone.utc).date()
+    # Reuses the deployed unique(user_id, benefit_key), including scope. No
+    # historical migration or table needs changing for this new benefit type.
+    key = f"daily:{scope}:{day.isoformat()}"
+    reset = datetime.combine(day + timedelta(days=1), time.min, tzinfo=timezone.utc).isoformat()
+    return day, key, reset
+
+
+def _daily_operation(db, user_id, key):
+    return db.scalar(select(ArchiveOperation).where(ArchiveOperation.user_id == user_id,
+                                                   ArchiveOperation.benefit_key == key))
+
+
+def _daily_pool(db, *, lock=False):
+    # Prefer the existing introductory release; otherwise use the oldest active
+    # release. Skip unavailable releases rather than consuming the entitlement.
+    statement = select(ArchivePack).where(ArchivePack.active.is_(True)).order_by(
+        ArchivePack.starter.desc(), ArchivePack.created_at, ArchivePack.id)
+    if lock:
+        statement = statement.with_for_update().execution_options(populate_existing=True)
+    for pack in db.scalars(statement):
+        version = pack_version(db, pack)
+        if version is None:
+            continue
+        config = version.config
+        cards = cards_for_pool(db, config["entries"], lock=lock)
+        ready = (ready_v2_pool(db, config["entries"], cards, lock=lock)
+                 if config.get("rule_version") == pack_rules.RULE_VERSION else ready_pool(config["entries"], cards))
+        if ready:
+            return pack, version, cards
+    return None
+
+
+def daily_status(db, user_id, scope="REAL"):
+    _, key, reset = _daily_window(scope)
+    claimed = _daily_operation(db, user_id, key)
+    pool = _daily_pool(db)
+    pack = {**pack_payload(db, pool[0], version=pool[1], user_id=user_id, scope=scope), "price": 0} if pool else None
+    return {"available": claimed is None and pool is not None, "next_reset_at": reset,
+            "claimed_at": aware(claimed.created_at).isoformat() if claimed else None,
+            "pack": pack, "operation_id": claimed.id if claimed else None}
+
+
+
+def _daily_replay(db, claimed, request_key):
+    """Durably bind every replay key to its original receipt, without a grant."""
+    prior = db.scalar(select(ArchiveOperation).where(ArchiveOperation.user_id == claimed.user_id,
+                                                    ArchiveOperation.request_key == str(request_key)))
+    if prior:
+        if prior.kind not in {"DAILY_PACK", "DAILY_PACK_REPLAY"} or prior.scope != claimed.scope:
+            raise HTTPException(409, "Request key reused")
+        return receipt_payload(prior)
+    try:
+        alias, replay = begin(db, claimed.user_id, "DAILY_PACK_REPLAY", request_key,
+                              {"operation_id": claimed.id}, scope=claimed.scope)
+        if not replay:
+            alias.pack_version_id = claimed.pack_version_id
+            alias.result = dict(claimed.result)
+            db.commit()
+        return receipt_payload(alias)
+    except IntegrityError:
+        db.rollback()
+        alias = db.scalar(select(ArchiveOperation).where(ArchiveOperation.user_id == claimed.user_id,
+                                                         ArchiveOperation.request_key == str(request_key)))
+        if alias and alias.kind in {"DAILY_PACK", "DAILY_PACK_REPLAY"} and alias.scope == claimed.scope and alias.result:
+            return receipt_payload(alias)
+        raise HTTPException(409, "Request key reused") from None
+
+def claim_daily_pack(db, user_id, request_key, scope="REAL"):
+    # PostgreSQL serializes claims per recipient; the deployed unique benefit
+    # constraint is the final fence, including engines without row locks.
+    lock_user(db, user_id)
+    day, benefit_key, reset = _daily_window(scope)
+    prior = db.scalar(select(ArchiveOperation).where(ArchiveOperation.user_id == user_id,
+                                                    ArchiveOperation.request_key == str(request_key)))
+    if prior:
+        if prior.kind not in {"DAILY_PACK", "DAILY_PACK_REPLAY"} or prior.scope != scope:
+            raise HTTPException(409, "Request key reused")
+        return receipt_payload(prior)
+    claimed = _daily_operation(db, user_id, benefit_key)
+    if claimed:
+        return _daily_replay(db, claimed, request_key)
+    pool = _daily_pool(db, lock=True)
+    if pool is None:
+        raise HTTPException(409, "Ежедневный конверт пока недоступен / Daily pack unavailable")
+    pack, version, cards = pool
+    config = version.config
+    try:
+        operation, replay = begin(db, user_id, "DAILY_PACK", request_key, {"day": day.isoformat()}, scope=scope)
+        if replay:
+            return receipt_payload(operation)
+        operation.benefit_key = benefit_key
+        operation.pack_version_id = version.id
+        db.flush()  # Claim the unique day before issuing inventory.
+        if config.get("rule_version") == pack_rules.RULE_VERSION:
+            # Free packs use existing slot draws without advancing paid guarantees.
+            counters = {key: 0 for key in pack_rules.THRESHOLDS}
+            selected, draws = [], []
+            for slot in config["slots"]:
+                draw, counters = pack_rules.draw_slot(slot, counters, secrets.randbelow)
+                selected.append(cards[pack_rules.choose_artwork(config["entries"], draw["rank"], secrets.randbelow)])
+                draws.append(draw)
+            items = [{**item, **draw} for item, draw in zip(issue(db, operation, selected), draws)]
+            odds = pack_rules.slot_odds("ORDINARY")
+        else:
+            items = issue(db, operation, [cards[cid] for cid in choose(config["entries"], config["draws"])])
+            odds = rank_odds(config["entries"])
+        return finish(db, operation, items=items, extra={"claim_day": day.isoformat(), "next_reset_at": reset,
+            "pack": {"id": pack.id, "title": config["title"], "revision": pack.revision,
+                     "price": 0, "draws": config["draws"], "odds": odds}})
+    except IntegrityError:
+        db.rollback()
+        # A competing successful transaction owns this day's immutable result.
+        claimed = _daily_operation(db, user_id, benefit_key)
+        if claimed and claimed.result:
+            return _daily_replay(db, claimed, request_key)
+        raise

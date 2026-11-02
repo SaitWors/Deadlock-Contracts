@@ -12,8 +12,8 @@
     const p = value && typeof value === "object" ? value : {};
     return {
       theme: modes.includes(p.theme) ? p.theme : "dark",
-      accent: typeof p.accent === "string" && /^#[a-f\d]{6}$/i.test(p.accent) ? p.accent : "#d6a2d1",
-      radius: Number.isFinite(p.radius) ? Math.max(12, Math.min(28, p.radius)) : 22,
+      accent: typeof p.accent === "string" && /^#[a-f\d]{6}$/i.test(p.accent) ? p.accent : "#aec69b",
+      radius: Number.isFinite(p.radius) ? Math.max(0, Math.min(8, p.radius)) : 4,
       motion: p.motion !== false,
     };
   }
@@ -35,11 +35,11 @@
     root.dataset.motion = p.motion ? "full" : "reduced";
     root.style.colorScheme = theme === "light" ? "light" : "dark";
     root.style.setProperty("--ns-radius", `${p.radius}px`);
-    root.style.setProperty("--ns-small", `${Math.min(14, Math.round(p.radius * .55))}px`);
+    root.style.setProperty("--ns-small", `${Math.min(4, Math.round(p.radius * .55))}px`);
     for (const name of ["--ns-accent", "--ns-fill", "--ns-on-accent"]) root.style.removeProperty(name);
     if (theme === "custom") {
       let accent = p.accent;
-      for (let i = 1; contrast(accent, "#403347") < 4.5 && i <= 20; i++) {
+      for (let i = 1; contrast(accent, "#202821") < 4.5 && i <= 20; i++) {
         accent = "#" + rgb(p.accent).map((v) => Math.round(v + (255 - v) * i / 20).toString(16).padStart(2, "0")).join("");
       }
       root.style.setProperty("--ns-accent", accent);
@@ -47,7 +47,7 @@
       root.style.setProperty("--ns-on-accent", contrast(p.accent, "#000000") >= contrast(p.accent, "#ffffff") ? "#000000" : "#ffffff");
     }
     controls.forEach((control) => { control.value = p.theme; });
-    document.querySelector('meta[name="theme-color"]')?.setAttribute("content", {light:"#eee6d5", dark:"#181715", black:"#000000", custom:"#201921"}[theme]);
+    document.querySelector('meta[name="theme-color"]')?.setAttribute("content", {light:"#eeeee7", dark:"#0b0d0d", black:"#000000", custom:"#0b100d"}[theme]);
   }
   controls.forEach((control) => control.addEventListener("change", () => {
     if (!modes.includes(control.value)) return;

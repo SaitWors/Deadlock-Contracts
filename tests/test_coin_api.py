@@ -6,23 +6,16 @@ from app.models import ArchiveLedger
 from test_player_community import community, contract
 
 
-def test_coin_status_is_private_and_read_only(community):
+def test_coin_status_is_retired_without_mutating_historical_wallet(community):
     factory, player = community
     user_id, client = player()
-    _, other = player()
     with factory() as db:
-        contract(db, user_id)
+        db.add(ArchiveLedger(user_id=user_id, source="historical", reason="CONTRACT", delta=10))
         db.commit()
-    response = client.get("/api/archive/coin-rewards")
-    assert response.status_code == 200
-    assert "no-store" in response.headers["cache-control"]
-    data = response.json()
-    assert data["quotas"]["daily"]["limit"] == 80
-    assert data["quotas"]["weekly"]["limit"] == 400
-    assert other.get("/api/archive/coin-rewards").json()["receipts"] == []
-    assert client.get("/api/archive/coin-rewards").json()["quotas"] == data["quotas"]
+    assert client.get("/api/archive/coin-rewards").status_code == 410
+    assert client.get("/api/archive/wallet").status_code == 410
     with factory() as db:
-        assert db.scalar(select(func.count()).select_from(ArchiveLedger)) == 0
+        assert db.scalar(select(func.sum(ArchiveLedger.delta)).where(ArchiveLedger.user_id == user_id)) == 10
 
 
 def test_historical_contract_receipt_explains_why_coins_are_not_retroactive(community):

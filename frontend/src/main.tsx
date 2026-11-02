@@ -13,8 +13,9 @@ import "./appearance.css"
 import "./nightshift-layout.css"
 import "./nightshift-surfaces.css"
 import "./nightshift-core.css"
-import "./nightshift-public.css"
 import "./admin/nightshift-admin.css"
+import "./ritual.css"
+import "./ritual-workspace.css"
 import { applyAppearance, readAppearance } from "./appearance-state"
 
 applyAppearance(readAppearance())

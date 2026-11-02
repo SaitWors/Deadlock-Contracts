@@ -7,7 +7,8 @@ from sqlalchemy import func, select
 from app.models import ArchiveCard, ArchiveItem, ArchiveLedger, ArchiveOperation, ArchivePack, ArchivePackVersion
 from app.services import archive_packs as packs
 from test_player_community import community
-from test_archive_packs import owner
+from test_archive_packs import owner, legacy_service_response
+from app.archive_packs import OpenPack, AcquireCard, RequestKey
 
 
 def test_thirtieth_paid_card_upgrades_to_a_and_resets_only_its_achieved_threshold():
@@ -110,9 +111,9 @@ def fund(factory, user_id, scope="REAL"):
         db.commit()
 
 
-def open_v2(client, pack_id, revision, *, key=None, scope="REAL"):
-    return client.post(f"/api/archive/packs/{pack_id}/open", json={"request_key": key or str(uuid4()),
-        "revision": 1, "guarantee_revision": revision, "scope": scope})
+def open_v2(factory, user_id, pack_id, revision, *, key=None, scope="REAL"):
+    return legacy_service_response(factory, lambda db: packs.open_pack(db, user_id, pack_id,
+        OpenPack(request_key=key or uuid4(), revision=1, guarantee_revision=revision, scope=scope)))
 
 
 def test_paid_v2_card_guarantees_are_atomic_and_replayed_without_advancing(community, monkeypatch):
@@ -130,7 +131,7 @@ def test_paid_v2_card_guarantees_are_atomic_and_replayed_without_advancing(commu
     assert disclosed["guarantees"]["revision"] == 3
     monkeypatch.setattr(packs.secrets, "randbelow", lambda total: 0)
     key = str(uuid4())
-    first = open_v2(client, pack_id, 3, key=key)
+    first = open_v2(factory, user_id, pack_id, 3, key=key)
     assert first.status_code == 200, first.text
     receipt = first.json()
     assert receipt["delta"] == -180
@@ -138,7 +139,7 @@ def test_paid_v2_card_guarantees_are_atomic_and_replayed_without_advancing(commu
     assert [item["forced"] for item in receipt["items"]] == [True, False, False]
     assert receipt["pack"]["guarantee_after"]["without_a"] == 2
     assert receipt["pack"]["guarantee_after"]["revision"] == 4
-    assert open_v2(client, pack_id, 3, key=key).json() == receipt
+    assert open_v2(factory, user_id, pack_id, 3, key=key).json() == receipt
     with factory() as db:
         state = db.scalar(select(PackGuaranteeState).where(PackGuaranteeState.user_id == user_id))
         assert (state.without_a, state.without_s, state.without_sss, state.revision) == (2, 3, 3, 4)
@@ -153,14 +154,14 @@ def test_v2_pack_types_share_counters_but_test_scope_is_separate(community, monk
     folder, _ = create_v2(factory, "SPECIAL_FOLDER")
     fund(factory, user_id); fund(factory, user_id, "SANDBOX")
     monkeypatch.setattr(packs.secrets, "randbelow", lambda total: 0)
-    assert open_v2(client, night, 0).status_code == 200
-    assert open_v2(client, folder, 0).status_code == 409
-    receipt = open_v2(client, folder, 1)
+    assert open_v2(factory, user_id, night, 0).status_code == 200
+    assert open_v2(factory, user_id, folder, 0).status_code == 409
+    receipt = open_v2(factory, user_id, folder, 1)
     assert receipt.status_code == 200, receipt.text
     assert [item["card"]["rank"] for item in receipt.json()["items"]] == ["F", "F", "F", "F", "B"]
     real = client.get(f"/api/archive/packs/{night}").json()["pack"]["guarantees"]
     assert (real["without_a"], real["revision"]) == (8, 2)
-    sandbox = open_v2(client, night, 0, scope="SANDBOX")
+    sandbox = open_v2(factory, user_id, night, 0, scope="SANDBOX")
     assert sandbox.status_code == 200, sandbox.text
     assert all(item["scope"] == "SANDBOX" for item in sandbox.json()["items"])
     assert client.get(f"/api/archive/packs/{night}").json()["pack"]["guarantees"] == real
@@ -177,7 +178,7 @@ def test_missing_promised_rank_stops_sale_without_charge_or_counter_change(commu
         db.get(ArchiveCard, cards[-1]["card_id"]).status = "ARCHIVED"
         db.commit()
     assert not client.get(f"/api/archive/packs/{pack_id}").json()["pack"]["ready"]
-    assert open_v2(client, pack_id, 0).status_code == 409
+    assert open_v2(factory, user_id, pack_id, 0).status_code == 409
     with factory() as db:
         assert db.scalar(select(func.count()).select_from(ArchiveOperation).where(ArchiveOperation.user_id == user_id)) == 0
         assert db.scalar(select(func.count()).select_from(PackGuaranteeState).where(PackGuaranteeState.user_id == user_id)) == 0
@@ -186,6 +187,8 @@ def test_missing_promised_rank_stops_sale_without_charge_or_counter_change(commu
 def test_ex_is_a_base_in_catalogue_and_cannot_bypass_access_with_direct_purchase(community):
     factory, player = community
     user_id, client = player()
+    from test_bureau_operations import elevate
+    elevate(factory, user_id, client, role="ADMIN")
     with factory() as db:
         card = ArchiveCard(hero="HIDDEN_KING", rank="EX", title="Unapproved patron artwork", status="PUBLISHED", image_digest="fixture")
         db.add(card); db.commit(); card_id = card.id
@@ -197,7 +200,7 @@ def test_ex_is_a_base_in_catalogue_and_cannot_bypass_access_with_direct_purchase
     shown = response.json()["items"][0]
     assert shown["category"] == "BASE" and not shown["battle_eligible"]
     assert not shown["ex_access"]["eligible"]
-    purchase = client.post(f"/api/archive/cards/{card_id}/acquire", json={"request_key": str(uuid4()), "expected_price": 1800})
+    purchase = legacy_service_response(factory, lambda db: packs.acquire(db, user_id, card_id, AcquireCard(**{'request_key': str(uuid4()), 'expected_price': 1800})))
     assert purchase.status_code == 409, purchase.text
     with factory() as db:
         assert db.scalar(select(func.count()).select_from(ArchiveItem).where(ArchiveItem.user_id == user_id)) == 0
@@ -207,6 +210,8 @@ def test_ex_is_a_base_in_catalogue_and_cannot_bypass_access_with_direct_purchase
 def test_author_identity_change_does_not_keep_combat_approval_or_pack_readiness(community):
     factory, player = community
     user_id, client = player()
+    from test_bureau_operations import elevate
+    elevate(factory, user_id, client, role="ADMIN")
     pack_id, cards = create_v2(factory)
     fund(factory, user_id)
     with factory() as db:
@@ -215,7 +220,7 @@ def test_author_identity_change_does_not_keep_combat_approval_or_pack_readiness(
     shown = client.get("/api/archive/cards?hero=haze").json()["items"][0]
     assert not shown["battle_eligible"]
     assert not client.get(f"/api/archive/packs/{pack_id}").json()["pack"]["ready"]
-    assert open_v2(client, pack_id, 0).status_code == 409
+    assert open_v2(factory, user_id, pack_id, 0).status_code == 409
 
 
 def test_direct_and_free_starter_cards_neither_advance_nor_reset_paid_counters(community, monkeypatch):
@@ -224,9 +229,9 @@ def test_direct_and_free_starter_cards_neither_advance_nor_reset_paid_counters(c
     pack_id, cards = create_v2(factory)
     fund(factory, user_id)
     monkeypatch.setattr(packs.secrets, "randbelow", lambda total: 0)
-    assert open_v2(client, pack_id, 0).status_code == 200
+    assert open_v2(factory, user_id, pack_id, 0).status_code == 200
     before = client.get(f"/api/archive/packs/{pack_id}").json()["pack"]["guarantees"]
-    direct = client.post(f"/api/archive/cards/{cards[-1]['card_id']}/acquire", json={"request_key": str(uuid4()), "expected_price": 2600})
+    direct = legacy_service_response(factory, lambda db: packs.acquire(db, user_id, cards[-1]['card_id'], AcquireCard(**{'request_key': str(uuid4()), 'expected_price': 2600})))
     assert direct.status_code == 200, direct.text
     with factory() as db:
         starter = ArchivePack(active=True, starter=True)
@@ -234,7 +239,7 @@ def test_direct_and_free_starter_cards_neither_advance_nor_reset_paid_counters(c
         db.add(ArchivePackVersion(pack_id=starter.id, revision=1, config={"title": "Free", "description": "",
             "price": 10, "draws": 1, "entries": [cards[-1]], "price_model": 2}))
         db.commit(); starter_id = starter.id
-    free = client.post(f"/api/archive/packs/{starter_id}/open", json={"request_key": str(uuid4()), "revision": 1, "starter": True})
+    free = legacy_service_response(factory, lambda db: packs.open_pack(db, user_id, starter_id, OpenPack(**{'request_key': str(uuid4()), 'revision': 1, 'starter': True})))
     assert free.status_code == 200, free.text
     assert client.get(f"/api/archive/packs/{pack_id}").json()["pack"]["guarantees"] == before
 
@@ -246,14 +251,14 @@ def test_v2_rename_keeps_algorithm_progress_and_original_receipt(community, owne
     fund(factory, user_id)
     monkeypatch.setattr(packs.secrets, "randbelow", lambda total: 0)
     key = str(uuid4())
-    first = open_v2(client, pack_id, 0, key=key).json()
+    first = open_v2(factory, user_id, pack_id, 0, key=key).json()
     update = owner[1].put(f"/api/owner/archive/packs/{pack_id}", json={"revision": 1, "title": "Renamed v2",
         "description": "Same rules", "price": 180, "draws": 3, "active": True,
         "entries": [{"card_id": entry["card_id"], "weight": 1} for entry in cards]})
     assert update.status_code == 200, update.text
     assert update.json()["pack"]["kind"] == "NIGHT_ENVELOPE"
     assert client.get(f"/api/archive/packs/{pack_id}").json()["pack"]["guarantees"]["without_a"] == 3
-    assert open_v2(client, pack_id, 0, key=key).json() == first
+    assert open_v2(factory, user_id, pack_id, 0, key=key).json() == first
 
 
 def test_v2_seed_is_idempotent_and_does_not_unpause_or_rewrite_versions(community):
@@ -300,7 +305,7 @@ def test_owner_grants_do_not_reset_sandbox_paid_card_guarantees(community, owner
     pack_id, cards = create_v2(factory)
     fund(factory, owner_id, "SANDBOX")
     monkeypatch.setattr(packs.secrets, "randbelow", lambda total: 0)
-    assert open_v2(client, pack_id, 0, scope="SANDBOX").status_code == 200
+    assert open_v2(factory, owner_id, pack_id, 0, scope="SANDBOX").status_code == 200
     before = client.get(f"/api/archive/packs/{pack_id}?scope=SANDBOX").json()["pack"]["guarantees"]
     grant = client.post(f"/api/owner/archive/cards/{cards[-1]['card_id']}/grant", json={
         "request_key": str(uuid4()), "quantity": 1, "note": "Layout verification"})
@@ -342,8 +347,7 @@ def test_inventory_offers_an_unreserved_duplicate_and_recycling_invalidates_save
     _, cards = create_v2(factory)
     fund(factory, user_id)
     for _ in range(2):
-        bought = client.post(f"/api/archive/cards/{cards[0]['card_id']}/acquire", json={
-            "request_key": str(uuid4()), "expected_price": 25})
+        bought = legacy_service_response(factory, lambda db: packs.acquire(db, user_id, cards[0]['card_id'], AcquireCard(**{'request_key': str(uuid4()), 'expected_price': 25})))
         assert bought.status_code == 200, bought.text
     original = client.get("/api/archive/inventory").json()["items"][0]["recycle"]["id"]
     with factory() as db:
@@ -355,9 +359,9 @@ def test_inventory_offers_an_unreserved_duplicate_and_recycling_invalidates_save
         db.commit(); other_id = other.id
     offered = client.get("/api/archive/inventory").json()["items"][0]["recycle"]
     assert offered["id"] == other_id
-    blocked = client.post(f"/api/archive/items/{original}/recycle", json={"request_key": str(uuid4())})
+    blocked = legacy_service_response(factory, lambda db: packs.recycle(db, user_id, original, RequestKey(**{'request_key': str(uuid4())})))
     assert blocked.status_code == 409
-    recycled = client.post(f"/api/archive/items/{other_id}/recycle", json={"request_key": str(uuid4())})
+    recycled = legacy_service_response(factory, lambda db: packs.recycle(db, user_id, other_id, RequestKey(**{'request_key': str(uuid4())})))
     assert recycled.status_code == 200, recycled.text
     with factory() as db:
         squad = db.scalar(select(BattleSquad).where(BattleSquad.user_id == user_id))

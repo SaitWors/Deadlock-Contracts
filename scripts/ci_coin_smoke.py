@@ -1,4 +1,4 @@
-"""Exercise coin reservation, duplicate delivery and quotas with PostgreSQL locks."""
+"""Verify retired coin issuance and preserve historical correction concurrency on PostgreSQL."""
 from concurrent.futures import ThreadPoolExecutor
 from datetime import timedelta
 from threading import Barrier
@@ -6,19 +6,40 @@ from uuid import uuid4
 
 from sqlalchemy import delete, func, select
 
-from app.coin_models import CoinEntitlement, CoinQuota
+from app.coin_models import (
+    CoinCorrection,
+    CoinEntitlement,
+    CoinPolicySnapshot,
+    CoinQuota,
+)
 from app.db import SessionLocal, engine
-from app.models import (ArchiveLedger, BoardOption, ContractBoard, Evaluation, Match,
-                        MatchParticipant, MissionDefinition, OutboxEvent, RewardLedgerEntry, User, utcnow)
-from app.services.coin_rewards import deliver_entitlement, settle_assignment, snapshot_signing
-from app.worker import dispatch_outbox
+from app.models import (
+    ArchiveLedger,
+    BoardOption,
+    ContractBoard,
+    Evaluation,
+    Match,
+    MatchParticipant,
+    MissionDefinition,
+    OutboxEvent,
+    RewardLedgerEntry,
+    User,
+    utcnow,
+)
+from app.services import extra_coin_rewards
+from app.services.coin_rewards import (
+    correct_entitlement,
+    deliver_entitlement,
+    settle_assignment,
+    snapshot_signing,
+)
 
 
 def main():
     if engine.dialect.name != "postgresql":
         raise RuntimeError("Coin concurrency checks require PostgreSQL row locks")
     user_id = None
-    mission_ids, match_ids, event_ids = [], [], []
+    mission_ids, match_ids = [], []
     try:
         with SessionLocal() as db:
             now = utcnow()
@@ -42,7 +63,7 @@ def main():
                     required_game_match_mode="STANDARD", required_capabilities=["summary.kills"])
                 db.add(option)
                 db.flush()
-                snapshot_signing(db, board)
+                assert snapshot_signing(db, board) == 0
                 match = Match(external_match_id=uuid4().int % 10**14, provider="deadlock_api",
                     started_at=now - timedelta(minutes=30), ended_at=now - timedelta(minutes=5), duration_s=1500,
                     is_final=True, scoring_status="SCORED", game_match_mode="STANDARD",
@@ -76,44 +97,50 @@ def main():
             with ThreadPoolExecutor(max_workers=len(values)) as pool:
                 return list(pool.map(call, values))
 
-        repeated = race([option_ids[0], option_ids[0]], settle_assignment)
-        assert repeated[0]["id"] == repeated[1]["id"], repeated
-        assert repeated[0]["amount"] == 24
-        competed = race(option_ids[1:], settle_assignment)
-        assert sum(row["amount"] for row in competed) == 56, competed
-        assert sorted(row["amount"] for row in competed) == [0, 8, 24, 24], competed
-
-        # Both sessions can observe RESERVED before waiting for the same user.
-        # A fresh locked entitlement must make the second delivery a no-op.
-        duplicate_delivery = race([repeated[0]["id"], repeated[0]["id"]], deliver_entitlement)
-        assert all(row["status"] == "DELIVERED" for row in duplicate_delivery)
+        assert race([option_ids[0], option_ids[0]], settle_assignment) == [None, None]
+        assert race(option_ids[1:], settle_assignment) == [None] * 4
         with SessionLocal() as db:
-            assert db.scalar(select(func.sum(ArchiveLedger.delta)).where(ArchiveLedger.user_id == user_id)) == 24
-            events = list(db.scalars(select(OutboxEvent).where(OutboxEvent.event_type == "coin.reward",
-                                                               OutboxEvent.payload["user_id"].as_string() == user_id)))
-            # Place only this test's events at the front of a possibly shared CI queue.
-            for event in events:
-                event.run_after = now - timedelta(days=36500)
-                event_ids.append(event.id)
-            duplicate = OutboxEvent(event_type="coin.reward", aggregate_id=repeated[0]["id"],
-                payload={"entitlement_id": repeated[0]["id"], "user_id": user_id}, run_after=now - timedelta(days=36500))
-            db.add(duplicate)
+            for model in (CoinEntitlement, CoinQuota, CoinPolicySnapshot, ArchiveLedger):
+                assert db.scalar(select(func.count()).select_from(model).where(model.user_id == user_id)) == 0
+            assert not db.scalar(select(func.count()).select_from(OutboxEvent).where(
+                OutboxEvent.event_type == "coin.reward", OutboxEvent.payload["user_id"].as_string() == user_id))
+            for kind in sorted(extra_coin_rewards.KINDS):
+                assert extra_coin_rewards.reserve(db, user_id, kind, str(uuid4()), 100, now, []) is None
+            # Seed an existing historical obligation directly, rather than
+            # reopening the retired issuance path or any public mint endpoint.
+            legacy = CoinEntitlement(user_id=user_id, source_type="assignment", source_id=option_ids[0],
+                policy_version="coins-v1", nominal_amount=24, amount=24, eligible=True,
+                reason="AWARDED", status="RESERVED")
+            db.add(legacy)
             db.flush()
-            event_ids.append(duplicate.id)
+            legacy_id = legacy.id
+            db.add(OutboxEvent(event_type="coin.reward", aggregate_id=legacy_id,
+                payload={"entitlement_id": legacy_id, "user_id": user_id}))
             db.commit()
-        for _ in range((len(event_ids) + 1) // 2):
-            race([None, None], lambda db, unused: dispatch_outbox(db))
+        assert race([legacy_id, legacy_id], deliver_entitlement) == [None, None]
         with SessionLocal() as db:
-            entitlements = list(db.scalars(select(CoinEntitlement).where(CoinEntitlement.user_id == user_id)))
-            assert len(entitlements) == 5
-            assert sum(row.amount for row in entitlements) == 80
-            assert all(row.status == "DELIVERED" for row in entitlements)
-            assert db.scalar(select(func.sum(ArchiveLedger.delta)).where(ArchiveLedger.user_id == user_id)) == 80
-            assert db.scalar(select(func.count()).select_from(ArchiveLedger).where(ArchiveLedger.user_id == user_id)) == 4
-            assert sorted(db.scalars(select(CoinQuota.used).where(CoinQuota.user_id == user_id))) == [80, 80]
-            assert all(event.published_at for event in db.scalars(select(OutboxEvent).where(OutboxEvent.id.in_(event_ids))))
+            legacy = db.get(CoinEntitlement, legacy_id)
+            assert legacy.status == "RESERVED" and legacy.amount == 24 and legacy.delivered_at is None
+            assert db.scalar(select(func.count()).select_from(ArchiveLedger).where(ArchiveLedger.user_id == user_id)) == 0
+            # Historical corrections still serialize and append exactly once.
+            legacy.status = "DELIVERED"
+            db.add(ArchiveLedger(user_id=user_id, source="historical-ci-credit", reason="CONTRACT", delta=24))
+            db.add(CoinQuota(user_id=user_id, source="CONTRACT", period_kind="DAY", period_start=now.date(), used=24))
+            db.commit()
+        correction_key = str(uuid4())
+        corrections = race([legacy_id, legacy_id], lambda db, identifier: correct_entitlement(
+            db, identifier, request_key=correction_key, actor_user_id=user_id, reason="Correct historical CI receipt"))
+        assert corrections[0] == corrections[1] and corrections[0]["delta"] == -24, corrections
+        with SessionLocal() as db:
+            legacy = db.get(CoinEntitlement, legacy_id)
+            assert legacy.status == "CORRECTED" and legacy.amount == 24
+            assert db.scalar(select(func.count()).select_from(CoinEntitlement).where(CoinEntitlement.user_id == user_id)) == 1
+            assert db.scalar(select(func.count()).select_from(CoinCorrection).where(CoinCorrection.user_id == user_id)) == 1
+            assert db.scalar(select(func.count()).select_from(ArchiveLedger).where(ArchiveLedger.user_id == user_id)) == 2
+            assert db.scalar(select(func.sum(ArchiveLedger.delta)).where(ArchiveLedger.user_id == user_id)) == 0
+            assert db.scalar(select(CoinQuota.used).where(CoinQuota.user_id == user_id)) == 24
             assert db.get(User, user_id).xp == 10
-        print("Coin concurrency OK: one right per contract, exact 80/day cap, zero decision, duplicate delivery, independent XP")
+        print("Coin retirement OK: no new signing policy, settlement award or queued payout; historical corrections remain append-only, idempotent and quota-preserving")
     finally:
         if user_id:
             with SessionLocal() as db:

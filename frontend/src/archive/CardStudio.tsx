@@ -138,8 +138,8 @@ export default function CardStudio({
           </label>
           <p>
             {ru
-              ? "Публикация иллюстрации не одобряет боевые правила. Боевой вариант связывает OWNER; автор не меняет HP, способности или цены."
-              : "Publishing artwork does not approve battle rules. OWNER links an approved battle definition; authors cannot change HP, abilities or prices."}
+              ? "Выбери героя и ранг рамки для коллекционного дизайна."
+              : "Choose a hero and frame rank for this collectible design."}
           </p>
           <label>
             {ru ? "Название варианта" : "Variant title"}
@@ -244,8 +244,8 @@ export default function CardStudio({
         </fieldset>
         <p className="archive-help">
           {ru
-            ? "Публикация доступна администратору и владельцу. За отправку карточек монеты не выдаются."
-            : "Only admins and the owner can publish. Submissions do not earn coins."}
+            ? "Публикация доступна администратору и владельцу после проверки готового дизайна."
+            : "Admins and the owner can publish after reviewing the finished design."}
         </p>
       </form>
     </section>

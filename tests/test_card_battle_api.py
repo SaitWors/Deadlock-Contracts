@@ -3,6 +3,7 @@ from copy import deepcopy
 from datetime import timedelta
 from uuid import uuid4
 
+import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import select
 
@@ -10,110 +11,24 @@ from app.main import app
 from app.models import ArchiveCard, ArchiveItem, PublicProfile, User, utcnow
 from app.battle_models import BattleArtwork, BattleDefinitionVersion, BattleMatch
 from app.services.battle_catalog import seed_battle_catalogue
+from app.services import battle_service as arena, battle_social as social
 from arena_fixtures import original_card_id as card_id, seed_original_catalogue
 from test_archive_packs import owner  # noqa: F401
 from test_bureau_operations import elevate
 from test_player_community import community  # noqa: F401
 
 
-def ready(factory, client, scope="REAL"):
+def ready(factory, user_id, scope="REAL"):
+    """Seed a historical Arena session without reopening retired player APIs."""
     with factory() as db:
         seed_battle_catalogue(db); seed_original_catalogue(db); db.commit()
-    response = client.post("/api/arena/starter", json={"request_key": str(uuid4()), "scope": scope})
-    assert response.status_code == 200, response.text
-    return response.json()
-
-
-def begin(client, **extra):
-    response = client.post("/api/arena/matches", json={"request_key": str(uuid4()), "mode": "TRAINING",
-        "scope": "REAL", "squad_revision": 1, "base_item_id": None, **extra})
-    assert response.status_code == 200, response.text
-    return response.json()["match"]
-
-
-def test_auth_csrf_strict_inputs_scoped_request_recovery_and_no_store(community):
-    factory, player = community
-    first_id, first = player(); _, other = player()
-    with TestClient(app) as anonymous:
-        assert anonymous.get("/api/arena/bootstrap").status_code == 401
-    ready(factory, first)
-    key = str(uuid4()); body = {"request_key": key, "mode": "TRAINING", "scope": "REAL", "squad_revision": 1}
-    response = first.post("/api/arena/matches", json=body)
-    assert response.status_code == 200, response.text
-    assert response.headers["cache-control"] == "private, no-store"
-    assert first.post("/api/arena/matches", json=body).json() == response.json()
-    assert first.get(f"/api/arena/requests/{key}").json() == {"result": response.json()}
-    assert other.get(f"/api/arena/requests/{key}").json() == {"result": None}
-    assert other.get(f"/api/arena/matches/{response.json()['match']['id']}").status_code == 404
-    assert first.post("/api/arena/matches", json={**body, "winner_side": "A"}).status_code == 422
-    assert first.post("/api/arena/matches", json={**body, "mode": "TRIAL"}).status_code == 409
-    match = response.json()["match"]
-    token = first.headers.pop("X-CSRF-Token")
-    assert first.post(f"/api/arena/matches/{match['id']}/plans", json={"request_key": str(uuid4()), "expected_revision": 1, "actions": []}).status_code == 403
-    first.headers["X-CSRF-Token"] = token
-
-
-def test_friendly_hands_stay_hidden_while_players_finish_mulligan(community):
-    factory, player = community
-    _, first = player(); _, second = player(); _, outsider = player()
-    ready(factory, first); ready(factory, second)
-    room = first.post("/api/arena/rooms", json={"request_key": str(uuid4()), "scope": "REAL"}).json()["room"]
-    code = room["code"]
-    assert second.post(f"/api/arena/rooms/{code}/join", json={"request_key": str(uuid4())}).status_code == 200
-    confirmation = {"request_key": str(uuid4()), "squad_revision": 1, "base_item_id": None}
-    own = first.post(f"/api/arena/rooms/{code}/confirm", json=confirmation).json()["room"]
-    assert own["match_id"] is None
-    assert set(second.get(f"/api/arena/rooms/{code}").json()["room"]) == {"code", "scope", "status", "match_id", "own_confirmed", "opponent_confirmed"}
-    assert outsider.get(f"/api/arena/rooms/{code}").status_code == 404
-    started = second.post(f"/api/arena/rooms/{code}/confirm", json={**confirmation, "request_key": str(uuid4())}).json()["room"]
-    match_id = started["match_id"]
-    state = first.get(f"/api/arena/matches/{match_id}").json()["match"]
-    plan = {"request_key": str(uuid4()), "expected_revision": 1, "actions": [{"type": "READY"}]}
-    accepted = first.post(f"/api/arena/matches/{match_id}/plans", json=plan)
-    assert accepted.status_code == 200, accepted.text
-    before = second.get(f"/api/arena/matches/{match_id}").json()["match"]
-    assert before["state"]["phase"] == "MULLIGAN" and before["round"] == 1
-    assert before["state"]["sides"][0]["mulligan_done"]
-    assert before["state"]["sides"][0]["hand"] == []
-    assert "bot_plan" not in before and "snapshot" not in before and "actions" not in before
-    assert first.post(f"/api/arena/matches/{match_id}/plans", json={**plan, "request_key": str(uuid4())}).status_code == 409
-    resolved = second.post(f"/api/arena/matches/{match_id}/plans", json={"request_key": str(uuid4()), "expected_revision": before["revision"], "actions": [{"type": "READY"}]})
-    assert resolved.json()["match"]["round"] == 1 and resolved.json()["match"]["state"]["phase"] == "PLAY"
-
-
-def test_duplicate_heroes_and_unapproved_art_are_rejected_server_side(community):
-    factory, player = community
-    user_id, client = player(); first = ready(factory, client)
-    slots = deepcopy(first["squad"]["slots"])
-    slots[1]["item_id"] = slots[0]["item_id"]
-    assert client.put("/api/arena/squad", json={"expected_revision": 1, "scope": "REAL", "base_item_id": None, "slots": slots}).status_code == 422
-    with factory() as db:
-        item = db.get(ArchiveItem, first["squad"]["slots"][0]["item_id"])
-        link = db.get(BattleArtwork, item.card_id); link.approved = False; db.commit()
-    assert client.post("/api/arena/matches", json={"request_key": str(uuid4()), "mode": "TRAINING", "scope": "REAL", "squad_revision": 1}).status_code == 409
-
-
-def test_trial_and_sandbox_preserve_real_inventory_and_reservations_block_recycle(community):
-    factory, player = community
-    user_id, client = player(); ready(factory, client)
-    match = begin(client, mode="TRIAL", patron_key="ARCHMOTHER")
-    assert match["state"]["sides"][0]["base"]["key"] == "ARCHMOTHER"
-    item_id = match["state"]["sides"][0]["heroes"][0]["item_id"]
-    assert client.post(f"/api/archive/items/{item_id}/recycle", json={"request_key": str(uuid4())}).status_code == 409
-    with factory() as db: assert len(list(db.scalars(select(ArchiveItem).where(ArchiveItem.user_id == user_id)))) == 6
-    done = client.post(f"/api/arena/matches/{match['id']}/surrender", json={"request_key": str(uuid4()), "expected_revision": 1})
-    assert done.json()["match"]["reward"] is None
-    ready(factory, client, "SANDBOX")
-    sandbox = begin(client, scope="SANDBOX", mode="TRIAL", patron_key="HIDDEN_KING")
-    assert sandbox["scope"] == "SANDBOX"
-    assert client.put("/api/arena/showcase", json={"expected_revision": 0, "is_public": True,
-        "base_item_id": None, "slots": client.get("/api/arena/bootstrap?scope=SANDBOX").json()["squad"]["slots"]}).status_code == 409
+        return arena.claim_starter(db, user_id, str(uuid4()), scope)
 
 
 def test_owner_controls_require_existing_totp_elevation_and_matching_artwork(community, owner):
     factory, player = community
     owner_id, client = owner; _, ordinary = player()
-    ready(factory, client)
+    ready(factory, owner_id)
     assert ordinary.get("/api/arena/definitions").status_code == 403
     elevate(factory, owner_id, client, role="PLAYER", elevated=False)
     assert client.get("/api/arena/definitions").status_code == 403
@@ -130,44 +45,76 @@ def test_owner_controls_require_existing_totp_elevation_and_matching_artwork(com
 
 def test_public_showcase_images_hide_immediately_with_profile_switch(community):
     factory, player = community
-    user_id, client = player(public=True); first = ready(factory, client)
-    response = client.put("/api/arena/showcase", json={"expected_revision": 0, "is_public": True,
-        "base_item_id": None, "slots": first["squad"]["slots"]})
-    assert response.status_code == 200, response.text
-    with factory() as db: slug = db.scalar(select(PublicProfile.slug).where(PublicProfile.user_id == user_id))
+    user_id, client = player(public=True); first = ready(factory, user_id)
+    with factory() as db:
+        social.save_showcase(db, user_id, 0, True, None, first["squad"]["slots"])
+    with factory() as db:
+        slug = db.scalar(select(PublicProfile.slug).where(PublicProfile.user_id == user_id))
+        image_url = social.public_showcase(db, slug)["showcase"]["heroes"][0]["card"]["image_url"]
     with TestClient(app) as anonymous:
         view = anonymous.get(f"/api/public/players/{slug}/arena/showcase")
-        assert view.status_code == 200
-        image_url = view.json()["showcase"]["heroes"][0]["card"]["image_url"]
+        assert view.status_code == 410
         image = anonymous.get(image_url)
         assert image.status_code == 200 and image.headers["content-type"] == "image/webp"
         with factory() as db:
             db.scalar(select(PublicProfile).where(PublicProfile.user_id == user_id)).show_showcase = False; db.commit()
         assert anonymous.get(image_url).status_code == 404
-        assert anonymous.get(f"/api/public/players/{slug}/arena/showcase").status_code == 404
+        assert anonymous.get(f"/api/public/players/{slug}/arena/showcase").status_code == 410
 
 
-def test_account_deletion_removes_peer_match_recovery_but_keeps_unrelated_receipt(community):
+
+
+@pytest.mark.parametrize("method,path", [
+    ("GET", "/api/arena/bootstrap"), ("GET", "/api/arena/queue"), ("GET", "/api/arena/leaderboard"),
+    ("GET", "/api/arena/requests/00000000-0000-0000-0000-000000000001"),
+    ("GET", "/api/arena/matches/00000000-0000-0000-0000-000000000001"),
+    ("POST", "/api/arena/starter"), ("PUT", "/api/arena/squad"), ("POST", "/api/arena/matches"),
+    ("POST", "/api/arena/matches/00000000-0000-0000-0000-000000000001/plans"),
+    ("POST", "/api/arena/matches/00000000-0000-0000-0000-000000000001/surrender"),
+    ("POST", "/api/arena/cleanup"), ("POST", "/api/arena/rooms"),
+    ("GET", "/api/arena/rooms/ABCDEF"), ("POST", "/api/arena/rooms/ABCDEF/join"),
+    ("POST", "/api/arena/rooms/ABCDEF/confirm"), ("POST", "/api/arena/rooms/ABCDEF/leave"),
+    ("POST", "/api/arena/queue"), ("DELETE", "/api/arena/queue"), ("PUT", "/api/arena/showcase"),
+])
+def test_arena_player_endpoints_are_retired_without_creating_inventory(community, method, path):
+    from sqlalchemy import func
+    from app.models import ArchiveOperation
     factory, player = community
-    first_id, first = player(); second_id, second = player()
+    uid, client = player()
+    response=client.request(method,path,json={})
+    assert response.status_code == 410, response.text
+    with factory() as db:
+        assert db.scalar(select(func.count()).select_from(ArchiveItem).where(ArchiveItem.user_id == uid)) == 0
+        assert db.scalar(select(func.count()).select_from(ArchiveOperation).where(ArchiveOperation.user_id == uid)) == 0
+
+
+def test_retired_arena_preserves_authentication_and_csrf(community):
+    _, player=community
+    _, client=player()
+    with TestClient(app) as anonymous:
+        assert anonymous.get("/api/arena/bootstrap").status_code == 401
+    client.headers.pop("X-CSRF-Token")
+    assert client.post("/api/arena/starter",json={}).status_code == 403
+
+
+def test_account_deletion_removes_legacy_peer_recovery_but_keeps_unrelated_receipt(community):
+    factory, player=community
+    first_id, first=player(); second_id, second=player()
+    starter_key=str(uuid4())
     with factory() as db:
         seed_battle_catalogue(db); seed_original_catalogue(db); db.commit()
-    starter_key = str(uuid4())
-    starter = first.post("/api/arena/starter", json={"request_key": starter_key, "scope": "REAL"}).json()
-    ready(factory, second)
-    room = first.post("/api/arena/rooms", json={"request_key": str(uuid4()), "scope": "REAL"}).json()["room"]
-    code = room["code"]
-    second.post(f"/api/arena/rooms/{code}/join", json={"request_key": str(uuid4())})
-    first.post(f"/api/arena/rooms/{code}/confirm", json={"request_key": str(uuid4()), "squad_revision": 1})
-    match_id = second.post(f"/api/arena/rooms/{code}/confirm", json={"request_key": str(uuid4()), "squad_revision": 1}).json()["room"]["match_id"]
-    plan_key = str(uuid4())
-    accepted = first.post(f"/api/arena/matches/{match_id}/plans", json={"request_key": plan_key, "expected_revision": 1, "actions": [{"type": "READY"}]})
-    assert accepted.status_code == 200, accepted.text
-    assert first.get(f"/api/arena/requests/{plan_key}").json()["result"]["match"]["id"] == match_id
-    deleted = second.post("/api/account/delete", json={"confirmation": "DELETE"})
-    assert deleted.status_code == 200, deleted.text
-    assert first.get(f"/api/arena/matches/{match_id}").status_code == 404
-    assert first.get(f"/api/arena/requests/{plan_key}").json() == {"result": None}
-    assert first.get(f"/api/arena/requests/{starter_key}").json() == {"result": starter}
+        starter=arena.claim_starter(db,first_id,starter_key)
+        arena.claim_starter(db,second_id,str(uuid4()))
+        room=social.create_room(db,first_id,str(uuid4()))["room"]
+        code=room["code"]
+        social.join_room(db,second_id,code,str(uuid4()))
+        social.confirm_room(db,first_id,code,str(uuid4()),1,None)
+        match_id=social.confirm_room(db,second_id,code,str(uuid4()),1,None)["room"]["match_id"]
+        plan_key=str(uuid4())
+        arena.submit_plan(db,first_id,match_id,plan_key,1,[{"type":"READY"}])
+        assert arena.request_result(db,first_id,plan_key)["result"]["match"]["id"] == match_id
+    assert second.post("/api/account/delete",json={"confirmation":"DELETE"}).status_code == 200
     with factory() as db:
-        assert db.get(User, first_id) is not None and db.get(User, second_id) is None
+        assert arena.request_result(db,first_id,plan_key) == {"result":None}
+        assert arena.request_result(db,first_id,starter_key) == {"result":starter}
+        assert db.get(User,first_id) is not None and db.get(User,second_id) is None

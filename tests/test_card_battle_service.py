@@ -159,7 +159,9 @@ def test_assigned_opponent_persists_across_loss_and_normal_hard_share_three_win_
     assert win(db, user, retry)["result"]["winner_side"] == "A"
     for _ in range(2): win(db, user, start(db, user, "HARD"))
     assert len(list(db.scalars(select(BattleAssignment)))) == 3
-    assert eligible_pve_win_count(db, user.id) == 3
+    # Retired coin issuance no longer records economic activity facts. The
+    # historical Arena assignment slots still enforce their own three-win cap.
+    assert eligible_pve_win_count(db, user.id) == 0
     with pytest.raises(Exception) as failure: start(db, user, "ASSIGNED")
     assert failure.value.status_code == 409
 

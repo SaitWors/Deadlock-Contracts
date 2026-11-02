@@ -1,8 +1,7 @@
-"""Server-only bounded browser rewards, reusing the durable coin outbox.
+"""Historical activity validation and correction helpers.
 
-Mutating callers own their transaction. Lock order is battle/bureau, then user,
-entitlement and quota. Facts freeze occurrence times; delivery rechecks their
-original sources. GET/status helpers never create facts or monetary rights.
+Player reward issuance hooks are no-ops after economy retirement. Existing
+activity facts and dependent correction records remain readable.
 """
 from __future__ import annotations
 
@@ -13,11 +12,22 @@ from sqlalchemy import exists, select
 
 from ..coin_models import CoinEntitlement, CoinQuota
 from ..economy_models import EconomyActivity, EconomyRewardContext
-from ..models import (ArchiveCipher, BoardOption, BureauContribution, BureauOperation,
-                      BureauOperationParticipant, ContractBoard, Evaluation, Match,
-                      MatchParticipant, OutboxEvent, RewardLedgerEntry, User, utcnow)
-from .archive import aware
+from ..models import (
+    ArchiveCipher,
+    BoardOption,
+    BureauContribution,
+    BureauOperation,
+    BureauOperationParticipant,
+    ContractBoard,
+    Evaluation,
+    Match,
+    MatchParticipant,
+    RewardLedgerEntry,
+    User,
+    utcnow,
+)
 from . import coin_rewards as coins
+from .archive import aware
 from .leaderboard import TRUSTED_REWARD_SOURCES
 from .match_trust import provider_parts
 
@@ -59,41 +69,9 @@ def _quota(db, user_id, source, kind, start):
 
 def reserve(db, user_id, source_type, source_id, nominal, at, activity_ids, *, quota_source=None,
             daily_limit=None, weekly_limit=None, rule_data=None):
-    if source_type not in KINDS:
-        raise ValueError("Unknown economic source")
-    if coins._lock_recipient(db, user_id) is None:
-        return None
-    db.flush()
-    row = db.scalar(select(CoinEntitlement).where(CoinEntitlement.user_id == user_id,
-        CoinEntitlement.source_type == source_type, CoinEntitlement.source_id == source_id).with_for_update())
-    if row:
-        return row
-    day, week = periods(at)
-    amount, reason = nominal, "AWARDED"
-    quotas = []
-    if daily_limit is not None:
-        daily = _quota(db, user_id, quota_source, "DAY", day)
-        quotas.append(daily)
-        remaining = max(0, daily_limit - daily.used)
-        if remaining < amount:
-            amount, reason = remaining, "DAILY_LIMIT"
-    if weekly_limit is not None:
-        weekly = _quota(db, user_id, quota_source, "WEEK", week)
-        quotas.append(weekly)
-        remaining = max(0, weekly_limit - weekly.used)
-        if remaining < amount:
-            amount, reason = remaining, "WEEKLY_LIMIT"
-    for quota in quotas:
-        quota.used += amount
-    row = CoinEntitlement(user_id=user_id, source_type=source_type, source_id=source_id,
-        policy_version=POLICY, nominal_amount=nominal, amount=amount, eligible=True, reason=reason,
-        period_day=day, period_week=week, status="RESERVED")
-    db.add(row); db.flush()
-    db.add(EconomyRewardContext(entitlement_id=row.id, activity_ids=list(activity_ids), rule_data=rule_data or {}))
-    db.add(OutboxEvent(event_type="coin.reward", aggregate_id=row.id,
-                       payload={"entitlement_id": row.id, "user_id": user_id}))
-    db.flush()
-    return row
+    # Permanent retirement: flags and queued legacy jobs cannot issue coins.
+    """Player coin issuance is retired; historical records remain available to admin correction tools."""
+    return None
 
 
 def confirmed_contract_records(db, user_id):
@@ -284,65 +262,23 @@ def _activity_benefits(db, fact):
 
 
 def record_cipher(db, cipher):
-    db.flush()
-    if cipher.status not in {"SOLVED", "ASSISTED"} or not cipher.completed_at:
-        return None
-    fact = record_fact(db, cipher.user_id, "CIPHER", cipher.id, cipher.completed_at)
-    row = _activity_benefits(db, fact)
-    return coins._receipt(row)
+    """Player coin issuance is retired; historical records remain available to admin correction tools."""
+    return None
 
 
 def record_contract(db, entitlement):
-    if not entitlement.eligible or entitlement.source_type != "assignment":
-        return
-    records = confirmed_contract_records(db, entitlement.user_id)
-    played = dict(records).get(entitlement.source_id)
-    if played is None:
-        return
-    fact = record_fact(db, entitlement.user_id, "CONTRACT", entitlement.source_id, played)
-    _activity_benefits(db, fact)
-    # Old verified contracts may satisfy a milestone, but cannot retroactively
-    # produce daily/weekly rewards. Only this new accepted event triggers it.
-    for threshold, amount in ((10, 50), (50, 100), (100, 150)):
-        if len(records) >= threshold:
-            chosen = [record_fact(db, entitlement.user_id, "CONTRACT", key, at, {"progress_only": True})
-                      for key, at in records[:threshold]]
-            reserve(db, entitlement.user_id, "milestone", identity(entitlement.user_id, "milestone", threshold),
-                amount, played, [f.id for f in chosen], rule_data={"threshold": threshold})
+    """Player coin issuance is retired; historical records remain available to admin correction tools."""
+    return None
 
 
 def settle_battle(db, match):
-    db.flush()
-    if match.scope != "REAL" or match.status != "FINISHED" or not match.user_id or not match.completed_at:
-        return None
-    primary = None
-    if match.mode in {"ASSIGNED", "HARD", "WEEKLY"} and match.outcome == "WIN" and match.reward_eligible:
-        fact = record_fact(db, match.user_id, "PVE", match.id, match.completed_at)
-        if fact_valid(db, fact):
-            primary = reserve(db, match.user_id, "pve", match.assignment_id, 8, match.completed_at,
-                [fact.id], quota_source="PVE", daily_limit=24, weekly_limit=120)
-            _activity_benefits(db, fact)
-    if match.mode in {"TUTORIAL", "TRAINING", "ASSIGNED", "HARD", "WEEKLY"}:
-        kind = "TUTORIAL" if match.mode == "TUTORIAL" else "NORMAL_BATTLE"
-        fact = record_fact(db, match.user_id, kind, match.id, match.completed_at)
-        if fact_valid(db, fact):
-            tutorial, normal = _facts(db, match.user_id, {"TUTORIAL"}), _facts(db, match.user_id, {"NORMAL_BATTLE"})
-            normal = [f for f in normal if tutorial and aware(f.occurred_at) >= aware(tutorial[0].occurred_at)]
-            if tutorial and normal:
-                route = reserve(db, match.user_id, "tutorial", identity(match.user_id, "tutorial"), 60,
-                    match.completed_at, [tutorial[0].id, normal[0].id])
-                primary = primary or route
-    return coins._receipt(primary) if primary else None
+    """Player coin issuance is retired; historical records remain available to admin correction tools."""
+    return None
 
 
 def record_assignment(db, assignment_id):
-    db.flush()
-    option = db.get(BoardOption, assignment_id)
-    board = db.get(ContractBoard, option.board_id) if option else None
-    row = db.scalar(select(CoinEntitlement).where(CoinEntitlement.user_id == board.user_id,
-        CoinEntitlement.source_type == "assignment", CoinEntitlement.source_id == assignment_id)) if board else None
-    if row and coins._still_valid(db, row):
-        record_contract(db, row)
+    """Player coin issuance is retired; historical records remain available to admin correction tools."""
+    return None
 
 
 def battle_receipt(db, match_id, user_id):
@@ -365,33 +301,8 @@ def battle_receipt(db, match_id, user_id):
 
 
 def record_bureau(db, operation):
-    """Called by maintenance, never by GET reconciliation or profile rendering."""
-    db.flush()
-    participants = list(db.scalars(select(BureauOperationParticipant).where(
-        BureauOperationParticipant.operation_id == operation.id, BureauOperationParticipant.user_id.is_not(None))
-        .order_by(BureauOperationParticipant.user_id)))
-    facts = list(db.scalars(select(EconomyActivity).where(EconomyActivity.kind == "BUREAU",
-        EconomyActivity.source_id == operation.id).order_by(EconomyActivity.user_id)))
-    for user_id in sorted({fact.user_id for fact in facts} | {person.user_id for person in participants}):
-        coins._lock_recipient(db, user_id)
-    fact_ids = {fact.id for fact in facts}
-    if facts:
-        rights = list(db.scalars(select(CoinEntitlement).where(CoinEntitlement.source_type == "bureau",
-            CoinEntitlement.user_id.in_({fact.user_id for fact in facts}),
-            CoinEntitlement.status.in_(["RESERVED", "DELIVERED"])).order_by(CoinEntitlement.user_id)))
-        for right in rights:
-            context = db.get(EconomyRewardContext, right.id)
-            if context and fact_ids.intersection(context.activity_ids) and not still_valid(db, right):
-                coins.correct_entitlement(db, right.id, request_key=identity("bureau-reconcile", operation.id, right.id),
-                    actor_user_id=None, reason="Verified bureau operation or personal contribution revoked", _cascade=False)
-    if operation.status != "COMPLETED" or not operation.completed_at:
-        return
-    for participant in participants:
-        fact = record_fact(db, participant.user_id, "BUREAU", operation.id, operation.completed_at)
-        if fact_valid(db, fact):
-            _, week = periods(fact.occurred_at)
-            reserve(db, participant.user_id, "bureau", identity(participant.user_id, "bureau", week), 40,
-                    fact.occurred_at, [fact.id], quota_source="BUREAU", weekly_limit=40)
+    """Player coin issuance is retired; historical records remain available to admin correction tools."""
+    return None
 
 
 def corrected_dependents(db, original, correction):

@@ -114,91 +114,6 @@ const coinStatus = {
   ],
 }
 
-test("v2 packs disclose separate slot tables, shared guarantees and pay with the viewed revision", async () => {
-  const writes = []
-  const pack = {
-    id: "v2",
-    revision: 2,
-    title: "Night envelope",
-    description: "Three cards",
-    price: 180,
-    draws: 3,
-    ready: true,
-    active: true,
-    starter: false,
-    card_count: 9,
-    cover: null,
-    kind: "NIGHT_ENVELOPE",
-    rule_version: "packs-v2",
-    odds: [{ rank: "F", weight: 34, total_weight: 100, percent: 34 }],
-    slots: [
-      { kind: "ORDINARY", odds: [{ rank: "F", weight: 34, total_weight: 100, percent: 34 }] },
-    ],
-    guarantees: {
-      scope: "REAL",
-      revision: 7,
-      without_a: 29,
-      without_s: 119,
-      without_sss: 359,
-      thresholds: { a: 30, s: 120, sss: 360 },
-      next_minimum_rank: "SSS",
-      next_slot_odds: [{ rank: "SSS", weight: 100, total_weight: 100, percent: 100 }],
-    },
-    recommendation: {
-      price: 180,
-      model: 2,
-      discount_percent: 33.5,
-      expected_direct_cost: 270,
-      weeks_at_150: 1.2,
-    },
-  }
-  const env = runtime(async (url, init = {}) => {
-    if (init.method === "POST") {
-      writes.push(JSON.parse(init.body))
-      return response({
-        id: "receipt-v2",
-        kind: "PACK_OPEN",
-        delta: -180,
-        balance_after: 100,
-        created_at: "2026-10-12T00:00:00Z",
-        items: [],
-      })
-    }
-    if (url.includes("/meta")) return response(meta)
-    if (url.includes("/wallet")) return response({ ...wallet, balance: 1000 })
-    if (url.includes("/packs/v2")) return response({ pack })
-    if (url.includes("/packs")) return response({ items: [pack], total: 1, starter_claimed: true })
-    return response({ items: [], total: 0 })
-  }, "en")
-  let root
-  await env.api.act(async () => {
-    root = env.api.mount(env.doc.getElementById("mount"), "archive", {
-      csrf: "csrf",
-      mode: "packs",
-      onWalletChange() {},
-    })
-  })
-  const details = [...env.doc.querySelectorAll("button")].find((item) =>
-    item.textContent.includes("Contents & opening"),
-  )
-  assert.ok(details)
-  await env.api.act(async () => details.click())
-  assert.match(env.doc.body.textContent, /29 \/ 30/)
-  assert.match(env.doc.body.textContent, /119 \/ 120/)
-  assert.match(env.doc.body.textContent, /359 \/ 360/)
-  assert.match(env.doc.body.textContent, /Next paid slot.*SSS/)
-  assert.doesNotMatch(
-    env.doc.querySelector(".archive-pack-details").textContent,
-    /No guaranteed rank/,
-  )
-  const open = [...env.doc.querySelectorAll("button")].find(
-    (item) => item.textContent === "Open for 180 coins",
-  )
-  await env.api.act(async () => open.click())
-  assert.equal(writes[0].guarantee_revision, 7)
-  await env.api.act(() => root.unmount())
-})
-
 test("an EX base receipt uses the wide base frame and explains a forced pack rank", async () => {
   const env = runtime(async () => response({ items: [], total: 0 }), "en")
   let root
@@ -297,204 +212,126 @@ test("only effective OWNER sees arena tools and links matching published artwork
   await env.api.act(() => root.unmount())
 })
 
-test("coin wallet separates debt from spending and shows quota-limited and pending receipts", async () => {
-  const { api, doc } = runtime(async (url) => {
-    if (url.includes("/meta")) return response(meta)
-    if (url.includes("/coin-rewards")) return response(coinStatus)
-    if (url.includes("/wallet"))
-      return response({
-        ...wallet,
-        balance: 0,
-        net_balance: -15,
-        available_balance: 0,
-        debt: 15,
-        scope: "REAL",
-      })
-    return response({ items: [], total: 0 })
-  }, "en")
-  let root
-  await api.act(async () => {
-    root = api.mount(doc.getElementById("mount"), "archive", {
-      csrf: "csrf",
-      mode: "wallet",
-      onWalletChange() {},
-    })
-  })
-  assert.match(doc.querySelector(".archive-balance").textContent, /Bureau coins.*0/)
-  const text = doc.querySelector(".archive-page").textContent
-  assert.match(text, /Debt: 15/)
-  assert.match(text, /Net balance: -15/)
-  assert.match(text, /75 \/ 80/)
-  assert.match(text, /375 \/ 400/)
-  assert.match(text, /Resets/)
-  const receipts = doc.querySelector(".archive-coin-receipts").textContent
-  assert.match(receipts, /Contract.*contract-1.*\+5.*24.*Daily limit/)
-  assert.match(receipts, /Case bonus.*case-1.*Pending.*10/)
-  await api.act(async () => root.unmount())
-})
-
-test("sandbox purchases use their own wallet and retain their scope through saved retry", async () => {
-  const writes = []
-  const fetch = async (url, init = {}) => {
-    if (init.method === "POST") {
-      writes.push({ url, body: JSON.parse(init.body) })
-      if (writes.length === 1) throw new Error("connection lost")
-      return response({
-        ...packReceipt("sandbox-receipt"),
-        kind: "DIRECT_CARD",
-        scope: "SANDBOX",
-        items: [],
-      })
-    }
-    if (url.includes("/meta"))
-      return response({
-        ...meta,
-        can_manage_packs: true,
-        direct_costs: { ...meta.direct_costs, SSS: 2600 },
-      })
-    if (url.includes("/wallet"))
-      return response({
-        ...wallet,
-        scope: url.includes("scope=SANDBOX") ? "SANDBOX" : "REAL",
-        balance: url.includes("scope=SANDBOX") ? 3000 : 0,
-      })
-    if (url.includes("/cards?"))
-      return response({ items: [{ ...card, status: "PUBLISHED" }], total: 1 })
-    return response({ items: [], total: 0 })
-  }
-  const { api, doc, w } = runtime(fetch, "en")
-  let root
-  const props = { csrf: "csrf", mode: "packs", onWalletChange() {} }
-  await api.act(async () => {
-    root = api.mount(doc.getElementById("mount"), "archive", props)
-  })
-  await api.act(async () => button(doc, "Catalogue").click())
-  assert.equal(button(doc, "Acquire for 2600").disabled, true)
-  const scope = doc.querySelector('[aria-label="Economy scope"]')
-  assert.ok(scope, "owner can select the test economy")
-  await api.act(async () => {
-    scope.value = "SANDBOX"
-    scope.dispatchEvent(new w.Event("change", { bubbles: true }))
-  })
-  assert.equal(button(doc, "Acquire for 2600").disabled, false)
-  await api.act(async () => button(doc, "Acquire for 2600").click())
-  assert.equal(writes[0].body.scope, "SANDBOX")
-  assert.equal(writes[0].body.expected_price, 2600)
-  await api.act(async () => root.unmount())
-  await api.act(async () => {
-    root = api.mount(doc.getElementById("mount"), "archive", props)
-  })
-  assert.match(doc.querySelector(".archive-pending").textContent, /Sandbox/)
-  await api.act(async () => button(doc, "Retry request").click())
-  assert.deepEqual(writes[1], writes[0])
-  assert.match(doc.querySelector(".archive-receipt").textContent, /Sandbox/)
-  await api.act(async () => root.unmount())
-})
-
-test("a former owner with no sandbox coins can still open owned sandbox cards and receipts", async () => {
-  const { api, doc, w } = runtime(async (url) => {
-    if (url.includes("/meta")) return response({ ...meta, can_manage_packs: false })
-    if (url.includes("/wallet"))
-      return response({
-        ...wallet,
-        balance: 0,
-        wallets: {
-          REAL: { scope: "REAL", net_balance: 0, available_balance: 0, debt: 0 },
-          SANDBOX: { scope: "SANDBOX", net_balance: 0, available_balance: 0, debt: 0 },
-        },
-      })
-    if (url.includes("/showcase"))
-      return response({ card_ids: [], is_public: false, revision: 3, profile_public: false })
-    if (url.includes("/inventory?"))
-      return response({
-        items: url.includes("scope=SANDBOX")
-          ? [
-              {
-                card: { ...card, title: "Retained sandbox card", status: "PUBLISHED" },
-                quantity: 1,
-                test_count: 1,
-                recycle: null,
-              },
-            ]
-          : [],
-        total: url.includes("scope=SANDBOX") ? 1 : 0,
-      })
-    if (url.includes("/openings?") && url.includes("scope=SANDBOX"))
-      return response({
-        items: [
-          {
-            ...packReceipt("retained-sandbox-receipt"),
-            scope: "SANDBOX",
-            pack: { title: "Retained sandbox pack" },
-          },
-        ],
-        total: 1,
-      })
-    if (url.includes("/favorites")) return response({ card_ids: [] })
-    return response({ items: [], total: 0 })
-  }, "en")
-  let root
-  await api.act(async () => {
-    root = api.mount(doc.getElementById("mount"), "archive", {
-      csrf: "csrf",
-      mode: "collection",
-      onWalletChange() {},
-    })
-  })
-  const scope = doc.querySelector('[aria-label="Economy scope"]')
-  assert.ok(scope, "sandbox ownership remains accessible after OWNER access ends")
-  await api.act(async () => {
-    scope.value = "SANDBOX"
-    scope.dispatchEvent(new w.Event("change", { bubbles: true }))
-  })
-  assert.match(doc.querySelector(".archive-collection").textContent, /Retained sandbox card/)
-  assert.match(doc.querySelector(".archive-opening-history").textContent, /Retained sandbox pack/)
-  assert.equal(doc.querySelector(".archive-showcase-settings"), null)
-  await api.act(async () => root.unmount())
-})
-
-test("owner grants default to sandbox and real adjustments carry the explicit reason", async () => {
+test("owner self grants only sandbox cards and never exposes currency controls or receipts", async () => {
   const writes = []
   const { api, doc, w } = runtime(async (url, init = {}) => {
     if (init.method === "POST") {
-      writes.push(JSON.parse(init.body))
+      writes.push({ url, body: JSON.parse(init.body), csrf: init.headers.get("X-CSRF-Token") })
       return response({
-        ...packReceipt(`owner-${writes.length}`),
-        kind: "OWNER_TOKENS",
-        scope: writes.at(-1).scope,
+        ...packReceipt("owner-card", [
+          receiptItem("owner-copy", "Sandbox Abrams", "F", false, true),
+        ]),
+        kind: "OWNER_CARD",
+        scope: "SANDBOX",
       })
     }
     if (url.includes("/meta")) return response({ ...meta, can_manage_packs: true })
+    if (url.includes("/archive/cards?"))
+      return response({ items: [{ ...card, status: "PUBLISHED" }], total: 1 })
     return response({ items: [], total: 0 })
   }, "en")
   let root
   await api.act(async () => {
     root = api.mount(doc.getElementById("mount"), "owner", {
-      csrf: "csrf",
+      csrf: "grant-csrf",
       permissions: ["packs.manage"],
     })
   })
+  assert.doesNotMatch(doc.body.textContent, /coins|balance|real adjustment|token refund/i)
+  assert.equal(doc.querySelector('[aria-label="Grant scope"]'), null)
   const reason = [...doc.querySelectorAll("input")].find((input) => input.maxLength === 300)
   const set = Object.getOwnPropertyDescriptor(w.HTMLInputElement.prototype, "value").set
   await api.act(async () => {
-    set.call(reason, "Refund mistaken charge")
+    set.call(reason, "Artwork review")
     reason.dispatchEvent(new w.Event("input", { bubbles: true }))
   })
-  await api.act(async () => button(doc, "Adjust my").click())
-  assert.equal(writes[0].scope, "SANDBOX")
-  const scope = doc.querySelector('[aria-label="Grant scope"]')
-  assert.ok(scope)
+  await api.act(async () => button(doc, "Select").click())
+  await api.act(async () => button(doc, "Grant myself 1 copies").click())
+  assert.equal(writes.length, 1)
+  assert.equal(writes[0].url, `/api/owner/archive/cards/${card.id}/grant`)
+  assert.equal(writes[0].body.scope, "SANDBOX")
+  assert.equal(writes[0].body.quantity, 1)
+  assert.equal(writes[0].body.note, "Artwork review")
+  assert.equal(writes[0].csrf, "grant-csrf")
+  assert.ok(writes[0].body.request_key)
+  assert.doesNotMatch(doc.body.textContent, /coins|balance|real economy/i)
+  assert.ok(button(doc, "Reveal cards"))
+  await api.act(async () => root.unmount())
+})
+
+test("owner edits published pack contents and odds without currency or starter controls", async () => {
+  const writes = []
+  const pack = {
+    id: "owner-pack",
+    title: "Daily release",
+    description: "Hero collection",
+    revision: 9,
+    price: 175,
+    draws: 2,
+    starter: true,
+    active: true,
+    ready: true,
+    odds: [{ rank: "F", percent: 100 }],
+    entries: [
+      {
+        card_id: "draft-1",
+        card: { ...card, status: "PUBLISHED" },
+        rank: "F",
+        weight: 10,
+        percent: 100,
+      },
+    ],
+  }
+  const { api, doc, w } = runtime(async (url, init = {}) => {
+    if (init.method === "PUT") {
+      writes.push({ url, body: JSON.parse(init.body) })
+      return response({ pack })
+    }
+    if (url.includes("/preview"))
+      return response({
+        odds: pack.odds,
+        recommendation: { price: 90, expected_direct_cost: 180, weeks_at_150: 0.6 },
+      })
+    if (url.includes("/meta")) return response(meta)
+    if (url.includes("/api/archive/packs/")) return response({ pack })
+    if (url.includes("/api/owner/archive/packs")) return response({ items: [pack], total: 1 })
+    return response({ items: [], total: 0 })
+  }, "en")
+  let root
   await api.act(async () => {
-    scope.value = "REAL"
-    scope.dispatchEvent(new w.Event("change", { bubbles: true }))
+    root = api.mount(doc.getElementById("mount"), "owner", {
+      csrf: "pack-csrf",
+      permissions: ["packs.manage"],
+    })
   })
-  assert.match(
-    doc.querySelector(".archive-owner-tools").textContent,
-    /Manual real balance correction/,
+  assert.doesNotMatch(doc.body.textContent, /coins|contents & price/i)
+  await api.act(async () => button(doc, "Edit contents").click())
+  await api.act(async () => new Promise((resolve) => w.setTimeout(resolve, 520)))
+  assert.doesNotMatch(doc.body.textContent, /coin|price|starter|discount|cipher|balance/i)
+  assert.match(doc.body.textContent, /100%/)
+  const title = doc.querySelector('.archive-form input[maxlength="80"]')
+  const set = Object.getOwnPropertyDescriptor(w.HTMLInputElement.prototype, "value").set
+  await api.act(async () => {
+    set.call(title, "Updated release")
+    title.dispatchEvent(new w.Event("input", { bubbles: true }))
+  })
+  await api.act(async () => {
+    const weight = doc.querySelector('.archive-selected-pool input[type="number"]')
+    set.call(weight, "20")
+    weight.dispatchEvent(new w.Event("input", { bubbles: true }))
+    doc.querySelector('.archive-form input[type="checkbox"]').click()
+  })
+  await api.act(async () =>
+    doc
+      .querySelector("form.archive-form")
+      .dispatchEvent(new w.Event("submit", { bubbles: true, cancelable: true })),
   )
-  await api.act(async () => button(doc, "Adjust my").click())
-  assert.equal(writes[1].scope, "REAL")
-  assert.equal(writes[1].note, "Refund mistaken charge")
+  assert.equal(writes[0].body.title, "Updated release")
+  assert.equal(writes[0].body.revision, 9)
+  assert.equal(writes[0].body.price, 175)
+  assert.equal(writes[0].body.starter, true)
+  assert.deepEqual(writes[0].body.entries, [{ card_id: "draft-1", weight: 20 }])
+  assert.equal(writes[0].body.active, false)
   await api.act(async () => root.unmount())
 })
 
@@ -547,50 +384,6 @@ test("contract receipt distinguishes rejected historical results from pending re
   await api.act(async () => root.unmount())
 })
 
-test("a recovered sandbox pack favorites its test copies in the receipt scope", async () => {
-  const writes = []
-  const { api, doc, w } = runtime(
-    async (url, init = {}) => {
-      if (init.method === "PUT") {
-        writes.push(JSON.parse(init.body))
-        return response({ card_id: "card-test-copy", favorite: true })
-      }
-      if (url.includes("/meta")) return response({ ...meta, can_manage_packs: true })
-      if (url.includes("/wallet")) return response(wallet)
-      if (url.includes("/favorites")) return response({ card_ids: [] })
-      if (url.includes("/requests/"))
-        return response({
-          operation: {
-            ...packReceipt("test-pack", [receiptItem("test-copy", "Test card", "F", false, true)]),
-            scope: "SANDBOX",
-          },
-        })
-      return response({ items: [], total: 0 })
-    },
-    "en",
-    true,
-  )
-  w.sessionStorage.setItem(
-    "dc-archive-request:test-account",
-    JSON.stringify({
-      url: "/api/archive/packs/pack/open",
-      body: { request_key: "recover-test-pack", scope: "SANDBOX", revision: 1, starter: false },
-    }),
-  )
-  let root
-  await api.act(async () => {
-    root = api.mount(doc.getElementById("mount"), "archive", {
-      csrf: "csrf",
-      mode: "packs",
-      onWalletChange() {},
-    })
-  })
-  await api.act(async () => button(doc, "Check result").click())
-  await api.act(async () => button(doc, "Reveal cards").click())
-  await api.act(async () => button(doc.querySelector("dialog"), "Add to favorites").click())
-  assert.equal(writes[0].scope, "SANDBOX")
-  await api.act(async () => root.unmount())
-})
 const card = {
   id: "draft-1",
   hero: "abrams",
@@ -824,7 +617,7 @@ test("receipt favorite changes refresh a mounted favorites-only collection", asy
         marked = JSON.parse(init.body).favorite
         return response({ card_id: item.card.id, favorite: marked })
       }
-      if (url.includes("/requests/req")) return response({ operation: receipt })
+      if (url.includes("/openings")) return response({ items: [receipt], total: 1 })
       if (url.includes("/favorites")) return response({ card_ids: marked ? [item.card.id] : [] })
       if (url.includes("/meta")) return response(meta)
       if (url.includes("/wallet")) return response(wallet)
@@ -847,10 +640,6 @@ test("receipt favorite changes refresh a mounted favorites-only collection", asy
     "en",
     true,
   )
-  w.sessionStorage.setItem(
-    `dc-archive-request:${meta.account_key}`,
-    JSON.stringify({ url: "/api/archive/packs/p/open", body: { request_key: "req" } }),
-  )
   let root
   await api.act(async () => {
     root = api.mount(doc.getElementById("mount"), "archive", {
@@ -859,11 +648,11 @@ test("receipt favorite changes refresh a mounted favorites-only collection", asy
       onWalletChange() {},
     })
   })
-  await api.act(async () => button(doc, "Check result").click())
   await api.act(async () => doc.querySelector("input[name=favorites_only]").click())
   await api.act(async () => button(doc, "Next").click())
   assert.match(inventoryUrls.at(-1), /offset=18/)
   const inventoryReadsBefore = inventoryReads
+  await api.act(async () => button(doc, "Night mail").click())
   await api.act(async () => button(doc, "Reveal cards").click())
   const dialog = doc.querySelector("dialog")
   assert.equal(dialog.querySelectorAll(".archive-card").length, 1)
@@ -1269,7 +1058,7 @@ test("close, cancel and unmount each clear the pending opening timer", async () 
   assert.ok(clearedOpeningTimers.has(openingTimers[2]))
 })
 
-test("account popover shows actual tokens, closes on Escape and restores focus", async () => {
+test("account popover shows XP, omits retired navigation, closes on Escape and restores focus", async () => {
   const { w, api, doc } = runtime(async (url) =>
     response(url.includes("wallet") ? wallet : { my_bureau: { name: "Deadlock Night" } }),
   )
@@ -1287,7 +1076,12 @@ test("account popover shows actual tokens, closes on Escape and restores focus",
   const trigger = doc.querySelector('[aria-label="Меню аккаунта"]')
   await api.act(async () => trigger.click())
   assert.equal(trigger.getAttribute("aria-expanded"), "true")
-  assert.match(doc.querySelector(".bureau-wallet-strip").textContent, /90/)
+  assert.match(trigger.textContent, /120 XP/)
+  assert.equal(doc.querySelector(".bureau-wallet-strip"), null)
+  assert.doesNotMatch(
+    doc.querySelector(".bureau-profile-popover").textContent,
+    /Монеты|Шифр|Арена|Мои карточки/,
+  )
   assert.match(doc.querySelector(".bureau-profile-section").textContent, /Deadlock Night/)
   assert.equal(button(doc, "Панель сотрудников"), undefined)
   await api.act(async () =>
@@ -1296,8 +1090,8 @@ test("account popover shows actual tokens, closes on Escape and restores focus",
   assert.equal(trigger.getAttribute("aria-expanded"), "false")
   assert.equal(doc.activeElement, trigger)
   await api.act(async () => trigger.click())
-  await api.act(async () => button(doc, "Мои карточки").click())
-  assert.deepEqual(navigated, ["studio"])
+  await api.act(async () => button(doc, "Моя коллекция").click())
+  assert.deepEqual(navigated, ["collection"])
   assert.equal(trigger.getAttribute("aria-expanded"), "false")
   await api.act(async () => root.unmount())
 })
@@ -1385,35 +1179,6 @@ test("editor saves a draft with its revision; cannot send a publication state", 
   assert.equal(writes[0].data.status, undefined)
   assert.equal(writes[0].data.image, undefined)
   assert.equal(saved.revision, 8)
-  await api.act(async () => root.unmount())
-})
-
-test("own designs submit with the reviewed revision and cannot publish", async () => {
-  const writes = []
-  const { api, doc } = runtime(async (url, init = {}) => {
-    if (init.method === "POST") {
-      writes.push({ url, data: JSON.parse(init.body) })
-      return response({ card: { ...card, status: "PENDING" } })
-    }
-    if (url.includes("meta")) return response(meta)
-    if (url.includes("wallet")) return response(wallet)
-    if (url.includes("coverage")) return response({ items: [] })
-    return response({ items: [{ ...card, status: writes.length ? "PENDING" : "DRAFT" }], total: 1 })
-  })
-  let root
-  await api.act(async () => {
-    root = api.mount(doc.getElementById("mount"), "archive", {
-      csrf: "csrf",
-      mode: "studio",
-      onWalletChange() {},
-    })
-  })
-  assert.equal(button(doc, "Опубликовать"), undefined)
-  await api.act(async () => button(doc, "На проверку").click())
-  assert.equal(writes[0].url, "/api/archive/cards/draft-1/submit")
-  assert.equal(writes[0].data.revision, 7)
-  assert.ok(button(doc, "Отозвать заявку"))
-  assert.equal(button(doc, "Редактировать"), undefined)
   await api.act(async () => root.unmount())
 })
 
@@ -1590,70 +1355,6 @@ test("changing archive account aborts the old purchase and preserves its recover
   await api.act(async () => root.unmount())
 })
 
-test("pack opening shows actual odds and sends the displayed revision with CSRF", async () => {
-  const writes = []
-  const released = { ...card, status: "PUBLISHED" }
-  const pack = {
-    id: "pack-1",
-    revision: 8,
-    title: "Ночная почта",
-    description: "First release",
-    price: 30,
-    draws: 2,
-    card_count: 1,
-    ready: true,
-    active: true,
-    starter: true,
-    odds: [{ rank: "SSS", percent: 100, weight: 1, total_weight: 1 }],
-    recommendation: { price: 990 },
-    entries: [{ card_id: card.id, card: released, rank: "SSS", weight: 1, percent: 100 }],
-  }
-  const { api, doc } = runtime(async (url, init = {}) => {
-    if (init.method === "POST") {
-      writes.push({ url, body: JSON.parse(init.body), csrf: init.headers.get("X-CSRF-Token") })
-      return response({
-        id: "receipt",
-        kind: "PACK_OPEN",
-        delta: -30,
-        balance_after: 60,
-        created_at: "2026-09-08T00:00:00Z",
-        items: [],
-      })
-    }
-    if (url.includes("/meta")) return response(meta)
-    if (url.includes("/wallet")) return response(wallet)
-    if (url.includes("/packs/pack-1")) return response({ pack })
-    if (url.includes("/packs?")) return response({ items: [pack], total: 1, starter_claimed: true })
-    return response({ items: [], total: 0 })
-  })
-  let root
-  await api.act(async () => {
-    root = api.mount(doc.getElementById("mount"), "archive", {
-      csrf: "pack-csrf",
-      mode: "packs",
-      onWalletChange() {},
-    })
-  })
-  await api.act(async () => button(doc, "Состав и открытие").click())
-  assert.equal(doc.activeElement, doc.querySelector("#archive-pack-details"))
-  await api.act(async () => button(doc, "Закрыть состав").click())
-  assert.equal(doc.activeElement, button(doc, "Состав и открытие"))
-  await api.act(async () => button(doc, "Состав и открытие").click())
-  assert.match(doc.querySelector(".archive-pack-odds").textContent, /100%/)
-  assert.match(doc.querySelector(".archive-pack-odds").textContent, /Гарантированного ранга нет/)
-  assert.equal(button(doc, "Получить стартовый бесплатно"), undefined)
-  await api.act(async () => button(doc, "Открыть за 30").click())
-  assert.equal(writes.length, 1)
-  assert.equal(writes[0].csrf, "pack-csrf")
-  assert.equal(writes[0].body.revision, 8)
-  assert.equal(writes[0].body.starter, false)
-  assert.equal(writes[0].body.scope, "REAL")
-  assert.ok(writes[0].body.request_key)
-  assert.equal(writes[0].body.price, undefined)
-  assert.equal(doc.activeElement, doc.querySelector(".archive-receipt"))
-  await api.act(async () => root.unmount())
-})
-
 test("collection limits the showcase to three owned designs and preserves its revision", async () => {
   const writes = []
   const items = [1, 2, 3, 4].map((i) => ({
@@ -1691,44 +1392,6 @@ test("collection limits the showcase to three owned designs and preserves its re
   assert.equal(writes[0].revision, 3)
   assert.deepEqual(writes[0].card_ids, ["card-1", "card-2", "card-3"])
   assert.equal(writes[0].is_public, false)
-  await api.act(async () => root.unmount())
-})
-
-test("wallet distinguishes paid openings and owner adjustments without a doubled sign", async () => {
-  const { api, doc } = runtime(async (url) =>
-    response(
-      url.includes("/meta")
-        ? meta
-        : url.includes("/wallet")
-          ? {
-              ...wallet,
-              history: [
-                { id: "paid", delta: -30, reason: "PACK_OPEN", created_at: "2026-09-08T00:00:00Z" },
-                {
-                  id: "grant",
-                  delta: 150,
-                  reason: "OWNER_TOKENS",
-                  created_at: "2026-09-08T00:01:00Z",
-                },
-              ],
-              history_total: 2,
-            }
-          : { items: [], total: 0 },
-    ),
-  )
-  let root
-  await api.act(async () => {
-    root = api.mount(doc.getElementById("mount"), "archive", {
-      csrf: "csrf",
-      mode: "wallet",
-      onWalletChange() {},
-    })
-  })
-  const text = doc.querySelector(".archive-ledger").textContent
-  assert.match(text, /Открытие конверта/)
-  assert.match(text, /Корректировка OWNER/)
-  assert.match(text, /-30/)
-  assert.doesNotMatch(text, /\+-30/)
   await api.act(async () => root.unmount())
 })
 
@@ -1792,5 +1455,97 @@ test("seal picker preserves symbol numbers and cannot double-select or submit tw
     doc.querySelector(".cipher-guess-art").getAttribute("aria-label"),
     /Компас, Документы, Руки, Часы/,
   )
+  await api.act(async () => root.unmount())
+})
+
+test("staff card studio creates, edits and submits a draft while preserving the review queue", async () => {
+  const writes = [],
+    reads = []
+  let drafts = []
+  const { api, doc, w } = runtime(async (url, init = {}) => {
+    reads.push(url)
+    if (url === "/api/archive/cards" && init.method === "POST") {
+      const body = JSON.parse(init.body)
+      writes.push({ url, body })
+      const saved = { ...card, ...body, id: "studio-draft", status: "DRAFT", revision: 1 }
+      drafts = [saved]
+      return response({ card: saved })
+    }
+    if (url === "/api/archive/cards/studio-draft" && init.method === "PUT") {
+      const body = JSON.parse(init.body)
+      writes.push({ url, body })
+      const saved = { ...drafts[0], ...body, revision: 2 }
+      drafts = [saved]
+      return response({ card: saved })
+    }
+    if (url.endsWith("/studio-draft/submit") && init.method === "POST") {
+      const body = JSON.parse(init.body)
+      writes.push({ url, body })
+      drafts = [{ ...drafts[0], status: "PENDING", revision: 3 }]
+      return response({ card: drafts[0] })
+    }
+    if (url.includes("/meta")) return response({ ...meta, can_publish: true })
+    if (url.includes("mine=true")) return response({ items: drafts, total: drafts.length })
+    return response({ items: [], total: 0 })
+  }, "en")
+  let root
+  await api.act(async () => {
+    root = api.mount(doc.getElementById("mount"), "review", { csrf: "studio-csrf" })
+  })
+  assert.match(doc.body.textContent, /Card review/)
+  await api.act(async () => button(doc, "Card studio").click())
+  await api.act(async () => button(doc, "Create card").click())
+  const set = Object.getOwnPropertyDescriptor(w.HTMLInputElement.prototype, "value").set
+  await api.act(async () => {
+    const title = doc.querySelector('input[maxlength="80"]')
+    set.call(title, "Staff draft")
+    title.dispatchEvent(new w.Event("input", { bubbles: true }))
+  })
+  await api.act(async () => button(doc, "Save draft").click())
+  assert.equal(writes[0].url, "/api/archive/cards")
+  assert.equal(writes[0].body.title, "Staff draft")
+  assert.equal(writes[0].body.status, undefined)
+  await api.act(async () => button(doc, "Edit").click())
+  await api.act(async () => {
+    const title = doc.querySelector('input[maxlength="80"]')
+    set.call(title, "Edited staff draft")
+    title.dispatchEvent(new w.Event("input", { bubbles: true }))
+  })
+  await api.act(async () => button(doc, "Save draft").click())
+  assert.equal(writes[1].body.revision, 1)
+  assert.equal(writes[1].body.title, "Edited staff draft")
+  await api.act(async () => button(doc, "Submit").click())
+  assert.deepEqual(writes[2], {
+    url: "/api/archive/cards/studio-draft/submit",
+    body: { revision: 2 },
+  })
+  assert.ok(button(doc, "Withdraw"))
+  assert.equal(button(doc, "Edit"), undefined)
+  assert.equal(button(doc, "Publish"), undefined)
+  assert.ok(reads.some((url) => url.includes("/api/admin/archive/cards")))
+  assert.ok(reads.some((url) => url.includes("mine=true")))
+  await api.act(async () => button(doc, "Review queue").click())
+  assert.ok(button(doc, "Refresh queue"))
+  await api.act(async () => root.unmount())
+})
+
+test("staff studio respects can_publish and withholds draft creation for other roles", async () => {
+  const reads = []
+  const { api, doc } = runtime(async (url) => {
+    reads.push(url)
+    if (url.includes("/meta")) return response({ ...meta, can_publish: false })
+    return response({ items: [], total: 0 })
+  }, "en")
+  let root
+  await api.act(async () => {
+    root = api.mount(doc.getElementById("mount"), "review", { csrf: "csrf" })
+  })
+  await api.act(async () => button(doc, "Card studio").click())
+  assert.equal(button(doc, "Create card"), undefined)
+  assert.equal(
+    reads.some((url) => url.includes("mine=true")),
+    false,
+  )
+  assert.match(doc.body.textContent, /administrator|owner/i)
   await api.act(async () => root.unmount())
 })

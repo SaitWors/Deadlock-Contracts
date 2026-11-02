@@ -140,7 +140,7 @@ def render_public_page(page: str, language: str, base: str, shell: str | None = 
     footer = " · ".join(f'<a href="/{language}/{slug}">{escape(labels[1 if language == "ru" else 2])}</a>'
                         for slug, labels in LEGAL.items())
     sign_in = "Войти через Steam" if language == "ru" else "Sign in through Steam"
-    edition = "ГОРОД НЕ СПИТ · ГИД ПО КОНТРАКТАМ" if language == "ru" else "CITY NEVER SLEEPS · CONTRACTS GUIDE"
+    edition = "DEADLOCK CONTRACTS · ТВОЙ МАТЧ. ТВОИ УСЛОВИЯ." if language == "ru" else "DEADLOCK CONTRACTS · YOUR MATCH. YOUR TERMS."
     body = (f'<div class="city-public bureau-public min-h-screen"><header class="bureau-header"><div class="bureau-header-inner">'
             f'<a class="bureau-brand" href="/{language}/" aria-label="Deadlock Contracts">DEADLOCK<small>CONTRACTS</small></a><nav class="bureau-nav">{links}</nav>'
             f'<div class="bureau-account">{languages}</div></div></header>'
@@ -215,8 +215,8 @@ def valid_indexnow_key(key: str) -> bool:
 def llms_summary(base: str) -> str:
     lines = ["# Deadlock Contracts", "",
         "> An unofficial, open-beta community website for Deadlock players; not affiliated with Valve.", "",
-        "Match contracts use verified results. Browser ciphers, archive tokens, collectible cards and player bureaus are separate website activities.",
-        "The Companion is in development/Overwolf review; it is not required for website ciphers, collections or bureaus.", "",
+        "Match contracts use verified results. Collectible cards, one free daily pack and player communities are available between matches.",
+        "The Companion is in development/Overwolf review; it is not required for collections or communities.", "",
         "## Public guides", ""]
     for language in LANGUAGES:
         for page, data in PAGES.items():

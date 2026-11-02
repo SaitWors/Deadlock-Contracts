@@ -1,6 +1,7 @@
 import { useState } from "react"
 import { request, useResource } from "../community/api"
 import { useLanguage } from "../i18n"
+import AdminCardStudio from "./AdminCardStudio"
 import CardPreview from "../archive/CardPreview"
 import { CardStatus } from "../archive/CardStudio"
 import { Pager } from "../archive/ArchivePage"
@@ -10,6 +11,7 @@ import "../archive/archive.css"
 export default function CardReviewDesk({ csrf }: { csrf: string }) {
   const { language } = useLanguage()
   const ru = language === "ru"
+  const [view, setView] = useState<"review" | "studio">("review")
   const [status, setStatus] = useState("PENDING")
   const [offset, setOffset] = useState(0)
   const [notes, setNotes] = useState<Record<string, string>>({})
@@ -57,96 +59,118 @@ export default function CardReviewDesk({ csrf }: { csrf: string }) {
           </p>
         </div>
       </header>
-      <div className="dc-admin-filterbar">
-        <label>
-          {ru ? "Состояние" : "Status"}
-          <select
-            value={status}
-            onChange={(e) => {
-              setStatus(e.target.value)
-              setOffset(0)
-              setError("")
-            }}
-          >
-            {(["PENDING", "PUBLISHED", "REJECTED", "ARCHIVED"] as const).map((s) => (
-              <option key={s} value={s}>
-                {STATUS[s][ru ? 0 : 1]}
-              </option>
-            ))}
-          </select>
-        </label>
-        <button disabled={busy} onClick={data.reload}>
-          {ru ? "Обновить очередь" : "Refresh queue"}
+      <nav className="archive-tabs" aria-label={ru ? "Управление карточками" : "Card management"}>
+        <button
+          aria-current={view === "review" ? "page" : undefined}
+          onClick={() => setView("review")}
+        >
+          {ru ? "Очередь проверки" : "Review queue"}
         </button>
-        {data.data && (
-          <small>
-            {data.data.total} {ru ? "карточек" : "cards"}
-          </small>
-        )}
-      </div>
-      {(error || data.error) && <p role="alert">{error || data.error}</p>}
-      {data.loading && <p role="status">{ru ? "Загрузка…" : "Loading…"}</p>}
-      {data.data && !data.data.items.length && (
-        <p className="dc-admin-empty">
-          {ru ? "В этой очереди пока нет карточек." : "No cards in this queue."}
-        </p>
-      )}
-      <div className="archive-review-grid">
-        {data.data?.items.map((card) => (
-          <article key={`${card.id}:${card.revision}`}>
-            <CardPreview card={card} />
-            <div>
-              <CardStatus card={card} />
-              <h3>{card.title}</h3>
-              <p>{card.description}</p>
-              <p>
-                {ru ? "Автор изображения: " : "Artwork by: "}
-                {card.artist}
-              </p>
-              {card.source_url && (
-                <a href={card.source_url} target="_blank" rel="noopener noreferrer">
-                  {ru ? "Открыть источник" : "Open source"}
-                </a>
-              )}
-              {card.review_note && <p>{card.review_note}</p>}
-              {["PENDING", "PUBLISHED"].includes(card.status) && (
-                <>
-                  <label>
-                    {ru ? "Пояснение автору" : "Note to author"}
-                    <textarea
-                      maxLength={600}
-                      value={notes[card.id] || ""}
-                      onChange={(e) => setNotes((old) => ({ ...old, [card.id]: e.target.value }))}
-                    />
-                  </label>
-                  <div className="archive-actions">
-                    {card.status === "PENDING" ? (
-                      <>
-                        <button
-                          className="archive-primary"
-                          disabled={busy}
-                          onClick={() => void decide(card, "PUBLISH")}
-                        >
-                          {ru ? "Опубликовать" : "Publish"}
-                        </button>
-                        <button disabled={busy} onClick={() => void decide(card, "REJECT")}>
-                          {ru ? "Вернуть на доработку" : "Request changes"}
-                        </button>
-                      </>
-                    ) : (
-                      <button disabled={busy} onClick={() => void decide(card, "ARCHIVE")}>
-                        {ru ? "Снять с публикации" : "Unpublish"}
-                      </button>
-                    )}
-                  </div>
-                </>
-              )}
-            </div>
-          </article>
-        ))}
-      </div>
-      {data.data && (
-        <Pager offset={offset} size={18} total={data.data.total} setOffset={setOffset} />
+        <button
+          aria-current={view === "studio" ? "page" : undefined}
+          onClick={() => setView("studio")}
+        >
+          {ru ? "Мастерская карточек" : "Card studio"}
+        </button>
+      </nav>
+      {view === "studio" ? (
+        <AdminCardStudio csrf={csrf} onChanged={data.reload} />
+      ) : (
+        <>
+          <div className="dc-admin-filterbar">
+            <label>
+              {ru ? "Состояние" : "Status"}
+              <select
+                value={status}
+                onChange={(e) => {
+                  setStatus(e.target.value)
+                  setOffset(0)
+                  setError("")
+                }}
+              >
+                {(["PENDING", "PUBLISHED", "REJECTED", "ARCHIVED"] as const).map((s) => (
+                  <option key={s} value={s}>
+                    {STATUS[s][ru ? 0 : 1]}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <button disabled={busy} onClick={data.reload}>
+              {ru ? "Обновить очередь" : "Refresh queue"}
+            </button>
+            {data.data && (
+              <small>
+                {data.data.total} {ru ? "карточек" : "cards"}
+              </small>
+            )}
+          </div>
+          {(error || data.error) && <p role="alert">{error || data.error}</p>}
+          {data.loading && <p role="status">{ru ? "Загрузка…" : "Loading…"}</p>}
+          {data.data && !data.data.items.length && (
+            <p className="dc-admin-empty">
+              {ru ? "В этой очереди пока нет карточек." : "No cards in this queue."}
+            </p>
+          )}
+          <div className="archive-review-grid">
+            {data.data?.items.map((card) => (
+              <article key={`${card.id}:${card.revision}`}>
+                <CardPreview card={card} />
+                <div>
+                  <CardStatus card={card} />
+                  <h3>{card.title}</h3>
+                  <p>{card.description}</p>
+                  <p>
+                    {ru ? "Автор изображения: " : "Artwork by: "}
+                    {card.artist}
+                  </p>
+                  {card.source_url && (
+                    <a href={card.source_url} target="_blank" rel="noopener noreferrer">
+                      {ru ? "Открыть источник" : "Open source"}
+                    </a>
+                  )}
+                  {card.review_note && <p>{card.review_note}</p>}
+                  {["PENDING", "PUBLISHED"].includes(card.status) && (
+                    <>
+                      <label>
+                        {ru ? "Пояснение автору" : "Note to author"}
+                        <textarea
+                          maxLength={600}
+                          value={notes[card.id] || ""}
+                          onChange={(e) =>
+                            setNotes((old) => ({ ...old, [card.id]: e.target.value }))
+                          }
+                        />
+                      </label>
+                      <div className="archive-actions">
+                        {card.status === "PENDING" ? (
+                          <>
+                            <button
+                              className="archive-primary"
+                              disabled={busy}
+                              onClick={() => void decide(card, "PUBLISH")}
+                            >
+                              {ru ? "Опубликовать" : "Publish"}
+                            </button>
+                            <button disabled={busy} onClick={() => void decide(card, "REJECT")}>
+                              {ru ? "Вернуть на доработку" : "Request changes"}
+                            </button>
+                          </>
+                        ) : (
+                          <button disabled={busy} onClick={() => void decide(card, "ARCHIVE")}>
+                            {ru ? "Снять с публикации" : "Unpublish"}
+                          </button>
+                        )}
+                      </div>
+                    </>
+                  )}
+                </div>
+              </article>
+            ))}
+          </div>
+          {data.data && (
+            <Pager offset={offset} size={18} total={data.data.total} setOffset={setOffset} />
+          )}
+        </>
       )}
     </section>
   )
