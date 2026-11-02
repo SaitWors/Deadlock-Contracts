@@ -1,4 +1,3 @@
-@import "./imports/city-fonts/city-fonts.css";
 
 :root{--dc-bg:var(--color-page);--dc-panel:var(--color-panel);--dc-panel-2:var(--color-elevated);--dc-paper:var(--color-cream);--dc-paper-muted:var(--color-cream-dim);--dc-mint:var(--color-mint);--dc-mint-dark:var(--color-mint-dim);--dc-line:var(--color-border);--dc-warm:var(--color-brass);--dc-danger:var(--color-danger)}
 html{scroll-behavior:smooth}

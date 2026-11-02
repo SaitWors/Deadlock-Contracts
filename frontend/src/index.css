@@ -1,10 +1,10 @@
 @import 'tailwindcss';
 
 @theme {
-  --font-display: 'Jost', sans-serif;
-  --font-poster: 'Jost', system-ui, sans-serif;
-  --font-body: 'Jost', sans-serif;
-  --font-serif: 'Jost', system-ui, sans-serif;
+  --font-display: 'Valve Oracle', 'Inter', system-ui, sans-serif;
+  --font-poster: 'Valve Oracle', 'Inter', system-ui, sans-serif;
+  --font-body: 'Inter', system-ui, sans-serif;
+  --font-serif: 'Valve Oracle', 'Inter', system-ui, sans-serif;
   --color-void: #05070E;
   --color-page: #080C0B;
   --color-panel: #0E1512;

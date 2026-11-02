@@ -271,14 +271,6 @@ export default function Landing() {
         {page === "home" && (
           <>
             <section className="ritual-hero" aria-labelledby="ritual-title">
-              <img
-                className="ritual-city"
-                src={asset("covenant-city.webp")}
-                alt=""
-                width="1672"
-                height="941"
-                fetchPriority="high"
-              />
               <div className="ritual-container ritual-hero-inner">
                 <div className="ritual-hero-copy">
                   <div className="ritual-hero-eyebrow">
@@ -312,7 +304,7 @@ export default function Landing() {
                       {ru ? "Выбрать контракт" : "Choose a contract"}
                       <Icon name="arrow-up-right" size={20} />
                     </a>
-                    <a className="ritual-text-link" href={publicUrl("how", language)}>
+                    <a className="ritual-text-link btn-ghost" href={publicUrl("how", language)}>
                       <Icon name="video" size={17} />
                       {ru ? "Как это работает" : "How it works"}
                     </a>

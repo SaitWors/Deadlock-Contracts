@@ -1,3 +1,4 @@
+import re
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -34,10 +35,26 @@ def test_active_case_is_server_state_only() -> None:
 
 
 def test_fonts_are_self_hosted_and_csp_has_no_google_font_exception() -> None:
-    combined = INDEX_CSS + VNEXT_CSS + SECURITY
+    stylesheets = {
+        path: path.read_text(encoding="utf-8")
+        for path in (ROOT / "frontend/src").rglob("*.css")
+    }
+    combined = "\n".join(stylesheets.values()) + SECURITY
     assert "fonts.googleapis.com" not in combined
     assert "fonts.gstatic.com" not in combined
-    assert "./imports/city-fonts/city-fonts.css" in VNEXT_CSS
+    assert "font-src 'self';" in SECURITY
+
+    font_sources = []
+    for stylesheet, css in stylesheets.items():
+        for face in re.findall(r"@font-face\s*\{([^}]+)\}", css, re.DOTALL):
+            sources = re.findall(r"url\(\s*[\"']?([^\s\"')]+)", face)
+            assert sources, f"Missing font source in {stylesheet}"
+            for source in sources:
+                assert ":" not in source and not source.startswith("/"), source
+                path = (stylesheet.parent / source).resolve()
+                assert path.is_relative_to(ROOT) and path.is_file(), source
+                font_sources.append(path)
+    assert font_sources, "No self-hosted font faces found"
 
 
 def test_support_page_is_public() -> None:
@@ -127,3 +144,4 @@ def test_deploy_runs_migrations_before_recreating_services() -> None:
     recreate = '"${COMPOSE[@]}" up -d --no-deps --force-recreate web worker'
     assert migrate in deploy
     assert deploy.index(migrate) < deploy.index(recreate)
+
