@@ -119,9 +119,10 @@ for (const [name, entry, title] of [
     `<!doctype html><html lang="ru"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${title}</title><link rel="stylesheet" href="fixture.css"><body style="margin:0"><div id="root"></div><script src="${name}.js"></script><script>DesignPreview.mount(document.getElementById("root"));</script></body></html>`,
   )
 }
-const demoArt = files.find((name) => name.startsWith("mascot-idle-") && name.endsWith(".webp"))
-if (!demoArt) throw new Error("Missing local demo artwork")
-await fs.copyFile(path.join(assets, demoArt), path.join(target, "art.webp"))
+// The offline pack fixture still references art.webp. Use the shipped hero
+// portrait instead of the removed mascot or a Vite-hashed dist filename.
+const demoArt = path.resolve("src/hero-votes/portraits/84.webp")
+await fs.copyFile(demoArt, path.join(target, "art.webp"))
 await fs.writeFile(
   path.join(target, "README.txt"),
   "Распакуйте весь архив и откройте welcome.html или pack-reveal.html в браузере.\nЭто реальные компоненты новой версии с учебными данными. Вход и операции с реальным балансом отключены.\nПроверьте ширину 320, 390, 768 и 1440 px, масштаб 200%, клавиатуру и уменьшенное движение.\nExtract the whole archive and open welcome.html or pack-reveal.html. Real components, demo data, no real transactions.\n",
