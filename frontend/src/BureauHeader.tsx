@@ -2,8 +2,16 @@ import Icon from "./icons/Icon"
 import { useEffect, useId, useRef, useState, type ReactNode } from "react"
 import { AppearanceButton } from "./Appearance"
 import { LanguageSwitch, useLanguage } from "./i18n"
+import { usePublicNavigation } from "./public-navigation"
+import NavigationIcon, { type NavigationIconName } from "./icons/NavigationIcon"
 
-type HeaderItem = { id: string; label: string; badge?: string; href?: string }
+type HeaderItem = {
+  id: string
+  label: string
+  badge?: string
+  href?: string
+  icon?: NavigationIconName
+}
 
 export default function BureauHeader({
   items,
@@ -27,6 +35,7 @@ export default function BureauHeader({
   onHelp?: () => void
 }) {
   const { language } = useLanguage()
+  const { pathname, pending } = usePublicNavigation()
   const [open, setOpen] = useState(false)
   const menuId = useId()
   const toggle = useRef<HTMLButtonElement>(null)
@@ -43,7 +52,7 @@ export default function BureauHeader({
   }, [open])
   useEffect(() => {
     setOpen(false)
-  }, [active])
+  }, [active, pathname])
   const navigate = (id: string) => {
     if (open) toggle.current?.focus()
     onNavigate(id)
@@ -51,7 +60,13 @@ export default function BureauHeader({
   }
   const itemLink = (item: HeaderItem) =>
     item.href ? (
-      <a key={item.id} href={item.href} aria-current={active === item.id ? "page" : undefined}>
+      <a
+        key={item.id}
+        href={item.href}
+        aria-current={active === item.id ? "page" : undefined}
+        onClick={() => setOpen(false)}
+      >
+        {item.icon && <NavigationIcon name={item.icon} />}
         {item.label}
         {item.badge && <small>{item.badge}</small>}
       </a>
@@ -61,6 +76,7 @@ export default function BureauHeader({
         aria-current={active === item.id ? "page" : undefined}
         onClick={() => navigate(item.id)}
       >
+        {item.icon && <NavigationIcon name={item.icon} />}
         {item.label}
         {item.badge && <small>{item.badge}</small>}
       </button>
@@ -114,10 +130,14 @@ export default function BureauHeader({
         )}
         <nav
           className="bureau-nav"
+          aria-busy={pending || undefined}
           aria-label={language === "ru" ? "Основная навигация" : "Main navigation"}
         >
           {items.map(itemLink)}
         </nav>
+        <span className="sr-only" role="status">
+          {pending ? (language === "ru" ? "Загрузка страницы…" : "Loading page…") : ""}
+        </span>
         <div className="bureau-account">
           <AppearanceButton />
           <LanguageSwitch compact />

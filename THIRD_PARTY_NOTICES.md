@@ -13,3 +13,6 @@ The six hero posters and three city images used in this update are official Valv
 The project keeps its existing three-pose mascot illustrations. The paper grain is a procedural CSS/SVG texture, not the reference page's proprietary texture. Valve's Oracle and Pulp typefaces are not bundled; the poster typography uses Ruslan Display and the interface uses Jost.
 
 Deadlock, Steam, Valve, and associated marks belong to their respective owners. Deadlock Contracts is an unofficial community project and is not affiliated with Valve Corporation.
+
+
+Public navigation uses Hugeicons Free Stroke Rounded through `@hugeicons/react` 1.1.10 and `@hugeicons/core-free-icons` 4.4.0. Copyright (c) 2025 Hugeicons, MIT License; the complete notice is distributed at `frontend/public/licenses/hugeicons.txt`. Only the five statically imported navigation glyphs are included in the frontend bundle. No Hugeicons Pro assets are used.

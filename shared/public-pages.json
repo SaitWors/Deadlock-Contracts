@@ -6,7 +6,7 @@
       "label": "Главная",
       "title": "Deadlock Contracts — твой матч, твои условия",
       "description": "Контракты на матчи Deadlock, личный прогресс, достижения и бесплатный ежедневный пак карточек героев.",
-      "heading": "Твой матч. Твои условия.",
+      "heading": "Твой матч. Твои условия",
       "intro": "В каждом матче есть что-то большее, чем победа. Выбирай контракты, ставь подпись и превращай игру в личную историю.",
       "sections": [
         {
@@ -27,7 +27,7 @@
       "label": "Home",
       "title": "Deadlock Contracts — your match, your terms",
       "description": "Match contracts for Deadlock, personal progression, achievements and a free daily pack of hero cards.",
-      "heading": "Your match. Your terms.",
+      "heading": "Your match. Your terms",
       "intro": "Every match has more to offer than a win. Pick your contracts, sign the deal and turn every game into your own story.",
       "sections": [
         {
@@ -52,7 +52,7 @@
       "label": "Контракты",
       "title": "Контракты на следующий матч | Deadlock Contracts",
       "description": "Выбери до трёх контрактов для матча Deadlock. Посмотри условия, попробуй подписание свитка и получай XP за подтверждённые результаты.",
-      "heading": "У следующего матча есть цель.",
+      "heading": "У следующего матча есть цель",
       "intro": "Выбирай задания под свой стиль игры. Проверь условия, поставь подпись и выходи в город.",
       "sections": [
         {
@@ -73,7 +73,7 @@
       "label": "Contracts",
       "title": "Contracts for your next match | Deadlock Contracts",
       "description": "Choose up to three contracts for your next Deadlock match. Review conditions, try scroll signing and earn XP for verified results.",
-      "heading": "Give your next match a purpose.",
+      "heading": "Give your next match a purpose",
       "intro": "Choose objectives that fit your playstyle. Review the terms, sign the deal and head into the city.",
       "sections": [
         {
@@ -98,7 +98,7 @@
       "label": "Как играть",
       "title": "Как работают контракты | Deadlock Contracts",
       "description": "Выбор режима, подписание свитка, проверка матча и XP: как начать играть с Deadlock Contracts.",
-      "heading": "Три шага до нового дела.",
+      "heading": "Три шага до нового дела",
       "intro": "Выбери цель до матча. Скрепи её подписью. Забери заслуженный результат.",
       "sections": [
         {
@@ -127,7 +127,7 @@
       "label": "How it works",
       "title": "How contracts work | Deadlock Contracts",
       "description": "Choose a mode, sign the scroll, verify your match and earn XP: get started with Deadlock Contracts.",
-      "heading": "Three steps to your next case.",
+      "heading": "Three steps to your next case",
       "intro": "Choose a goal before the match. Put your name on it. Get the result you earned.",
       "sections": [
         {
@@ -160,7 +160,7 @@
       "label": "Коллекция",
       "title": "Коллекция и ежедневные паки | Deadlock Contracts",
       "description": "Бесплатный пак карточек героев Deadlock каждый день. Коллекция, редкость, избранные карты и витрина профиля.",
-      "heading": "Твоя коллекция. Твои находки.",
+      "heading": "Твоя коллекция. Твои находки",
       "intro": "Один бесплатный пак каждый день. Герои Deadlock, редкие экземпляры и карточки, которые хочется оставить на витрине.",
       "sections": [
         {
@@ -181,7 +181,7 @@
       "label": "Collection",
       "title": "Collection and daily packs | Deadlock Contracts",
       "description": "A free pack of Deadlock hero cards every day. Your collection, rarities, favorites and profile showcase.",
-      "heading": "Your collection. Your discoveries.",
+      "heading": "Your collection. Your discoveries",
       "intro": "One free pack every day. Deadlock heroes, rare finds and cards worth putting on display.",
       "sections": [
         {
@@ -206,7 +206,7 @@
       "label": "О проекте",
       "title": "О проекте | Deadlock Contracts",
       "description": "Независимый проект сообщества Deadlock: контракты на матч, достижения, карточки и личный прогресс.",
-      "heading": "У каждой игры есть продолжение.",
+      "heading": "У каждой игры есть продолжение",
       "intro": "Deadlock Contracts — место для твоего прогресса. Здесь матчи превращаются в выполненные дела, достижения и личную коллекцию.",
       "sections": [
         {
@@ -227,7 +227,7 @@
       "label": "About",
       "title": "About the project | Deadlock Contracts",
       "description": "An independent Deadlock community project: match contracts, achievements, hero cards and personal progression.",
-      "heading": "There is more to every match.",
+      "heading": "There is more to every match",
       "intro": "Deadlock Contracts is a home for your progress. Turn matches into completed cases, achievements and a collection of your own.",
       "sections": [
         {
@@ -290,7 +290,7 @@
       "label": "Подписание",
       "title": "Попробовать подписание контракта | Deadlock Contracts",
       "description": "Выбор контракта и анимация подписания свитка без регистрации. Демонстрация без сохранения результатов.",
-      "heading": "Попробуй поставить подпись.",
+      "heading": "Попробуй поставить подпись",
       "intro": "Демонстрационная доска: выбери до трёх заданий и посмотри подписание свитка. Настоящее дело появится после входа через Steam.",
       "sections": [
         {
@@ -307,7 +307,7 @@
       "label": "Signing preview",
       "title": "Try contract signing | Deadlock Contracts",
       "description": "Choose contracts and try the scroll signing animation without registering. A preview without saved rewards.",
-      "heading": "Try putting your name on it.",
+      "heading": "Try putting your name on it",
       "intro": "Demo board: choose up to three objectives and preview scroll signing. Sign in with Steam to start a real case.",
       "sections": [
         {

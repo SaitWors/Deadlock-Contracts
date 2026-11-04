@@ -1,90 +1,86 @@
-/* A single parchment; all ink tokens are independent of the page theme. */
+/* Signing shares the workspace theme and digital transaction surfaces. */
 html[data-theme] dialog.signing-dialog {
- --signing-paper:#ecdfbb;--signing-ink:#302b20;--signing-muted:#63553e;--ns-text:#302b20;--ns-muted:#63553e;--ns-accent:#36513e;
- position:fixed;inset:0;width:min(760px,calc(100% - 32px));max-width:none;max-height:calc(100dvh - 32px);margin:auto;padding:14px;box-sizing:border-box;border:0;border-radius:0;background:transparent;color:var(--signing-ink);overflow:auto;overscroll-behavior:contain;color-scheme:light;font:400 14px/1.6 var(--font-body,Inter,sans-serif);scrollbar-color:#9e8962 transparent;animation:signing-unfold .35s ease-out both;
+ position:fixed;inset:0;width:min(47.5rem,calc(100% - 2rem));max-width:none;max-height:calc(100dvh - 2rem);margin:auto;padding:0;box-sizing:border-box;border:1px solid var(--ns-line);border-radius:var(--ns-radius);background:var(--ns-surface);color:var(--ns-text);overflow:auto;overscroll-behavior:contain;color-scheme:inherit;font:400 14px/1.6 var(--font-body,Inter,sans-serif);scrollbar-color:var(--ns-line) transparent;animation:signing-unfold .25s ease-out both;
 }
-html[data-theme] dialog.signing-dialog::backdrop{background:#050a08df;backdrop-filter:blur(5px)}
-html[data-theme] dialog.signing-dialog .signing-document{position:relative;isolation:isolate;margin:0;padding:35px 52px 24px;color:var(--signing-ink);background:transparent;border:0;filter:drop-shadow(0 15px 30px #0007)}
-html[data-theme] dialog.signing-dialog .signing-document::before{content:"";position:absolute;inset:0;z-index:-1;background:radial-gradient(ellipse at 0 85%,#ab7d393d,transparent 45%),radial-gradient(ellipse at 95% 0%,#c9a56c80,transparent 40%),linear-gradient(91deg,#d3ba85 0%,#ead8ac 3%,#f3e7c8 15%,#e9d7a9 96%,#d2b87f 100%);box-shadow:inset 0 0 70px #a67d3d24;clip-path:polygon(.4% .6%,11% .2%,19% .6%,35% .3%,50% .6%,67% .1%,79% .5%,98.9% .2%,99.7% 9%,99.3% 24%,99.8% 42%,99.4% 63%,99.8% 80%,99.4% 99.4%,85% 99.8%,64% 99.4%,50% 99.9%,31% 99.5%,15% 99.9%,.5% 99.5%,.1% 86%,.5% 65%,.1% 48%,.6% 27%)}
-html[data-theme] dialog.signing-dialog .signing-document::after{content:"";position:absolute;inset:19px;z-index:-1;border:1px solid #82663d40;pointer-events:none}
-html[data-theme] dialog.signing-dialog .signing-close{position:absolute;top:18px;right:17px;display:grid;place-items:center;width:44px;height:44px;padding:0;border:0;border-radius:0;background:transparent;color:var(--signing-ink);cursor:pointer;z-index:1}
-html[data-theme] dialog.signing-dialog .signing-close:hover{background:#70582c15}
+html[data-theme] dialog.signing-dialog::backdrop{background:color-mix(in srgb,var(--ns-deep) 86%,transparent);backdrop-filter:blur(.3125rem)}
+html[data-theme] dialog.signing-dialog .signing-document{position:relative;isolation:isolate;margin:0;padding:2.1875rem 3.25rem 1.5rem;color:var(--ns-text);background:transparent;border:0}
+html[data-theme] dialog.signing-dialog .signing-close{position:absolute;top:18px;right:17px;display:grid;place-items:center;width:44px;height:44px;padding:0;border:0;border-radius:0;background:transparent;color:var(--ns-text);cursor:pointer;z-index:1}
+html[data-theme] dialog.signing-dialog .signing-close:hover{background:var(--ns-elevated)}
 html[data-theme] dialog.signing-dialog .signing-heading{text-align:center;padding-top:3px}
-html[data-theme] dialog.signing-dialog .signing-eyebrow{margin:0 24px 17px 0;color:#685437;font:700 9px/1.5 var(--font-body);letter-spacing:.16em;text-align:left}
+html[data-theme] dialog.signing-dialog .signing-eyebrow{margin:0 24px 17px 0;color:var(--ns-muted);font:700 9px/1.5 var(--font-body);letter-spacing:.16em;text-align:left}
 html[data-theme] dialog.signing-dialog .signing-eyebrow span{font-weight:400}
-html[data-theme] dialog.signing-dialog .signing-letterhead{display:flex;align-items:center;justify-content:center;gap:14px;color:#75552d}
-html[data-theme] dialog.signing-dialog .signing-letterhead span{width:52px;height:4px;border-block:1px solid #80643880}
-html[data-theme] dialog.signing-dialog .signing-document-type{margin:9px 0 12px;color:#685437;font:700 9px/1.5 var(--font-body);text-transform:uppercase;letter-spacing:.16em}
-html[data-theme] dialog.signing-dialog .signing-heading h2{position:static;margin:0;padding:0;color:#302b20;font:600 clamp(26px,3vw,38px)/1.15 var(--font-display,Georgia,serif);letter-spacing:.005em;overflow-wrap:anywhere}
+html[data-theme] dialog.signing-dialog .signing-letterhead{display:flex;align-items:center;justify-content:center;gap:14px;color:var(--ns-accent)}
+html[data-theme] dialog.signing-dialog .signing-letterhead span{width:52px;height:4px;border-block:1px solid var(--ns-line)}
+html[data-theme] dialog.signing-dialog .signing-document-type{margin:9px 0 12px;color:var(--ns-muted);font:700 9px/1.5 var(--font-body);text-transform:uppercase;letter-spacing:.16em}
+html[data-theme] dialog.signing-dialog .signing-heading h2{position:static;margin:0;padding:0;color:var(--ns-text);font:600 clamp(26px,3vw,38px)/1.15 var(--font-display,Inter,sans-serif);letter-spacing:.005em;overflow-wrap:anywhere}
 html[data-theme] dialog.signing-dialog .signing-heading h2:focus{outline:none}
-html[data-theme] dialog.signing-dialog .signing-intro{margin:16px auto 24px;max-width:58ch;color:#5a4b35;text-align:center;font-size:12px;line-height:1.65}
-html[data-theme] dialog.signing-dialog .signing-demo{margin:0 0 18px;padding:8px 12px;border-inline:2px solid #9b6b34;color:#665132;text-align:center;font-size:11px}
-html[data-theme] dialog.signing-dialog .signing-identity{display:grid;grid-template-columns:1fr .85fr 1fr;gap:12px;margin:0 0 24px;padding:17px 0;border-block:1px solid #8c714850}
-html[data-theme] dialog.signing-dialog .signing-identity dt{color:#63553e;font:400 10px/1.5 var(--font-body)}
-html[data-theme] dialog.signing-dialog .signing-identity dd{margin:5px 0 0;color:#302b20;font:700 13px/1.5 var(--font-body);overflow-wrap:anywhere}
+html[data-theme] dialog.signing-dialog .signing-intro{margin:16px auto 24px;max-width:58ch;color:var(--ns-muted);text-align:center;font-size:12px;line-height:1.65}
+html[data-theme] dialog.signing-dialog .signing-demo{margin:0 0 18px;padding:8px 12px;border-inline:2px solid var(--ns-accent);color:var(--ns-muted);text-align:center;font-size:11px}
+html[data-theme] dialog.signing-dialog .signing-identity{display:grid;grid-template-columns:1fr .85fr 1fr;gap:12px;margin:0 0 24px;padding:17px 0;border-block:1px solid var(--ns-line)}
+html[data-theme] dialog.signing-dialog .signing-identity dt{color:var(--ns-muted);font:400 10px/1.5 var(--font-body)}
+html[data-theme] dialog.signing-dialog .signing-identity dd{margin:5px 0 0;color:var(--ns-text);font:700 13px/1.5 var(--font-body);overflow-wrap:anywhere}
 html[data-theme] dialog.signing-dialog .signing-reward{text-align:right}
-html[data-theme] dialog.signing-dialog .signing-reward strong{color:#36513e;font:600 28px/1.1 var(--font-number,Georgia,serif);white-space:nowrap}
+html[data-theme] dialog.signing-dialog .signing-reward strong{color:var(--ns-accent);font:600 28px/1.1 var(--font-number,Georgia,serif);white-space:nowrap}
 html[data-theme] dialog.signing-dialog .signing-reward small{font:700 10px var(--font-body)}
 html[data-theme] dialog.signing-dialog .signing-section-heading{display:flex;justify-content:space-between;align-items:center;margin-bottom:5px}
-html[data-theme] dialog.signing-dialog .signing-section-heading h3{margin:0;color:#63553e;font:700 10px/1.5 var(--font-body);letter-spacing:.1em;text-transform:uppercase}
-html[data-theme] dialog.signing-dialog .signing-section-heading>span{color:#63553e;font:600 14px var(--font-number)}
+html[data-theme] dialog.signing-dialog .signing-section-heading h3{margin:0;color:var(--ns-muted);font:700 10px/1.5 var(--font-body);letter-spacing:.1em;text-transform:uppercase}
+html[data-theme] dialog.signing-dialog .signing-section-heading>span{color:var(--ns-muted);font:600 14px var(--font-number)}
 html[data-theme] dialog.signing-dialog .signing-terms{list-style:none;padding:0;margin:0}
-html[data-theme] dialog.signing-dialog .signing-terms li{display:grid;grid-template-columns:24px minmax(0,1fr) auto;align-items:start;gap:10px;padding:16px 0;border-bottom:1px solid #8c714835}
-html[data-theme] dialog.signing-dialog .signing-term-number{padding-top:3px;color:#79603d;font:600 15px var(--font-number)}
-html[data-theme] dialog.signing-dialog .signing-terms h3{margin:0 0 6px;color:#302b20;font:600 20px/1.2 var(--font-display);letter-spacing:.005em;overflow-wrap:anywhere}
-html[data-theme] dialog.signing-dialog .signing-terms p{margin:0;color:#5a4b35;font-size:12px;line-height:1.65;overflow-wrap:anywhere}
-html[data-theme] dialog.signing-dialog .signing-terms strong{color:#744132;font:700 11px/1.8 var(--font-body);white-space:nowrap}
-html[data-theme] dialog.signing-dialog .signing-note{display:flex;align-items:flex-start;gap:8px;margin:14px 0 0;color:#63553e;font-size:10px;line-height:1.65}
+html[data-theme] dialog.signing-dialog .signing-terms li{display:grid;grid-template-columns:24px minmax(0,1fr) auto;align-items:start;gap:10px;padding:16px 0;border-bottom:1px solid var(--ns-line)}
+html[data-theme] dialog.signing-dialog .signing-term-number{padding-top:3px;color:var(--ns-muted);font:600 15px var(--font-number)}
+html[data-theme] dialog.signing-dialog .signing-terms h3{margin:0 0 6px;color:var(--ns-text);font:600 20px/1.2 var(--font-display);letter-spacing:.005em;overflow-wrap:anywhere}
+html[data-theme] dialog.signing-dialog .signing-terms p{margin:0;color:var(--ns-muted);font-size:12px;line-height:1.65;overflow-wrap:anywhere}
+html[data-theme] dialog.signing-dialog .signing-terms strong{color:var(--ns-accent);font:700 11px/1.8 var(--font-body);white-space:nowrap}
+html[data-theme] dialog.signing-dialog .signing-note{display:flex;align-items:flex-start;gap:8px;margin:14px 0 0;color:var(--ns-muted);font-size:10px;line-height:1.65}
 html[data-theme] dialog.signing-dialog .signing-note svg{flex:0 0 16px;margin-top:1px}
 html[data-theme] dialog.signing-dialog .signing-autograph-row{display:grid;grid-template-columns:minmax(0,1fr) 120px;gap:24px;align-items:center;margin:24px 0 18px}
 html[data-theme] dialog.signing-dialog .signing-signature{min-width:0}
 html[data-theme] dialog.signing-dialog .signature-tools{display:flex;align-items:center;flex-wrap:wrap;justify-content:space-between;gap:0 12px}
-html[data-theme] dialog.signing-dialog .signature-tools label{color:#63553e;font-size:10px}
+html[data-theme] dialog.signing-dialog .signature-tools label{color:var(--ns-muted);font-size:10px}
 html[data-theme] dialog.signing-dialog .signature-tools>div{display:flex}
-html[data-theme] dialog.signing-dialog :is(.signature-tools,.signature-edit-tools) button{min-height:44px;padding:7px 9px;border:0;border-radius:0;background:transparent;color:#5a4b35;font:600 10px/1.5 var(--font-body);cursor:pointer}
-html[data-theme] dialog.signing-dialog .signature-tools button[aria-pressed=true]{color:#293b2e;text-decoration:underline;text-underline-offset:5px}
-html[data-theme] dialog.signing-dialog .signature-text{position:relative;border-bottom:1px solid #82663d90}
-html[data-theme] dialog.signing-dialog .signing-autograph,html[data-theme] dialog.signing-dialog .signature-text input{display:block;box-sizing:border-box;width:100%;min-width:0;margin:0;padding:12px 3px 15px;color:#283d43;background:transparent;border:0;border-radius:0;font:italic 27px/1.4 Georgia,"Times New Roman",serif;overflow-wrap:anywhere;box-shadow:none}
+html[data-theme] dialog.signing-dialog :is(.signature-tools,.signature-edit-tools) button{min-height:44px;padding:7px 9px;border:0;border-radius:0;background:transparent;color:var(--ns-muted);font:600 10px/1.5 var(--font-body);cursor:pointer}
+html[data-theme] dialog.signing-dialog .signature-tools button[aria-pressed=true]{color:var(--ns-accent);text-decoration:underline;text-underline-offset:5px}
+html[data-theme] dialog.signing-dialog .signature-text{position:relative;border-bottom:1px solid var(--ns-line)}
+html[data-theme] dialog.signing-dialog .signing-autograph,html[data-theme] dialog.signing-dialog .signature-text input{display:block;box-sizing:border-box;width:100%;min-width:0;margin:0;padding:12px 3px 15px;color:var(--ns-text);background:transparent;border:0;border-radius:0;font:italic 27px/1.4 Georgia,"Times New Roman",serif;overflow-wrap:anywhere;box-shadow:none}
 html[data-theme] dialog.signing-dialog .signing-autograph[aria-hidden=true]{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);padding:0}
-html[data-theme] dialog.signing-dialog .signature-pad{display:block;width:100%;height:110px;border-bottom:1px solid #82663d90;touch-action:none;cursor:crosshair}
+html[data-theme] dialog.signing-dialog .signature-pad{display:block;width:100%;height:110px;color:var(--ns-text);border-bottom:1px solid var(--ns-line);touch-action:none;cursor:crosshair}
 html[data-theme] dialog.signing-dialog .signature-pad[data-disabled=true]{touch-action:auto;cursor:default}
-html[data-theme] dialog.signing-dialog .signature-pad path{fill:none;stroke:#283d43;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;vector-effect:non-scaling-stroke}
+html[data-theme] dialog.signing-dialog .signature-pad path{fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;vector-effect:non-scaling-stroke}
 html[data-theme] dialog.signing-dialog .signature-edit-tools{display:flex;flex-wrap:wrap;align-items:center;justify-content:flex-end;gap:0 4px}
-html[data-theme] dialog.signing-dialog .signature-edit-tools>span{margin-right:auto;color:#63553e;font-size:9px}
-html[data-theme] dialog.signing-dialog .signature-hint{margin:8px 0 0;color:#63553e;font-size:10px;line-height:1.55}
+html[data-theme] dialog.signing-dialog .signature-edit-tools>span{margin-right:auto;color:var(--ns-muted);font-size:9px}
+html[data-theme] dialog.signing-dialog .signature-hint{margin:8px 0 0;color:var(--ns-muted);font-size:10px;line-height:1.55}
 html[data-theme] dialog.signing-dialog .signing-stamp-space{display:grid;place-items:center;min-height:125px}
-html[data-theme] dialog.signing-dialog .signing-stamp-placeholder{display:grid;place-content:center;justify-items:center;gap:8px;width:105px;height:105px;border:1px dashed #8c714870;border-radius:50%;color:#796449;font-size:9px;transform:rotate(-10deg)}
-html[data-theme] dialog.signing-dialog .signing-seal{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;width:112px;height:112px;box-sizing:border-box;border:5px double #c1745d;border-radius:49% 51% 48% 52%;outline:1px solid #682f26;outline-offset:3px;background:radial-gradient(circle at 35% 25%,#a64d38,#6d3026 85%);color:#ffebbe;box-shadow:inset 0 1px 6px #f0a97670,2px 4px 0 #4e271e,5px 8px 10px #4e271e40;font:700 11px/1.3 var(--font-body);letter-spacing:.04em;text-transform:uppercase;transform:rotate(-11deg)}
-html[data-theme] dialog.signing-dialog .signing-seal small{font-size:5px;letter-spacing:.08em}
-html[data-theme] dialog.signing-dialog[data-state=sealing] .signing-seal{animation:signing-imprint 1.4s cubic-bezier(.2,.8,.2,1) both}
-html[data-theme] dialog.signing-dialog .signing-acknowledgment{margin:20px 0 14px;padding-top:15px;border-top:1px solid #8c714840;color:#63553e;font-size:11px;line-height:1.65}
+html[data-theme] dialog.signing-dialog .signing-stamp-placeholder{display:grid;place-content:center;justify-items:center;gap:.5rem;width:7rem;min-height:6rem;padding:.75rem;box-sizing:border-box;border:1px solid var(--ns-line);border-radius:var(--ns-small);background:var(--ns-elevated);color:var(--ns-muted);font-size:.5625rem}
+html[data-theme] dialog.signing-dialog .signing-seal{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:.375rem;width:7rem;min-height:6rem;padding:.75rem;box-sizing:border-box;border:1px solid var(--ns-accent);border-radius:var(--ns-small);background:var(--ns-elevated);color:var(--ns-accent);font:700 .6875rem/1.3 var(--font-body);letter-spacing:.04em;text-transform:uppercase}
+html[data-theme] dialog.signing-dialog .signing-seal small{font-size:.4375rem;letter-spacing:.08em;color:var(--ns-muted)}
+html[data-theme] dialog.signing-dialog[data-state=sealing] .signing-seal{animation:signing-imprint .4s ease-out both}
+html[data-theme] dialog.signing-dialog .signing-acknowledgment{margin:20px 0 14px;padding-top:15px;border-top:1px solid var(--ns-line);color:var(--ns-muted);font-size:11px;line-height:1.65}
 html[data-theme] dialog.signing-dialog .signing-actions{display:flex;flex-wrap:wrap;justify-content:space-between;gap:12px}
-html[data-theme] dialog.signing-dialog :is(.signing-primary,.signing-secondary){display:inline-flex;align-items:center;justify-content:center;gap:9px;min-height:44px;padding:11px 16px;border:1px solid #816b48;border-radius:2px;font:700 12px/20px var(--font-body);text-transform:none;letter-spacing:0;cursor:pointer;transition:background .18s}
-html[data-theme] dialog.signing-dialog .signing-primary{background:#334b38;border-color:#334b38;color:#fff3d7}
-html[data-theme] dialog.signing-dialog .signing-primary:hover:not(:disabled){background:#213425}
-html[data-theme] dialog.signing-dialog .signing-secondary{background:transparent;color:#54452f}
-html[data-theme] dialog.signing-dialog .signing-secondary:hover:not(:disabled){background:#856b4020}
+html[data-theme] dialog.signing-dialog :is(.signing-primary,.signing-secondary){display:inline-flex;align-items:center;justify-content:center;gap:9px;min-height:44px;padding:11px 16px;border:1px solid var(--ns-line);border-radius:var(--ns-small);font:700 12px/20px var(--font-body);text-transform:none;letter-spacing:0;cursor:pointer;transition:background .18s}
+html[data-theme] dialog.signing-dialog .signing-primary{background:var(--ns-fill);border-color:var(--ns-fill);color:var(--ns-on-accent)}
+html[data-theme] dialog.signing-dialog .signing-primary:hover:not(:disabled){background:var(--ns-accent)}
+html[data-theme] dialog.signing-dialog .signing-secondary{background:transparent;color:var(--ns-text)}
+html[data-theme] dialog.signing-dialog .signing-secondary:hover:not(:disabled){background:var(--ns-elevated)}
 html[data-theme] dialog.signing-dialog button:disabled{opacity:.5;cursor:not-allowed}
 html[data-theme] dialog.signing-dialog input:disabled{opacity:1}
-html[data-theme] dialog.signing-dialog :is(button,input):focus-visible{outline:2px solid #36513e;outline-offset:3px}
-html[data-theme] dialog.signing-dialog .signing-error{margin:16px 0;padding:11px 13px;border-left:3px solid #8d352d;background:#8d352d0d;color:#752b25;font-size:12px}
-html[data-theme] dialog.signing-dialog .signing-progress{color:#36513e;font-size:11px;text-align:center}
+html[data-theme] dialog.signing-dialog :is(button,input):focus-visible{outline:2px solid var(--ns-accent);outline-offset:3px}
+html[data-theme] dialog.signing-dialog .signing-error{margin:16px 0;padding:11px 13px;border-left:3px solid var(--ns-danger);background:var(--ns-elevated);color:var(--ns-danger);font-size:12px}
+html[data-theme] dialog.signing-dialog .signing-progress{color:var(--ns-accent);font-size:11px;text-align:center}
 html[data-theme] dialog.signing-dialog .signing-progress:empty{margin:0}
 html[data-theme] dialog.signing-dialog .signing-spinner{width:14px;height:14px;border:2px solid currentColor;border-right-color:transparent;border-radius:50%;animation:signing-spin .8s linear infinite}
-html[data-theme] dialog.signing-dialog .signing-success{border-top:1px solid #8c714850;padding-top:18px}
-html[data-theme] dialog.signing-dialog .signing-success>p{color:#36513e;font-size:13px;margin:0 0 14px}
+html[data-theme] dialog.signing-dialog .signing-success{border-top:1px solid var(--ns-line);padding-top:18px}
+html[data-theme] dialog.signing-dialog .signing-success>p{color:var(--ns-accent);font-size:13px;margin:0 0 14px}
 html[data-theme] dialog.signing-dialog .signing-receipt{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px 22px;margin:0 0 20px}
-html[data-theme] dialog.signing-dialog .signing-receipt dt{color:#63553e;font-size:10px}
-html[data-theme] dialog.signing-dialog .signing-receipt dd{margin:3px 0 0;color:#302b20;font-size:12px;overflow-wrap:anywhere}
+html[data-theme] dialog.signing-dialog .signing-receipt dt{color:var(--ns-muted);font-size:10px}
+html[data-theme] dialog.signing-dialog .signing-receipt dd{margin:3px 0 0;color:var(--ns-text);font-size:12px;overflow-wrap:anywhere}
 html[data-theme] dialog.signing-dialog .signing-success>button{width:100%}
-html[data-theme] dialog.signing-dialog .signing-colophon{display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px;padding-top:24px;margin-top:22px;border-top:3px double #8c714850;color:#79603d;font:400 8px/1.4 var(--font-body);letter-spacing:.07em}
-@keyframes signing-unfold{from{opacity:0;transform:translateY(16px) rotate(-1deg)}to{opacity:1;transform:none}}
-@keyframes signing-imprint{0%{opacity:0;transform:translate(18px,-38px) rotate(-28deg) scale(1.8)}35%{opacity:1;transform:rotate(-11deg) scale(.92)}53%{transform:rotate(-11deg) scale(1.04)}100%{transform:rotate(-11deg) scale(1)}}
+html[data-theme] dialog.signing-dialog .signing-colophon{display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px;padding-top:24px;margin-top:22px;border-top:1px solid var(--ns-line);color:var(--ns-muted);font:400 8px/1.4 var(--font-body);letter-spacing:.07em}
+@keyframes signing-unfold{from{opacity:0;transform:translateY(.5rem)}to{opacity:1;transform:none}}
+@keyframes signing-imprint{from{opacity:0;transform:translateY(.375rem)}to{opacity:1;transform:none}}
 @keyframes signing-spin{to{transform:rotate(360deg)}}
 @media(max-width:560px){
- html[data-theme] dialog.signing-dialog{width:calc(100% - 8px);max-height:calc(100dvh - 8px);padding:6px}
- html[data-theme] dialog.signing-dialog .signing-document{padding:30px 22px 23px}
- html[data-theme] dialog.signing-dialog .signing-document::after{inset:10px}
+ html[data-theme] dialog.signing-dialog{width:calc(100% - .5rem);max-height:calc(100dvh - .5rem);padding:0}
+ html[data-theme] dialog.signing-dialog .signing-document{padding:1.875rem 1.375rem 1.4375rem}
  html[data-theme] dialog.signing-dialog .signing-close{top:8px;right:7px}
  html[data-theme] dialog.signing-dialog .signing-eyebrow{font-size:7px;letter-spacing:.07em;margin-right:28px}
  html[data-theme] dialog.signing-dialog .signing-identity{grid-template-columns:1fr 1fr;gap:14px}

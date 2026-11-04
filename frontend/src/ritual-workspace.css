@@ -1,4 +1,4 @@
-/* Ritual player workspace. Theme tokens inherit from appearance.css; paper documents retain fixed artwork colors. */
+/* Ritual player workspace. Every surface inherits the active appearance tokens. */
 html[data-theme] .bureau-app.ritual-workspace {
   color:var(--ns-text); background:var(--ns-bg); font-family:var(--font-body,"Inter",sans-serif);
   isolation:isolate; min-height:100dvh;
@@ -56,35 +56,36 @@ html[data-theme] .bureau-app.ritual-workspace .ritual-next-step h2 { font-size:2
 html[data-theme] .bureau-app.ritual-workspace .ritual-next-step p { color:var(--ns-muted); font-size:15px; margin:0; }
 html[data-theme] .bureau-app.ritual-workspace .ritual-next-step button { display:inline-flex; gap:12px; align-items:center; }
 
-/* Real match choices are readable documents, with a quiet selected seal. */
+/* Match choices share the workspace geometry and a clear selected state. */
 html[data-theme] .bureau-app.ritual-workspace .dc-contract-dossier .dc-motion-contract-head { margin-bottom:24px; gap:24px; }
 html[data-theme] .bureau-app.ritual-workspace .dc-contract-dossier h1 { font-size:clamp(30px,3.3vw,44px); font-family:var(--font-display); font-weight:600; }
 html[data-theme] .bureau-app.ritual-workspace .dc-contract-dossier .dc-motion-head-controls { padding:20px 0; border-top:1px solid var(--ns-line); }
 html[data-theme] .bureau-app.ritual-workspace .dc-contract-dossier .dc-motion-reroll { background:var(--ns-surface); border:1px solid var(--ns-line); border-radius:var(--ns-small); box-shadow:none; }
 html[data-theme] .bureau-app.ritual-workspace .dc-contract-dossier .dc-motion-mode-note { padding:0 0 20px; }
 html[data-theme] .bureau-app.ritual-workspace .dc-contract-dossier .dc-motion-contract-grid { gap:18px!important; }
-html[data-theme] .bureau-app.ritual-workspace .dc-contract-dossier .dc-motion-contract-card { --ns-text:#24261e; --ns-muted:#5b5b48; --ns-accent:#345037; --ns-fill:#345037; --ns-on-accent:#f7f5e8; --ns-line:#bdb18e; --ns-soft:#eee2c4; --ns-elevated:#eee2c4; position:relative; min-height:310px!important; background:#e3d3ad!important; color:#24261e!important; border:1px solid #c7b28b!important; border-radius:min(3px,var(--ns-radius))!important; padding:22px!important; box-shadow:none!important; overflow:visible; }
+html[data-theme] .bureau-app.ritual-workspace .dc-contract-dossier .dc-motion-contract-card { position:relative; min-height:19.375rem!important; background:var(--ns-surface)!important; color:var(--ns-text)!important; border:.0625rem solid var(--ns-line)!important; border-radius:min(.1875rem,var(--ns-radius))!important; padding:1.375rem!important; box-shadow:none!important; overflow:visible; }
 html[data-theme] .bureau-app.ritual-workspace .dc-contract-dossier .dc-motion-contract-card:disabled { opacity:1; }
 html[data-theme] .bureau-app.ritual-workspace .dc-contract-dossier .dc-motion-contract-card::before, html[data-theme] .bureau-app.ritual-workspace .dc-contract-dossier .dc-motion-contract-card::after { display:none!important; }
-html[data-theme] .bureau-app.ritual-workspace .dc-contract-dossier .dc-motion-contract-card.selected { background:#eee2c4!important; outline:2px solid var(--ns-accent); outline-offset:3px; }
-html[data-theme] .bureau-app.ritual-workspace .dc-contract-dossier .dc-motion-contract-card:hover:not(:disabled) { background:#eee2c4!important; border-color:#eee2c4!important; }
-html[data-theme] .bureau-app.ritual-workspace .dc-contract-dossier .dc-contract-top { color:#505440; margin-bottom:22px; }
-html[data-theme] .bureau-app.ritual-workspace .dc-contract-dossier .dc-contract-top span { color:#505440; font-size:11px; letter-spacing:.045em; }
-html[data-theme] .bureau-app.ritual-workspace .dc-contract-dossier .dc-contract-top em { color:#5b5b48; font-size:10px; font-style:normal; }
-html[data-theme] .bureau-app.ritual-workspace .dc-contract-dossier .dc-contract-top span i { color:#505440; background:transparent; border:0; }
-html[data-theme] .bureau-app.ritual-workspace .dc-contract-dossier .contract-selected-mark { color:#9c3d37; }
+html[data-theme] .bureau-app.ritual-workspace .dc-contract-dossier .dc-motion-contract-card.selected { background:var(--ns-elevated)!important; outline:.125rem solid var(--ns-accent); outline-offset:-.125rem; }
+html[data-theme] .bureau-app.ritual-workspace .dc-contract-dossier .dc-motion-contract-card:hover:not(:disabled) { background:var(--ns-elevated)!important; border-color:var(--ns-accent)!important; }
+html[data-theme] .bureau-app.ritual-workspace .dc-contract-dossier .dc-contract-top { color:var(--ns-muted); margin-bottom:22px; }
+html[data-theme] .bureau-app.ritual-workspace .dc-contract-dossier .dc-contract-top span { color:var(--ns-muted); font-size:11px; letter-spacing:.045em; }
+html[data-theme] .bureau-app.ritual-workspace .dc-contract-dossier .dc-contract-top em { color:var(--ns-muted); font-size:10px; font-style:normal; }
+html[data-theme] .bureau-app.ritual-workspace .dc-contract-dossier .dc-contract-top span i { color:var(--ns-accent); background:transparent; border:0; }
+html[data-theme] .bureau-app.ritual-workspace .dc-contract-dossier .contract-selected-mark { color:var(--ns-accent); }
 html[data-theme] .bureau-app.ritual-workspace .dc-contract-dossier .dc-v3-tags { gap:5px; margin-bottom:14px; }
-html[data-theme] .bureau-app.ritual-workspace .dc-contract-dossier .dc-v3-tags span { border:1px solid #bdb18e; background:transparent; border-radius:2px; color:#53543f; padding:4px 6px; font-size:9px; font-weight:600; }
-html[data-theme] .bureau-app.ritual-workspace .dc-contract-dossier .dc-motion-contract-card h3 { font:600 25px/1.2 var(--font-display,sans-serif)!important; color:#24261e!important; margin:0 0 12px!important; }
-html[data-theme] .bureau-app.ritual-workspace .dc-contract-dossier .dc-motion-contract-card>p { font-size:15px!important; line-height:1.5!important; color:#4d503e!important; }
+html[data-theme] .bureau-app.ritual-workspace .dc-contract-dossier .dc-v3-tags span { border:1px solid var(--ns-line); background:transparent; border-radius:2px; color:var(--ns-muted); padding:4px 6px; font-size:9px; font-weight:600; }
+html[data-theme] .bureau-app.ritual-workspace .dc-contract-dossier .dc-motion-contract-card h3 { font:600 25px/1.2 var(--font-display,sans-serif)!important; color:var(--ns-text)!important; margin:0 0 12px!important; }
+html[data-theme] .bureau-app.ritual-workspace .dc-contract-dossier .dc-motion-contract-card>p { font-size:15px!important; line-height:1.5!important; color:var(--ns-muted)!important; }
 html[data-theme] .bureau-app.ritual-workspace .dc-contract-dossier .dc-motion-card-bottom { margin-top:auto; padding-top:25px; }
-html[data-theme] .bureau-app.ritual-workspace .dc-contract-dossier .dc-motion-card-meta { border-top:1px solid #bdb18e; padding-top:14px; }
-html[data-theme] .bureau-app.ritual-workspace .dc-contract-dossier .dc-motion-card-meta span { color:#5b5b48; font-size:10px; }
-html[data-theme] .bureau-app.ritual-workspace .dc-contract-dossier .dc-motion-card-meta b { color:#24261e; font-size:19px; }
-html[data-theme] .bureau-app.ritual-workspace .dc-contract-dossier .dc-contract-foot { border-color:#bdb18e; padding-top:14px; margin-top:14px; }
-html[data-theme] .bureau-app.ritual-workspace .dc-contract-dossier .dc-contract-foot span { color:#5b5b48; font-size:10px; }
-html[data-theme] .bureau-app.ritual-workspace .dc-contract-dossier .dc-contract-foot strong { color:#505440; font-size:10px; border:0; background:transparent; }
-html[data-theme] .bureau-app.ritual-workspace .dc-contract-dossier .dc-contract-foot strong.chosen { color:#9c3d37; font-weight:700; }
+html[data-theme] .bureau-app.ritual-workspace .dc-contract-dossier .dc-motion-card-meta { border-top:1px solid var(--ns-line); padding-top:14px; }
+html[data-theme] .bureau-app.ritual-workspace .dc-contract-dossier .dc-motion-card-meta span { color:var(--ns-muted); font-size:10px; }
+html[data-theme] .bureau-app.ritual-workspace .dc-contract-dossier .dc-motion-card-meta b { color:var(--ns-accent); font-size:19px; }
+html[data-theme] .bureau-app.ritual-workspace .dc-contract-dossier .dc-contract-foot { border-color:var(--ns-line); padding-top:14px; margin-top:14px; }
+html[data-theme] .bureau-app.ritual-workspace .dc-contract-dossier .dc-contract-foot span { color:var(--ns-muted); font-size:10px; }
+html[data-theme] .bureau-app.ritual-workspace .dc-contract-dossier .dc-motion-contract-card .dc-contract-foot :is(strong,b) { color:var(--ns-muted)!important; background:transparent!important; }
+html[data-theme] .bureau-app.ritual-workspace .dc-contract-dossier .dc-contract-foot strong { font-size:10px; border:0; }
+html[data-theme] .bureau-app.ritual-workspace .dc-contract-dossier .dc-motion-contract-card .dc-contract-foot strong.chosen { color:var(--ns-accent)!important; font-weight:700; }
 html[data-theme] .bureau-app.ritual-workspace .dc-contract-dossier .dc-motion-selection-tray { background:var(--ns-elevated); border:1px solid var(--ns-line); border-radius:var(--ns-small); box-shadow:none; margin-top:24px; }
 html[data-theme] .bureau-app.ritual-workspace .dc-contract-dossier .dc-motion-selected-pills span { background:var(--ns-elevated); border:1px solid var(--ns-line); border-radius:min(3px,var(--ns-radius)); color:var(--ns-text); }
 html[data-theme] .bureau-app.ritual-workspace .dc-contract-dossier .dc-motion-selected-pills b { color:var(--ns-accent); }
@@ -113,10 +114,11 @@ html[data-theme] .bureau-app.ritual-workspace :is(.archive-filters input,.archiv
 html[data-theme] .bureau-app.ritual-workspace .archive-opening-history { border-top:1px solid var(--ns-line); padding-top:22px; margin-top:32px; }
 html[data-theme] .bureau-app.ritual-workspace .archive-opening-history>button { display:block; padding:12px 0; color:var(--ns-accent); background:none; font-size:14px; }
 html[data-theme] .bureau-app.ritual-workspace .ritual-daily-pack { display:grid; grid-template-columns:minmax(240px,.8fr) minmax(0,1.2fr); gap:clamp(24px,5vw,76px); padding:clamp(24px,4vw,50px); background:var(--ns-surface); border:1px solid var(--ns-line); border-radius:var(--ns-radius); align-items:center; }
-html[data-theme] .bureau-app.ritual-workspace .ritual-pack-art { width:100%; max-width:360px; aspect-ratio:1.2; margin:auto; position:relative; display:flex; flex-direction:column; justify-content:center; align-items:center; gap:14px; color:#3c422e; background:#e3d3ad; border:1px solid #ac9e7f; border-radius:min(3px,var(--ns-radius)); box-shadow:0 20px 35px #0005; }
-html[data-theme] .bureau-app.ritual-workspace .ritual-pack-art::before { content:""; position:absolute; inset:12px; border:1px solid #a3997b; pointer-events:none; }
+html[data-theme] .bureau-app.ritual-workspace .ritual-pack-art { width:100%; max-width:22.5rem; aspect-ratio:1.2; margin:auto; position:relative; display:flex; flex-direction:column; justify-content:center; align-items:center; gap:.875rem; color:var(--ns-accent); background:var(--ns-deep); border:.0625rem solid var(--ns-line); border-radius:min(.1875rem,var(--ns-radius)); box-shadow:none; }
+html[data-theme] .bureau-app.ritual-workspace .ritual-pack-art::before { content:""; position:absolute; inset:0 0 auto; height:.1875rem; background:var(--ns-accent); pointer-events:none; }
+html[data-theme] .bureau-app.ritual-workspace .ritual-pack-art::after { content:""; position:absolute; left:1.5rem; bottom:1.5rem; width:3.5rem; height:.75rem; background:repeating-linear-gradient(90deg,var(--ns-line) 0 .0625rem,transparent .0625rem .25rem); pointer-events:none; }
 html[data-theme] .bureau-app.ritual-workspace .ritual-pack-art span { text-align:center; font-weight:650; font-size:23px; line-height:1.1; letter-spacing:.08em; }
-html[data-theme] .bureau-app.ritual-workspace .ritual-pack-art i { position:absolute; right:24px; bottom:24px; display:grid; place-items:center; width:46px; height:46px; border-radius:50%; background:#9c3d37; border:3px double #c06858; color:#edcbac; font-size:14px; font-style:normal; }
+html[data-theme] .bureau-app.ritual-workspace .ritual-pack-art i { position:absolute; right:1.5rem; bottom:1.5rem; display:grid; place-items:center; width:2.875rem; height:2rem; border-radius:var(--ns-small); background:var(--ns-elevated); border:.0625rem solid var(--ns-line); color:var(--ns-accent); font-size:.75rem; font-style:normal; }
 html[data-theme] .bureau-app.ritual-workspace .ritual-pack-copy>small { color:var(--ns-accent); font-size:10px; letter-spacing:.13em; }
 html[data-theme] .bureau-app.ritual-workspace .ritual-pack-copy h2 { font-size:clamp(28px,3vw,40px); color:var(--ns-text); margin:12px 0 16px; }
 html[data-theme] .bureau-app.ritual-workspace .ritual-pack-copy>p { color:var(--ns-muted); font-size:16px; line-height:1.6; }
@@ -178,7 +180,3 @@ html[data-theme] .bureau-app.ritual-workspace .bureau-guide-note { background:va
 html[data-theme] .bureau-app.ritual-workspace .bureau-guide-footer { background:var(--ns-surface); border-top:1px solid var(--ns-line); }
 html[data-theme] .bureau-app.ritual-workspace .pack-reveal[data-theme=archive] { background:var(--ns-surface); border:1px solid var(--ns-line); border-radius:var(--ns-radius); color:var(--ns-text); box-shadow:0 25px 70px #0009; }
 html[data-theme] .bureau-app.ritual-workspace .pack-reveal[data-theme=archive] button { border-radius:var(--ns-small); }
-
-/* Status text is ink on paper, including the locked/waiting state. */
-html[data-theme] .bureau-app.ritual-workspace .dc-contract-dossier .dc-motion-contract-card .dc-contract-foot :is(strong,b) { color:#36513e!important; background:transparent!important; }
-html[data-theme] .bureau-app.ritual-workspace .dc-contract-dossier .dc-motion-contract-card .dc-contract-foot strong.chosen { color:#89392e!important; }

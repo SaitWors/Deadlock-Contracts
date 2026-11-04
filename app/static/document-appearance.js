@@ -39,7 +39,7 @@
     for (const name of ["--ns-accent", "--ns-fill", "--ns-on-accent"]) root.style.removeProperty(name);
     if (theme === "custom") {
       let accent = p.accent;
-      for (let i = 1; contrast(accent, "#202821") < 4.5 && i <= 20; i++) {
+      for (let i = 1; contrast(accent, "#1d2529") < 4.5 && i <= 20; i++) {
         accent = "#" + rgb(p.accent).map((v) => Math.round(v + (255 - v) * i / 20).toString(16).padStart(2, "0")).join("");
       }
       root.style.setProperty("--ns-accent", accent);
@@ -47,7 +47,7 @@
       root.style.setProperty("--ns-on-accent", contrast(p.accent, "#000000") >= contrast(p.accent, "#ffffff") ? "#000000" : "#ffffff");
     }
     controls.forEach((control) => { control.value = p.theme; });
-    document.querySelector('meta[name="theme-color"]')?.setAttribute("content", {light:"#eeeee7", dark:"#0b0d0d", black:"#000000", custom:"#0b100d"}[theme]);
+    document.querySelector('meta[name="theme-color"]')?.setAttribute("content", {light:"#edf1f2", dark:"#0b0d0d", black:"#000000", custom:"#0b0d0d"}[theme]);
   }
   controls.forEach((control) => control.addEventListener("change", () => {
     if (!modes.includes(control.value)) return;

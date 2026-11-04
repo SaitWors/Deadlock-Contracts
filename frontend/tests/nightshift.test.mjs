@@ -141,7 +141,10 @@ test("saved radius is bounded and manual motion preference is applied", async ()
   assert.equal(r.doc.documentElement.dataset.motion, "reduced")
 })
 test("mascot has three natural poses with a working manual pose control", async () => {
-  const r = await mounted()
+  const r = runtime()
+  await r.api.act(async () => {
+    r.root = r.api.mountMascot(r.doc.getElementById("mount"))
+  })
   const figure = r.doc.querySelector(".ns-mascot")
   assert.ok(figure)
   assert.equal(figure.querySelectorAll("img[data-pose]").length, 3)

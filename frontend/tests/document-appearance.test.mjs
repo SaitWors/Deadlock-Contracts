@@ -26,7 +26,7 @@ function render(preference = {}) {
   return { dom, doc: dom.window.document, media }
 }
 
-test("standalone custom appearance keeps saved choices and is readable on its elevated paper", () => {
+test("standalone custom appearance keeps saved choices and is readable on its elevated surface", () => {
   for (const accent of [
     "#785d83",
     "#000000",
@@ -42,7 +42,7 @@ test("standalone custom appearance keeps saved choices and is readable on its el
     assert.equal(style.getPropertyValue("--ns-fill"), accent)
     assert.equal(doc.documentElement.dataset.motion, "reduced")
     assert.ok(
-      contrast(style.getPropertyValue("--ns-accent"), "#202821") >= 4.5,
+      contrast(style.getPropertyValue("--ns-accent"), "#1d2529") >= 4.5,
       "accent is readable on the actual custom elevated surface",
     )
     assert.ok(
@@ -70,7 +70,7 @@ test("web custom appearance keeps mid-tone saved fills readable", async () => {
       `button text on saved ${accent}`,
     )
     assert.ok(
-      contrast(style.getPropertyValue("--ns-accent"), "#202821") >= 4.5,
+      contrast(style.getPropertyValue("--ns-accent"), "#1d2529") >= 4.5,
       `link on saved ${accent}`,
     )
     dom.window.close()
@@ -82,10 +82,10 @@ test("standalone theme switches preserve manual preferences and update Ritual br
   const select = doc.querySelector("select")
   for (const [theme, color] of Object.entries({
     dark: "#0b0d0d",
-    light: "#eeeee7",
+    light: "#edf1f2",
     black: "#000000",
-    custom: "#0b100d",
-    system: "#eeeee7",
+    custom: "#0b0d0d",
+    system: "#edf1f2",
   })) {
     select.value = theme
     select.dispatchEvent(new dom.window.Event("change"))

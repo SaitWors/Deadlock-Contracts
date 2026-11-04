@@ -5,7 +5,7 @@ html[data-theme] .bureau-app .dc-home-archive-callout {
   background:var(--ns-surface);color:var(--ns-text);box-shadow:5px 5px 0 var(--ns-deep);
 }
 html[data-theme] .dc-home-archive-callout .bureau-callout-label {
-  display:inline-block;padding:5px 8px;background:var(--ns-stamp);color:var(--ns-ink);font:700 10px/1.5 var(--font-body);letter-spacing:.1em;margin-bottom:10px;
+  display:inline-block;padding:5px 8px;background:var(--ns-stamp);color:var(--ns-on-accent);font:700 10px/1.5 var(--font-body);letter-spacing:.1em;margin-bottom:10px;
 }
 html[data-theme] .bureau-app .dc-home-archive-callout strong {
   font:400 32px/1.15 var(--font-poster);letter-spacing:-.035em;color:var(--ns-text);

@@ -1,5 +1,4 @@
 import type { PublicRoute } from "./publicRoutes"
-import Icon from "./icons/Icon"
 
 export type PublicCopy = {
   heading: string
@@ -41,9 +40,6 @@ export default function PublicContent({
     <section className={`public-document ${heading ? "" : "public-document-continuation"}`}>
       {heading && (
         <header className="ns-document-header">
-          <span className="ns-document-icon">
-            <Icon name="book-open" size={24} />
-          </span>
           <h1>{copy.heading}</h1>
           <p>{copy.intro}</p>
         </header>

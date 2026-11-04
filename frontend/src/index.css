@@ -51,10 +51,6 @@ body {
 /* Hide default cursor when custom cursor active */
 
 
-::-webkit-scrollbar { width: 5px; }
-::-webkit-scrollbar-track { background: #0E1512; }
-::-webkit-scrollbar-thumb { background: #3B5145; border-radius: 3px; transition: background 0.2s; }
-::-webkit-scrollbar-thumb:hover { background: #7AB384; box-shadow: 0 0 6px #7AB384; }
 
 /* Selection */
 ::selection { background: rgba(122,179,132,0.25); color: #F1E4C8; }

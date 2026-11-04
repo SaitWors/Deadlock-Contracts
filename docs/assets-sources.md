@@ -12,3 +12,8 @@ Audit date: 2026-10-29. No assets were downloaded or generated for this PR; no n
 The board itself uses CSS and text backed by the existing API. It adds no image placeholders, hotlinks, downloaded illustrations, or generated imagery. The isolated test fixtures use deliberately labelled QA data and never enter the production bundle. Existing shell assets remain outside this PR's asset changes.
 
 References are documented in `docs/design-direction.md`; no reference site's branding, source code, images or text were copied.
+
+
+## Digital redesign follow-up — 2026-11-04
+
+Five public navigation icons use the official Hugeicons Free Stroke Rounded package: contracts, cards, ranking, game-controller-01 and information-circle. Exact export names and free style were checked with the connected Hugeicons catalog. The shared renderer is `frontend/src/icons/NavigationIcon.tsx`; existing Lucide UI/brand symbols remain. Both npm packages are MIT-licensed, and their unchanged copyright/license is shipped in `frontend/public/licenses/hugeicons.txt`. No competitor assets or generated illustrations were added.

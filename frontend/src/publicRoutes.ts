@@ -1,5 +1,5 @@
-// These IDs match shared/public-pages.json. Navigation loads a document so its
-// server metadata, language and visible content always change together.
+// These IDs match shared/public-pages.json. Direct visits and enhanced navigation
+// use the same server documents so metadata, language and copy stay together.
 export const PUBLIC_SLUGS = {
   home: "",
   contracts: "contracts",

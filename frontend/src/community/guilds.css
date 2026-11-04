@@ -161,7 +161,7 @@
 .guild-swatches{display:flex;gap:10px;flex-wrap:wrap}
 .guild-cover-options{display:flex;gap:10px;flex-wrap:wrap}
 .guild-swatches button{display:flex;align-items:center;gap:8px;min-height:46px;padding:8px 12px}
-.guild-swatches button > span{display:grid;place-items:center;width:24px;height:24px;border-radius:50%;background:var(--guild-accent);color:var(--ns-ink)}
+.guild-swatches button > span{display:grid;place-items:center;width:24px;height:24px;border-radius:50%;background:var(--guild-accent);color:#172017}
 .guild-cover-options button{min-height:72px;flex:1 0 120px;border:1px solid #ffffff1a;border-radius:12px;display:flex;align-items:center;justify-content:center;gap:8px;padding:12px}
 .guild-emblem-options{display:grid;grid-template-columns:repeat(6, minmax(0, 1fr));gap:8px}
 .guild-emblem-options button{display:flex;flex-direction:column;gap:9px;align-items:center;justify-content:center;font-size:11px;padding:12px 4px}

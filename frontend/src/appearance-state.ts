@@ -61,7 +61,7 @@ export function applyAppearance(
   root.style.setProperty("--ns-small", `${Math.min(4, Math.round(p.radius * 0.55))}px`)
   if (actual === "custom") {
     let accent = p.accent
-    for (let i = 1; contrast(accent, "#202821") < 4.5 && i <= 20; i++) {
+    for (let i = 1; contrast(accent, "#1d2529") < 4.5 && i <= 20; i++) {
       accent =
         "#" +
         rgb(p.accent)
@@ -85,6 +85,6 @@ export function applyAppearance(
     .querySelector('meta[name="theme-color"]')
     ?.setAttribute(
       "content",
-      { light: "#eeeee7", dark: "#0b0d0d", black: "#000000", custom: "#0b100d" }[actual],
+      { light: "#edf1f2", dark: "#0b0d0d", black: "#000000", custom: "#0b0d0d" }[actual],
     )
 }
