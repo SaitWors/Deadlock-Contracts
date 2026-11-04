@@ -23,7 +23,7 @@ html[data-theme] .archive-page [role=alert] { border: 1px solid color-mix(in srg
 html[data-theme] .archive-page [role=status]:not(.archive-pending) { color: var(--ns-accent); padding: 12px 0; }
 html[data-theme] .archive-heading { padding: 26px 0 32px; border-bottom: 2px solid var(--ns-line); align-items: center; gap: 28px; }
 html[data-theme] .archive-heading > div:first-child { min-width: 0; }
-html[data-theme] .archive-heading > div:first-child > small { display: inline-block; padding: 6px 9px; background: var(--ns-stamp); color: var(--ns-ink); transform: rotate(-1.5deg); }
+html[data-theme] .archive-heading > div:first-child > small { display: inline-block; padding: 6px 9px; background: var(--ns-stamp); color: var(--ns-on-accent); transform: rotate(-1.5deg); }
 html[data-theme] .archive-heading small { font-size: 10px; font-weight: 700; letter-spacing: .1em; }
 html[data-theme] .archive-heading p { margin: 0; }
 html[data-theme] .archive-balance { min-width: 160px; padding: 18px 22px; border: 1px solid var(--ns-paper-line); border-radius: calc(var(--ns-radius) * .5); background: var(--ns-paper); color: var(--ns-ink); flex-shrink: 0; box-shadow: 5px 5px 0 color-mix(in srgb,var(--ns-deep) 65%,transparent); transform: rotate(2deg); }
@@ -163,7 +163,7 @@ html[data-theme] .archive-guesses small { font-size: 10px; }
 html[data-theme] .archive-cipher-board .archive-actions { gap: 8px; }
 html[data-theme] .archive-cipher-board .archive-actions button { flex: 1; padding-inline: 10px; font-size: 11px; }
 html[data-theme] .card-surface-back { color: var(--ns-ink); border: 1px solid var(--ns-paper-line); border-radius: calc(var(--ns-radius) * .5); background: repeating-linear-gradient(135deg,transparent 0 12px,#2e332911 12px 13px),var(--ns-paper); box-shadow: inset 0 0 0 7px var(--ns-paper),inset 0 0 0 8px var(--ns-paper-line); font: 700 12px/1.4 var(--font-body); letter-spacing: .12em; }
-html[data-theme] .card-surface-back > svg { width: 26%; height: auto; padding: 16px; box-sizing: content-box; border: 1px solid var(--ns-ink); border-radius: 50%; color: var(--ns-ink); background: var(--ns-stamp); transform: rotate(-9deg); }
+html[data-theme] .card-surface-back > svg { width: 26%; height: auto; padding: 16px; box-sizing: content-box; border: 1px solid var(--ns-on-accent); border-radius: 50%; color: var(--ns-on-accent); background: var(--ns-stamp); transform: rotate(-9deg); }
 html[data-theme] .card-surface-front { border-radius: calc(var(--ns-radius) * .5); overflow: hidden; }
 html[data-theme] .pack-reveal[data-theme=archive] { --paper: var(--ns-text); --ink: var(--ns-on-accent); --mint: var(--ns-fill); border: 1px solid var(--ns-paper-line); background: var(--ns-surface); color: var(--ns-text); border-radius: calc(var(--ns-radius) * .5); box-shadow: 12px 12px 0 #0006; }
 html[data-theme] .pack-reveal[data-theme=archive]::backdrop { background: #100f0ee8; }
@@ -181,7 +181,7 @@ html[data-theme] .pack-envelope-body { padding: 20px; gap: 16px; background: rep
 html[data-theme] .pack-envelope-body > svg { padding: 16px; box-sizing: content-box; border: 1px solid currentColor; border-radius: 50%; width: 44px; height: 44px; }
 html[data-theme] .pack-envelope-body > span { font: 750 27px/1.03 var(--font-display); letter-spacing: -.02em; text-transform: uppercase; max-width: 100%; overflow-wrap: anywhere; }
 html[data-theme] .pack-envelope-body > small { color: var(--ns-paper-muted); font-size: 9px; letter-spacing: .11em; }
-html[data-theme] .pack-tear-strip b { background: var(--ns-stamp); color: var(--ns-ink); border-top-color: var(--ns-ink); border-bottom-color: var(--ns-ink); }
+html[data-theme] .pack-tear-strip b { background: var(--ns-stamp); color: var(--ns-on-accent); border-top-color: var(--ns-on-accent); border-bottom-color: var(--ns-on-accent); }
 html[data-theme] .pack-fan-back { background: repeating-linear-gradient(135deg,transparent 0 12px,#2e332911 12px 13px),var(--ns-paper); color: var(--ns-ink); border-color: var(--ns-paper-line); box-shadow: inset 0 0 0 6px var(--ns-paper),inset 0 0 0 7px var(--ns-paper-line),6px 8px 0 #0004; }
 html[data-theme] .pack-fan-back > svg { width: 32%; height: auto; }
 html[data-theme] .guest-cipher { background: var(--ns-bg); color: var(--ns-text); font-family: var(--font-body); }

@@ -65,6 +65,8 @@ function runtime({
   page = "home",
   language = "ru",
   session = () => Promise.resolve({ ok: true, json: async () => guest }),
+  documents,
+  reducedMotion = true,
 } = {}) {
   const payload = JSON.stringify({ page, language, content: pages[page][language] }).replaceAll(
     "<",
@@ -91,7 +93,9 @@ function runtime({
   w.AbortSignal = AbortSignal
   w.IS_REACT_ACT_ENVIRONMENT = true
   w.scrollTo = () => {}
-  w.matchMedia = () => ({ matches: true, addEventListener() {}, removeEventListener() {} })
+  w.matchMedia = () => ({ matches: reducedMotion, addEventListener() {}, removeEventListener() {} })
+  w.HTMLMediaElement.prototype.play = () => Promise.resolve()
+  w.HTMLMediaElement.prototype.pause = () => {}
   w.IntersectionObserver = class {
     observe() {}
     disconnect() {}
@@ -103,6 +107,7 @@ function runtime({
     if (url === "/api/me") return session(init)
     if (String(url).startsWith("/api/announcements/active"))
       return { ok: true, json: async () => ({ items: [], server_time: "2026-09-20T00:00:00Z" }) }
+    if (documents) return documents(String(url), init)
     return { ok: false, status: 503, json: async () => ({ detail: "Unavailable in this fixture" }) }
   }
   w.eval(code)
@@ -261,4 +266,139 @@ test("public contract preview caps selection at three and never creates a real c
     false,
   )
   await close(env)
+})
+
+function publicDocument(url) {
+  const pathname = new URL(url).pathname
+  const language = pathname.split("/")[1]
+  const page = Object.keys(pages).find((key) => pages[key].slug === pathname.split("/")[2])
+  assert.ok(page, `Unknown public fixture: ${pathname}`)
+  const content = pages[page][language]
+  return {
+    ok: true,
+    url,
+    text: async () => `<html lang="${language}"><head><title>${content.title}</title>
+      <meta name="description" content="${content.description}">
+      <link rel="canonical" href="https://qa.invalid${pathname}">
+      <script id="dc-public-page" type="application/json">${JSON.stringify({ page, language, content }).replaceAll("<", "\\u003c")}</script>
+      </head><body></body></html>`,
+  }
+}
+
+test("guest root navigation keeps the actual header and animated background mounted", async () => {
+  const env = await mount({ documents: publicDocument, reducedMotion: false })
+  const header = env.doc.querySelector(".bureau-header")
+  const background = env.doc.querySelector(".bureau-atmosphere video")
+  assert.ok(header)
+  assert.ok(background)
+  const sessionCalls = env.calls.filter((url) => url === "/api/me").length
+  await env.api.act(async () =>
+    env.doc.querySelector('.bureau-nav a[href="/ru/contracts"]').click(),
+  )
+  assert.equal(env.w.location.pathname, "/ru/contracts")
+  assert.equal(env.doc.querySelector(".bureau-header"), header)
+  assert.equal(env.doc.querySelector(".bureau-atmosphere video"), background)
+  assert.equal(env.doc.querySelectorAll("[data-contract-choice]").length, 6)
+  assert.ok(env.doc.querySelector('.bureau-nav a[href="/ru/contracts"][aria-current="page"]'))
+  assert.equal(env.calls.filter((url) => url === "/api/me").length, sessionCalls)
+  await close(env)
+})
+
+test("localized App navigation updates page copy and locale while preserving the public shell", async () => {
+  const env = await mount({
+    url: "/ru/about",
+    page: "about",
+    language: "ru",
+    documents: publicDocument,
+    reducedMotion: false,
+    session: async () => ({ ok: true, json: async () => signedIn }),
+  })
+  const header = env.doc.querySelector(".bureau-header")
+  const background = env.doc.querySelector(".bureau-atmosphere video")
+  await env.api.act(async () => env.doc.querySelector('.bureau-nav a[href="/ru/cards"]').click())
+  await env.api.act(async () => env.doc.querySelector('.bureau-account a[hreflang="en"]').click())
+  assert.equal(env.w.location.pathname, "/en/cards")
+  assert.equal(env.doc.documentElement.lang, "en")
+  assert.equal(env.doc.querySelector("h1").textContent, pages.cards.en.heading)
+  assert.ok(env.doc.body.textContent.includes(pages.cards.en.sections[0].text))
+  assert.equal(env.doc.title, pages.cards.en.title)
+  assert.equal(env.doc.querySelector('link[rel="canonical"]').href, "https://qa.invalid/en/cards")
+  assert.equal(env.doc.querySelector(".bureau-header"), header)
+  assert.equal(env.doc.querySelector(".bureau-atmosphere video"), background)
+  assert.equal(env.doc.querySelector(".dc-dashboard"), null)
+  assert.equal(env.calls.includes("/api/me"), false)
+  await close(env)
+})
+
+test("delayed Back and Forward retain committed public copy and scenery until the destination is ready", async () => {
+  let deferDocuments = false
+  const pendingDocuments = []
+  const env = await mount({
+    url: "/ru/about",
+    page: "about",
+    language: "ru",
+    reducedMotion: false,
+    documents: (url) =>
+      deferDocuments
+        ? new Promise((resolve) => pendingDocuments.push({ url, resolve }))
+        : publicDocument(url),
+  })
+  try {
+    const header = env.doc.querySelector(".bureau-header")
+    const background = env.doc.querySelector(".bureau-atmosphere video")
+    await env.api.act(async () => env.doc.querySelector('.bureau-nav a[href="/ru/cards"]').click())
+    assert.equal(env.doc.querySelector("h1")?.textContent, pages.cards.ru.heading)
+    deferDocuments = true
+
+    for (const [direction, previousPage, destinationPage] of [
+      ["back", "cards", "about"],
+      ["forward", "about", "cards"],
+    ]) {
+      await env.api.act(async () => {
+        const popped = new Promise((resolve) =>
+          env.w.addEventListener("popstate", resolve, { once: true }),
+        )
+        env.w.history[direction]()
+        await popped
+      })
+      assert.equal(env.w.location.pathname, `/ru/${pages[destinationPage].slug}`)
+      assert.equal(env.doc.querySelector("h1")?.textContent, pages[previousPage].ru.heading)
+      assert.ok(env.doc.body.textContent.includes(pages[previousPage].ru.sections[0].text))
+      assert.equal(env.doc.querySelector(".bureau-header"), header)
+      assert.equal(env.doc.querySelector(".bureau-atmosphere video"), background)
+      const request = pendingDocuments.shift()
+      assert.ok(request, "history traversal should load its public document")
+      await env.api.act(async () => request.resolve(publicDocument(request.url)))
+      assert.equal(env.doc.querySelector("h1")?.textContent, pages[destinationPage].ru.heading)
+      assert.ok(env.doc.body.textContent.includes(pages[destinationPage].ru.sections[0].text))
+      assert.equal(env.doc.querySelector(".bureau-header"), header)
+      assert.equal(env.doc.querySelector(".bureau-atmosphere video"), background)
+    }
+  } finally {
+    await close(env)
+  }
+})
+
+test("mobile language navigation closes the menu when the public page keeps its identity", async () => {
+  const env = await mount({
+    url: "/ru/about",
+    page: "about",
+    language: "ru",
+    documents: publicDocument,
+  })
+  try {
+    await env.api.act(async () => env.doc.querySelector(".bureau-menu-toggle").click())
+    assert.equal(env.doc.querySelector(".bureau-menu-toggle").getAttribute("aria-expanded"), "true")
+    await env.api.act(async () =>
+      env.doc.querySelector('.bureau-mobile-nav a[hreflang="en"]').click(),
+    )
+    assert.equal(env.w.location.pathname, "/en/about")
+    assert.equal(
+      env.doc.querySelector(".bureau-menu-toggle").getAttribute("aria-expanded"),
+      "false",
+    )
+    assert.equal(env.doc.querySelector(".bureau-mobile-nav"), null)
+  } finally {
+    await close(env)
+  }
 })

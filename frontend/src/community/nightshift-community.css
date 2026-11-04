@@ -10,7 +10,7 @@ html[data-theme] .community-head { padding: 26px 0 32px; margin: 0 0 28px; borde
 html[data-theme] .community-head > div { max-width: 790px; min-width: 0; }
 html[data-theme] .community-head h1 { margin: 14px 0 0; max-width: 18ch; }
 html[data-theme] .community-head p:not(.community-eyebrow) { margin-top: 18px; max-width: 720px; font-size: 14px; line-height: 1.7; color: var(--ns-muted); }
-html[data-theme] .community-page .community-head .community-eyebrow { display: inline-block; padding: 6px 9px; background: var(--ns-stamp); color: var(--ns-ink); transform: rotate(-1.5deg); }
+html[data-theme] .community-page .community-head .community-eyebrow { display: inline-block; padding: 6px 9px; background: var(--ns-stamp); color: var(--ns-on-accent); transform: rotate(-1.5deg); }
 html[data-theme] .community-page .community-eyebrow { font: 700 10px/1.5 var(--font-body); letter-spacing: .1em; color: var(--ns-muted); margin-bottom: 12px; }
 html[data-theme] .community-page :is(.dc-primary,.dc-ghost) { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 44px; border-radius: var(--ns-small); padding: 11px 16px; font: 600 12px/1.4 var(--font-body); letter-spacing: 0; box-shadow: none; }
 html[data-theme] .community-page .dc-primary { color: var(--ns-on-accent); border: 1px solid transparent; background: var(--ns-fill); }
@@ -102,9 +102,9 @@ html[data-theme] .community-pagination > span { color: var(--ns-muted); font-siz
 /* DOSSIER, NOIR and SIGNAL remain personal cover choices inside the city folio. */
 html[data-theme] .dossier-view { background: var(--ns-surface); border: 1px solid var(--ns-line); border-radius: calc(var(--ns-radius) * .5); box-shadow: 6px 6px 0 var(--ns-deep); }
 html[data-theme] .dossier-cover { height: 230px; border: 7px solid var(--ns-paper); border-radius: calc(var(--ns-radius) * .5) calc(var(--ns-radius) * .5) 0 0; padding: 24px; background: repeating-linear-gradient(0deg,transparent 0 3px,#00000008 3px 4px),linear-gradient(120deg,var(--cover-start),var(--cover-end)); }
-html[data-theme] .dossier-cover > p { color: var(--ns-paper); font: 700 11px/1.5 var(--font-body); letter-spacing: .12em; }
-html[data-theme] .dossier-cover > p span { color: var(--ns-paper); font-size: 10px; letter-spacing: .08em; }
-html[data-theme] .dossier-cover-id { color: var(--ns-paper); font: 500 11px/1.5 var(--font-body); }
+html[data-theme] .dossier-cover > p { color: #edf1ef; font: 700 11px/1.5 var(--font-body); letter-spacing: .12em; }
+html[data-theme] .dossier-cover > p span { color: #edf1ef; font-size: 10px; letter-spacing: .08em; }
+html[data-theme] .dossier-cover-id { color: #edf1ef; font: 500 11px/1.5 var(--font-body); }
 html[data-theme] .dossier-cover > img { opacity: .09; right: 8%; width: 310px; height: 310px; }
 html[data-theme] .dossier-cover::after { opacity: .11; }
 html[data-theme] .dossier-identity { grid-template-columns: 108px minmax(0,1fr) 138px; padding: 0 30px 28px; gap: 24px; margin-top: -40px; }
@@ -177,12 +177,12 @@ html[data-theme] .profile-account-settings { max-width: 1320px; border: 1px soli
 html[data-theme] .profile-account-settings > summary { font: 600 16px/1.5 var(--font-body); color: var(--ns-text); }
 /* Bureau choices remain scoped to --guild-accent / --guild-tint. */
 html[data-theme] :is(.guild-page,.guild-directory-page,.guild-editor) { --guild-surface: var(--ns-surface); --guild-border: var(--ns-line); --guild-muted: var(--ns-muted); --guild-text: var(--ns-text); }
-html[data-theme] .community-page:is(.guild-page,.guild-directory-page) .dc-primary,html[data-theme] .community-page .guild-editor .dc-primary { color: var(--ns-ink); background: var(--guild-accent); border-color: transparent; }
+html[data-theme] .community-page:is(.guild-page,.guild-directory-page) .dc-primary,html[data-theme] .community-page .guild-editor .dc-primary { color: #172017; background: var(--guild-accent); border-color: transparent; }
 html[data-theme] .community-page:is(.guild-page,.guild-directory-page) .dc-primary:hover:not(:disabled),html[data-theme] .community-page .guild-editor .dc-primary:hover:not(:disabled) { background: color-mix(in srgb,var(--guild-accent) 90%,white); }
 html[data-theme] :is(.guild-page,.guild-directory-page,.guild-editor) .dc-ghost { color: var(--ns-text); background: var(--ns-surface); border-color: var(--ns-line); }
 html[data-theme] .guild-directory-page .community-head { padding: 26px 0 32px; margin-bottom: 28px; border-bottom: 2px solid var(--ns-line); }
 html[data-theme] .guild-directory-page .community-head h1 { font-size: clamp(38px,4.7vw,66px); }
-html[data-theme] .guild-directory-page .community-page .community-head .community-eyebrow { color: var(--ns-ink); font: 700 10px/1.5 var(--font-body); }
+html[data-theme] .guild-directory-page .community-page .community-head .community-eyebrow { color: var(--ns-on-accent); font: 700 10px/1.5 var(--font-body); }
 html[data-theme] .guild-directory-page .community-head p:not(.community-eyebrow) { font-size: 13px; }
 html[data-theme] .guild-directory-page .bureau-search { max-width: none; width: 100%; padding: 18px 0; border-block: 1px solid var(--ns-line); border-radius: 0; background: transparent; }
 html[data-theme] .bureau-search > label { font-size: 11px; margin-bottom: 9px; }
@@ -207,7 +207,7 @@ html[data-theme] .guild-facts > span { border-color: var(--ns-line); background:
 html[data-theme] .guild-facts b { color: var(--ns-text); }
 html[data-theme] .guild-tabs { background: transparent; border: 0; border-block: 1px solid var(--ns-line); border-radius: 0; padding: 8px 0; gap: 6px; margin-bottom: 26px; }
 html[data-theme] .guild-tabs button { min-height: 44px; padding: 10px 18px; font: 600 12px/1.4 var(--font-body); color: var(--ns-muted); border-radius: var(--ns-small); }
-html[data-theme] .guild-tabs button[aria-pressed=true] { background: var(--guild-accent); color: var(--ns-ink); box-shadow: 2px 2px 0 var(--ns-deep); }
+html[data-theme] .guild-tabs button[aria-pressed=true] { background: var(--guild-accent); color: #172017; box-shadow: 2px 2px 0 var(--ns-deep); }
 html[data-theme] .guild-tabs button:hover:not([aria-pressed=true]) { background: var(--ns-elevated); color: var(--ns-text); }
 html[data-theme] .guild-tabs button > b { background: var(--ns-elevated); color: var(--ns-muted); }
 html[data-theme] .guild-page .community-panel { padding: 26px; border: 1px solid var(--ns-line); border-radius: calc(var(--ns-radius) * .5); background: var(--ns-surface); }
@@ -251,7 +251,7 @@ html[data-theme] .guild-upload input::file-selector-button { background: var(--n
 html[data-theme] .guild-upload input[type=file] { font-size: 11px; padding: 8px 0; background: transparent; border: 0; }
 html[data-theme] .guild-swatches button { border: 1px solid var(--ns-line); background: var(--ns-deep); color: var(--ns-text); font: 500 11px/1.4 var(--font-body); }
 html[data-theme] .guild-swatches button[aria-pressed=true] { border-color: var(--guild-accent); background: color-mix(in srgb,var(--guild-accent) 8%,var(--ns-surface)); }
-html[data-theme] .guild-cover-options button { color: var(--ns-paper); border-color: var(--ns-paper-line); font: 500 12px var(--font-body); }
+html[data-theme] .guild-cover-options button { color: #edf1ef; border-color: var(--ns-paper-line); font: 500 12px var(--font-body); }
 html[data-theme] .guild-cover-options button[aria-pressed=true] { border-color: var(--guild-accent); outline: 1px solid var(--guild-accent); outline-offset: 2px; }
 html[data-theme] .guild-emblem-options button { border: 1px solid var(--ns-line); background: var(--ns-deep); color: var(--ns-muted); border-radius: var(--ns-small); min-height: 88px; }
 html[data-theme] .guild-emblem-options button[aria-pressed=true] { border-color: color-mix(in srgb,var(--guild-accent) 55%,var(--ns-line)); background: color-mix(in srgb,var(--guild-accent) 10%,var(--ns-surface)); color: color-mix(in srgb,var(--guild-accent) 45%,var(--ns-text)); }

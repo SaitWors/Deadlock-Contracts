@@ -31,7 +31,7 @@
 .dc-v3 .dc-admin-shell .dc-announcement-admin__form { display: grid; gap: 16px; min-width: 0; }
 .dc-v3 .dc-admin-shell .dc-announcement-admin__form > section { display: grid; gap: 16px; padding: 22px; border: 1px solid var(--ns-line); border-radius: calc(var(--ns-radius) * .5); background: var(--ns-surface); }
 .dc-v3 .dc-admin-shell .dc-announcement-admin__form section > header { display: flex; align-items: center; gap: 10px; padding: 12px; border: 1px solid var(--ns-paper-line); border-radius: calc(var(--ns-radius) * .3); background: var(--ns-paper); }
-.dc-v3 .dc-admin-shell .dc-announcement-admin__form section > header span { display: grid; place-items: center; flex: 0 0 auto; min-width: 27px; height: 27px; border-radius: calc(var(--ns-small) * .35); background: var(--ns-stamp); color: var(--ns-ink); font: 700 11px/1 var(--font-body, "Jost", sans-serif); }
+.dc-v3 .dc-admin-shell .dc-announcement-admin__form section > header span { display: grid; place-items: center; flex: 0 0 auto; min-width: 27px; height: 27px; border-radius: calc(var(--ns-small) * .35); background: var(--ns-stamp); color: var(--ns-on-accent); font: 700 11px/1 var(--font-body, "Jost", sans-serif); }
 .dc-v3 .dc-admin-shell .dc-announcement-admin__form section > header h3 { margin: 0; color: var(--ns-ink); font: 650 16px/1.4 var(--font-body, "Jost", sans-serif); text-transform: none; }
 .dc-v3 .dc-admin-shell .dc-announcement-admin__form label { display: grid; gap: 8px; min-width: 0; }
 .dc-v3 .dc-admin-shell .dc-announcement-admin__form label > span,

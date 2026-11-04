@@ -1,15 +1,16 @@
 import BureauAtmosphere from "./BureauAtmosphere"
-import { lazy, Suspense, useState } from "react"
+import { lazy, Suspense, useEffect, useState } from "react"
 import BureauHeader from "./BureauHeader"
 import Icon, { type IconName } from "./icons/Icon"
 import Leaderboard from "./community/Leaderboard"
-import Mascot from "./Mascot"
+import CollectionPreview from "./CollectionPreview"
+import { usePublicNavigation } from "./public-navigation"
 import PublicContent, { readPublicCopy } from "./PublicContent"
 import { MCGCredit, useLanguage } from "./i18n"
 import { publicUrl, resolvePublicRoute, type PublicPage } from "./publicRoutes"
+import type { NavigationIconName } from "./icons/NavigationIcon"
 
 const ContractSigning = lazy(() => import("./ContractSigning"))
-const asset = (name: string) => `${import.meta.env.BASE_URL}assets/ritual/${name}`
 type Mode = "STANDARD" | "RANKED" | "STREET_BRAWL"
 type ExampleContract = {
   id: number
@@ -119,7 +120,8 @@ export default function Landing() {
   const { language } = useLanguage()
   const ru = language === "ru"
   const lang = ru ? 0 : 1
-  const route = resolvePublicRoute(window.location.pathname) || {
+  const { pathname } = usePublicNavigation()
+  const route = resolvePublicRoute(pathname) || {
     page: "home" as PublicPage,
     language,
   }
@@ -128,6 +130,11 @@ export default function Landing() {
   const [selected, setSelected] = useState<number[]>([])
   const [previewOpen, setPreviewOpen] = useState(false)
   const [mode, setMode] = useState<Mode>("STANDARD")
+  useEffect(() => {
+    setSelected([])
+    setPreviewOpen(false)
+    setMode("STANDARD")
+  }, [page, language])
   const boardPage = page === "contracts" || page === "try"
   const total = EXAMPLES.filter((c) => selected.includes(c.id)).reduce(
     (sum, c) => sum + c.reward,
@@ -141,12 +148,12 @@ export default function Landing() {
           ? [...current, id]
           : current,
     )
-  const nav: { id: PublicPage; label: string }[] = [
-    { id: "contracts", label: ru ? "Контракты" : "Contracts" },
-    { id: "cards", label: ru ? "Коллекция" : "Collection" },
-    { id: "leaderboards", label: ru ? "Рейтинг" : "Leaderboard" },
-    { id: "how", label: ru ? "Как играть" : "How it works" },
-    { id: "about", label: ru ? "О проекте" : "About" },
+  const nav: { id: PublicPage; label: string; icon: NavigationIconName }[] = [
+    { id: "contracts", label: ru ? "Контракты" : "Contracts", icon: "contracts" },
+    { id: "cards", label: ru ? "Коллекция" : "Collection", icon: "cards" },
+    { id: "leaderboards", label: ru ? "Рейтинг" : "Leaderboard", icon: "leaderboards" },
+    { id: "how", label: ru ? "Как играть" : "How it works", icon: "how" },
+    { id: "about", label: ru ? "О проекте" : "About", icon: "about" },
   ]
   const board = (
     <section
@@ -157,9 +164,9 @@ export default function Landing() {
       <div className="ritual-section-heading">
         <div>
           <p className="ritual-kicker">
-            {ru ? "СНАЧАЛА ЦЕЛЬ. ПОТОМ МАТЧ." : "FIRST THE OBJECTIVE. THEN THE MATCH."}
+            {ru ? "ЦЕЛЬ НА СЛЕДУЮЩИЙ МАТЧ" : "YOUR NEXT MATCH STARTS HERE"}
           </p>
-          <h2 id="board-title">{ru ? "Выбери своё дело." : "Choose your next case."}</h2>
+          <h2 id="board-title">{ru ? "Выбери своё дело" : "Choose your next case"}</h2>
         </div>
         <span className="ritual-demo">
           <Icon name="eye" size={15} />
@@ -284,15 +291,13 @@ export default function Landing() {
                     <span className="sr-only">Deadlock Contracts: </span>
                     {ru ? (
                       <>
-                        Твой матч.
-                        <br />
-                        <em>Твои условия.</em>
+                        Твой матч <br />
+                        <em>Твои условия</em>
                       </>
                     ) : (
                       <>
-                        Your match.
-                        <br />
-                        <em>Your terms.</em>
+                        Your match <br />
+                        <em>Your terms</em>
                       </>
                     )}
                   </h1>
@@ -318,40 +323,52 @@ export default function Landing() {
                       : "Sign in with Steam. Make your progress count."}
                   </div>
                 </div>
-                <a
-                  className="ritual-hero-scroll"
-                  href={publicUrl("contracts", language)}
-                  aria-label={ru ? "Открыть доску контрактов" : "Open the contract board"}
-                >
-                  <img src={asset("open-scroll.webp")} alt="" width="1024" height="1536" />
-                  <div className="ritual-scroll-ink">
-                    <span>DEADLOCK CONTRACTS</span>
-                    <Icon name="eye" size={34} />
-                    <small>{ru ? "ПЕРСОНАЛЬНОЕ ПОРУЧЕНИЕ" : "PERSONAL ASSIGNMENT"}</small>
-                    <strong>{ru ? "Веский\nаргумент" : "A strong\nargument"}</strong>
-                    <p>{EXAMPLES[0].description[lang]}</p>
-                    <div>
-                      <span>{ru ? "НАГРАДА" : "REWARD"}</span>
-                      <b>180 XP</b>
-                    </div>
-                    <span className="ritual-scroll-signature">
-                      {ru ? "Твоя история начинается здесь" : "Your story starts here"}
+                <div className="ritual-objective">
+                  <div className="ritual-objective-top">
+                    <span>
+                      <Icon name="target" size={16} /> {ru ? "КОНТРАКТ НА МАТЧ" : "MATCH CONTRACT"}
                     </span>
+                    <small>{ru ? "ПРИМЕР" : "PREVIEW"}</small>
                   </div>
-                  <span className="ritual-scroll-tag">
-                    <Icon name="feather" size={16} />
-                    {ru ? "ОСТАЛОСЬ ПОДПИСАТЬ" : "YOUR SIGNATURE AWAITS"}
-                  </span>
-                </a>
+                  <div className="ritual-objective-body">
+                    <span className="ritual-objective-id">
+                      DC / 001 <span>{ru ? "УРОН" : "DAMAGE"}</span>
+                    </span>
+                    <h2>{EXAMPLES[0].title[lang]}</h2>
+                    <p>{EXAMPLES[0].description[lang]}</p>
+                    <div className="ritual-objective-target">
+                      <Icon name="target" size={24} />
+                      <div>
+                        <strong>30 000</strong>
+                        <span>{ru ? "урона по героям за матч" : "hero damage in one match"}</span>
+                      </div>
+                    </div>
+                    <div className="ritual-objective-meta">
+                      <span>{ru ? "Средняя сложность" : "Standard difficulty"}</span>
+                      <strong>
+                        +180 <small>XP</small>
+                      </strong>
+                    </div>
+                    <button
+                      type="button"
+                      className="btn-ghost"
+                      onClick={() => {
+                        setSelected([1])
+                        setPreviewOpen(true)
+                      }}
+                    >
+                      {ru ? "Посмотреть контракт" : "Preview contract"}
+                      <Icon name="arrow-up-right" size={17} />
+                    </button>
+                  </div>
+                  <div className="ritual-objective-foot">
+                    <Icon name="shield-check" size={15} />
+                    {ru
+                      ? "Твои условия фиксируются до матча"
+                      : "Your conditions are locked before the match"}
+                  </div>
+                </div>
               </div>
-              <img
-                className="ritual-bureau-desk"
-                src={asset("bureau-desk.avif")}
-                alt=""
-                width="1024"
-                height="683"
-                decoding="async"
-              />
               <div className="ritual-hero-bottom ritual-container">
                 <span>
                   01 — {ru ? "КОНТРАКТЫ НА СЛЕДУЮЩИЙ МАТЧ" : "CONTRACTS FOR YOUR NEXT MATCH"}
@@ -403,22 +420,12 @@ export default function Landing() {
             </section>
             {board}
             <section className="ritual-daily ritual-container" aria-labelledby="daily-title">
-              <div className="ritual-daily-art">
-                <img
-                  src={asset("sealed-scroll.webp")}
-                  alt=""
-                  width="1774"
-                  height="887"
-                  loading="lazy"
-                />
-              </div>
+              <CollectionPreview language={language} />
               <div>
                 <p className="ritual-kicker">
                   {ru ? "ВОЗВРАЩАТЬСЯ ПРИЯТНО" : "SOMETHING TO COME BACK TO"}
                 </p>
-                <h2 id="daily-title">
-                  {ru ? "Новый день.\nНовый пак." : "A new day.\nA new pack."}
-                </h2>
+                <h2 id="daily-title">{ru ? "Новый день\nНовый пак" : "A new day\nA new pack"}</h2>
                 <p>
                   {ru
                     ? "Ежедневный пак для твоей коллекции. Забирай бесплатно, открывай карточки героев и находи свои редкие экземпляры."
@@ -437,7 +444,7 @@ export default function Landing() {
             <section className="ritual-community ritual-container">
               <div>
                 <p className="ritual-kicker">MANDARIN CREATOR GROUP</p>
-                <h2>{ru ? "У каждого игрока\nсвоя история." : "Every player\nhas a story."}</h2>
+                <h2>{ru ? "У каждого игрока\nсвоя история" : "Every player\nhas a story"}</h2>
                 <p>
                   {ru
                     ? "Твой профиль, твои достижения и люди, с которыми хочется сыграть ещё один матч."
@@ -445,7 +452,41 @@ export default function Landing() {
                 </p>
                 <SignIn />
               </div>
-              <Mascot className="ritual-curator" />
+              <div className="ritual-community-links">
+                {(
+                  [
+                    [
+                      "cards",
+                      "layers",
+                      ru ? "Коллекция героев" : "Hero collection",
+                      ru ? "Новые карточки каждый день" : "New cards every day",
+                    ],
+                    [
+                      "leaderboards",
+                      "medal",
+                      ru ? "Рейтинг игроков" : "Player leaderboard",
+                      ru ? "Прогресс, который виден" : "Progress you can see",
+                    ],
+                    [
+                      "how",
+                      "users",
+                      ru ? "Больше, чем матч" : "More than a match",
+                      ru
+                        ? "Достижения, профиль и сообщество"
+                        : "Achievements, profile and community",
+                    ],
+                  ] as [PublicPage, IconName, string, string][]
+                ).map(([id, icon, title, text]) => (
+                  <a key={id} href={publicUrl(id, language)}>
+                    <Icon name={icon} size={22} />
+                    <span>
+                      <strong>{title}</strong>
+                      <small>{text}</small>
+                    </span>
+                    <Icon name="arrow-up-right" size={18} />
+                  </a>
+                ))}
+              </div>
             </section>
           </>
         )}
@@ -455,7 +496,7 @@ export default function Landing() {
               <p className="ritual-kicker">DEADLOCK CONTRACTS / {ru ? "КОНТРАКТЫ" : "CONTRACTS"}</p>
               <h1>
                 {copy?.heading ||
-                  (ru ? "У следующего матча есть цель." : "Give your next match a purpose.")}
+                  (ru ? "У следующего матча есть цель" : "Give your next match a purpose")}
               </h1>
               <p>{copy?.intro}</p>
             </header>
@@ -466,10 +507,10 @@ export default function Landing() {
           <>
             <PublicContent copy={copy} />
             <section className="ritual-collection-callout ritual-container">
-              <img src={asset("sealed-scroll.webp")} alt="" width="1774" height="887" />
+              <CollectionPreview language={language} />
               <div>
                 <p className="ritual-kicker">{ru ? "ЕЖЕДНЕВНЫЙ ПАК" : "DAILY PACK"}</p>
-                <h2>{ru ? "Забирай. Открывай. Собирай." : "Claim. Reveal. Collect."}</h2>
+                <h2>{ru ? "Забирай, открывай, собирай" : "Claim, reveal, collect"}</h2>
                 <p>
                   {ru
                     ? "Один бесплатный пак на аккаунт в сутки. Следующая выдача — в 00:00 UTC (03:00 МСК)."

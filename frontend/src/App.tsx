@@ -7,6 +7,7 @@ const PublicDossier = lazy(() => import("./PublicDossier"))
 import { apiLanguage, LanguageProvider, useLanguage } from "./i18n"
 import AnnouncementLayer from "./announcements/AnnouncementLayer"
 import { AnnouncementProvider, useAnnouncements } from "./announcements/AnnouncementProvider"
+import { PublicNavigationProvider, usePublicNavigation } from "./public-navigation"
 
 type SessionPayload = {
   authenticated: boolean
@@ -46,6 +47,8 @@ type SessionPayload = {
 }
 
 function SessionApp({ onSession }: { onSession: (authenticated: boolean) => void }) {
+  const { pathname } = usePublicNavigation()
+  const discoverSession = ["/", "/admin/reviews", "/admin/announcements"].includes(pathname)
   const { language, setServerDefault } = useLanguage()
   const { configureSession, setSurface } = useAnnouncements()
   const [session, setSession] = useState<SessionPayload | null>(null)
@@ -53,6 +56,7 @@ function SessionApp({ onSession }: { onSession: (authenticated: boolean) => void
   const [attempt, setAttempt] = useState(0)
 
   useEffect(() => {
+    if (!discoverSession) return
     const controller = new AbortController()
     let active = true
     let timedOut = false
@@ -97,22 +101,24 @@ function SessionApp({ onSession }: { onSession: (authenticated: boolean) => void
       window.clearTimeout(timeout)
       controller.abort()
     }
-  }, [attempt, setServerDefault, onSession])
+  }, [attempt, setServerDefault, onSession, discoverSession])
 
   useEffect(() => {
-    const authenticated = Boolean(session?.authenticated && session.user && session.csrf_token)
+    const authenticated = Boolean(
+      discoverSession && session?.authenticated && session.user && session.csrf_token,
+    )
     configureSession(
       authenticated,
       authenticated ? session?.csrf_token || null : null,
       authenticated ? session?.user?.id || null : null,
     )
     setSurface(authenticated ? "SITE_DASHBOARD" : "SITE_PUBLIC")
-  }, [configureSession, session, setSurface])
+  }, [configureSession, session, setSurface, discoverSession])
 
-  if (!session?.authenticated || !session.user || !session.csrf_token) {
+  if (!discoverSession || !session?.authenticated || !session.user || !session.csrf_token) {
     return (
       <>
-        {failed && (
+        {discoverSession && failed && (
           <aside className="public-session-notice" role="alert">
             <p>
               {language === "ru"
@@ -145,11 +151,11 @@ function SessionApp({ onSession }: { onSession: (authenticated: boolean) => void
   )
 }
 function AppRoutes({ onSession }: { onSession: (authenticated: boolean) => void }) {
-  const match = window.location.pathname.match(/^\/u\/([a-z0-9-]{3,32})\/?$/)
+  const { pathname } = usePublicNavigation()
+  const match = pathname.match(/^\/u\/([a-z0-9-]{3,32})\/?$/)
   if (match) return <PublicDossier slug={match[1]} />
-  const route = resolvePublicRoute(window.location.pathname)
-  if (route && window.location.pathname !== "/") return <Landing />
-  if (["/", "/admin/reviews", "/admin/announcements"].includes(window.location.pathname))
+  const route = resolvePublicRoute(pathname)
+  if (route || ["/admin/reviews", "/admin/announcements"].includes(pathname))
     return <SessionApp onSession={onSession} />
   return (
     <main className="public-document">
@@ -159,11 +165,11 @@ function AppRoutes({ onSession }: { onSession: (authenticated: boolean) => void 
   )
 }
 
-export default function App() {
+function AppContent() {
+  const { pathname } = usePublicNavigation()
   const [privateSession, setPrivateSession] = useState(false)
-  const route = resolvePublicRoute(window.location.pathname)
-  const publicRoute =
-    window.location.pathname === "/" && privateSession ? undefined : route || undefined
+  const route = resolvePublicRoute(pathname)
+  const publicRoute = pathname === "/" && privateSession ? undefined : route || undefined
   return (
     <LanguageProvider publicRoute={publicRoute}>
       <AppearanceProvider>
@@ -181,5 +187,13 @@ export default function App() {
         </AnnouncementProvider>
       </AppearanceProvider>
     </LanguageProvider>
+  )
+}
+
+export default function App() {
+  return (
+    <PublicNavigationProvider>
+      <AppContent />
+    </PublicNavigationProvider>
   )
 }
