@@ -58,7 +58,7 @@ components:
 
 A digital bureau for Deadlock players choosing objectives before a match and checking their progress afterward. The public landing has room for expression; the authenticated workspace prioritizes readable conditions, factual status and predictable controls. RU and EN share the same hierarchy and script-capable fallbacks; locale support does not imply a particular market.
 
-The signature is the preserved pentagram and animated city background in `frontend/src/BureauAtmosphere.tsx`. Keep the foreground quiet: graphite panels, straight borders and restrained sage actions. The accepted direction is recorded in `docs/superpowers/specs/2026-11-04-digital-coherence-design.md`.
+The signature is an occult city contract bureau: the preserved pentagram/animated backdrop in `frontend/src/BureauAtmosphere.tsx`, Valve Oracle typography and one city-backed objective on the first screen. The real map image is part of the functional contract preview, not a detached illustration. Graphite frames, short edge rails, framed category symbols and clearly separated XP give the working surfaces a game identity without competing with the conditions. The current evolution is recorded in `docs/design/2026-11-09-occult-bureau.md`; it retains the paper/scroll removal accepted in `docs/superpowers/specs/2026-11-04-digital-coherence-design.md`.
 
 Runtime CSS remains canonical. `frontend/src/appearance.css` owns semantic tokens and legacy aliases; `appearance-state.ts` applies saved preferences. This file mirrors their accepted defaults and explains intent; it generates no runtime files. Update the owner and this document together, then verify the standalone mirror and appearance tests.
 
@@ -88,7 +88,7 @@ Native standalone legal/support/status pages and crawlable fallback documents mi
 
 ## Elevation & Depth
 
-Use surface/elevated tones and one-pixel borders to distinguish regions; `--ns-shadow` is `none`. Keep paper textures, folded corners, desk/scroll illustrations, rotated plaques and heavy offset shadows out of the foreground. The completion finale has its own floating plaques and attached light effects; ordinary surfaces retain this rule. Modal backdrops and the existing appearance drawer may separate overlays from content without changing ordinary panel depth.
+Use surface/elevated tones, one-pixel frames and short accent rails to distinguish regions; `--ns-shadow` is `none`. Only the first-screen objective has a restrained offset frame/depth shadow. Ordinary mission cards stay opaque and stable; on a fine pointer, the hovered card may rise 4px, with a small press response. These are interaction feedback, not permanent floating. Keep paper textures, folded corners, desk/scroll illustrations, rotated plaques and heavy offset shadows out of the foreground. The completion finale has its own floating plaques and attached light effects; ordinary surfaces retain this rule. Modal backdrops and the existing appearance drawer may separate overlays from content without changing ordinary panel depth.
 
 ## Shapes
 
@@ -96,9 +96,13 @@ The default `--ns-radius` is 4px; many panels use half that radius. Saved prefer
 
 ## Components
 
-`Landing.tsx` uses a functional objective preview and `CollectionPreview.tsx` uses existing local Valve portraits (`hero-votes/portraits/84.webp`, `85.webp`, `86.webp`), never invented pack results. Preserve existing artwork notices; see `docs/assets-sources.md`. Existing UI and brand symbols use vendored Lucide geometry through `frontend/src/icons/Icon.tsx`. At the user’s request, public navigation uses five verified Hugeicons Free Stroke Rounded glyphs through `frontend/src/icons/NavigationIcon.tsx`: contracts, cards, ranking, game controller and information. Keep their 16px size, visible labels and consistent meaning across desktop and mobile menus. Do not add repeated book ornaments above page headings.
+`Landing.tsx` integrates the existing `imports/city/uptown_02.webp` map into a functional objective preview and `CollectionPreview.tsx` uses existing local Valve portraits (`hero-votes/portraits/84.webp`, `85.webp`, `86.webp`), never invented pack results. Preserve existing artwork notices; see `docs/assets-sources.md`. Existing UI and brand symbols use vendored Lucide geometry through `frontend/src/icons/Icon.tsx`. At the user’s request, public navigation uses five verified Hugeicons Free Stroke Rounded glyphs through `frontend/src/icons/NavigationIcon.tsx`: contracts, cards, ranking, game controller and information. Keep their 16px size, visible labels and consistent meaning across desktop and mobile menus. Do not add repeated book ornaments above page headings.
 
 Primary actions consume fill/on-accent; secondary actions use surface/border/text. Selected contracts and navigation use the accent without replacing text labels. Keep distinct hover, visible focus, pressed, disabled and busy states; retain inline errors and the shared announcement surfaces. `UX-CONTRACT.md` records their behavioral owners.
+
+`contract-board.css` owns the authenticated mission card recipe and actual status variants; `ritual-workspace.css` must not duplicate it. Public `.ritual-contract` uses the same framed category/XP/selected-rail vocabulary. `ritual-foundations.css` owns shared hover, focus, press and the brief selected-check response. Status text remains authoritative and visible; the data attribute only styles the existing verdict. Account/progress/active/history XP uses existing confirmed values, with no new metrics.
+
+`motion.ts` owns `useSceneEntrance`: first-screen title, actions and objective enter over 520ms with at most 160ms stagger. Content is visible without WAAPI; no action waits for choreography. Appearance changes cancel entry immediately. Do not apply scroll reveals or continuous motion to ordinary mission grids. Both system and saved reduced motion keep all content and outcomes available.
 
 Keep `BureauAtmosphere` mounted during enhanced public navigation. Its fallback image remains available; reduced motion and hidden documents pause ambient video. State transitions and signing confirmation remain understandable without animation.
 

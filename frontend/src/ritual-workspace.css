@@ -7,8 +7,8 @@ html[data-theme] .bureau-app.ritual-workspace::after { display:none; }
 html[data-theme] .bureau-app.ritual-workspace :is(h1,h2,h3,h4) { font-family:var(--font-display,"Inter",sans-serif); letter-spacing:.005em; font-weight:600; text-transform:none; }
 html[data-theme] .bureau-app.ritual-workspace :is(button,input,select,textarea) { font-family:inherit; }
 html[data-theme] .bureau-app.ritual-workspace :is(button,a,input,select,textarea):focus-visible { outline:2px solid var(--ns-accent); outline-offset:4px; }
-html[data-theme] .bureau-app.ritual-workspace :is(.dc-primary,.archive-primary,.bureau-action) { background:var(--ns-fill)!important; color:var(--ns-on-accent)!important; border:1px solid var(--ns-fill)!important; border-radius:var(--ns-small)!important; box-shadow:none!important; text-transform:none; letter-spacing:0; transform:none; }
-html[data-theme] .bureau-app.ritual-workspace :is(.dc-ghost,.archive-actions>button:not(.archive-primary)) { border:1px solid var(--ns-line)!important; background:var(--ns-surface)!important; color:var(--ns-text)!important; border-radius:var(--ns-small)!important; box-shadow:none!important; transform:none!important; }
+html[data-theme] .bureau-app.ritual-workspace :is(.dc-primary,.archive-primary,.bureau-action) { background:var(--ns-fill)!important; color:var(--ns-on-accent)!important; border:1px solid var(--ns-fill)!important; border-radius:var(--ns-small)!important; box-shadow:none!important; text-transform:none; letter-spacing:0; }
+html[data-theme] .bureau-app.ritual-workspace :is(.dc-ghost,.archive-actions>button:not(.archive-primary)) { border:1px solid var(--ns-line)!important; background:var(--ns-surface)!important; color:var(--ns-text)!important; border-radius:var(--ns-small)!important; box-shadow:none!important; }
 html[data-theme] .bureau-app.ritual-workspace button:disabled { cursor:default; }
 html[data-theme] .bureau-app.ritual-workspace .bureau-header { left:224px; width:calc(100% - 224px); background:var(--ns-deep); border-bottom:1px solid var(--ns-line); box-shadow:none; }
 html[data-theme] .bureau-app.ritual-workspace .bureau-header-inner { min-height:76px; padding-inline:36px; }
@@ -18,12 +18,12 @@ html[data-theme] .bureau-app.ritual-workspace .ns-header-breadcrumb { display:fl
 html[data-theme] .bureau-app.ritual-workspace .ns-header-help { display:flex; }
 html[data-theme] .bureau-app.ritual-workspace .ns-sidebar { width:224px; padding:22px 14px 16px; background:var(--ns-deep); border-right:1px solid var(--ns-line); gap:22px; }
 html[data-theme] .bureau-app.ritual-workspace .ns-sidebar-brand { padding:8px 10px 24px; gap:10px; border-bottom:1px solid var(--ns-line); }
-html[data-theme] .bureau-app.ritual-workspace .ns-brand-icon { width:34px; height:34px; border-width:1px; border-radius:50%; transform:none; }
+html[data-theme] .bureau-app.ritual-workspace .ns-brand-icon { width:34px; height:34px; border-width:1px; border-radius:50%; }
 html[data-theme] .bureau-app.ritual-workspace .ns-brand-wordmark small { font-size:9px; letter-spacing:.31em; margin-top:6px; }
 html[data-theme] .bureau-app.ritual-workspace .ns-nav-group { margin-bottom:24px; }
 html[data-theme] .bureau-app.ritual-workspace .ns-nav-group>p { color:var(--ns-muted); font-size:10px; letter-spacing:.14em; font-weight:500; margin-bottom:8px; }
 html[data-theme] .bureau-app.ritual-workspace .ns-nav-group button { font-size:14px; min-height:var(--ritual-control-height); border-radius:min(3px,var(--ns-radius)); font-weight:450; gap:12px; }
-html[data-theme] .bureau-app.ritual-workspace .ns-nav-group button:hover { background:var(--ns-elevated); transform:none; }
+html[data-theme] .bureau-app.ritual-workspace .ns-nav-group button:hover { background:var(--ns-elevated); }
 html[data-theme] .bureau-app.ritual-workspace .ns-nav-group button[aria-current] { color:var(--ns-accent); border-color:var(--ns-line); background:var(--ns-soft); box-shadow:none; }
 html[data-theme] .bureau-app.ritual-workspace .ns-nav-group button i { width:4px; height:16px; border-radius:1px; transform:none; background:var(--ns-accent); }
 html[data-theme] .bureau-app.ritual-workspace .ns-sidebar>footer { border-top:1px solid var(--ns-line); }
@@ -40,55 +40,26 @@ html[data-theme] .bureau-app.ritual-workspace .ns-home-heading { display:flex; a
 html[data-theme] .bureau-app.ritual-workspace .ns-home-heading h1 { font-size:clamp(30px,3.3vw,46px); line-height:1.12; margin:10px 0 12px; color:var(--ns-text); }
 html[data-theme] .bureau-app.ritual-workspace .ns-home-heading p { font-size:16px; line-height:1.6; color:var(--ns-muted); }
 html[data-theme] .bureau-app.ritual-workspace .ns-home-heading .ns-eyebrow { font-size:10px; letter-spacing:.13em; color:var(--ns-accent); }
-html[data-theme] .bureau-app.ritual-workspace .personal-progress { background:var(--ns-surface); border:1px solid var(--ns-line); border-radius:var(--ns-radius); padding:28px; box-shadow:none; }
-html[data-theme] .bureau-app.ritual-workspace .progress-focus-grid>article, html[data-theme] .bureau-app.ritual-workspace .progress-goal, html[data-theme] .bureau-app.ritual-workspace .progress-hero-card { background:var(--ns-elevated); border:1px solid var(--ns-line); border-radius:var(--ns-small); box-shadow:none; }
+html[data-theme] .bureau-app.ritual-workspace .personal-progress { background:var(--ns-surface); border:1px solid var(--ns-line); border-top:3px solid var(--ns-accent); border-radius:var(--ns-radius); padding:28px; box-shadow:none; }
+html[data-theme] .bureau-app.ritual-workspace .progress-focus-grid>article, html[data-theme] .bureau-app.ritual-workspace .progress-hero-card { background:var(--ns-elevated); border:1px solid var(--ns-line); border-radius:var(--ns-small); box-shadow:none; }
 html[data-theme] .bureau-app.ritual-workspace .progress-focus-head h2 { font-size:30px; }
 html[data-theme] .bureau-app.ritual-workspace .progress-card-label, html[data-theme] .bureau-app.ritual-workspace .progress-eyebrow { color:var(--ns-accent); }
-html[data-theme] .bureau-app.ritual-workspace .ritual-account-summary { display:grid; grid-template-columns:1fr 1fr auto; gap:36px; align-items:center; padding:28px; margin:24px 0; background:var(--ns-surface); border:1px solid var(--ns-line); border-radius:var(--ns-small); }
+html[data-theme] .bureau-app.ritual-workspace .ritual-account-summary { display:grid; grid-template-columns:1fr 1fr auto; gap:36px; align-items:center; padding:28px; margin:24px 0; background:var(--ns-surface); border:1px solid var(--ns-line); border-inline-start:3px solid var(--ns-accent); border-radius:var(--ns-small); }
 html[data-theme] .bureau-app.ritual-workspace .ritual-account-summary>div { display:grid; gap:7px; }
 html[data-theme] .bureau-app.ritual-workspace .ritual-account-summary small, html[data-theme] .bureau-app.ritual-workspace .ritual-next-step small { color:var(--ns-muted); font-size:10px; letter-spacing:.12em; }
-html[data-theme] .bureau-app.ritual-workspace .ritual-account-summary strong { color:var(--ns-text); font-size:25px; font-weight:500; }
-html[data-theme] .bureau-app.ritual-workspace .ritual-account-summary span { color:var(--ns-muted); font-size:14px; }
-html[data-theme] .bureau-app.ritual-workspace progress { width:100%; height:4px; accent-color:var(--ns-accent); }
+html[data-theme] .bureau-app.ritual-workspace .ritual-account-summary strong { color:var(--ns-text); font:600 29px/1.2 var(--font-number); }
+html[data-theme] .bureau-app.ritual-workspace .ritual-account-summary span { color:var(--ns-accent); font-size:14px; font-variant-numeric:tabular-nums; }
+html[data-theme] .bureau-app.ritual-workspace progress { display:block; width:100%; height:8px; border:1px solid var(--ns-line); border-radius:0; background:var(--ns-deep); accent-color:var(--ns-accent); overflow:hidden; }
+html[data-theme] .bureau-app.ritual-workspace progress::-webkit-progress-bar { background:var(--ns-deep); }
+html[data-theme] .bureau-app.ritual-workspace progress::-webkit-progress-value { background:var(--ns-accent); transition:width .4s ease; }
+html[data-theme] .bureau-app.ritual-workspace progress::-moz-progress-bar { background:var(--ns-accent); }
 html[data-theme] .bureau-app.ritual-workspace .ritual-next-step { display:grid; grid-template-columns:48px 1fr auto; align-items:center; gap:24px; padding:28px; border:1px solid var(--ns-line); border-radius:var(--ns-radius); background:var(--ns-soft); margin-top:24px; }
 html[data-theme] .bureau-app.ritual-workspace .ritual-next-step>svg { color:var(--ns-accent); }
 html[data-theme] .bureau-app.ritual-workspace .ritual-next-step h2 { font-size:23px; margin:5px 0; }
 html[data-theme] .bureau-app.ritual-workspace .ritual-next-step p { color:var(--ns-muted); font-size:15px; margin:0; }
 html[data-theme] .bureau-app.ritual-workspace .ritual-next-step button { display:inline-flex; gap:12px; align-items:center; }
 
-/* Match choices share the workspace geometry and a clear selected state. */
-html[data-theme] .bureau-app.ritual-workspace .dc-contract-dossier .dc-motion-contract-head { margin-bottom:24px; gap:24px; }
-html[data-theme] .bureau-app.ritual-workspace .dc-contract-dossier h1 { font-size:clamp(30px,3.3vw,44px); font-family:var(--font-display); font-weight:600; }
-html[data-theme] .bureau-app.ritual-workspace .dc-contract-dossier .dc-motion-head-controls { padding:20px 0; border-top:1px solid var(--ns-line); }
-html[data-theme] .bureau-app.ritual-workspace .dc-contract-dossier .dc-motion-reroll { background:var(--ns-surface); border:1px solid var(--ns-line); border-radius:var(--ns-small); box-shadow:none; }
-html[data-theme] .bureau-app.ritual-workspace .dc-contract-dossier .dc-motion-mode-note { padding:0 0 20px; }
-html[data-theme] .bureau-app.ritual-workspace .dc-contract-dossier .dc-motion-contract-grid { gap:18px!important; }
-html[data-theme] .bureau-app.ritual-workspace .dc-contract-dossier .dc-motion-contract-card { position:relative; min-height:19.375rem!important; background:var(--ns-surface)!important; color:var(--ns-text)!important; border:.0625rem solid var(--ns-line)!important; border-radius:min(.1875rem,var(--ns-radius))!important; padding:1.375rem!important; box-shadow:none!important; overflow:visible; }
-html[data-theme] .bureau-app.ritual-workspace .dc-contract-dossier .dc-motion-contract-card:disabled { opacity:1; }
-html[data-theme] .bureau-app.ritual-workspace .dc-contract-dossier .dc-motion-contract-card::before, html[data-theme] .bureau-app.ritual-workspace .dc-contract-dossier .dc-motion-contract-card::after { display:none!important; }
-html[data-theme] .bureau-app.ritual-workspace .dc-contract-dossier .dc-motion-contract-card.selected { background:var(--ns-elevated)!important; outline:.125rem solid var(--ns-accent); outline-offset:-.125rem; }
-html[data-theme] .bureau-app.ritual-workspace .dc-contract-dossier .dc-motion-contract-card:hover:not(:disabled) { background:var(--ns-elevated)!important; border-color:var(--ns-accent)!important; }
-html[data-theme] .bureau-app.ritual-workspace .dc-contract-dossier .dc-contract-top { color:var(--ns-muted); margin-bottom:22px; }
-html[data-theme] .bureau-app.ritual-workspace .dc-contract-dossier .dc-contract-top span { color:var(--ns-muted); font-size:11px; letter-spacing:.045em; }
-html[data-theme] .bureau-app.ritual-workspace .dc-contract-dossier .dc-contract-top em { color:var(--ns-muted); font-size:10px; font-style:normal; }
-html[data-theme] .bureau-app.ritual-workspace .dc-contract-dossier .dc-contract-top span i { color:var(--ns-accent); background:transparent; border:0; }
-html[data-theme] .bureau-app.ritual-workspace .dc-contract-dossier .contract-selected-mark { color:var(--ns-accent); }
-html[data-theme] .bureau-app.ritual-workspace .dc-contract-dossier .dc-v3-tags { gap:5px; margin-bottom:14px; }
-html[data-theme] .bureau-app.ritual-workspace .dc-contract-dossier .dc-v3-tags span { border:1px solid var(--ns-line); background:transparent; border-radius:2px; color:var(--ns-muted); padding:4px 6px; font-size:9px; font-weight:600; }
-html[data-theme] .bureau-app.ritual-workspace .dc-contract-dossier .dc-motion-contract-card h3 { font:600 25px/1.2 var(--font-display,sans-serif)!important; color:var(--ns-text)!important; margin:0 0 12px!important; }
-html[data-theme] .bureau-app.ritual-workspace .dc-contract-dossier .dc-motion-contract-card>p { font-size:15px!important; line-height:1.5!important; color:var(--ns-muted)!important; }
-html[data-theme] .bureau-app.ritual-workspace .dc-contract-dossier .dc-motion-card-bottom { margin-top:auto; padding-top:25px; }
-html[data-theme] .bureau-app.ritual-workspace .dc-contract-dossier .dc-motion-card-meta { border-top:1px solid var(--ns-line); padding-top:14px; }
-html[data-theme] .bureau-app.ritual-workspace .dc-contract-dossier .dc-motion-card-meta span { color:var(--ns-muted); font-size:10px; }
-html[data-theme] .bureau-app.ritual-workspace .dc-contract-dossier .dc-motion-card-meta b { color:var(--ns-accent); font-size:19px; }
-html[data-theme] .bureau-app.ritual-workspace .dc-contract-dossier .dc-contract-foot { border-color:var(--ns-line); padding-top:14px; margin-top:14px; }
-html[data-theme] .bureau-app.ritual-workspace .dc-contract-dossier .dc-contract-foot span { color:var(--ns-muted); font-size:10px; }
-html[data-theme] .bureau-app.ritual-workspace .dc-contract-dossier .dc-motion-contract-card .dc-contract-foot :is(strong,b) { color:var(--ns-muted)!important; background:transparent!important; }
-html[data-theme] .bureau-app.ritual-workspace .dc-contract-dossier .dc-contract-foot strong { font-size:10px; border:0; }
-html[data-theme] .bureau-app.ritual-workspace .dc-contract-dossier .dc-motion-contract-card .dc-contract-foot strong.chosen { color:var(--ns-accent)!important; font-weight:700; }
-html[data-theme] .bureau-app.ritual-workspace .dc-contract-dossier .dc-motion-selection-tray { background:var(--ns-elevated); border:1px solid var(--ns-line); border-radius:var(--ns-small); box-shadow:none; margin-top:24px; }
-html[data-theme] .bureau-app.ritual-workspace .dc-contract-dossier .dc-motion-selected-pills span { background:var(--ns-elevated); border:1px solid var(--ns-line); border-radius:min(3px,var(--ns-radius)); color:var(--ns-text); }
-html[data-theme] .bureau-app.ritual-workspace .dc-contract-dossier .dc-motion-selected-pills b { color:var(--ns-accent); }
+/* Contract cards and their states are owned by contract-board.css. */
 html[data-theme] .bureau-app.ritual-workspace :is(.dc-panel,.dc-case-file,.community-panel,.community-card,.archive-panel) { background:var(--ns-surface); background-image:none; border:1px solid var(--ns-line); border-radius:var(--ns-small); box-shadow:none; }
 html[data-theme] .bureau-app.ritual-workspace :is(.dc-case-file-no,.dc-case-file-main) { background-image:none; }
 
@@ -136,7 +107,6 @@ html[data-theme] .bureau-app.ritual-workspace .ritual-daily-receipt p { margin-b
   html[data-theme] .bureau-app.ritual-workspace .bureau-header-inner { padding-inline:24px; }
   html[data-theme] .bureau-app.ritual-workspace .ns-brand-wordmark { font-size:17px; }
   html[data-theme] .bureau-app.ritual-workspace .ns-header-help { display:none; }
-  html[data-theme] .bureau-app.ritual-workspace .dc-contract-dossier .dc-motion-contract-grid { grid-template-columns:repeat(2,minmax(0,1fr)); }
   html[data-theme] .bureau-app.ritual-workspace .ritual-next-step { grid-template-columns:36px 1fr; }
   html[data-theme] .bureau-app.ritual-workspace .ritual-next-step button { grid-column:2; width:fit-content; }
   html[data-theme] .bureau-app.ritual-workspace .ritual-account-summary { grid-template-columns:1fr 1fr; gap:24px; }
@@ -161,9 +131,6 @@ html[data-theme] .bureau-app.ritual-workspace .ritual-daily-receipt p { margin-b
   html[data-theme] .bureau-app.ritual-workspace .ritual-account-summary strong { font-size:22px; }
   html[data-theme] .bureau-app.ritual-workspace .ritual-next-step { padding:22px; gap:16px; }
   html[data-theme] .bureau-app.ritual-workspace .ritual-next-step h2 { font-size:21px; }
-  html[data-theme] .bureau-app.ritual-workspace .dc-contract-dossier .dc-motion-contract-grid { grid-template-columns:1fr; gap:18px!important; }
-  html[data-theme] .bureau-app.ritual-workspace .dc-contract-dossier .dc-motion-contract-card { min-height:280px!important; padding:22px!important; }
-  html[data-theme] .bureau-app.ritual-workspace .dc-contract-dossier .dc-motion-selection-tray { bottom:82px; padding:18px; }
   html[data-theme] .bureau-app.ritual-workspace .archive-heading h1 { font-size:32px; }
   html[data-theme] .bureau-app.ritual-workspace .archive-tabs button { padding-inline:12px; }
   html[data-theme] .bureau-app.ritual-workspace .archive-grid { gap:14px; }
@@ -171,8 +138,9 @@ html[data-theme] .bureau-app.ritual-workspace .ritual-daily-receipt p { margin-b
   html[data-theme] .bureau-app.ritual-workspace .ritual-daily-pack { grid-template-columns:1fr; padding:24px 20px; gap:32px; }
   html[data-theme] .bureau-app.ritual-workspace .ritual-pack-art { max-width:260px; }
 }
-@media(prefers-reduced-motion:reduce) { html[data-theme] .bureau-app.ritual-workspace * { scroll-behavior:auto!important; } }
-html[data-theme] .bureau-app.ritual-workspace .archive-heading>div:first-child>small { padding:0; background:transparent; color:var(--ns-accent); transform:none; }
+@media(prefers-reduced-motion:reduce) { html[data-theme] .bureau-app.ritual-workspace * { scroll-behavior:auto!important; } html[data-theme] .bureau-app.ritual-workspace progress::-webkit-progress-value { transition:none; } }
+html[data-motion="reduced"] .bureau-app.ritual-workspace progress::-webkit-progress-value { transition:none; }
+html[data-theme] .bureau-app.ritual-workspace .archive-heading>div:first-child>small { padding:0; background:transparent; color:var(--ns-accent); }
 html[data-theme] .bureau-app.ritual-workspace .archive-collection-overview :is(span,small,p) { color:var(--ns-muted); }
 html[data-theme] .bureau-app.ritual-workspace .archive-collection-overview .archive-rarity-summary :is(b,small) { color:var(--ns-accent); }
 html[data-theme] .bureau-app.ritual-workspace .bureau-guide { border-radius:var(--ns-radius); border-color:var(--ns-line); background:var(--ns-surface); }

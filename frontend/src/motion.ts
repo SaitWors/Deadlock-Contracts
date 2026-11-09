@@ -1,4 +1,4 @@
-import { useCallback } from "react"
+import { useCallback, useLayoutEffect, type RefObject } from "react"
 
 export const prefersReducedMotion = () =>
   document.documentElement.dataset.motion === "reduced" ||
@@ -40,4 +40,33 @@ export function useTilt(intensity = 2) {
     event.currentTarget.style.transform = ""
   }, [])
   return { onMouseMove, onMouseLeave }
+}
+
+// A short first-screen sequence. Content is visible by default, including
+// browsers without WAAPI. No selection or navigation waits for this motion.
+export function useSceneEntrance(
+  ref: RefObject<HTMLElement | null>,
+  scene: string,
+  reduced: boolean,
+) {
+  useLayoutEffect(() => {
+    if (!ref.current || reduced || prefersReducedMotion()) return
+    const animations = Array.from(ref.current.querySelectorAll<HTMLElement>("[data-intro]"))
+      .filter((element) => typeof element.animate === "function")
+      .map((element, index) =>
+        element.animate(
+          [
+            { opacity: 0, transform: "translate3d(0,22px,0)" },
+            { opacity: 1, transform: "translate3d(0,0,0)" },
+          ],
+          {
+            duration: 520,
+            delay: Math.min(index * 80, 160),
+            easing: "cubic-bezier(.2,.75,.25,1)",
+            fill: "backwards",
+          },
+        ),
+      )
+    return () => animations.forEach((animation) => animation.cancel())
+  }, [ref, scene, reduced])
 }

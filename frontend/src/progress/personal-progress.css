@@ -39,14 +39,14 @@ html[data-theme] .personal-progress .progress-mode-control .dc-v3-mode-tabs butt
 .progress-sample strong { color: var(--ns-info); font-weight: 600; }
 .progress-sample p { flex: 1; min-width: min(100%, 240px); text-align: right; }
 .progress-goal-layout { display: grid; grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr); gap: 16px; align-items: start; }
-.progress-goal { min-width: 0; padding: 20px; border: 1px solid var(--ns-line); border-radius: 16px; background: var(--ns-bg); display: flex; flex-direction: column; gap: 12px; }
-.progress-primary-goal { border-top: 3px solid var(--ns-fill); padding-top: 18px; }
+.progress-goal { min-width: 0; padding: 20px; border: 1px solid var(--ns-line); border-radius: var(--ns-small); background: var(--ns-elevated); display: flex; flex-direction: column; gap: 12px; }
+.progress-primary-goal { border-top: 3px solid var(--ns-accent); padding-top: 18px; }
 .progress-goal-top { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px; }
 .progress-status { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 600; }
-.progress-reward { font-size: 15px; white-space: nowrap; color: var(--ns-text); }
+.progress-reward { padding:8px 12px; border:1px solid var(--ns-line); border-radius:var(--ns-small); background:var(--ns-deep); font:600 22px/1.1 var(--font-number); white-space:nowrap; color:var(--ns-accent); }
 .progress-goal h3 { font-size: 23px; font-weight: 600; line-height: 1.25; }
 .progress-goal-description { font-size: 15px; color: var(--ns-muted); }
-.progress-conditions { list-style: none; padding: 10px 12px; margin: 0; background: var(--ns-elevated); border-radius: 10px; font-size: 16px; }
+.progress-conditions { list-style: none; padding: 10px 12px; margin: 0; background: var(--ns-deep); border-inline-start:2px solid var(--ns-line); border-radius:0; font-size:16px; }
 .progress-conditions li + li { margin-top: 4px; }
 .progress-goal-reason { border-top: 1px solid var(--ns-line); padding-top: 12px; }
 .progress-small-label { display: block; color: var(--ns-muted); font-size: 12px; font-weight: 500; }
@@ -93,11 +93,11 @@ html[data-theme] .personal-progress .progress-mode-control .dc-v3-mode-tabs butt
 .progress-comparisons tbody th { font-weight: 500; }
 .progress-metric-sample { display: block; font-size: 12px; color: var(--ns-muted); font-weight: 400; }
 .progress-contract-results { margin-top: 20px; }
-.progress-contract-results article { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px 16px; padding: 12px 0; border-bottom: 1px solid var(--ns-line); font-size: 14px; }
+.progress-contract-results article { border-inline-start:2px solid var(--ns-line); display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px 16px; padding: 12px; border-bottom: 1px solid var(--ns-line); font-size: 14px; }
 .progress-contract-results article > div { flex: 1; min-width: min(100%, 150px); }
 .progress-contract-results small { display: block; margin-top: 4px; color: var(--ns-muted); }
 .progress-debrief-footer { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 16px; margin-top: 24px; }
-.progress-debrief-footer > div strong { display: block; font-size: 24px; color: var(--ns-success); }
+.progress-debrief-footer > div strong { display:block; font:600 30px/1.3 var(--font-number); color:var(--ns-success); }
 .progress-hero-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 260px), 1fr)); gap: 16px; }
 .progress-hero { padding: 20px; border: 1px solid var(--ns-line); border-radius: 16px; background: var(--ns-bg); }
 .progress-hero h3 { font-size: 23px; font-weight: 600; }

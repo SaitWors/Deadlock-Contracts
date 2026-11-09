@@ -102,14 +102,14 @@ html[data-theme] .ns-private .dc-motion-filter-row button span{margin:0;font-siz
 /* Active cases, history, account settings and the Companion connection. */
 html[data-theme] .ns-private :is(.dc-active-case-card,.dc-active-empty,.dc-case-file,.dc-system-card,.dc-danger-zone,.dc-policy){border:1px solid var(--ns-line);border-radius:calc(var(--ns-radius) * .5);background:var(--ns-surface);box-shadow:var(--ns-shadow);color:var(--ns-text);background-image:var(--ns-grain)}
 html[data-theme] .ns-private .dc-active-case-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,380px),1fr));gap:22px}
-html[data-theme] .ns-private .dc-active-case-card{padding:27px}
+html[data-theme] .ns-private .dc-active-case-card{padding:27px;border-top:3px solid var(--ns-accent)}
 html[data-theme] .ns-private .dc-active-case-card>header{gap:18px;padding-bottom:22px;border-bottom:1px solid var(--ns-line);flex-wrap:wrap}
-html[data-theme] .ns-private .dc-active-case-card>header{display:flex;align-items:start;justify-content:space-between;border-bottom:3px double var(--ns-line)}
+html[data-theme] .ns-private .dc-active-case-card>header{display:flex;align-items:start;justify-content:space-between}
 html[data-theme] .ns-private .dc-active-case-card h2{font:400 27px/1.2 var(--font-poster);letter-spacing:-.035em;text-transform:none}
 html[data-theme] .ns-private .dc-active-contract{display:flex;gap:20px;align-items:start;padding:23px 0;border-bottom:1px solid var(--ns-line)}
 html[data-theme] .ns-private .dc-active-contract h3{font:600 15px/1.4 var(--font-body);color:var(--ns-text);letter-spacing:-.02em}
 html[data-theme] .ns-private .dc-active-contract p{font:400 12px/1.8 var(--font-body);color:var(--ns-muted);margin-top:7px}
-html[data-theme] .ns-private .dc-active-contract>strong{font:650 16px/1.5 var(--font-display);color:var(--ns-accent);white-space:nowrap}
+html[data-theme] .ns-private .dc-active-contract>strong{padding:8px 12px;border:1px solid var(--ns-line);background:var(--ns-deep);font:600 22px/1.2 var(--font-number);color:var(--ns-accent);white-space:nowrap}
 html[data-theme] .ns-private .dc-active-meta{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:19px 12px;padding:22px 0;margin:0}
 html[data-theme] .ns-private .dc-active-meta span{display:grid;gap:6px;font:400 9px/1.5 var(--font-body);color:var(--ns-muted);letter-spacing:0;min-width:0}
 html[data-theme] .ns-private .dc-active-meta b{font:600 12px/1.6 var(--font-body);color:var(--ns-text);overflow-wrap:anywhere}
@@ -117,10 +117,11 @@ html[data-theme] .ns-private :is(.dc-active-empty,.dc-case-file.empty){padding:5
 html[data-theme] .ns-private :is(.dc-active-empty,.dc-case-file.empty)>img{opacity:.65;width:64px;margin:0 auto 23px;filter:none}
 html[data-theme] .ns-private :is(.dc-active-empty,.dc-case-file.empty) h2{font:650 24px/1.3 var(--font-body);color:var(--ns-text);letter-spacing:-.04em}
 html[data-theme] .ns-private :is(.dc-active-empty,.dc-case-file.empty) p{max-width:480px;margin:13px auto 22px;font:400 13px/1.8 var(--font-body);color:var(--ns-muted)}
-html[data-theme] .ns-private .dc-badge{display:inline-flex;align-items:center;gap:7px;border:1px solid var(--ns-line);border-radius:8px;background:var(--ns-elevated);padding:6px 9px;font:600 9px/1.5 var(--font-body);letter-spacing:0;color:var(--ns-muted);max-width:100%;white-space:normal}
+html[data-theme] .ns-private .dc-badge{display:inline-flex;align-items:center;gap:7px;border:1px solid var(--ns-line);border-radius:var(--ns-small);background:var(--ns-elevated);padding:6px 9px;font:600 9px/1.5 var(--font-body);letter-spacing:0;color:var(--ns-muted);max-width:100%;white-space:normal}
 html[data-theme] .ns-private :is(.dc-badge.completed,.dc-badge.locked,.dc-companion-state.online){color:var(--ns-accent);background:var(--ns-soft);border-color:var(--ns-line)}
 html[data-theme] .ns-private :is(.dc-badge.failed,.dc-case-file-results .bad){color:var(--ns-danger)}
-html[data-theme] .ns-private :is(.dc-badge.unverifiable,.dc-companion-state.paired){color:var(--ns-warning)}
+html[data-theme] .ns-private :is(.dc-badge.unverifiable,.dc-badge.review_required,.dc-companion-state.paired){color:var(--ns-warning)}
+html[data-theme] .ns-private .dc-badge.verifying{color:var(--ns-info)}
 html[data-theme] .ns-private .dc-v3-auto-review-banner{border:1px solid var(--ns-line);border-radius:calc(var(--ns-radius) * .5);background:var(--ns-surface);padding:20px;gap:16px;margin:20px 0}
 html[data-theme] .ns-private .dc-v3-auto-review-banner :is(b,>span){color:var(--ns-warning);font:600 13px/1.5 var(--font-body);letter-spacing:0}
 html[data-theme] .ns-private .dc-v3-auto-review-banner p{color:var(--ns-muted);font:400 12px/1.75 var(--font-body)}
@@ -139,7 +140,7 @@ html[data-theme] .ns-private .dc-case-file::after{display:none}
 html[data-theme] .ns-private .dc-case-file-no{background:var(--ns-soft);border-color:var(--ns-line);color:var(--ns-muted);gap:10px}
 html[data-theme] .ns-private .dc-case-file-no{display:flex;flex-direction:column;justify-content:center;align-items:center;border-right:1px solid var(--ns-line)}
 html[data-theme] .ns-private .dc-case-file-no span{font:600 8px/1.5 var(--font-body);letter-spacing:.05em}
-html[data-theme] .ns-private .dc-case-file-no b{font:600 30px/1.3 var(--font-display);color:var(--ns-accent)}
+html[data-theme] .ns-private .dc-case-file-no b{font:600 36px/1.3 var(--font-number);color:var(--ns-accent)}
 html[data-theme] .ns-private .dc-case-file-main>header{padding:23px;gap:14px;align-items:center;border-color:var(--ns-line)}
 html[data-theme] .ns-private .dc-case-file-main>header{display:flex;justify-content:space-between;border-bottom:1px solid var(--ns-line)}
 html[data-theme] .ns-private .dc-case-file-main h2{font:650 20px/1.4 var(--font-body);letter-spacing:-.03em;color:var(--ns-text);margin:6px 0 0}
@@ -153,7 +154,7 @@ html[data-theme] .ns-private .dc-case-file-results em{font:600 11px/1.6 var(--fo
 html[data-theme] .ns-private .dc-case-file-results .ok{color:var(--ns-accent)}
 html[data-theme] .ns-private .dc-case-file-main>footer{padding:17px 23px;color:var(--ns-muted);font:400 10px/1.6 var(--font-body);border-color:var(--ns-line);gap:14px;flex-wrap:wrap}
 html[data-theme] .ns-private .dc-case-file-main>footer{display:flex;justify-content:space-between;border-top:1px solid var(--ns-line)}
-html[data-theme] .ns-private .dc-case-file-main>footer strong{font:600 12px/1.6 var(--font-body);color:var(--ns-accent);letter-spacing:0}
+html[data-theme] .ns-private .dc-case-file-main>footer strong{padding:6px 10px;border:1px solid var(--ns-line);background:var(--ns-deep);font:600 20px/1.3 var(--font-number);color:var(--ns-accent);letter-spacing:0}
 html[data-theme] .ns-private .dc-attempt-log{padding:0 23px 18px 64px}.ns-private .dc-attempt-log summary{color:var(--ns-accent);font:500 10px/1.6 var(--font-body);letter-spacing:0}
 html[data-theme] .ns-private .dc-attempt-log li{border:1px solid var(--ns-line);border-radius:10px;background:var(--ns-deep);padding:12px}
 html[data-theme] .ns-private .dc-attempt-log ol{display:grid;gap:8px;margin-top:10px}.ns-private .dc-attempt-log li{display:grid;gap:7px}

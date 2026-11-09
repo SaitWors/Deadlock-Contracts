@@ -68,3 +68,11 @@ The stable `CompletionProvider` in `frontend/src/case-completion/CompletionButto
 The ready scene contains only profile and task plaques. Failed tasks grey, crack and split with zero XP before successful task flights. Successes fly one at a time, beginning at their real floating pose; actual `Animation.finished` triggers impact and XP. Text/bar share one tween state. Each threshold is shown at 100% before the same plaque centers and changes level; exactly two waves appear only for a real crossing. Delayed frames still visit every band; final drift remains active. Announce results and level changes rather than numeric frames.
 
 Escape closes immediately at any phase, cancels work and restores focus to the enabled cabinet trigger (visible brand fallback if it disappeared). Empty-stage taps and a focus-visible return control also exit; replay remains in the cabinet. System/manual reduced motion uses only a brief fade to the confirmed final and cancels active travel. Preference restarts reset committed transforms. Closing, replaying or refreshing cannot award XP.
+
+## Mission presentation and motion
+
+The November 2026 atmosphere refinement preserves all API requests, route handling, filtering, mode selection, limits, polling, refresh and signing. `Dashboard` exposes only the existing `option.status` as `data-status` for paint; labels, reward values and control availability still come from the established data path. Category frames, XP blocks and edge rails recur on demo/live tasks and actual progress/case surfaces.
+
+`motion.ts/useSceneEntrance` owns short home entry; `ritual-foundations.css` owns demo/live hover/focus/press and selected-check feedback. The entrance does not gate actions, reorder interactive controls or hide content in unsupported browsers. Cleanup cancels WAAPI when the page unmounts, the route changes or the motion preference changes. No added infinite card motion. Keep immediate selection and the existing three-contract limit, including rapid toggles and keyboard Space.
+
+Public navigation retains the same header/background/video nodes, active underline inside its item, Back/Forward and native-link exceptions. Ranking remains the accepted readable layout. The contract finale retains its separate, intentionally richer choreography and immutable XP receipt contract.

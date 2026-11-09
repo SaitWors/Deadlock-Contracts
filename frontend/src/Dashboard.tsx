@@ -1707,7 +1707,7 @@ export default function Dashboard({ initialSession }: { initialSession: SessionP
                   </p>
                   <h1>
                     {language === "ru" ? "На связи, " : "Welcome back, "}
-                    {shownName}.
+                    {shownName}
                   </h1>
                   <p>
                     {language === "ru"
@@ -1988,6 +1988,7 @@ export default function Dashboard({ initialSession }: { initialSession: SessionP
                             chosen ? "selected" : ""
                           } rarity-${option.rarity.toLowerCase()} diff-${option.difficulty.toLowerCase()} cat-${option.category.toLowerCase()}`}
                           aria-pressed={chosen}
+                          data-status={option.status}
                           disabled={board.status !== "OFFERED" || busy}
                           onClick={() => toggle(option.id)}
                         >

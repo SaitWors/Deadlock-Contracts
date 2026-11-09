@@ -34,32 +34,39 @@ html[data-theme] .dc-language-switch .active { background: var(--ns-elevated); c
 .ritual-skip { position: fixed; top: -5rem; left: 0.9375rem; padding: 0.75rem 1.25rem; background: var(--ns-fill); color: var(--ns-on-accent); z-index: 200; }
 .ritual-skip:focus { top: 0.9375rem; }
 .ritual-hero { position: relative; isolation: isolate; border-bottom: 0.0625rem solid var(--ns-line); min-height: 40rem; background: transparent; color: var(--ns-text); }
-.ritual-hero-inner { display: grid; grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr); align-items: center; gap: 3.5rem; min-height: 35rem; padding-block: 2rem; }
+.ritual-hero-inner { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr); align-items: center; gap: 3rem; min-height: 35rem; padding-block: 2rem; }
 .ritual-hero-copy { padding-block: 2rem; }
 .ritual-hero-eyebrow { display: flex; gap: 0.625rem; align-items: center; font: 700 0.6875rem/1.5 var(--font-body); letter-spacing: .18em; color: var(--ns-accent); margin-bottom: 1.6875rem; }
 .ritual-hero-eyebrow > span { width: 0.3125rem; height: 0.3125rem; background: #aec69b; border-radius: 50%; }
 .ritual-hero-eyebrow small { font-size: 0.5rem; padding: 0.1875rem 0.3125rem; border: 0.0625rem solid #758a7144; margin-left: 0.1875rem; }
-html[data-theme] .ritual-hero h1 { font: 600 clamp(3rem, 5.5vw, 5rem)/1.08 var(--font-display); letter-spacing: .005em; text-transform: uppercase; color: var(--ns-text); margin: 0 0 1.625rem; max-width: 750px; }
+html[data-theme] .ritual-hero h1 { font: 600 clamp(3rem, 5.8vw, 5.3rem)/1.04 var(--font-display); letter-spacing: .005em; text-transform: uppercase; color: var(--ns-text); margin: 0 0 1.625rem; max-width: 750px; }
 .ritual-hero h1 em { font-style: normal; color: var(--ns-accent); }
-.ritual-objective { width: 100%; max-width: 25.5rem; justify-self: end; border: .0625rem solid var(--ns-line); border-top: .125rem solid var(--ns-accent); border-radius: var(--ns-small); background: var(--ns-surface); color: var(--ns-text); overflow: hidden; }
+.ritual-objective { position: relative; width: 100%; max-width: 29rem; justify-self: end; border: .0625rem solid var(--ns-line); border-top: .1875rem solid var(--ns-accent); border-radius: var(--ns-small); background: var(--ns-surface); color: var(--ns-text); overflow: hidden; box-shadow: 10px 10px 0 -9px var(--ns-line), 0 18px 50px color-mix(in srgb,var(--ns-deep) 65%,transparent); }
 .ritual-objective-top, .ritual-objective-foot { display: flex; align-items: center; gap: .5rem; padding: 1rem 1.5rem; background: var(--ns-deep); color: var(--ns-muted); }
 .ritual-objective-top { justify-content: space-between; border-bottom: .0625rem solid var(--ns-line); font-size: .625rem; letter-spacing: .08em; }
 .ritual-objective-top > span { display: inline-flex; align-items: center; gap: .5rem; }
 .ritual-objective-top svg { color: var(--ns-accent); }
 .ritual-objective-top small { padding: .25rem .375rem; border: .0625rem solid var(--ns-line); font-size: .5625rem; letter-spacing: .06em; }
-.ritual-objective-body { padding: 1.5rem; }
+.ritual-objective-body { display: flex; flex-direction: column; padding: 1.5rem; }
+.ritual-objective-id { order: 0; }
+.ritual-objective-body h2 { order: 2; }
+.ritual-objective-body > p { order: 3; }
+.ritual-objective-meta { order: 4; }
+.ritual-objective-body > button { order: 5; }
 .ritual-objective-id { display: flex; justify-content: space-between; color: var(--ns-muted); font-size: .625rem; letter-spacing: .12em; }
 .ritual-objective-id > span { color: var(--ns-accent); }
 html[data-theme] .ritual-objective h2 { margin: 1.25rem 0 .75rem; color: var(--ns-text); font: 600 2.125rem/1.15 var(--font-display); }
 .ritual-objective-body > p { margin: 0; color: var(--ns-muted); font-size: .8125rem; line-height: 1.7; }
-.ritual-objective-target { display: flex; align-items: center; gap: 1rem; padding: 1.25rem; margin-block: 1.5rem; background: var(--ns-deep); border: .0625rem solid var(--ns-line); }
-.ritual-objective-target > svg { color: var(--ns-accent); flex-shrink: 0; }
+.ritual-objective-target { position: relative; isolation: isolate; display: flex; align-items: end; gap: 1rem; order: 1; min-height: 14rem; padding: 1.5rem; margin: 1.25rem -1.5rem 0; overflow: hidden; background: var(--ns-deep); border-block: .0625rem solid var(--ns-line); }
+.ritual-objective-target img { position: absolute; z-index: -2; inset: 0; width: 100%; height: 100%; object-fit: cover; object-position: center 65%; }
+.ritual-objective-target::before { content: ""; position: absolute; z-index: -1; inset: 0; background: linear-gradient(0deg,var(--ns-deep),color-mix(in srgb,var(--ns-deep) 18%,transparent)); }
+.ritual-objective-target > svg { color: var(--ns-accent); flex-shrink: 0; align-self: center; width: 3rem; height: 3rem; }
 .ritual-objective-target > div { display: grid; gap: .375rem; }
-.ritual-objective-target strong { color: var(--ns-text); font: 600 2.25rem/1 var(--font-number); font-variant-numeric: tabular-nums; }
+.ritual-objective-target strong { color: var(--ns-text); font: 600 clamp(2.4rem,12vw,3.5rem)/1 var(--font-number); font-variant-numeric: tabular-nums; white-space: nowrap; }
 .ritual-objective-target span { color: var(--ns-muted); font-size: .6875rem; }
 .ritual-objective-meta { display: flex; align-items: center; justify-content: space-between; gap: 1rem; margin-bottom: 1.25rem; }
 .ritual-objective-meta > span { color: var(--ns-muted); font-size: .6875rem; }
-.ritual-objective-meta > strong { color: var(--ns-accent); font: 600 1.75rem/1 var(--font-number); }
+.ritual-objective-meta > strong { color: var(--ns-accent); font: 600 2rem/1 var(--font-number); border-left: .125rem solid var(--ns-accent); padding-left: 1rem; }
 .ritual-objective-meta small { font: 700 .6875rem var(--font-body); }
 html[data-theme] .ritual-public .ritual-objective .btn-ghost { width: 100%; justify-content: space-between; background: var(--ns-elevated); border: .0625rem solid var(--ns-line); cursor: pointer; }
 html[data-theme] .ritual-public .ritual-objective .btn-ghost:hover { border-color: var(--ns-accent); background: var(--ns-soft); }
@@ -92,21 +99,24 @@ html[data-theme] .ritual-public :is(.ritual-section-heading,.ritual-daily,.ritua
 .ritual-modes [aria-pressed="true"] { color: var(--ns-text); background: var(--ns-elevated); }
 .ritual-board-toolbar > p { font-size: 0.6875rem; color: var(--ns-muted); }
 .ritual-contracts { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1.125rem; }
-.ritual-contract { display: flex; flex-direction: column; align-items: stretch; position: relative; text-align: left; padding: 1.25rem 1.5rem; background: var(--ns-surface); color: var(--ns-text); border: 0.0625rem solid var(--ns-line); border-radius: 0.1875rem; cursor: pointer; min-height: 17.75rem; transition: transform .18s, border-color .18s, opacity .18s; overflow: hidden; }
+.ritual-contract { display: flex; flex-direction: column; align-items: stretch; position: relative; text-align: left; padding: 1.25rem 1.5rem; background: var(--ns-surface); color: var(--ns-text); border: 0.0625rem solid var(--ns-line); border-radius: 0.1875rem; cursor: pointer; min-height: 16.25rem; transition: transform .18s, border-color .18s, opacity .18s; overflow: hidden; }
 .ritual-contract:hover:not(:disabled) { background: var(--ns-elevated); border-color: var(--ns-accent); }
 .ritual-contract.is-selected { background: var(--ns-soft); border-color: var(--ns-accent); outline: 0.0625rem solid var(--ns-accent); outline-offset: -0.0625rem; }
+.ritual-contract::before { content: ""; position: absolute; inset: 0 auto 0 0; width: 3px; background: var(--ns-accent); transform: scaleY(0); transform-origin: top; transition: transform .2s; }
+.ritual-contract.is-selected::before { transform: scaleY(1); }
 .ritual-contract:disabled { opacity: .45; cursor: not-allowed; }
 .ritual-contract-top { display: flex; align-items: center; justify-content: space-between; font: 500 0.5625rem/1.5 var(--font-body); letter-spacing: .16em; color: var(--ns-muted); padding-bottom: 1rem; border-bottom: 0.0625rem solid var(--ns-line); }
 .ritual-choice-check { display: grid; place-items: center; width: 1.5rem; height: 1.5rem; border: 0.0625rem solid var(--ns-line); border-radius: 0.125rem; }
 .is-selected .ritual-choice-check { background: var(--ns-fill); color: var(--ns-on-accent); border-color: var(--ns-fill); }
-.ritual-contract-category { display: flex; align-items: center; gap: 0.5rem; font-size: 0.5rem; font-weight: 600; letter-spacing: .14em; margin-top: 1.0625rem; color: var(--ns-muted); }
+.ritual-contract-category { display: flex; align-items: center; gap: .625rem; font-size: .625rem; font-weight: 600; letter-spacing: .1em; margin-top: 1rem; color: var(--ns-muted); }
+.ritual-contract-category > svg { box-sizing: content-box; padding: .375rem; color: var(--ns-accent); border: 1px solid var(--ns-line); background: var(--ns-deep); }
 .ritual-contract > strong { font: 600 1.5625rem/1.2 var(--font-display); letter-spacing: .005em; margin-top: 0.6875rem; }
 .ritual-contract-description { font: 400 0.8125rem/1.7 var(--font-body); color: var(--ns-muted); margin-top: 0.6875rem; margin-bottom: 1.375rem; }
 .ritual-contract-bottom { display: flex; align-items: center; justify-content: space-between; margin-top: auto; padding-top: 1rem; border-top: 0.0625rem solid var(--ns-line); }
 .ritual-contract-bottom > span { font-size: 0.625rem; color: var(--ns-muted); }
-.ritual-contract-bottom > b { font-size: 1.6875rem; font-weight: 600; color: var(--ns-accent); }
+.ritual-contract-bottom > b { padding: .5rem .625rem; border: 1px solid var(--ns-line); background: var(--ns-deep); font-size: 1.6875rem; font-weight: 600; color: var(--ns-accent); }
 .ritual-contract-bottom small { font-size: 0.625rem; }
-.ritual-selection { display: flex; align-items: center; gap: 1.75rem; padding: 1.125rem 1.5rem; margin-top: 1.375rem; border: 0.0625rem solid var(--ns-line); background: var(--ns-surface); border-radius: 0.25rem; }
+.ritual-selection { display: flex; align-items: center; gap: 1.75rem; padding: 1.125rem 1.5rem; margin-top: 1.375rem; border: 0.0625rem solid var(--ns-line); border-left: 3px solid var(--ns-accent); background: var(--ns-surface); border-radius: 0.25rem; }
 .ritual-selection > div:first-child { display: flex; align-items: center; gap: 1.25rem; }
 .ritual-selection > div:first-child > span { font-size: 0.5625rem; letter-spacing: .15em; color: var(--ns-muted); }
 .ritual-selection strong { font-size: 1.25rem; font-weight: 550; }
@@ -234,10 +244,10 @@ html[data-theme] .ritual-public .ns-document-number { color: var(--ns-accent); b
 }
 html[data-motion="reduced"] .ritual-public *, html[data-motion="reduced"] .ritual-public *::before, html[data-motion="reduced"] .ritual-public *::after { animation: none !important; transition: none !important; }
 
-/* Original bureau props ground the landing in a working occult office. */
+/* One city-backed contract anchors the first screen; the rest stays readable. */
 .ritual-hero { overflow:hidden; }
 /* Game artwork shares the straight frames and tonal layers of the interface. */
-.ritual-collection-preview { min-width: 0; width: 100%; padding: 1.25rem; border: .0625rem solid var(--ns-line); border-radius: var(--ns-small); background: var(--ns-surface); }
+.ritual-collection-preview { min-width: 0; width: 100%; padding: 1.25rem; border: .0625rem solid var(--ns-line); border-top: 2px solid var(--ns-accent); border-radius: var(--ns-small); background: var(--ns-surface); }
 .ritual-collection-preview-head { display: flex; align-items: center; gap: .5rem; margin-bottom: 1.25rem; color: var(--ns-muted); font: 700 .625rem/1.5 var(--font-body); letter-spacing: .12em; }
 .ritual-collection-preview-head svg { color: var(--ns-accent); }
 .ritual-collection-portraits { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: .625rem; align-items: start; }
@@ -251,7 +261,8 @@ html[data-motion="reduced"] .ritual-public *, html[data-motion="reduced"] .ritua
 .ritual-community-links > a:last-child { border-bottom: 0; }
 .ritual-community-links > a:hover { color: var(--ns-accent); background: var(--ns-elevated); }
 .ritual-community-links > a > svg { flex-shrink: 0; color: var(--ns-accent); }
-.ritual-community-links > a > svg:last-child { margin-left: auto; }
+.ritual-community-links > a > svg:last-child { margin-left: auto; transition: transform .18s; }
+.ritual-community-links > a:is(:hover,:focus-visible) > svg:last-child { transform: translate(2px,-2px); }
 .ritual-community-links span { display: grid; gap: .375rem; }
 .ritual-community-links strong { color: var(--ns-text); font-size: .875rem; font-weight: 700; }
 .ritual-community-links small { font-size: .6875rem; line-height: 1.5; }
