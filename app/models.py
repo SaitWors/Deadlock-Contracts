@@ -638,6 +638,7 @@ class ContractBoard(Base):
     offered_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
     locked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    completion_result: Mapped[dict[str, Any] | None] = mapped_column(JSON(none_as_null=True), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
     user: Mapped[User] = relationship()
     options: Mapped[list[BoardOption]] = relationship(back_populates="board", cascade="all, delete-orphan")

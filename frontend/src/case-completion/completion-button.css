@@ -1,0 +1,118 @@
+:root .ns-private .case-completion-entry {
+  display: grid;
+  justify-items: start;
+  gap: 8px;
+  max-width: 100%;
+}
+:root .ns-private .case-completion-trigger {
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
+  gap: 10px;
+  min-height: 46px;
+  max-width: 100%;
+  padding: 12px 18px;
+  border: 1px solid var(--ns-fill);
+  border-radius: var(--ns-small);
+  background: var(--ns-fill);
+  color: var(--ns-on-accent);
+  font: 650 14px/1.4 var(--font-body);
+  letter-spacing: 0;
+  text-align: center;
+  white-space: normal;
+  cursor: pointer;
+}
+:root .ns-private .case-completion-trigger:focus-visible {
+  outline: 2px solid var(--ns-text);
+  outline-offset: 4px;
+}
+:root .ns-private .case-completion-trigger:hover:not(:disabled) {
+  box-shadow: 0 0 0 2px var(--ns-surface), 0 0 0 3px var(--ns-accent);
+}
+:root .ns-private .case-completion-trigger:disabled {
+  opacity: .65;
+  cursor: default;
+}
+:root .ns-private .case-completion-trigger > svg {
+  flex-shrink: 0;
+}
+:root .ns-private .case-completion-notice {
+  position: fixed;
+  z-index: 150;
+  right: 24px;
+  bottom: 88px;
+  max-width: min(380px, calc(100vw - 32px));
+  padding: 18px;
+  border: 1px solid var(--ns-line);
+  border-radius: var(--ns-small);
+  background: var(--ns-elevated);
+  color: var(--ns-text);
+  box-shadow: var(--ns-shadow);
+  font: 400 14px/1.5 var(--font-body);
+}
+:root .ns-private .case-completion-notice p {
+  margin: 0 0 12px;
+}
+:root .ns-private .case-completion-notice button {
+  min-height: 44px;
+  padding: 8px 12px;
+  margin-right: 8px;
+  border: 1px solid var(--ns-line);
+  border-radius: var(--ns-small);
+  color: var(--ns-text);
+  font: 600 14px/1.4 var(--font-body);
+  cursor: pointer;
+}
+:root .ns-private .case-completion-notice button:focus-visible {
+  outline: 2px solid var(--ns-accent);
+  outline-offset: 3px;
+}
+:root .ns-private .case-ready-list {
+  display: grid;
+  gap: 12px;
+  margin: 0 0 28px;
+}
+:root .ns-private .case-ready-list > h2 {
+  margin: 0 0 4px;
+  color: var(--ns-text);
+  font: 650 20px/1.4 var(--font-body);
+}
+:root .ns-private .case-ready-list > article {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 20px;
+  border: 1px solid var(--ns-line);
+  border-radius: var(--ns-small);
+  background: var(--ns-surface);
+}
+:root .ns-private .case-ready-list > article > div:first-child {
+  min-width: 0;
+}
+:root .ns-private .case-ready-list h3 {
+  margin: 4px 0 8px;
+  color: var(--ns-text);
+  font: 600 16px/1.5 var(--font-body);
+  overflow-wrap: anywhere;
+}
+:root .ns-private .case-ready-list p {
+  margin: 0;
+  color: var(--ns-muted);
+  font: 400 13px/1.5 var(--font-body);
+}
+:root .ns-private .case-ready-list .case-completion-entry {
+  flex-shrink: 0;
+}
+@media (max-width: 620px) {
+  :root .ns-private .case-ready-list > article {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 16px;
+    padding: 16px;
+  }
+  :root .ns-private .case-completion-entry,
+  :root .ns-private .case-completion-trigger {
+    width: 100%;
+  }
+}

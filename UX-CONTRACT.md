@@ -55,3 +55,16 @@ Preserve meaningful pending, empty, failure, stale and confirmed states without 
 Check runtime token/standalone drift and lint `DESIGN.md` after design changes. Relevant frontend coverage lives in `frontend/tests/public-navigation.test.mjs`, `seo.test.mjs`, `document-appearance.test.mjs`, `legal.test.mjs`, `legal-navigation.test.mjs` and `signing.test.mjs`; run these from `frontend/`. Backend crawler coverage is `tests/test_seo.py`.
 
 For runtime changes, also run the repository's TypeScript, formatter, production build and frontend budget checks. Exercise direct and enhanced routes, Back/Forward, native link exceptions, slow/failing transitions, keyboard/menu/signing focus, RU/EN, narrow/desktop layouts, every appearance mode and reduced motion in a real browser. Existing tests and source inspection do not substitute for browser geometry or live Steam provider verification.
+
+
+## Case completion
+
+`app/services/case_completion.py` and authenticated `GET /api/boards/{board_id}/completion` own the result receipt. Only the owner can read it; selected final task verdicts, case attempt limit and trusted XP delivery determine readiness. VERIFYING/REVIEW_REQUIRED and missing positive reward receipts stay pending even after the last attempt. GET is read-only and private/no-store; it does not settle, acknowledge, enqueue rewards or mutate progression.
+
+Settlement delivery atomically saves the first ready receipt in `ContractBoard.completion_result`. Reopen uses those same before/after balances, actual task XP and server bands even after later account XP. For historical cases, replay only a provable contiguous ledger chain; uncertain starting balances use a static recorded final. Unknown legacy progression remains unknown, never invented from current profile minus reward.
+
+The stable `CompletionProvider` in `frontend/src/case-completion/CompletionButton.tsx` owns the open case, module failure/retry, session replay labels and trigger focus captured before disabling it. Board polling, day rollover and tab navigation do not replace an open result. Entries exist on the settled board, completed cases and history. The native dialog owns cancellable GET, retryable loading/error/pending states, scroll lock and animation lifetime.
+
+The ready scene contains only profile and task plaques. Failed tasks grey, crack and split with zero XP before successful task flights. Successes fly one at a time, beginning at their real floating pose; actual `Animation.finished` triggers impact and XP. Text/bar share one tween state. Each threshold is shown at 100% before the same plaque centers and changes level; exactly two waves appear only for a real crossing. Delayed frames still visit every band; final drift remains active. Announce results and level changes rather than numeric frames.
+
+Escape closes immediately at any phase, cancels work and restores focus to the enabled cabinet trigger (visible brand fallback if it disappeared). Empty-stage taps and a focus-visible return control also exit; replay remains in the cabinet. System/manual reduced motion uses only a brief fade to the confirmed final and cancels active travel. Preference restarts reset committed transforms. Closing, replaying or refreshing cannot award XP.
