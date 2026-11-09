@@ -76,3 +76,5 @@ html[data-theme]::-webkit-scrollbar-thumb, html[data-theme] ::-webkit-scrollbar-
 html[data-theme]::-webkit-scrollbar-thumb:hover, html[data-theme] ::-webkit-scrollbar-thumb:hover { background: var(--ns-scroll-hover); }
 html[data-theme]::-webkit-scrollbar-thumb:active, html[data-theme] ::-webkit-scrollbar-thumb:active { background: var(--ns-scroll-active); }
 @media (forced-colors: active) { html[data-theme], html[data-theme] * { scrollbar-color: auto; } }
+/* Completion is a dark cinematic stage in every cabinet theme. */
+html{--finale-bg:#05090b;--finale-panel:#10181b;--finale-text:#eef1ec;--finale-muted:#9ba5a2;--finale-line:#687873;--finale-accent:#bcda99;--finale-flash:#f0f8bf}

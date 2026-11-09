@@ -1,5 +1,7 @@
 # Contract completion ceremony
 
+> Archived initial implementation. The current visual and receipt contract is [the cinematic finale spec](../specs/2026-11-09-cinematic-finale.md); it supersedes the sequence and balance projection below.
+
 ## Intent and chosen approach
 
 The user supplied a scene sketch and authorized designing the full interaction, implementing it, and creating a new PR. Preserve the digital bureau/pentagram identity. After the selected 1–3 assignments reach final authoritative outcomes, an explicit button opens a 5–8 second results ceremony. Do not open it automatically during gameplay.

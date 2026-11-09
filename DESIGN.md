@@ -88,7 +88,7 @@ Native standalone legal/support/status pages and crawlable fallback documents mi
 
 ## Elevation & Depth
 
-Use surface/elevated tones and one-pixel borders to distinguish regions; `--ns-shadow` is `none`. Keep paper textures, folded corners, desk/scroll illustrations, rotated plaques and heavy offset shadows out of the foreground. Modal backdrops and the existing appearance drawer may separate overlays from content without changing ordinary panel depth.
+Use surface/elevated tones and one-pixel borders to distinguish regions; `--ns-shadow` is `none`. Keep paper textures, folded corners, desk/scroll illustrations, rotated plaques and heavy offset shadows out of the foreground. The completion finale has its own floating plaques and attached light effects; ordinary surfaces retain this rule. Modal backdrops and the existing appearance drawer may separate overlays from content without changing ordinary panel depth.
 
 ## Shapes
 
@@ -104,7 +104,9 @@ Keep `BureauAtmosphere` mounted during enhanced public navigation. Its fallback 
 
 ### Contract completion
 
-`frontend/src/case-completion/CaseCompletion.tsx` owns the result ceremony: graphite modal over dimmed scenery, actual selected assignments, measured task-to-avatar flight, neutral two-piece failure split, and sage impact/level rings. Use server-authored XP bands for every threshold, including delayed frames; keep the confirmed final balance intact. On narrow screens the profile is a compact summary above the cards. Reduced motion shows the final receipt immediately. Avoid automatic opening, flashing, generated art or reward writes tied to motion.
+`frontend/src/case-completion/CaseCompletion.tsx` owns a fullscreen dark stage with only one profile plaque and the 1–3 selected task plaques. Its stage palette belongs to `appearance.css` (`--finale-*`); motion consumes `motion.ts` and reactive saved/system preferences. `finale-motion.ts` composes separate entrance, drift, flight, center and impact transforms. Await actual flight completion before synchronously changing XP text/bar. Failed plaques grey and split first, leaving the center free for the level accent; successful plaques fly in their saved order.
+
+Fill each server-authored band to 100%, pause, center the same profile, change its level inside, pulse the contour and emit exactly two waves only for a real level-up. Then refill the next band with the remainder. Preserve final floating; on phones start with profile above tasks. Reduced motion uses a short fade to the saved final. No heading, recap footer, extra metrics or visible action bar. Escape and empty backdrop return directly to the cabinet; a focus-visible return control remains available. Scene playback never awards XP or projects a historical start from the current account balance.
 
 ## Do's and Don'ts
 

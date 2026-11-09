@@ -35,14 +35,15 @@ afterEach(async () => {
 
 const response = (data) => ({ ok: true, status: 200, json: async () => data })
 
-function finalBoard(statuses = ["COMPLETED"], attempts = 1, status = "SETTLED") {
+function finalBoard(statuses = ["COMPLETED"], attempts = 1, status = "SETTLED", maxAttempts = 3) {
   const board = boardsPayload().boards[0]
   return {
     ...board,
     status,
     locked_at: new Date().toISOString(),
     attempts_used: attempts,
-    attempts_remaining: Math.max(0, board.max_attempts - attempts),
+    max_attempts: maxAttempts,
+    attempts_remaining: Math.max(0, maxAttempts - attempts),
     options: board.options.map((option, index) => ({
       ...option,
       selected: index < statuses.length,
@@ -80,6 +81,48 @@ function historyCase(board, id = board.id) {
   }
 }
 
+function completionReceipt(board) {
+  return {
+    board_id: board.id,
+    ready: true,
+    replayable: true,
+    result_source: "saved",
+    reason: null,
+    user: { id: session.user.id, display_name: "Actual profile", avatar_url: null },
+    attempts_used: 1,
+    max_attempts: 3,
+    tasks: [
+      { id: "receipt-one", title: "First verified task", status: "COMPLETED", xp: 13 },
+      { id: "receipt-two", title: "Second verified task", status: "COMPLETED", xp: 17 },
+    ],
+    total_xp: 30,
+    progression: {
+      before: {
+        level: 1,
+        total_xp: 110,
+        level_xp: 110,
+        next_level_xp: 130,
+        progress_pct: 84.6,
+        xp_to_next: 20,
+        lifetime_spent_threshold: 0,
+      },
+      after: {
+        level: 2,
+        total_xp: 140,
+        level_xp: 10,
+        next_level_xp: 170,
+        progress_pct: 5.9,
+        xp_to_next: 160,
+        lifetime_spent_threshold: 130,
+      },
+      levels: [
+        { level: 1, start_xp: 0, end_xp: 130 },
+        { level: 2, start_xp: 130, end_xp: 300 },
+      ],
+    },
+  }
+}
+
 async function mount({
   board = finalBoard(),
   cases = [],
@@ -87,6 +130,7 @@ async function mount({
   language = "ru",
   completionRequest,
   boardRequest,
+  reducedMotion = true,
 } = {}) {
   const dom = new JSDOM('<div id="mount"></div>', {
     url: `https://qa.invalid/#${tab}`,
@@ -99,7 +143,11 @@ async function mount({
   w.AbortController = AbortController
   w.AbortSignal = AbortSignal
   w.scrollTo = () => {}
-  w.matchMedia = () => ({ matches: true, addEventListener() {}, removeEventListener() {} })
+  w.matchMedia = (query) => ({
+    matches: query.includes("prefers-reduced-motion") ? reducedMotion : true,
+    addEventListener() {},
+    removeEventListener() {},
+  })
   w.MessageChannel = class {
     port1 = { onmessage: null }
     port2 = { postMessage: () => w.setTimeout(() => this.port1.onmessage?.(), 0) }
@@ -110,6 +158,8 @@ async function mount({
   w.HTMLDialogElement.prototype.close = function () {
     this.removeAttribute("open")
   }
+  w.HTMLMediaElement.prototype.play = async function () {}
+  w.HTMLMediaElement.prototype.pause = function () {}
   w.localStorage.setItem("dc.ui.language", language)
   const calls = []
   w.fetch = async (url, init = {}) => {
@@ -152,9 +202,27 @@ test("a mixed final case offers completion after its last attempt", async () => 
   assert.ok(doc.querySelector(".case-completion-trigger"))
 })
 
+for (const maxAttempts of [2, 5]) {
+  for (const tab of ["quests", "history"])
+    test(`${tab} uses the case's ${maxAttempts}-attempt limit for terminal results`, async () => {
+      const final = finalBoard(["COMPLETED", "FAILED"], maxAttempts, "SETTLED", maxAttempts)
+      const retryable = finalBoard(["COMPLETED", "FAILED"], maxAttempts - 1, "SETTLED", maxAttempts)
+      const unfinished = await mount({
+        tab,
+        board: retryable,
+        cases: [historyCase(retryable)],
+      })
+      assert.equal(unfinished.doc.querySelector(".case-completion-trigger"), null)
+      const finished = await mount({ tab, board: final, cases: [historyCase(final)] })
+      assert.equal(finished.doc.querySelectorAll(".case-completion-trigger").length, 1)
+    })
+}
+
 for (const [label, board] of [
   ["retryable tasks", finalBoard(["COMPLETED", "FAILED"], 2)],
   ["final verification", finalBoard(["COMPLETED", "VERIFYING"], 3, "VERIFYING")],
+  ["awaiting the final match", finalBoard(["COMPLETED", "FAILED"], 3, "AWAITING_LAST_MATCH")],
+  ["an unresolved final task", finalBoard(["COMPLETED", "AWAITING_LAST_MATCH"], 3)],
   ["final review", finalBoard(["COMPLETED", "REVIEW_REQUIRED"], 3, "REVIEW_REQUIRED")],
   ["inconsistent final review", finalBoard(["COMPLETED", "REVIEW_REQUIRED"], 3)],
   ["no chosen tasks", finalBoard([], 3)],
@@ -208,56 +276,48 @@ test("polling and tab changes preserve an opened case until the player closes it
   })
   assert.equal(doc.querySelector("dialog.case-completion[open]"), dialog)
   assert.equal(calls.filter(({ url }) => url.endsWith("/completion")).length, 1)
-  await api.act(async () => doc.querySelector('[aria-label="Close results"]').click())
+  await api.act(async () => dialog.dispatchEvent(new w.Event("cancel", { cancelable: true })))
   assert.equal(doc.querySelector("dialog.case-completion[open]"), null)
   assert.equal(receiptCall.init.signal.aborted, true)
   assert.ok(doc.activeElement.matches(".ns-sidebar-brand, .bureau-brand"))
 })
 
+test("Escape interrupts a running cinematic and returns to the case result in the cabinet", async () => {
+  const board = finalBoard(["COMPLETED", "COMPLETED"], 1)
+  const { doc, api, w } = await mount({
+    board,
+    cases: [historyCase(board)],
+    tab: "history",
+    language: "en",
+    reducedMotion: false,
+    completionRequest: () => response(completionReceipt(board)),
+  })
+  const result = doc.querySelector(".dc-case-file")
+  const resultText = result.textContent
+  const trigger = result.querySelector(".case-completion-trigger")
+  trigger.focus()
+  await api.act(async () => trigger.click())
+  const dialog = doc.querySelector("dialog.case-completion[open]")
+  assert.ok(dialog)
+  assert.equal(dialog.dataset.static, "false")
+  assert.notEqual(dialog.dataset.phase, "done")
+  await api.act(async () => dialog.dispatchEvent(new w.Event("cancel", { cancelable: true })))
+  assert.equal(Boolean(doc.querySelector("dialog.case-completion[open]")), false)
+  assert.equal(doc.querySelector(".dc-case-file"), result)
+  assert.equal(doc.activeElement, trigger)
+  assert.equal(result.textContent.replace("Replay result", "Finish contract"), resultText)
+  assert.equal(doc.body.style.overflow, "")
+})
+
 test("opening and replaying use only the authoritative receipt and never grant nominal XP", async () => {
   const board = finalBoard(["COMPLETED", "COMPLETED"], 1)
-  const receipt = {
-    board_id: board.id,
-    ready: true,
-    reason: null,
-    user: { id: session.user.id, display_name: "Actual profile", avatar_url: null },
-    attempts_used: 1,
-    max_attempts: 3,
-    tasks: [
-      { id: "receipt-one", title: "First verified task", status: "COMPLETED", xp: 13 },
-      { id: "receipt-two", title: "Second verified task", status: "COMPLETED", xp: 17 },
-    ],
-    total_xp: 30,
-    progression: {
-      before: {
-        level: 1,
-        total_xp: 110,
-        level_xp: 110,
-        next_level_xp: 130,
-        progress_pct: 84.6,
-        xp_to_next: 20,
-        lifetime_spent_threshold: 0,
-      },
-      after: {
-        level: 2,
-        total_xp: 140,
-        level_xp: 10,
-        next_level_xp: 170,
-        progress_pct: 5.9,
-        xp_to_next: 160,
-        lifetime_spent_threshold: 130,
-      },
-      levels: [
-        { level: 1, start_xp: 0, end_xp: 130 },
-        { level: 2, start_xp: 130, end_xp: 300 },
-      ],
-    },
-  }
+  const receipt = completionReceipt(board)
   const { doc, calls, api } = await mount({
     board,
     language: "en",
     completionRequest: () => response(receipt),
   })
+  const accountProfile = doc.querySelector(".bureau-profile-trigger").textContent
   const trigger = doc.querySelector(".case-completion-trigger")
   trigger.focus()
   await api.act(async () => {
@@ -265,16 +325,40 @@ test("opening and replaying use only the authoritative receipt and never grant n
     trigger.click()
   })
   assert.equal(doc.querySelectorAll("dialog.case-completion[open]").length, 1)
-  assert.match(doc.querySelector(".cc-profile h3")?.textContent || "", /Actual profile/)
-  assert.match(doc.querySelector(".cc-earned")?.textContent || "", /\+30 XP/)
-  assert.match(doc.querySelector(".cc-total")?.textContent || "", /140/)
+  const dialog = doc.querySelector("dialog.case-completion[open]")
+  assert.match(dialog.querySelector(".cc-profile")?.textContent || "", /Actual profile/)
+  assert.equal(doc.querySelector(".cc-total")?.textContent, "10 / 170 XP")
   assert.equal(doc.querySelector(".cc-level strong")?.textContent, "2")
+  assert.equal(dialog.querySelector('[role="progressbar"]').getAttribute("aria-valuenow"), "10")
+  assert.equal(dialog.querySelector('[role="progressbar"]').getAttribute("aria-valuemax"), "170")
+  assert.equal(dialog.querySelectorAll(".cc-task").length, 2)
+  assert.match(dialog.textContent, /First verified task/)
+  assert.match(dialog.textContent, /Second verified task/)
+  assert.equal(
+    Boolean(
+      dialog.querySelector("header, footer, button:not(.sr-only), .cc-description, .cc-note"),
+    ),
+    false,
+    "the ready scene contains only the profile and selected tasks",
+  )
+  assert.equal(doc.querySelector(".bureau-profile-trigger").textContent, accountProfile)
   assert.equal(calls.filter(({ url }) => url.endsWith("/completion")).length, 1)
-  await api.act(async () => doc.querySelector('[aria-label="Close results"]').click())
+  await api.act(async () =>
+    dialog.dispatchEvent(new doc.defaultView.Event("cancel", { cancelable: true })),
+  )
   assert.equal(doc.activeElement, trigger)
   assert.match(trigger.textContent, /Replay result/)
+  assert.equal(doc.querySelector(".bureau-profile-trigger").textContent, accountProfile)
   await api.act(async () => trigger.click())
   assert.equal(calls.filter(({ url }) => url.endsWith("/completion")).length, 2)
-  assert.equal(calls.filter(({ init }) => init.method === "POST").length, 0)
+  assert.ok(
+    calls
+      .filter(({ url }) => url.endsWith("/completion"))
+      .every(({ init }) => (init.method || "GET") === "GET"),
+  )
+  assert.equal(calls.filter(({ init }) => init.method && init.method !== "GET").length, 0)
   assert.equal(doc.querySelectorAll("dialog.case-completion[open]").length, 1)
+  assert.match(doc.querySelector(".cc-profile").textContent, /Actual profile/)
+  assert.equal(doc.querySelector(".cc-total").textContent, "10 / 170 XP")
+  assert.equal(doc.querySelector(".bureau-profile-trigger").textContent, accountProfile)
 })

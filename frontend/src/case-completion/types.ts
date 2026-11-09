@@ -19,10 +19,16 @@ export type CompletionReceipt = {
   board_id: string
   ready: boolean
   reason: string | null
+  replayable: boolean
+  result_source: "saved" | "ledger" | "legacy"
   user: { id: string; display_name: string; avatar_url: string | null }
   attempts_used: number
   max_attempts: number
   tasks: CompletionTask[]
   total_xp: number
-  progression: { before: CompletionProgress; after: CompletionProgress; levels: LevelBand[] }
+  progression: {
+    before: CompletionProgress | null
+    after: CompletionProgress | null
+    levels: LevelBand[]
+  }
 }

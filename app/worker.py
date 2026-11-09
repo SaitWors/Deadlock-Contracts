@@ -3396,6 +3396,14 @@ def dispatch_outbox(db: Session) -> bool:
                             policy_version="xp-v3",
                         )
                     )
+            # Capture only after the normal reward delivery is flushed. The
+            # receipt commits with the outbox event and never grants rewards.
+            from .services.case_completion import maybe_capture_result
+            board_id = payload.get("board_id") or db.scalar(
+                select(BoardOption.board_id).where(BoardOption.id == payload.get("assignment_id"))
+            )
+            if board_id:
+                maybe_capture_result(db, board_id)
         elif event.event_type == "coin.reward":
             from .services.coin_rewards import deliver_entitlement
             deliver_entitlement(db, event.payload["entitlement_id"])

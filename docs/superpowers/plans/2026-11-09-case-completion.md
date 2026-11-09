@@ -1,5 +1,7 @@
 # Contract completion implementation plan
 
+> Archived initial implementation. The current visual and receipt contract is [the cinematic finale spec](../specs/2026-11-09-cinematic-finale.md); it supersedes the sequence and balance projection below.
+
 **Goal:** explicit trustworthy result ceremony with sequential task absorption, failed-card splitting and level-up overflow.
 **Spec:** docs/superpowers/specs/2026-11-09-case-completion-design.md
 **Architecture:** isolated read-only Python receipt and lazy React modal; existing server rewards unchanged. CSS plus rAF, no new dependencies.

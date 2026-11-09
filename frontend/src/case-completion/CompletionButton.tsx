@@ -61,6 +61,14 @@ export function CompletionProvider({
   const [viewed, setViewed] = useState<ReadonlySet<string>>(() => new Set())
   const pending = useRef(false)
   const mounted = useRef(true)
+  const returnFocus = useRef<HTMLElement | null>(null)
+
+  useEffect(() => {
+    if (openBoard !== null || !returnFocus.current) return
+    const target = returnFocus.current
+    if (target.isConnected && !target.matches(":disabled")) target.focus({ preventScroll: true })
+    returnFocus.current = null
+  }, [openBoard])
   const errorId = useId()
 
   useEffect(() => {
@@ -72,6 +80,8 @@ export function CompletionProvider({
 
   const show = async (boardId: string) => {
     if (pending.current) return
+    returnFocus.current =
+      document.activeElement instanceof HTMLElement ? document.activeElement : null
     pending.current = true
     setErrorBoard(null)
     if (Scene) {
