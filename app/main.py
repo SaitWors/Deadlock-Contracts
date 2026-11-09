@@ -28,6 +28,7 @@ from .config import settings
 from . import seo
 from .db import Base, SessionLocal, engine, get_db
 from .community import router as community_router
+from .case_completion import router as case_completion_router
 from .personal_progress import router as personal_progress_router
 from .services.personal_progress import build_personal_progress
 from .services.achievements import achievement_collection, awarded_contract_filter
@@ -544,6 +545,7 @@ app.add_middleware(TrustedHostMiddleware, allowed_hosts=list(settings.trusted_ho
 app.add_middleware(RequestSecurityMiddleware)
 app.add_middleware(SecurityHeadersMiddleware)
 app.include_router(community_router)
+app.include_router(case_completion_router)
 app.include_router(personal_progress_router)
 
 

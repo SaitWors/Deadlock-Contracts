@@ -55,3 +55,12 @@ Preserve meaningful pending, empty, failure, stale and confirmed states without 
 Check runtime token/standalone drift and lint `DESIGN.md` after design changes. Relevant frontend coverage lives in `frontend/tests/public-navigation.test.mjs`, `seo.test.mjs`, `document-appearance.test.mjs`, `legal.test.mjs`, `legal-navigation.test.mjs` and `signing.test.mjs`; run these from `frontend/`. Backend crawler coverage is `tests/test_seo.py`.
 
 For runtime changes, also run the repository's TypeScript, formatter, production build and frontend budget checks. Exercise direct and enhanced routes, Back/Forward, native link exceptions, slow/failing transitions, keyboard/menu/signing focus, RU/EN, narrow/desktop layouts, every appearance mode and reduced motion in a real browser. Existing tests and source inspection do not substitute for browser geometry or live Steam provider verification.
+
+
+## Case completion
+
+`app/services/case_completion.py` and authenticated `GET /api/boards/{board_id}/completion` own the result receipt. Only the owner can read it; selected task verdicts and trusted XP ledger delivery determine readiness. The endpoint is read-only and private/no-store. It does not acknowledge, settle, enqueue rewards or mutate progression. The replay start is a projection ending at the current actual balance, not a historical balance assertion; subsequent profile corrections may reduce the displayed refill while actual case XP remains factual.
+
+The stable `CompletionProvider` in `frontend/src/case-completion/CompletionButton.tsx` owns the frozen open case, module-load failure/retry and per-session replay labels. Board polling, day rollover and tab navigation do not replace an open result. Entries exist on the settled board, in completed cases and in history. The dialog owns cancellable receipt fetch, retryable pending/error feedback, keyboard focus/scroll restoration and animation state. Skip and automatic completion move focus from the disappearing playback control to Done; Replay moves it back to Skip. Closing/replaying/refreshing never awards XP.
+
+Success cards animate actual trusted XP sequentially, crossing each server-authored band separately even after delayed frames. Final failed/void/expired tasks retain distinct labels; unresolved review/provider tasks never play a failure scene. Escape first skips playback, then closes the static result; the close control can dismiss immediately. System/manual reduced motion immediately finishes visual playback. Announce task outcomes and level changes rather than each numeric frame.

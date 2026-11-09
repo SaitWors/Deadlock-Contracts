@@ -102,6 +102,10 @@ Primary actions consume fill/on-accent; secondary actions use surface/border/tex
 
 Keep `BureauAtmosphere` mounted during enhanced public navigation. Its fallback image remains available; reduced motion and hidden documents pause ambient video. State transitions and signing confirmation remain understandable without animation.
 
+### Contract completion
+
+`frontend/src/case-completion/CaseCompletion.tsx` owns the result ceremony: graphite modal over dimmed scenery, actual selected assignments, measured task-to-avatar flight, neutral two-piece failure split, and sage impact/level rings. Use server-authored XP bands for every threshold, including delayed frames; keep the confirmed final balance intact. On narrow screens the profile is a compact summary above the cards. Reduced motion shows the final receipt immediately. Avoid automatic opening, flashing, generated art or reward writes tied to motion.
+
 ## Do's and Don'ts
 
 - Do reuse semantic tokens, shared navigation, signing and announcement components across public and private screens.
