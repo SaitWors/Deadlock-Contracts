@@ -24,6 +24,10 @@ import type { AdminReview } from "./admin/admin-types"
 import ArchiveNextStep from "./archive/ArchiveNextStep"
 import { useHeroVotes } from "./hero-votes/useHeroVotes"
 import PersonalProgress from "./progress/PersonalProgress"
+import CompletionButton, {
+  canShowCompletion,
+  CompletionProvider,
+} from "./case-completion/CompletionButton"
 import type { GoalRecommendation } from "./progress/types"
 import {
   MCGCredit,
@@ -1288,6 +1292,7 @@ export default function Dashboard({ initialSession }: { initialSession: SessionP
       ["LOCKED", "VERIFYING", "REVIEW_REQUIRED"].includes(item.status) &&
       item.options.some((option) => option.selected),
   )
+  const readyCases = historyCases.filter(canShowCompletion).slice(0, 6)
 
   useEffect(() => {
     if (!xpRef.current) return
@@ -1472,6 +1477,7 @@ export default function Dashboard({ initialSession }: { initialSession: SessionP
       .filter((historyCase) => historyMode === "ALL" || historyCase.game_match_mode === historyMode)
       .map((historyCase) => ({
         boardId: historyCase.board_id,
+        completionReady: canShowCompletion(historyCase),
         items: historyCase.items,
         mode: historyCase.game_match_mode,
         matchId:
@@ -1537,7 +1543,10 @@ export default function Dashboard({ initialSession }: { initialSession: SessionP
     ])
 
   return (
-    <div className="dc-dashboard dc-redesign dc-v3 dc-vnext bureau-app ns-private ritual-workspace min-h-screen community-dashboard">
+    <CompletionProvider
+      key={user.id}
+      className="dc-dashboard dc-redesign dc-v3 dc-vnext bureau-app ns-private ritual-workspace min-h-screen community-dashboard"
+    >
       <BureauAtmosphere />
       {guideOpen && !signing && !announcements.some((item) => item.presentation === "MODAL") && (
         <BureauGuide
@@ -2105,6 +2114,10 @@ export default function Dashboard({ initialSession }: { initialSession: SessionP
                     </div>
                   </section>
 
+                  {canShowCompletion(board) && (
+                    <CompletionButton key={board.id} boardId={board.id} />
+                  )}
+
                   {board.provider_status?.message && (
                     <section
                       className={`dc-policy dc-provider-phase-${(board.provider_status.phase || "searching").toLowerCase()}`}
@@ -2195,6 +2208,30 @@ export default function Dashboard({ initialSession }: { initialSession: SessionP
                   </p>
                 </div>
               </section>
+              {readyCases.length > 0 && (
+                <section className="case-ready-list" aria-labelledby="case-ready-heading">
+                  <h2 id="case-ready-heading">
+                    {language === "ru" ? "Завершённые дела" : "Completed cases"}
+                  </h2>
+                  {readyCases.map((readyCase) => (
+                    <article key={readyCase.board_id}>
+                      <div>
+                        <p className="dc-eyebrow">{MODE_META[readyCase.game_match_mode].short}</p>
+                        <h3>
+                          {readyCase.items
+                            .map((item) => localizedContractTitle(item, language))
+                            .join(" · ")}
+                        </h3>
+                        <p>
+                          {language === "ru" ? "Попытки" : "Attempts"} {readyCase.attempts_used}/
+                          {readyCase.max_attempts} · {fmt(readyCase.settled_at, language)}
+                        </p>
+                      </div>
+                      <CompletionButton boardId={readyCase.board_id} />
+                    </article>
+                  ))}
+                </section>
+              )}
               {activeBoards.length ? (
                 <section className="dc-active-case-grid">
                   {activeBoards.map((activeBoard) => {
@@ -2481,6 +2518,7 @@ export default function Dashboard({ initialSession }: { initialSession: SessionP
                           <strong>
                             {MODE_META[group.mode].short} · +{reward} XP
                           </strong>
+                          {group.completionReady && <CompletionButton boardId={group.boardId} />}
                         </footer>
                       </div>
                     </article>
@@ -2744,7 +2782,7 @@ export default function Dashboard({ initialSession }: { initialSession: SessionP
           <MCGCredit language={language} compact />
         </footer>
       </div>
-    </div>
+    </CompletionProvider>
   )
 }
 
