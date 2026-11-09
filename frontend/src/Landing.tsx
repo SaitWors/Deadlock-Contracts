@@ -1,9 +1,12 @@
 import BureauAtmosphere from "./BureauAtmosphere"
-import { lazy, Suspense, useEffect, useState } from "react"
+import { lazy, Suspense, useEffect, useRef, useState } from "react"
 import BureauHeader from "./BureauHeader"
 import Icon, { type IconName } from "./icons/Icon"
 import Leaderboard from "./community/Leaderboard"
 import CollectionPreview from "./CollectionPreview"
+import matchCity from "./imports/city/uptown_02.webp"
+import { useReducedMotion } from "./Appearance"
+import { useSceneEntrance } from "./motion"
 import { usePublicNavigation } from "./public-navigation"
 import PublicContent, { readPublicCopy } from "./PublicContent"
 import { MCGCredit, useLanguage } from "./i18n"
@@ -126,6 +129,9 @@ export default function Landing() {
     language,
   }
   const page = route.page
+  const hero = useRef<HTMLElement>(null)
+  const reducedMotion = useReducedMotion()
+  useSceneEntrance(hero, page, reducedMotion)
   const copy = readPublicCopy({ page, language })
   const [selected, setSelected] = useState<number[]>([])
   const [previewOpen, setPreviewOpen] = useState(false)
@@ -279,7 +285,7 @@ export default function Landing() {
       <main id="main-content">
         {page === "home" && (
           <>
-            <section className="ritual-hero" aria-labelledby="ritual-title">
+            <section ref={hero} className="ritual-hero" aria-labelledby="ritual-title">
               <div className="ritual-container ritual-hero-inner">
                 <div className="ritual-hero-copy">
                   <div className="ritual-hero-eyebrow">
@@ -287,7 +293,7 @@ export default function Landing() {
                     {ru ? "ДРУГАЯ СТОРОНА DEADLOCK" : "THE OTHER SIDE OF DEADLOCK"}
                     <small>ALPHA</small>
                   </div>
-                  <h1 id="ritual-title">
+                  <h1 id="ritual-title" data-intro>
                     <span className="sr-only">Deadlock Contracts: </span>
                     {ru ? (
                       <>
@@ -306,7 +312,7 @@ export default function Landing() {
                       ? "В каждом матче есть что-то большее, чем победа. Бери контракты, ставь свою подпись и превращай игру в личную историю."
                       : "Every match has more to offer than a win. Pick your contracts, sign the deal and turn every game into your own story."}
                   </p>
-                  <div className="ritual-hero-actions">
+                  <div className="ritual-hero-actions" data-intro>
                     <a className="btn-primary" href={publicUrl("contracts", language)}>
                       {ru ? "Выбрать контракт" : "Choose a contract"}
                       <Icon name="arrow-up-right" size={20} />
@@ -323,7 +329,7 @@ export default function Landing() {
                       : "Sign in with Steam. Make your progress count."}
                   </div>
                 </div>
-                <div className="ritual-objective">
+                <div className="ritual-objective" data-intro>
                   <div className="ritual-objective-top">
                     <span>
                       <Icon name="target" size={16} /> {ru ? "КОНТРАКТ НА МАТЧ" : "MATCH CONTRACT"}
@@ -337,7 +343,15 @@ export default function Landing() {
                     <h2>{EXAMPLES[0].title[lang]}</h2>
                     <p>{EXAMPLES[0].description[lang]}</p>
                     <div className="ritual-objective-target">
-                      <Icon name="target" size={24} />
+                      <img
+                        src={matchCity}
+                        alt=""
+                        width="1920"
+                        height="1056"
+                        fetchPriority="high"
+                        decoding="async"
+                      />
+                      <Icon name="target" size={44} />
                       <div>
                         <strong>30 000</strong>
                         <span>{ru ? "урона по героям за матч" : "hero damage in one match"}</span>

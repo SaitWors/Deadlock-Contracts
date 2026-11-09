@@ -67,7 +67,7 @@
   text-transform: none;
   text-decoration: none;
   box-shadow: none;
-  transition: background-color .16s, border-color .16s, color .16s;
+  transition: background-color .16s, border-color .16s, color .16s, transform .16s;
 }
 :root[data-theme] :is(.bureau-public.ritual-public, .bureau-app.ritual-workspace) :is(.btn-primary, .btn-ghost, .dc-primary, .dc-ghost, .dc-secondary, .archive-primary, .bureau-action, .ritual-text-link):hover {
   transform: none;
@@ -157,3 +157,14 @@
 @media (max-width: 540px) {
   :root[data-theme] .bureau-app.ritual-workspace::before { opacity: .12; }
 }
+
+/* Mission feedback has the same physical response on demo and live boards. */
+:root[data-theme] :is(.ritual-contract,.dc-contract-dossier .dc-motion-contract-card) { transition: transform .18s ease-out, border-color .18s, background-color .18s; }
+:root[data-theme] :is(.ritual-contract,.dc-contract-dossier .dc-motion-contract-card):focus-visible { outline: 2px solid var(--ns-accent); outline-offset: 4px; }
+@media(hover:hover) and (pointer:fine) and (prefers-reduced-motion:no-preference) {
+ :root[data-theme]:not([data-motion="reduced"]) :is(.ritual-contract,.dc-contract-dossier .dc-motion-contract-card):hover:not(:disabled) { transform: translateY(-4px); }
+}
+:root[data-theme]:not([data-motion="reduced"]) :is(.ritual-contract,.dc-contract-dossier .dc-motion-contract-card,.ritual-hero .btn-primary):active:not(:disabled) { transform: translateY(1px) scale(.99); }
+:root[data-theme]:not([data-motion="reduced"]) :is(.ritual-contract.is-selected .ritual-choice-check svg,.dc-motion-contract-card.selected .contract-selected-mark) { animation: ritual-commit .22s ease-out; }
+@keyframes ritual-commit { from { transform:scale(.65);opacity:.3; } to { transform:scale(1);opacity:1; } }
+@media(prefers-reduced-motion:reduce) { :root[data-theme] :is(.ritual-contract,.dc-motion-contract-card,.ritual-hero .btn-primary):active:not(:disabled) { transform:none; } }

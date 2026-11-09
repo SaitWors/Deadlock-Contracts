@@ -7,12 +7,12 @@
   color: var(--ns-text);
 }
 :root .ns-private .dc-contract-dossier .dc-motion-contract-head {
-  gap: 12px;
-  margin: 0 0 18px;
+  gap: 24px;
+  margin: 0 0 24px;
   align-items: stretch;
 }
 :root .ns-private .dc-contract-dossier h1 {
-  font: 400 clamp(30px, 3.2vw, 42px)/1.15 var(--font-poster);
+  font: 600 clamp(30px, 3.3vw, 44px)/1.12 var(--font-display);
   text-transform: none;
   letter-spacing: 0;
   margin: 0 0 10px;
@@ -45,7 +45,7 @@
 }
 :root .ns-private .dc-contract-dossier .dc-motion-head-controls {
   gap: 20px;
-  padding-top: 12px;
+  padding-block: 20px;
   border-top: 1px solid var(--ns-line);
 }
 :root .ns-private .dc-contract-dossier .bureau-mode-selector legend,
@@ -80,7 +80,6 @@
   border-radius: var(--board-radius) !important;
   letter-spacing: 0;
   text-transform: none;
-  transform: none !important;
   box-shadow: none !important;
   white-space: normal;
 }
@@ -137,145 +136,50 @@
   font-size: 12px;
 }
 :root .ns-private .dc-contract-dossier .dc-motion-contract-grid {
-  gap: 12px !important;
+  gap: 18px !important;
   margin: 0;
   perspective: none;
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 :root .ns-private .dc-contract-dossier .dc-motion-contract-card {
-  min-width: 0;
-  min-height: 286px !important;
-  padding: 18px !important;
-  border: 1px solid var(--ns-line) !important;
-  border-radius: var(--board-radius) !important;
-  background-image: none !important;
-  box-shadow: none !important;
-  transform: none !important;
-  animation: none !important;
-  transition: border-color 140ms ease, background-color 140ms ease !important;
-  overflow-wrap: anywhere;
-  display: flex;
-  flex-direction: column;
-  text-align: left;
-  color: var(--ns-text);
-  background: var(--ns-surface) !important;
-  overflow: hidden;
-  isolation: isolate;
+  --contract-tone:var(--ns-accent);
+  position:relative; min-width:0; min-height:296px!important; padding:22px!important;
+  display:flex; flex-direction:column; text-align:left; overflow-wrap:anywhere; isolation:isolate;
+  border:1px solid var(--ns-line)!important; border-radius:var(--board-radius)!important;
+  background:var(--ns-surface)!important; background-image:none!important; color:var(--ns-text);
+  box-shadow:inset 0 1px color-mix(in srgb,var(--ns-text) 6%,transparent)!important;
 }
-:root .ns-private .dc-contract-dossier .dc-motion-contract-card::after {
-  display: none;
+:root .ns-private .dc-contract-dossier .dc-motion-contract-card::before {
+  content:""; display:block!important; position:absolute; inset:0 auto auto 22px;
+  width:42px; height:3px; background:var(--contract-tone); opacity:.65; pointer-events:none;
 }
-:root .ns-private .dc-contract-dossier .dc-motion-contract-card:hover:not(:disabled) {
-  box-shadow: none !important;
-}
-:root .ns-private .dc-contract-dossier .dc-motion-contract-card.selected {
-  box-shadow: inset 3px 0 var(--ns-accent) !important;
-}
-:root .ns-private .dc-contract-dossier .dc-contract-top {
-  margin-bottom: 10px !important;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 8px;
-  flex-wrap: wrap;
-}
-:root .ns-private .dc-contract-dossier .dc-contract-top span {
-  font-size: 13px !important;
-  letter-spacing: 0 !important;
-}
-:root .ns-private .dc-contract-dossier .dc-contract-top span i {
-  min-width: 20px !important;
-  height: 24px !important;
-  border: 0 !important;
-  border-radius: 0;
-  background: none !important;
-  margin-right: 0;
-}
-:root .ns-private .dc-contract-dossier .dc-contract-top em {
-  font-size: 11px !important;
-  font-style: normal;
-  color: var(--ns-muted);
-  background: none !important;
-  border: 0 !important;
-  padding: 0 !important;
-}
-:root .ns-private .dc-contract-dossier .dc-v3-tags {
-  margin-bottom: 12px;
-  display: flex;
-  flex-wrap: wrap;
-  gap: 5px;
-}
-:root .ns-private .dc-contract-dossier .dc-v3-tags span {
-  font-size: 11px;
-  border-radius: 3px;
-  padding: 3px 6px;
-  border: 0;
-  color: var(--ns-muted);
-  background: var(--ns-elevated);
-}
-:root .ns-private .dc-contract-dossier .dc-motion-contract-card h3 {
-  font-size: 22px !important;
-  line-height: 1.2 !important;
-  letter-spacing: -.02em !important;
-  color: var(--ns-text) !important;
-  font-family: var(--font-body);
-  text-transform: none !important;
-  margin: 0 0 10px !important;
-}
-:root .ns-private .dc-contract-dossier .dc-motion-contract-card > p {
-  min-height: 0 !important;
-  margin-bottom: 16px !important;
-  line-height: 1.5 !important;
-  font: 400 14px/1.5 var(--font-body);
-  color: var(--ns-muted) !important;
-  max-width: none;
-}
-:root .ns-private .dc-contract-dossier .dc-motion-card-meta {
-  padding-bottom: 12px !important;
-  display: flex !important;
-  justify-content: space-between;
-  align-items: end;
-  gap: 12px;
-  border: 0 !important;
-}
-:root .ns-private .dc-contract-dossier .dc-motion-card-meta span {
-  font-size: 11px !important;
-  flex-direction: column !important;
-  display: flex !important;
-  gap: 4px;
-  max-width: 65%;
-  color: var(--ns-muted) !important;
-}
-:root .ns-private .dc-contract-dossier .dc-motion-card-meta b {
-  font-size: 16px !important;
-  color: var(--ns-accent) !important;
-  text-shadow: none;
-  overflow-wrap: anywhere;
-}
-:root .ns-private .dc-contract-dossier .dc-motion-card-meta span:last-child b {
-  font-size: 21px !important;
-  color: var(--ns-text) !important;
-}
-:root .ns-private .dc-contract-dossier .dc-contract-foot {
-  border-top-style: solid !important;
-  padding-top: 12px !important;
-  flex-wrap: wrap;
-  border-color: var(--ns-line) !important;
-  margin: 0 !important;
-  gap: 10px;
-}
-:root .ns-private .dc-contract-dossier .dc-contract-foot > span {
-  font-size: 11px !important;
-  color: var(--ns-muted) !important;
-}
-:root .ns-private .dc-contract-dossier .dc-contract-foot > strong {
-  border-radius: 3px;
-  font-size: 11px !important;
-  padding: 7px 10px;
-  color: var(--ns-text) !important;
-  border: 1px solid var(--ns-line);
-}
+:root .ns-private .dc-contract-dossier .dc-motion-contract-card::after { content:none; }
+:root .ns-private .dc-contract-dossier .dc-motion-contract-card:is(.selected,:hover:not(:disabled)) { border-color:var(--contract-tone)!important; }
+:root .ns-private .dc-contract-dossier .dc-motion-contract-card.selected { background:var(--ns-soft)!important; box-shadow:inset 3px 0 var(--contract-tone)!important; }
+:root .ns-private .dc-contract-dossier .dc-motion-contract-card[data-status="FAILED"] { --contract-tone:var(--ns-danger); }
+:root .ns-private .dc-contract-dossier .dc-motion-contract-card[data-status="REVIEW_REQUIRED"] { --contract-tone:var(--ns-warning); }
+:root .ns-private .dc-contract-dossier .dc-motion-contract-card[data-status="VERIFYING"] { --contract-tone:var(--ns-info); }
+:root .ns-private .dc-contract-dossier .dc-motion-contract-card:is([data-status="VOID"],[data-status="EXPIRED"]) { --contract-tone:var(--ns-muted); }
+:root .ns-private .dc-contract-dossier .dc-contract-top { display:flex; justify-content:space-between; align-items:center; gap:8px; flex-wrap:wrap; margin-bottom:16px!important; }
+:root .ns-private .dc-contract-dossier .dc-contract-top > span { display:inline-flex; align-items:center; gap:9px; color:var(--contract-tone)!important; font-size:12px!important; letter-spacing:.02em!important; }
+:root .ns-private .dc-contract-dossier .dc-contract-top span i { display:grid; place-items:center; width:30px; min-width:30px!important; height:30px!important; border:1px solid var(--ns-line)!important; border-radius:var(--ns-small); background:var(--ns-deep)!important; margin:0; }
+:root .ns-private .dc-contract-dossier .contract-selected-mark { color:var(--contract-tone); }
+:root .ns-private .dc-contract-dossier .dc-contract-top em { font:400 10px/1.5 var(--font-body)!important; color:var(--ns-muted); background:none!important; border:0!important; padding:0!important; }
+:root .ns-private .dc-contract-dossier .dc-v3-tags { display:flex; flex-wrap:wrap; gap:5px; margin-bottom:12px; }
+:root .ns-private .dc-contract-dossier .dc-v3-tags span { font-size:10px; font-weight:600; border:1px solid var(--ns-line); border-radius:var(--ns-small); padding:3px 6px; color:var(--ns-muted); background:transparent; }
+:root .ns-private .dc-contract-dossier .dc-motion-contract-card h3 { font:600 26px/1.18 var(--font-display)!important; letter-spacing:.005em!important; color:var(--ns-text)!important; text-transform:none!important; margin:0 0 12px!important; }
+:root .ns-private .dc-contract-dossier .dc-motion-contract-card > p { min-height:0!important; max-width:none; margin-bottom:20px!important; font:400 14px/1.65 var(--font-body); color:var(--ns-muted)!important; }
+:root .ns-private .dc-contract-dossier .dc-motion-card-bottom { margin-top:auto; width:100%; }
+:root .ns-private .dc-contract-dossier .dc-motion-card-meta { display:flex!important; justify-content:space-between; align-items:end; gap:16px; padding:0 0 16px!important; border:0!important; }
+:root .ns-private .dc-contract-dossier .dc-motion-card-meta span { display:flex!important; flex-direction:column!important; gap:6px; max-width:58%; font-size:10px!important; color:var(--ns-muted)!important; }
+:root .ns-private .dc-contract-dossier .dc-motion-card-meta b { color:var(--ns-text)!important; font:600 17px/1.3 var(--font-number)!important; overflow-wrap:anywhere; text-shadow:none; }
+:root .ns-private .dc-contract-dossier .dc-motion-card-meta span:last-child { flex-shrink:0; max-width:48%; text-align:right; padding:9px 12px; background:var(--ns-deep); border:1px solid var(--ns-line); border-radius:var(--ns-small); }
+:root .ns-private .dc-contract-dossier .dc-motion-card-meta span:last-child b { color:var(--ns-accent)!important; font-size:24px!important; }
+:root .ns-private .dc-contract-dossier .dc-contract-foot { display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:10px; border-top:1px solid var(--ns-line)!important; padding-top:12px!important; margin:0!important; }
+:root .ns-private .dc-contract-dossier .dc-contract-foot > span { font-size:10px!important; color:var(--ns-muted)!important; }
+:root .ns-private .dc-contract-dossier .dc-contract-foot > strong { padding:5px 8px; border:1px solid var(--ns-line); border-radius:var(--ns-small); color:var(--ns-muted)!important; font-size:10px!important; font-weight:600; background:transparent!important; }
+:root .ns-private .dc-contract-dossier .dc-contract-foot > strong.chosen { color:var(--contract-tone)!important; border-color:var(--contract-tone); background:var(--ns-deep)!important; }
 :root .ns-private .dc-contract-dossier .dc-motion-selection-tray {
   position: relative;
   bottom: auto;
@@ -317,7 +221,6 @@
   white-space: nowrap;
 }
 :root .ns-private .dc-contract-dossier .dc-motion-total-xp {
-  animation: none;
   white-space: nowrap;
 }
 :root .ns-private .dc-contract-dossier .dc-board-feedback {
@@ -359,34 +262,6 @@ html[data-motion="reduced"] .ns-private .dc-contract-dossier :is(*, .dc-motion-c
   animation: none !important;
   transition: none !important;
 }
-:root .ns-private .dc-contract-dossier .dc-motion-contract-card:before {
-  display: none !important;
-}
-:root .ns-private .dc-contract-dossier .dc-motion-contract-card:is(.selected, :hover:not(:disabled)) {
-  background: var(--ns-soft) !important;
-  border-color: var(--ns-accent) !important;
-}
-:root .ns-private .dc-contract-dossier .dc-motion-contract-card:disabled {
-  opacity: 1;
-}
-:root .ns-private .dc-contract-dossier .dc-contract-top > span {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  color: var(--ns-accent) !important;
-}
-:root .ns-private .dc-contract-dossier .dc-motion-card-bottom {
-  margin-top: auto;
-  width: 100%;
-}
-:root .ns-private .dc-contract-dossier .dc-motion-card-meta span:last-child {
-  flex-shrink: 0;
-  text-align: right;
-}
-:root .ns-private .dc-contract-dossier .dc-contract-foot > strong.chosen {
-  background: var(--ns-fill);
-  color: var(--ns-on-accent) !important;
-}
 :root .ns-private .dc-contract-dossier .dc-motion-selection-copy {
   min-width: 0;
   flex: 1;
@@ -427,7 +302,6 @@ html[data-motion="reduced"] .ns-private .dc-contract-dossier :is(*, .dc-motion-c
 }
 :root .ns-private .dc-contract-dossier .dc-motion-contract-grid {
   grid-template-columns: minmax(0, 1fr) !important;
-  grid-template-columns: minmax(0, 1fr);
 }
 :root .ns-private .dc-contract-dossier .dc-motion-contract-card {
   min-height: 0 !important;
@@ -451,7 +325,6 @@ html[data-motion="reduced"] .ns-private .dc-contract-dossier :is(*, .dc-motion-c
 }
 :root .ns-private .dc-contract-dossier .dc-motion-mode-note {
   align-items: start;
-  gap: 12px;
   display: flex;
   flex-direction: row;
   gap: 8px;
