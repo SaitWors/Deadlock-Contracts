@@ -24,7 +24,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, selectinload
 from starlette.middleware.trustedhost import TrustedHostMiddleware
 
-from .config import settings
+from .config import SUPPORT_BOT_URL, settings
 from . import seo
 from .db import Base, SessionLocal, engine, get_db
 from .community import router as community_router
@@ -622,7 +622,7 @@ def status() -> dict:
         "overwolf_qa_reviewer_gateway": reviewer_access_available(),
         "provider_configured": settings.provider == "deadlock_api",
         "minimum_companion_version": settings.companion_minimum_version or None,
-        "contact_email": settings.contact_email or None,
+        "contact_url": SUPPORT_BOT_URL,
         "components": {
             "web_api": "operational",
             "database": "operational",

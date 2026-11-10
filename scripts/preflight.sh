@@ -13,7 +13,6 @@ docker compose version >/dev/null || fail "Docker Compose plugin не устан
 
 DOMAIN="$(sed -n 's/^DOMAIN=//p' .env.production | tail -n1 | tr -d '\r')"
 EMAIL="$(sed -n 's/^ACME_EMAIL=//p' .env.production | tail -n1 | tr -d '\r')"
-CONTACT="$(sed -n 's/^CONTACT_EMAIL=//p' .env.production | tail -n1 | tr -d '\r')"
 CLOSED_ALPHA="$(sed -n 's/^CLOSED_ALPHA=//p' .env.production | tail -n1 | tr -d '\r')"
 ALPHA_IDS="$(sed -n 's/^ALPHA_ALLOWED_STEAM_IDS=//p' .env.production | tail -n1 | tr -d '\r')"
 QA_ENABLED="$(sed -n 's/^OVERWOLF_QA_ACCESS_ENABLED=//p' .env.production | tail -n1 | tr -d '\r')"
@@ -22,7 +21,6 @@ QA_UNTIL="$(sed -n 's/^OVERWOLF_QA_ACCESS_UNTIL=//p' .env.production | tail -n1 
 COMPANION_URL="$(sed -n 's/^COMPANION_DOWNLOAD_URL=//p' .env.production | tail -n1 | tr -d '\r')"
 [[ "$DOMAIN" =~ ^([A-Za-z0-9-]+\.)+[A-Za-z]{2,63}$ ]] || fail "Некорректный DOMAIN"
 [[ "$EMAIL" == *@*.* ]] || fail "Некорректный ACME_EMAIL"
-[[ "$CONTACT" == *@*.* ]] || fail "Некорректный CONTACT_EMAIL"
 ok "Конфигурация домена выглядит корректно: $DOMAIN"
 
 if [[ "$COMPANION_URL" =~ ^https:// ]]; then

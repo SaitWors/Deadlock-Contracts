@@ -52,4 +52,4 @@ Live telemetry помогает определить факт/фазу матч�
 
 ## Responsible disclosure
 
-Используйте `CONTACT_EMAIL` из `/api/status` и страницы `/support`. Не публикуйте рабочий exploit, token или чужие данные до исправления.
+Сообщайте об уязвимостях приватно в Telegram-боте поддержки [@deadlockts_bot](https://t.me/deadlockts_bot). Не публикуйте рабочий exploit, token или чужие данные до исправления.

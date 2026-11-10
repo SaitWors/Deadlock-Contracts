@@ -10,6 +10,9 @@ from pathlib import Path
 from urllib.parse import urlparse
 
 
+SUPPORT_BOT_URL = "https://t.me/deadlockts_bot"
+
+
 def _bool(name: str, default: bool = False) -> bool:
     value = os.getenv(name)
     if value is None:
@@ -45,7 +48,6 @@ class Settings:
     service_role: str = os.getenv("SERVICE_ROLE", "web").strip().lower()
     app_base_url: str = os.getenv("APP_BASE_URL", "http://localhost:8080").rstrip("/")
     indexnow_key: str = os.getenv("INDEXNOW_KEY", "").strip()
-    contact_email: str = os.getenv("CONTACT_EMAIL", "").strip()
     database_url: str = _secret("DATABASE_URL", "sqlite:///./runtime/deadlock_contracts.db")
 
     session_secret: str = _secret("SESSION_SECRET", "dev-only-change-me")
@@ -236,9 +238,6 @@ class Settings:
 
         if self.indexnow_key and not re.fullmatch(r"[A-Za-z0-9-]{8,128}", self.indexnow_key):
             raise RuntimeError("INDEXNOW_KEY must contain 8–128 ASCII letters, digits or hyphens")
-
-        if self.contact_email and (len(self.contact_email) > 254 or not re.fullmatch(r"[^@\s]+@[^@\s]+\.[^@\s]+", self.contact_email)):
-            raise RuntimeError("CONTACT_EMAIL must be a valid email address")
 
         if not 1 <= self.session_ttl_days <= 90:
             raise RuntimeError("SESSION_TTL_DAYS must be between 1 and 90")
@@ -474,8 +473,6 @@ class Settings:
                 raise RuntimeError("DISCORD_REVIEW_WEBHOOK_URL must use an official Discord HTTPS host")
 
         if self.is_production:
-            if not self.contact_email:
-                raise RuntimeError("CONTACT_EMAIL is required in production")
             if parsed.scheme != "https":
                 raise RuntimeError("Production APP_BASE_URL must use HTTPS")
             if not self.cookie_secure:

@@ -120,6 +120,9 @@ def test_selected_service_document_is_visible_without_js(client, language, slug,
     assert len(doc.elements("h1")) == 1
     assert len(doc.elements("article")) == 1
     assert "hidden" not in doc.elements("article", id=article)[0]["class"]
+    if slug in {"privacy", "terms", "support"}:
+        assert doc.elements("a", href="https://t.me/deadlockts_bot")
+        assert "@deadlockts_bot" in doc.text
     assert doc.elements("link", rel="canonical")[0]["href"] == f"{main.settings.app_base_url}/{language}/{slug}"
     assert client.head(f"/{language}/{slug}").status_code == 200
 

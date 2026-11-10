@@ -32,22 +32,27 @@ for (const language of ["ru", "en"]) {
         })
         const title = `${document.querySelector("h1").textContent} | Deadlock Contracts`
         document.title = title
-        dom.window.fetch = async () => ({
-          ok: true,
-          json: async () => ({
-            contact_email: "support@example.invalid",
-            components: { database: "ready" },
-            version: "test",
-          }),
-        })
+        const requests = []
+        dom.window.fetch = async (url) => {
+          requests.push(url)
+          return {
+            ok: slug === "status",
+            json: async () => ({
+              components: { database: "ready" },
+              version: "test",
+            }),
+          }
+        }
         dom.window.eval(script)
         await setImmediate()
         assert.equal(document.title, title)
         assert.equal(document.querySelectorAll("article").length, 1)
         assert.equal(document.getElementById(id).classList.contains("hidden"), false)
-        document.querySelectorAll(".legalContact").forEach((contact) => {
-          assert.equal(contact.textContent, "support@example.invalid")
-        })
+        assert.deepEqual(requests, slug === "status" ? ["/api/status"] : [])
+        if (["privacy", "terms", "support"].includes(slug)) {
+          const contact = document.querySelector('a[href="https://t.me/deadlockts_bot"]')
+          assert.equal(contact?.textContent, "@deadlockts_bot")
+        }
         if (slug === "status")
           assert.match(document.getElementById("publicStatus").textContent, /ready/)
       } finally {
