@@ -76,7 +76,6 @@ def test_closed_alpha_qa_configuration_validates():
     settings = Settings(
         app_env="development",
         app_base_url="https://deadlock-contracts.online",
-        contact_email="qa@example.com",
         cookie_secure=True,
         trusted_hosts=("deadlock-contracts.online", "www.deadlock-contracts.online"),
         closed_alpha=True,

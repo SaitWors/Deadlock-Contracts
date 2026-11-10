@@ -258,7 +258,6 @@ class ConfigurationTests(unittest.TestCase):
             settings,
             app_env="production",
             app_base_url="https://contracts.example.com",
-            contact_email="privacy@example.com",
             database_url="postgresql+psycopg://user:pass@db/app",
             session_secret="a-unique-production-secret-that-is-long-enough-2026",
             cookie_secure=True,
@@ -901,6 +900,8 @@ class EndToEndTests(unittest.TestCase):
             self.assertIn("Sitemap:", robots.text)
             self.assertTrue(sitemap.headers["content-type"].startswith("application/xml"))
             self.assertIn("<urlset", sitemap.text)
+            self.assertEqual(public_status["contact_url"], "https://t.me/deadlockts_bot")
+            self.assertNotIn("contact_email", public_status)
             self.assertEqual(public_status["components"]["companion_ingest"], "operational")
             self.assertEqual(public_status["components"]["reward_delivery"], "operational")
             self.assertEqual(public_status["components"]["companion_ads"], "disabled")

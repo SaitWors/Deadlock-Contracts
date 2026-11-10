@@ -353,7 +353,6 @@ jobs:
       - name: Validate production Compose
         env:
           DOMAIN: example.invalid
-          CONTACT_EMAIL: ci@example.invalid
           ACME_EMAIL: ci@example.invalid
         run: |
           mkdir -p secrets
