@@ -48,7 +48,7 @@ finish() {
   set +e
   if (( status != 0 && CUTOVER_ATTEMPTED )); then
     if ! rollback_cutover; then
-      log "Automatic rollback could not be verified. Preserve all databases and follow docs/development/safe-restore.md."
+      log "Automatic rollback could not be verified. Preserve all databases and follow PROJECT.md#restore."
     fi
   fi
   # Only the unique trial name with the captured trial identity can be removed.
@@ -63,7 +63,7 @@ finish() {
   fi
   [[ -z "$TEMP_DIR" ]] || rm -rf -- "$TEMP_DIR"
   if (( SERVICES_TOUCHED )); then
-    log "Services remain stopped. Select compatible images and resume explicitly; see docs/development/safe-restore.md."
+    log "Services remain stopped. Select compatible images and resume explicitly; see PROJECT.md#restore."
   fi
   exit "$status"
 }

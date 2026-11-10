@@ -21,11 +21,6 @@ RELEASE = json.loads(
 
 VERSION = str(RELEASE["web_version"])
 
-DOC_VERSION = VERSION.replace(
-    "-alpha.",
-    "_ALPHA",
-)
-
 ARCHIVE_ROOT = (
     f"deadlock-contracts-web-vnext-{VERSION}"
 )
@@ -38,20 +33,22 @@ TOP_FILES = {
     f"BUILD_INFO_{VERSION}.txt",
     "Caddyfile",
     "Dockerfile",
-    f"INSTALL_{DOC_VERSION}_RU.md",
     "Makefile",
     "README.md",
-    f"RELEASE_NOTES_{DOC_VERSION}_RU.md",
-    "SECURITY_AND_TRUST_RU.md",
-    f"TEST_REPORT_{DOC_VERSION}_RU.md",
-    "THIRD_PARTY_NOTICES.md",
+    "PROJECT.md",
+    "COMPANION_SOURCE_PROVENANCE.json",
     "compose.prod.yaml",
     "compose.yaml",
     "release.json",
     "requirements.txt",
+    "requirements-dev.txt",
 }
 
 TOP_DIRS = {
+    ".github",
+    "companion",
+    "docs",
+    "shared",
     "alembic",
     "app",
     "frontend",
@@ -67,6 +64,11 @@ SKIP_DIRS = {
     "dist",
     "node_modules",
     "runtime",
+    "release",
+    "qa-evidence",
+    ".qa",
+    ".venv",
+    ".ruff_cache",
 }
 
 SKIP_SUFFIXES = {

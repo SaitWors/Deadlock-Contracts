@@ -49,9 +49,5 @@ NOT CLAIMED BY THIS AUTOMATED AUDIT
 - New server-side match_enriched wire contract (not part of Alpha.13)
 
 See:
-- README_RU.md
-- CHANGELOG.md
-- docs/release/AUTOMATED_TEST_REPORT_RU.md
-- docs/release/ALPHA9_QA_MATRIX_RU.md
-- docs/release/SUPPORT_MATRIX_RU.md
-- docs/architecture/PRODUCTION_SERVER_COMPAT_RU.md
+- PROJECT.md (единая документация; в монорепозитории находится в корне,
+  при сборке самостоятельного Companion копируется внутрь source ZIP)

@@ -1,61 +1,69 @@
 # Deadlock Contracts
 
-Актуальные версии сайта и Companion указаны в `release.json`.
+Я делаю дополнительную систему прогресса для Deadlock: игрок выбирает задания перед матчем, играет, а после проверки результата получает опыт и повышает уровень. Хотелось дать обычным матчам небольшую цель, которую выбираешь сам.
 
-Порядок ближайших выпусков и критерии готовности: [план развития сайта](docs/design/ROADMAP_RU.md). Первый пункт — учебный шифр без входа и понятный следующий шаг в кабинете. Роль и студия дизайнера запланированы отдельным этапом и пока не реализованы.
+[Сайт](https://deadlock-contracts.online) · [Поддержка](https://t.me/deadlockts_bot) · [Документация](PROJECT.md)
 
-Для разработки и проверки PR №31 начни с [инструкции Codespaces](docs/design/CODESPACE_RU.md). Она запускает отдельный тестовый экземпляр с текущим frontend и серверным подписанием. Дизайн и ограничения проверки описаны в [плане первого этапа](docs/design/STAGE1_RU.md).
+![Главная страница Deadlock Contracts](docs/design/occult-bureau/desktop.png)
 
-## Основа alpha.9
+## Что уже работает
 
-**0.10.1-alpha.9:** первый pre-public QA candidate сайта и Companion с закрытой границей доверия, case-centric History и release-aligned metadata.
+- Вход через Steam и отдельные доски для Standard, Ranked и Street Brawl.
+- Выбор от одного до трёх заданий, подписание контракта, попытки и автоматическая проверка матча.
+- XP, уровни, история дел, достижения и личная статистика.
+- Companion на Overwolf: привязка к аккаунту, игровой оверлей и предварительный прогресс во время матча.
+- Коллекция карточек, избранное, витрина и один бесплатный пак в день.
+- Бюро игроков, совместные операции, публичные профили и рейтинг с настройками приватности.
+- Админка с ролями, очередью проверки, журналом действий и системными объявлениями.
+- Русский и английский языки, пять режимов оформления и настройка анимаций.
 
-Backend remains authoritative: Companion/GEP evidence is accepted only through strict exact-match/session correlation; provider facts win on conflict.
+Проект находится в альфе. Доступность проверки зависит от данных матча и включённых серверных возможностей. Неполные данные не считаются автоматическим провалом задания.
 
+## Как устроен проект
 
-## Главное в версии
+| Часть | Стек и назначение |
+| --- | --- |
+| Backend | Python, FastAPI, SQLAlchemy, PostgreSQL, Alembic |
+| Фоновые задачи | Отдельный Python worker, очередь и журнал событий в PostgreSQL |
+| Frontend | React 19, TypeScript, Vite, Tailwind CSS и обычный CSS |
+| Companion | JavaScript, HTML/CSS, Overwolf API и Game Events Provider |
+| Инфраструктура | Docker Compose, Caddy, Redis для общего ограничения запросов |
+| Проверки | pytest, Node.js test runner, TypeScript, проверки миграций и GitHub Actions |
 
-- восстановлен атмосферный motion layer главной страницы из проверенной 0.9.16 design-линии без возврата старых mock semantics;
-- добавлены reduced-motion и mobile guards для декоративных эффектов;
-- исправлен случай, когда одно отсутствующее final-поле держало всё дело в `VERIFYING`;
-- exact-match + trusted `match_end` теперь позволяют использовать GEP `match_clock` как duration fallback;
-- startup repair повторно подхватывает уже зависшие дела;
-- добавлен `Adaptive Contracts` foundation (`contracts-3.0.0-alpha.1`);
-- personalization строится из последних server-stored final matches отдельно по режимам;
-- cold start безопасно остаётся на обычной генерации;
-- Desktop получает объяснимый `generator_meta.adaptive`, но не получает authority над target/status/XP.
-- Admin Operations показывает Adaptive Profile, verification health и безопасный server-side recheck зависшего `VERIFYING`.
-- возвращена полная public-навигация Landing;
-- добавлен настоящий Verified Leaderboard без mock-игроков, Steam/MMR подмены и влияния admin XP adjustments;
-- leaderboard уважает public-profile privacy: участвуют только профили с `is_public=true` и `show_stats=true`.
-- Desktop bootstrap отдаёт capability flags `adaptive_profiles_v1` и `debrief_v1`;
-- post-match read model сохраняет `last_attempt_match_id` и `latest_evaluation`, даже если retryable miss уже освободил `bound_match_id`;
-- `reward_granted_xp` берётся только из trusted contract reward-ledger sources; `ADMIN_ADJUSTMENT` не может быть выдан за XP конкретного контракта.
-- свежий независимый provider полностью заменяет legacy GEP-факты; клиентский апдейт не может дополнить подтверждённый матч;
-- History API и сайт пагинируют целыми делами, не разрезая 1–3 выбранных контракта между страницами;
-- offline-очередь Companion сохраняет обе границы жизненного цикла — `match_started` и `match_ended`;
-- рекламный слот fail-closed и отключён на всё время работы процесса Deadlock для первого QA.
+Результат задания и награду определяет сервер. Сайт и Companion показывают состояние и передают данные, но не могут самостоятельно начислить XP. Повторный запрос или перезапуск приложения не должен выдавать награду ещё раз.
 
-## Документы
+У проверки два пути: обычное получение итогов через Deadlock API и отдельно включаемая серверная обработка данных Companion. Второй путь ограничен флагами и списком разрешённых аккаунтов. Подробности — в [описании проверки матчей](PROJECT.md#match-verification).
 
-- [SEO: выкладка, Search Console, Bing и IndexNow](docs/SEO.md);
-- [публичное описание проекта на русском и английском](docs/public-project.md);
-- [арена бюро, EX, экономика и развёртывание миграции 0022](docs/development/bureau-arena.md);
-- [исправление коллекции после PR #50 и миграция 0023](docs/development/restore-original-collection.md);
-- [бои в стиле Гвинта, существующие арты и миграция 0024](docs/development/gwent-arena.md);
+## Запуск локально
 
-- установка/обновление: `INSTALL_0.10.1_ALPHA9_RU.md`;
-- изменения: `RELEASE_NOTES_0.10.1_ALPHA9_RU.md`;
-- проверки: `TEST_REPORT_0.10.1_ALPHA9_RU.md`;
-- trust/security: `SECURITY_AND_TRUST_RU.md`.
+Нужны Git, Docker и Docker Compose:
 
-## Проверка
+~~~bash
+git clone https://github.com/SaitWors/Deadlock-Contracts.git
+cd Deadlock-Contracts
+docker compose up -d --build
+~~~
 
-```bash
-PYTHONPATH=. pytest -q
-python scripts/release_check.py .
-```
+Репозиторий пока приватный, поэтому для клонирования нужен доступ.
 
-Frontend production build выполняется обычным Vite pipeline из `frontend/`.
+Сайт: [localhost:8080/ru/](http://localhost:8080/ru/). Локальная тестовая сессия: [localhost:8080/dev/preview](http://localhost:8080/dev/preview).
 
-Deadlock Contracts — неофициальный community-проект и не связан с Valve Corporation.
+В локальном Compose по умолчанию используется mock-провайдер. Этого хватает, чтобы посмотреть интерфейс и проверить сценарии разработки. Для настоящих матчей нужны Steam, настройка источника данных и Companion. Инструкции по разработке, production и сборке OPK собраны в [PROJECT.md](PROJECT.md).
+
+## Что здесь интересно с точки зрения разработки
+
+Основная сложность оказалась в согласовании данных. Match ID может появиться поздно, итог матча — ещё позже, пользователь может закрыть игру или потерять сеть. Поэтому я разделил предварительный прогресс и окончательный результат, добавил восстановление очереди, привязку к игровой сессии, повторные попытки и защиту выдачи наград от дублей.
+
+В интерфейсе тоже есть привязка к серверному результату: сцена завершения воспроизводит сохранённые задания, XP и переходы уровней. Повтор анимации ничего не начисляет.
+
+Арена, шифр и монеты были отдельным экспериментом. Позже я убрал их из действующего пользовательского сценария, чтобы основными остались контракты и личный прогресс. Старые данные и миграции сохранены.
+
+## Документация
+
+В [PROJECT.md](PROJECT.md) собраны устройство frontend и backend, Companion, API, база данных, модель доверия, запуск, обновление, восстановление, проверки, сторонние материалы и история разработки.
+
+Версии сайта и Companion задаются в [release.json](release.json) и [companion/release.json](companion/release.json).
+
+Автор: [Даниил Рестеу / SaitWors](https://github.com/SaitWors), Mandarin Creator Group.
+
+Deadlock Contracts — неофициальный проект сообщества. Deadlock, Steam и связанные материалы принадлежат их правообладателям; связи с Valve Corporation у проекта нет.

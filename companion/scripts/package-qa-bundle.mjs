@@ -36,28 +36,29 @@ const sourceCompanionRoot = path.join(buildRoot, releaseName, 'companion')
 const sourceArchive = path.join(qaRoot, 'SOURCE', `${releaseName}-source.zip`)
 const bundleArchive = path.join(releaseDirectory, `${bundleName}-BUNDLE.zip`)
 const bundleChecksum = path.join(releaseDirectory, `${bundleName}-BUNDLE.sha256`)
-const releaseNotes = `RELEASE_NOTES_${companionVersion}_RU.md`
+const repositoryDocumentation = path.join(root, '..', 'PROJECT.md')
+const projectDocumentation = fs.existsSync(repositoryDocumentation)
+  ? repositoryDocumentation
+  : path.join(root, 'PROJECT.md')
 
 const copyFile = (source, destination) => {
   fs.mkdirSync(path.dirname(destination), { recursive: true })
   fs.copyFileSync(source, destination)
 }
 const sha256 = file => crypto.createHash('sha256').update(fs.readFileSync(file)).digest('hex')
-const qaDocuments = [
-  'docs/OVERWOLF_QA_HANDOFF_RU.md',
-  'docs/OVERWOLF_RELEASE_MATRIX_RU.md',
-]
 const sourceFiles = [
   'release.json', 'package.json', 'manifest.json', 'background.html',
   'index.html', 'overlay.html', 'THIRD_PARTY_NOTICES.txt',
-  'README_RU.md', 'QA_BUNDLE_START_HERE_RU.md', 'CHANGELOG.md', releaseNotes,
 ]
 const sourceDirectories = [
   'assets', 'licenses', 'scripts', 'src', 'styles', 'tests', 'schemas', 'fixtures', 'docs',
 ]
 
 // Validate the inventory before replacing an earlier QA bundle.
-for (const relative of [...sourceFiles, ...qaDocuments]) {
+if (!fs.existsSync(projectDocumentation) || !fs.statSync(projectDocumentation).isFile()) {
+  throw new Error('PROJECT.md is required for the QA bundle and standalone source archive')
+}
+for (const relative of sourceFiles) {
   if (!fs.statSync(path.join(root, relative)).isFile()) throw new Error(`missing source file: ${relative}`)
 }
 for (const relative of sourceDirectories) {
@@ -76,17 +77,12 @@ fs.mkdirSync(qaRoot, { recursive: true })
 fs.mkdirSync(sourceCompanionRoot, { recursive: true })
 
 try {
-  copyFile(path.join(root, 'QA_BUNDLE_START_HERE_RU.md'), path.join(qaRoot, '00_START_HERE_RU.md'))
+  copyFile(projectDocumentation, path.join(qaRoot, 'PROJECT.md'))
+  copyFile(projectDocumentation, path.join(sourceCompanionRoot, 'PROJECT.md'))
   copyFile(opk, path.join(qaRoot, 'OPK', `${releaseName}.opk`))
   copyFile(path.join(root, 'dist', `${releaseName}.cdx.json`), path.join(qaRoot, 'OPK', `${releaseName}.cdx.json`))
   copyFile(path.join(root, 'dist', 'SHA256SUMS.txt'), path.join(qaRoot, 'OPK', 'SHA256SUMS.txt'))
-  copyFile(path.join(root, releaseNotes), path.join(qaRoot, 'QA_DOCS', releaseNotes))
-  for (const relative of qaDocuments) {
-    copyFile(path.join(root, relative), path.join(qaRoot, 'QA_DOCS', path.basename(relative)))
-  }
-
-  // Current QA_DOCS contain instructions, not old PASS reports or screenshots.
-  // Historical documentation stays with the source snapshot for context.
+  // One current project document accompanies both the handoff and standalone sources.
   for (const relative of sourceFiles) {
     copyFile(path.join(root, relative), path.join(sourceCompanionRoot, relative))
   }
@@ -119,9 +115,8 @@ try {
   fs.writeFileSync(path.join(qaRoot, 'CANDIDATE.json'), `${JSON.stringify(candidate, null, 2)}\n`)
 
   const contentFiles = [
-    '00_START_HERE_RU.md', 'CANDIDATE.json', 'OPK/SHA256SUMS.txt',
+    'PROJECT.md', 'CANDIDATE.json', 'OPK/SHA256SUMS.txt',
     candidate.opk.path, candidate.sbom.path, candidate.source.path,
-    `QA_DOCS/${releaseNotes}`, ...qaDocuments.map(relative => `QA_DOCS/${path.basename(relative)}`),
   ].sort()
   const contentChecksums = contentFiles
     .map(relative => `${sha256(path.join(qaRoot, relative))}  ${relative}`)

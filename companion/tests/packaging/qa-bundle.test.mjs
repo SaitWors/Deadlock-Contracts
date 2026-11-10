@@ -10,6 +10,10 @@ import { fileURLToPath } from 'node:url'
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..')
 const release = JSON.parse(fs.readFileSync(path.join(root, 'release.json'), 'utf8'))
 const releaseName = `Deadlock-Contracts-Companion-${release.product_version}`
+const repositoryDocumentation = path.join(root, '..', 'PROJECT.md')
+const projectDocumentation = fs.existsSync(repositoryDocumentation)
+  ? repositoryDocumentation
+  : path.join(root, 'PROJECT.md')
 const digest = file => crypto.createHash('sha256').update(fs.readFileSync(file)).digest('hex')
 const run = (cwd, command, args) => execFileSync(command, args, {
   cwd, encoding: 'utf8', stdio: 'pipe', maxBuffer: 8 * 1024 * 1024,
@@ -25,6 +29,7 @@ function fixture(t) {
       path.relative(root, source).split(path.sep)[0],
     ),
   })
+  fs.copyFileSync(projectDocumentation, path.join(directory, 'project', 'PROJECT.md'))
   const parentRelease = {
     companion_version: release.product_version,
     companion_manifest_version: release.manifest_version,
@@ -62,10 +67,8 @@ test('QA bundle contains verifiable current artifacts and a reproducible standal
     assert.equal(fs.statSync(file).size, artifact.bytes)
   }
   assert.equal(fs.existsSync(path.join(bundle, 'QA_EVIDENCE')), false)
-  assert.deepEqual(fs.readdirSync(path.join(bundle, 'QA_DOCS')).sort(), [
-    'OVERWOLF_QA_HANDOFF_RU.md', 'OVERWOLF_RELEASE_MATRIX_RU.md',
-    `RELEASE_NOTES_${release.product_version}_RU.md`,
-  ].sort())
+  assert.equal(fs.existsSync(path.join(bundle, 'QA_DOCS')), false)
+  assert.equal(digest(path.join(bundle, 'PROJECT.md')), digest(projectDocumentation))
   const packedManifest = JSON.parse(run(bundle, 'unzip', ['-p', candidate.opk.path, 'manifest.json']))
   assert.equal(packedManifest.meta.version, candidate.manifest_version)
 
@@ -73,6 +76,8 @@ test('QA bundle contains verifiable current artifacts and a reproducible standal
   run(bundle, 'unzip', ['-q', candidate.source.path, '-d', sourceDirectory])
   const extracted = path.join(sourceDirectory, releaseName, 'companion')
   assert.equal(fs.existsSync(path.join(extracted, '..', 'release.json')), false)
+  assert.equal(fs.existsSync(path.join(extracted, '..', 'PROJECT.md')), false)
+  assert.equal(digest(path.join(extracted, 'PROJECT.md')), digest(projectDocumentation))
   assert.equal(fs.existsSync(path.join(extracted, '.env')), false)
   assert.equal(fs.existsSync(path.join(extracted, 'qa-evidence')), false)
   const checked = run(extracted, 'npm', ['run', 'release:check'])
@@ -99,5 +104,18 @@ test('QA packaging stops on conflicting repository metadata before replacing an 
   const result = spawnSync(process.execPath, ['scripts/package-qa-bundle.mjs'], { cwd: companion, encoding: 'utf8' })
   assert.equal(result.status, 1)
   assert.match(result.stderr, /Project and Companion release.json versions disagree/)
+  assert.equal(fs.readFileSync(previousBundle, 'utf8'), 'previous-bundle-preserved')
+})
+
+test('QA packaging requires the unified document before replacing an earlier bundle', t => {
+  const { companion } = fixture(t)
+  fs.rmSync(path.join(companion, '..', 'PROJECT.md'))
+  fs.rmSync(path.join(companion, 'PROJECT.md'), { force: true })
+  const previousBundle = path.join(companion, 'release', `${releaseName}-QA-BUNDLE.zip`)
+  fs.mkdirSync(path.dirname(previousBundle), { recursive: true })
+  fs.writeFileSync(previousBundle, 'previous-bundle-preserved')
+  const result = spawnSync(process.execPath, ['scripts/package-qa-bundle.mjs'], { cwd: companion, encoding: 'utf8' })
+  assert.equal(result.status, 1)
+  assert.match(result.stderr, /PROJECT\.md is required/)
   assert.equal(fs.readFileSync(previousBundle, 'utf8'), 'previous-bundle-preserved')
 })

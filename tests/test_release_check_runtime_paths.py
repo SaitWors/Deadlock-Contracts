@@ -4,6 +4,7 @@ import subprocess
 from pathlib import Path
 
 from scripts.release_check import forbidden_parent, git_tracked_files
+from scripts.package_release import include
 
 
 def _git(repo: Path, *args: str) -> None:
@@ -54,3 +55,26 @@ def test_forbidden_parent_still_rejects_tracked_secret_paths() -> None:
     assert forbidden_parent(Path("secrets/session_secret.txt")) == Path("secrets")
     assert forbidden_parent(Path("nested/backups/pre.sql")) == Path("nested/backups")
     assert forbidden_parent(Path("app/main.py")) is None
+
+
+def test_source_archive_keeps_unified_docs_and_release_gate_inputs() -> None:
+    for relative in (
+        "README.md",
+        "PROJECT.md",
+        "COMPANION_SOURCE_PROVENANCE.json",
+        "requirements-dev.txt",
+        ".github/workflows/ci.yml",
+        "shared/public-pages.json",
+        "companion/manifest.json",
+        "docs/design/occult-bureau/desktop.png",
+    ):
+        assert include(Path(relative)), relative
+    for relative in (
+        ".env.production",
+        "secrets/session_secret.txt",
+        "companion/release/previous-QA.zip",
+        "companion/dist/previous.opk",
+        "companion/qa-evidence/old.png",
+        "frontend/node_modules/package/index.js",
+    ):
+        assert not include(Path(relative)), relative
