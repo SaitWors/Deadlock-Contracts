@@ -442,7 +442,11 @@ test("visitor preview honors privacy and profile save prevents duplicate posts",
   let posts = 0,
     completeSave,
     savedBody
-  const value = profile()
+  const value = {
+    ...profile(),
+    show_cards: false,
+    cards: [{ id: "card-1", rank: "EX", title: "Hidden portrait", hero_name: "Haze" }],
+  }
   const { doc, w, api } = runtime(async (url, init) => {
     if (init.method === "PUT") {
       posts++
@@ -458,18 +462,31 @@ test("visitor preview honors privacy and profile save prevents duplicate posts",
     root = api.mount(doc.getElementById("mount"), "profile", {
       csrf: "csrf-fixture",
       onNotice() {},
-      onError() {},
-      onRefresh: async () => {},
       onBureau() {},
+      onCollection() {},
+      progression: {
+        level: 8,
+        total_xp: 8115,
+        level_xp: 17,
+        next_level_xp: 350,
+        contracts_completed: 3,
+        contracts_failed: 0,
+        mode_stats: {},
+      },
     })
   })
   assert.equal(doc.querySelector("h1 img"), null)
   assert.match(doc.body.textContent, /Deadlock Hidden Membership/)
-  assert.equal(doc.querySelector(".dossier-level progress").value, 65)
-  assert.equal(doc.querySelector(".dossier-level progress").max, 250)
+  assert.equal(doc.querySelector(".dossier-level progress").value, 17)
+  assert.equal(doc.querySelector(".dossier-level progress").max, 350)
+  assert.equal(doc.querySelector(".dossier-sidebar dd").textContent, "3")
+  assert.match(doc.body.textContent, /8,115 XP/)
+  assert.match(doc.body.textContent, /Hidden from visitors/)
+  assert.match(doc.querySelector(".dossier-card-showcase").textContent, /Hidden portrait/)
   await api.act(async () => button(doc, "Preview as visitor").click())
   assert.doesNotMatch(doc.body.textContent, /Deadlock Hidden Membership/)
-  assert.doesNotMatch(doc.body.textContent, /7,777/)
+  assert.doesNotMatch(doc.body.textContent, /8,115/)
+  assert.equal(doc.querySelector(".dossier-card-showcase"), null)
   assert.doesNotMatch(doc.body.textContent, /Featured seal/i)
   assert.equal(doc.querySelector(".dossier-level progress"), null)
   await api.act(async () => button(doc, "Back to profile").click())
@@ -504,6 +521,8 @@ test("profile draft survives locale change, guest preview and a rejected save", 
       onBureau() {},
     })
   })
+  await api.act(async () => button(doc, "Share").click())
+  assert.equal(fieldByLabel(doc, "Profile link").value, "https://qa.invalid/u/profile-test")
   await api.act(async () => button(doc, "Edit profile").click())
   const editedHeadline = "My unsaved profile headline"
   await api.act(async () => inputValue(w, fieldByLabel(doc, "Headline"), editedHeadline))

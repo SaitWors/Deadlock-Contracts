@@ -101,7 +101,7 @@ html[data-theme] .community-pagination { gap: 16px; margin-block: 26px; }
 html[data-theme] .community-pagination > span { color: var(--ns-muted); font-size: 12px; }
 /* DOSSIER, NOIR and SIGNAL remain personal cover choices inside the city folio. */
 html[data-theme] :is(.dossier-header,.dossier-module,.dossier-sidebar > section) { border: 1px solid var(--ns-line); border-radius: var(--ns-small); background: var(--ns-surface); }
-html[data-theme] .dossier-cover { height: clamp(94px,12vw,150px); background: var(--cover-start) url("/assets/ritual/bureau-desk.avif") center 43%/cover no-repeat; background-blend-mode: soft-light; border-radius: var(--ns-small) var(--ns-small) 0 0; }
+html[data-theme] .dossier-cover { height: clamp(94px,12vw,150px); background: var(--cover-start) url("../imports/city/header_city.webp") center 43%/cover no-repeat; background-blend-mode: soft-light; border-radius: var(--ns-small) var(--ns-small) 0 0; }
 html[data-theme] .dossier-identity { display: grid; grid-template-columns: auto minmax(0,1fr) minmax(160px,240px); align-items: center; gap: 20px; padding: 20px 24px; }
 html[data-theme] .dossier-avatar { width: 78px; height: 78px; object-fit: cover; border: 1px solid var(--ns-line); border-radius: var(--ns-small); }
 html[data-theme] .dossier-avatar-fallback { display: grid; place-items: center; background: var(--ns-soft); color: var(--ns-accent); font-weight: 700; }
