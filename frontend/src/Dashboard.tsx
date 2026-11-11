@@ -1825,6 +1825,7 @@ export default function Dashboard({ initialSession }: { initialSession: SessionP
                         : "—"}
                     </strong>
                     <button
+                      type="button"
                       className="dc-ghost btn-ghost"
                       disabled={
                         !board ||
@@ -1915,11 +1916,7 @@ export default function Dashboard({ initialSession }: { initialSession: SessionP
               {board && (
                 <>
                   <section key={`${mode}-${board.generation}`} className="dc-motion-mode-note">
-                    <div>
-                      <SvgIcon name="file-text" size={18} />
-                      <b>{MODE_META[mode].title}</b>
-                      <small>{t(language, MODE_META[mode].caption)}</small>
-                    </div>
+                    <small>{t(language, MODE_META[mode].caption)}</small>
                     <em>{MODE_META[mode].bonus}</em>
                   </section>
 
@@ -1992,13 +1989,18 @@ export default function Dashboard({ initialSession }: { initialSession: SessionP
                       const state =
                         board.status === "OFFERED"
                           ? chosen
-                            ? t(language, "ВЫБРАНО")
-                            : t(language, "ДОСТУПНО")
+                            ? language === "ru"
+                              ? "Выбрано"
+                              : "Selected"
+                            : language === "ru"
+                              ? "Доступно"
+                              : "Available"
                           : chosen
                             ? statusLabel(option.status, language)
                             : t(language, "НЕ ВЫБРАНО")
                       return (
                         <button
+                          type="button"
                           key={`${mode}-${board.generation}-${option.id}`}
                           className={`contract-card dc-contract dc-v3-contract dc-motion-contract-card ${
                             chosen ? "selected" : ""
@@ -2008,24 +2010,29 @@ export default function Dashboard({ initialSession }: { initialSession: SessionP
                           disabled={board.status !== "OFFERED" || busy}
                           onClick={() => toggle(option.id)}
                         >
-                          <div className="dc-contract-top">
+                          <span className="dc-contract-top">
                             <span>
+                              <i aria-hidden="true">{categoryGlyph(option.category)}</i>
+                              {categoryLabel(option.category, language)}
+                            </span>
+                            <strong className="dc-contract-state">
                               {chosen && (
                                 <SvgIcon
                                   name="check"
-                                  size={18}
+                                  size={15}
                                   className="contract-selected-mark"
                                 />
                               )}
-                              <i>{categoryGlyph(option.category)}</i>
-                              {categoryLabel(option.category, language)}
-                            </span>
-                            <em>
-                              {language === "ru" ? "ШАНС" : "DROP"} ~
-                              {number(option.drop_chance_pct, language)}%
-                            </em>
-                          </div>
-                          <div className="dc-v3-tags">
+                              {state}
+                            </strong>
+                          </span>
+                          <span className="dc-contract-name">
+                            {localizedContractTitle(option, language)}
+                          </span>
+                          <span className="dc-contract-description">
+                            {localizedContractDescription(option, mode, language)}
+                          </span>
+                          <span className="dc-motion-card-details">
                             <span>{DIFFICULTY_LABEL[option.difficulty] || option.difficulty}</span>
                             <span>{RARITY_LABEL[option.rarity] || option.rarity}</span>
                             {(option.conditions?.length || 0) > 1 && (
@@ -2034,68 +2041,60 @@ export default function Dashboard({ initialSession }: { initialSession: SessionP
                                 {language === "ru" ? "УСЛОВИЯ" : "CONDITIONS"}
                               </span>
                             )}
-                          </div>
-                          <h3>{localizedContractTitle(option, language)}</h3>
-                          <p>{localizedContractDescription(option, mode, language)}</p>
-                          <div className="dc-motion-card-bottom">
-                            <div className="dc-motion-card-meta">
-                              <span>
-                                {language === "ru" ? "ЦЕЛЬ" : "TARGET"}
-                                <b>{targetLabel(option, language)}</b>
-                              </span>
-                              <span>
-                                {language === "ru" ? "НАГРАДА" : "REWARD"}
-                                <b>+{option.reward_xp} XP</b>
-                              </span>
-                            </div>
-                            <div className="dc-contract-foot">
-                              <span>
-                                {MODE_META[mode].short} ·{" "}
-                                {language === "ru" ? "Автопроверка" : "Auto verification"}
-                              </span>
-                              <strong className={chosen ? "chosen" : ""}>{state}</strong>
-                            </div>
-                          </div>
+                            <span>
+                              {language === "ru" ? "Шанс" : "Drop chance"} ~
+                              {number(option.drop_chance_pct, language)}%
+                            </span>
+                          </span>
+                          <span className="dc-contract-foot">
+                            <span>
+                              {language === "ru" ? "Цель" : "Target"}{" "}
+                              <b>{targetLabel(option, language)}</b>
+                            </span>
+                            <strong>+{option.reward_xp.toLocaleString(locale)} XP</strong>
+                          </span>
                         </button>
                       )
                     })}
                   </section>
 
+                  {selectedOptions.length > 0 && (
+                    <ul
+                      className="dc-motion-selected-pills"
+                      aria-label={language === "ru" ? "Выбранные контракты" : "Selected contracts"}
+                    >
+                      {selectedOptions.map((option) => (
+                        <li key={option.id}>{localizedContractTitle(option, language)}</li>
+                      ))}
+                    </ul>
+                  )}
+
                   <section
                     className={`dc-motion-selection-tray ${
-                      selectedSet.size ? "has-selection" : ""
+                      board.status === "OFFERED" && selectedSet.size ? "has-selection" : ""
                     }`}
                   >
                     <div className="dc-motion-selection-copy">
-                      <strong role="status" aria-live="polite" aria-atomic="true">
-                        {selectedSet.size} / 3 {t(language, "выбрано")}
-                      </strong>
-                      {selectedOptions.length ? (
-                        <div className="dc-motion-selected-pills">
-                          {selectedOptions.map((option) => (
-                            <span key={option.id}>
-                              {localizedContractTitle(option, language)}{" "}
-                              <b>+{option.reward_xp} XP</b>
-                            </span>
-                          ))}
-                        </div>
-                      ) : (
-                        <p>
-                          {language === "ru"
-                            ? `Выберите до трёх контрактов для дела режима «${MODE_META[mode].title}».`
-                            : `Choose up to three contracts for the ${MODE_META[mode].title} case.`}
-                        </p>
-                      )}
+                      <div className="dc-motion-selection-summary" role="status" aria-atomic="true">
+                        <span>
+                          <strong>
+                            {board.status === "OFFERED" ? selectedSet.size : selectedOptions.length}{" "}
+                            / 3
+                          </strong>{" "}
+                          {language === "ru" ? "выбрано" : "selected"}
+                        </span>
+                        {selectedOptions.length > 0 && (
+                          <span ref={xpRef} className="dc-motion-total-xp">
+                            +{totalXp.toLocaleString(locale)} XP
+                          </span>
+                        )}
+                      </div>
                     </div>
                     <div className="dc-motion-selection-actions">
-                      {selectedSet.size > 0 && (
-                        <span ref={xpRef} className="xp-pop dc-motion-total-xp">
-                          +{totalXp} XP
-                        </span>
-                      )}
                       {board.status === "OFFERED" ? (
                         <>
                           <button
+                            type="button"
                             className="dc-ghost btn-ghost dc-motion-reset"
                             disabled={!selectedSet.size || busy}
                             onClick={() => {
@@ -2108,17 +2107,12 @@ export default function Dashboard({ initialSession }: { initialSession: SessionP
                             {language === "ru" ? "Сбросить" : "Reset"}
                           </button>
                           <button
+                            type="button"
                             className="dc-primary btn-primary dc-motion-lock"
                             disabled={!selectedSet.size || busy}
                             onClick={openSigning}
                           >
-                            {selectedSet.size
-                              ? language === "ru"
-                                ? "Подписать контракт"
-                                : "Sign contract"
-                              : language === "ru"
-                                ? "Выберите контракты"
-                                : "Select contracts"}
+                            {language === "ru" ? "Подписать дело" : "Sign case"}
                           </button>
                         </>
                       ) : (
