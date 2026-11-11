@@ -6,18 +6,20 @@ import { request, useResource } from "./community/api"
 import { LoadState } from "./community/Shared"
 import type { Module, Profile, Theme } from "./community/types"
 
+type ProfileProgression = NonNullable<Profile["stats"]> & {
+  level: number
+  total_xp: number
+  level_xp: number
+  next_level_xp: number
+}
+
 type Props = {
   csrf: string
   onNotice: (value: string) => void
   onBureau: (slug: string) => void
   onCollection?: () => void
   identity?: Pick<Profile["player"], "display_name" | "avatar_url" | "badges">
-  progression?: {
-    level: number
-    total_xp: number
-    level_xp: number
-    next_level_xp: number
-  } | null
+  progression?: ProfileProgression | null
 }
 
 export default function ProfileStudio({
@@ -129,6 +131,7 @@ export default function ProfileStudio({
   const selected = profile.pinned_contract_ids || []
   const preview = {
     ...profile,
+    stats: progression ?? profile.stats,
     player: {
       ...profile.player,
       ...identity,

@@ -488,16 +488,14 @@ test("visitor preview honors privacy and profile save prevents duplicate posts",
   await api.act(async () => root.unmount())
 })
 
-test("profile draft survives a language switch, guest preview and a rejected save", async () => {
+test("profile draft survives locale change, guest preview and a rejected save", async () => {
   const value = { ...profile(), is_public: true, public_url: "/u/profile-test" }
-  const { doc, w, api } = runtime(
-    async (_url, init) => {
-      if (init.method === "PUT")
-        return { ok: false, status: 422, json: async () => ({ detail: "Адрес уже занят" }) }
-      return response({ profile: value })
-    },
-    "en",
-  )
+  const { doc, w, api } = runtime(async (_url, init) => {
+    if (init.method === "PUT") {
+      return { ok: false, status: 422, json: async () => ({ detail: "Адрес уже занят" }) }
+    }
+    return response({ profile: value })
+  }, "en")
   let root
   await api.act(async () => {
     root = api.mount(doc.getElementById("mount"), "profile", {

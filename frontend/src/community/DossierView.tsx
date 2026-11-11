@@ -65,7 +65,7 @@ export default function DossierView({
   const { player, stats, bureau } = profile
   const earned = profile.achievements.filter((item) => item.earned)
   const featured = earned.find((item) => item.id === profile.featured_achievement)
-  const cards = profile.show_cards ? profile.cards : undefined
+  const cards = profile.show_cards || onCollection ? profile.cards : undefined
   const hasCards = Boolean(cards?.length)
   const links = Object.entries(profile.links).filter(([, href]) => /^https:\/\//i.test(href))
   const { level_xp: levelXp, next_level_xp: nextLevelXp } = player
@@ -202,7 +202,12 @@ export default function DossierView({
           {(hasCards || onCollection) && (
             <section className="dossier-module">
               <header>
-                <h2>{ru ? "Витрина карточек" : "Card showcase"}</h2>
+                <div>
+                  <h2>{ru ? "Витрина карточек" : "Card showcase"}</h2>
+                  {!profile.show_cards && hasCards && (
+                    <small>{ru ? "Скрыта от посетителей" : "Hidden from visitors"}</small>
+                  )}
+                </div>
                 {onCollection && (
                   <button type="button" className="dc-ghost dossier-compact" onClick={onCollection}>
                     {ru ? "Коллекция" : "Collection"}
