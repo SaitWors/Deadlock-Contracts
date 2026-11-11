@@ -65,7 +65,8 @@ export default function DossierView({
   const { player, stats, bureau } = profile
   const earned = profile.achievements.filter((item) => item.earned)
   const featured = earned.find((item) => item.id === profile.featured_achievement)
-  const cards = profile.show_cards ? (profile.cards ?? []) : []
+  const cards = profile.show_cards ? profile.cards : undefined
+  const hasCards = Boolean(cards?.length)
   const links = Object.entries(profile.links).filter(([, href]) => /^https:\/\//i.test(href))
   const { level_xp: levelXp, next_level_xp: nextLevelXp } = player
   const order: Module[] = profile.showcase_order || ["contracts", "achievements", "bureau"]
@@ -198,21 +199,17 @@ export default function DossierView({
       <div className="dossier-columns">
         <div className="dossier-main">
           {profile.bio && <p className="dossier-bio">{profile.bio}</p>}
-          {(cards.length > 0 || onCollection) && (
+          {(hasCards || onCollection) && (
             <section className="dossier-module">
               <header>
                 <h2>{ru ? "Витрина карточек" : "Card showcase"}</h2>
                 {onCollection && (
-                  <button
-                    type="button"
-                    className="dc-ghost dossier-compact"
-                    onClick={onCollection}
-                  >
+                  <button type="button" className="dc-ghost dossier-compact" onClick={onCollection}>
                     {ru ? "Коллекция" : "Collection"}
                   </button>
                 )}
               </header>
-              {cards.length ? (
+              {cards?.length ? (
                 <div className="dossier-card-showcase">
                   {cards.map((card) => (
                     <CardPreview key={card.id} card={card} />
@@ -227,7 +224,11 @@ export default function DossierView({
               )}
             </section>
           )}
-          {order.map((key) => modules[key] && <div key={key}>{modules[key]}</div>)}
+          {order
+            .filter((key) => modules[key])
+            .map((key) => (
+              <div key={key}>{modules[key]}</div>
+            ))}
         </div>
         {(featured || stats || links.length > 0) && (
           <aside className="dossier-sidebar">

@@ -491,10 +491,11 @@ test("visitor preview honors privacy and profile save prevents duplicate posts",
 test("profile draft survives a language switch, guest preview and a rejected save", async () => {
   const value = { ...profile(), is_public: true, public_url: "/u/profile-test" }
   const { doc, w, api } = runtime(
-    async (_url, init) =>
-      init.method === "PUT"
-        ? { ok: false, status: 422, json: async () => ({ detail: "Адрес уже занят" }) }
-        : response({ profile: value }),
+    async (_url, init) => {
+      if (init.method === "PUT")
+        return { ok: false, status: 422, json: async () => ({ detail: "Адрес уже занят" }) }
+      return response({ profile: value })
+    },
     "en",
   )
   let root
@@ -518,11 +519,10 @@ test("profile draft survives a language switch, guest preview and a rejected sav
   assert.equal(button(doc, "Поделиться"), undefined)
   await api.act(async () => button(doc, "Вернуться к редактированию").click())
   assert.equal(fieldByLabel(doc, "Коротко о себе").value, editedHeadline)
-  await api.act(async () =>
-    doc.querySelector(".profile-editor form").dispatchEvent(
-      new w.Event("submit", { bubbles: true, cancelable: true }),
-    ),
-  )
+  const form = doc.querySelector(".profile-editor form")
+  await api.act(async () => {
+    form.dispatchEvent(new w.Event("submit", { bubbles: true, cancelable: true }))
+  })
   assert.equal(doc.querySelector(".profile-editor [role=alert]").textContent, "Адрес уже занят")
   assert.equal(fieldByLabel(doc, "Коротко о себе").value, editedHeadline)
   await api.act(async () => button(doc, "Отмена").click())
