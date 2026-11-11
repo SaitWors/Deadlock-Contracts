@@ -138,14 +138,18 @@ test("a missing mode has an explicit empty state and no made-up attempt count", 
 
 test("selection stays capped at three and opens the existing signing dialog", async () => {
   const { doc, api, calls } = await mount()
+  const sign = button(doc, "Подписать дело")
+  const selection = doc.querySelector('.dc-motion-selection-copy [role="status"]')
   const cards = [...doc.querySelectorAll(".dc-motion-contract-card")]
+  assert.equal(sign.disabled, true)
+  assert.match(selection.textContent, /0 \/ 3 выбрано/)
+
   for (const card of cards.slice(0, 4)) await api.act(async () => card.click())
   assert.equal(doc.querySelectorAll('.dc-motion-contract-card[aria-pressed="true"]').length, 3)
-  assert.match(
-    doc.querySelector('.dc-motion-selection-copy [role="status"]')?.textContent || "",
-    /3 \/ 3/,
-  )
-  await api.act(async () => button(doc, "Подписать контракт").click())
+  assert.match(selection.textContent, /3 \/ 3 выбрано\s*\+150 XP/)
+  assert.equal(doc.querySelectorAll(".dc-motion-selected-pills li").length, 3)
+  assert.equal(cards[0].querySelector(".dc-contract-state").textContent, "Выбрано")
+  await api.act(async () => sign.click())
   assert.ok(doc.querySelector("dialog[open]"))
   assert.equal(calls.filter((c) => c.url === "/api/board/today/lock").length, 0)
 })

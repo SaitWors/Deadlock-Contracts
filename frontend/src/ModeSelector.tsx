@@ -26,6 +26,7 @@ export default function ModeSelector({
         <span>{language === "ru" ? "Выберите режим" : "Choose mode"}</span>
         <select
           id={id}
+          aria-label={language === "ru" ? "Режим матча" : "Match mode"}
           value={value}
           onChange={(event) => onChange(event.target.value as MatchMode)}
         >
