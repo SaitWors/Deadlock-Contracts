@@ -1,3 +1,4 @@
+import BureauAtmosphere from "./BureauAtmosphere"
 import BureauHeader from "./BureauHeader"
 import { MCGCredit, useLanguage } from "./i18n"
 import DossierView from "./community/DossierView"
@@ -13,6 +14,7 @@ export default function PublicDossier({ slug }: { slug: string }) {
   )
   return (
     <div className="bureau-public public-dossier-shell">
+      <BureauAtmosphere />
       <BureauHeader
         active="profile"
         items={[

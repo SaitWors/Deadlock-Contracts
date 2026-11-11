@@ -6,6 +6,7 @@ import unittest
 from fastapi.testclient import TestClient
 
 from app.main import app
+from app.services.progression import progression_from_xp
 
 
 class PublicProfileTests(unittest.TestCase):
@@ -40,7 +41,9 @@ class PublicProfileTests(unittest.TestCase):
             payload = public.json()['profile']
             self.assertEqual(payload['slug'], slug)
             self.assertTrue(payload['is_public'])
-            self.assertIn('player', payload)
+            progression = progression_from_xp(payload['player']['xp'])
+            self.assertEqual(payload['player']['level_xp'], progression['level_xp'])
+            self.assertEqual(payload['player']['next_level_xp'], progression['next_level_xp'])
             self.assertNotIn('steam_id64', payload['player'])
 
     def test_profile_rejects_non_official_social_host_and_private_is_hidden(self) -> None:
@@ -104,6 +107,10 @@ class PublicProfileTests(unittest.TestCase):
             self.assertEqual(payload['showcase'], [])
             self.assertEqual(payload['links'], {})
             self.assertIsNone(payload['player']['xp'])
+            self.assertIsNone(payload['player']['level_xp'])
+            self.assertIsNone(payload['player']['next_level_xp'])
+            self.assertIsNotNone(saved.json()['profile']['player']['level_xp'])
+            self.assertGreater(saved.json()['profile']['player']['next_level_xp'], 0)
             self.assertIsNone(payload['player']['joined_at'])
             self.assertNotIn('steam_id64', payload['player'])
 

@@ -86,6 +86,8 @@ const profile = () => ({
     avatar_url: null,
     xp: 7777,
     level: 7,
+    level_xp: 65,
+    next_level_xp: 250,
     badges: [],
   },
   stats: { contracts_completed: 1, contracts_failed: 0, mode_stats: {} },
@@ -463,10 +465,14 @@ test("visitor preview honors privacy and profile save prevents duplicate posts",
   })
   assert.equal(doc.querySelector("h1 img"), null)
   assert.match(doc.body.textContent, /Deadlock Hidden Membership/)
+  assert.equal(doc.querySelector(".dossier-level progress").value, 65)
+  assert.equal(doc.querySelector(".dossier-level progress").max, 250)
   await api.act(async () => button(doc, "Preview as visitor").click())
   assert.doesNotMatch(doc.body.textContent, /Deadlock Hidden Membership/)
   assert.doesNotMatch(doc.body.textContent, /7,777/)
-  assert.doesNotMatch(doc.body.textContent, /FEATURED SEAL/)
+  assert.doesNotMatch(doc.body.textContent, /Featured seal/i)
+  assert.equal(doc.querySelector(".dossier-level progress"), null)
+  await api.act(async () => button(doc, "Back to profile").click())
   await api.act(async () => button(doc, "Edit profile").click())
   const form = doc.querySelector(".profile-editor form")
   await api.act(async () => {
@@ -479,6 +485,48 @@ test("visitor preview honors privacy and profile save prevents duplicate posts",
   assert.deepEqual(savedBody.showcase_order, ["contracts", "achievements", "bureau"])
   await api.act(async () => completeSave(response({ profile: value })))
   assert.equal(doc.querySelector(".profile-editor"), null)
+  await api.act(async () => root.unmount())
+})
+
+test("profile draft survives a language switch, guest preview and a rejected save", async () => {
+  const value = { ...profile(), is_public: true, public_url: "/u/profile-test" }
+  const { doc, w, api } = runtime(
+    async (_url, init) =>
+      init.method === "PUT"
+        ? { ok: false, status: 422, json: async () => ({ detail: "Адрес уже занят" }) }
+        : response({ profile: value }),
+    "en",
+  )
+  let root
+  await api.act(async () => {
+    root = api.mount(doc.getElementById("mount"), "profile", {
+      csrf: "csrf-fixture",
+      onNotice() {},
+      onBureau() {},
+    })
+  })
+  await api.act(async () => button(doc, "Edit profile").click())
+  const editedHeadline = "My unsaved profile headline"
+  await api.act(async () => inputValue(w, fieldByLabel(doc, "Headline"), editedHeadline))
+  await api.act(async () => {
+    w.localStorage.setItem("dc.ui.language", "ru")
+    w.dispatchEvent(new w.StorageEvent("storage", { key: "dc.ui.language" }))
+  })
+  assert.equal(fieldByLabel(doc, "Коротко о себе").value, editedHeadline)
+  await api.act(async () => button(doc, "Вид для гостя").click())
+  assert.match(doc.querySelector(".dossier-identity").textContent, /My unsaved profile headline/)
+  assert.equal(button(doc, "Поделиться"), undefined)
+  await api.act(async () => button(doc, "Вернуться к редактированию").click())
+  assert.equal(fieldByLabel(doc, "Коротко о себе").value, editedHeadline)
+  await api.act(async () =>
+    doc.querySelector(".profile-editor form").dispatchEvent(
+      new w.Event("submit", { bubbles: true, cancelable: true }),
+    ),
+  )
+  assert.equal(doc.querySelector(".profile-editor [role=alert]").textContent, "Адрес уже занят")
+  assert.equal(fieldByLabel(doc, "Коротко о себе").value, editedHeadline)
+  await api.act(async () => button(doc, "Отмена").click())
+  assert.match(doc.querySelector(".dossier-identity").textContent, /Ready for the next case/)
   await api.act(async () => root.unmount())
 })
 

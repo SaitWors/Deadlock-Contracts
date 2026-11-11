@@ -883,6 +883,8 @@ def _public_profile_payload(db: Session, user: User, profile: PublicProfile, *, 
             "level": progression["level"],
             # XP is a progression statistic; respect the public stats toggle.
             "xp": user.xp if (private or profile.show_stats) else None,
+            "level_xp": progression["level_xp"] if (private or profile.show_stats) else None,
+            "next_level_xp": progression["next_level_xp"] if (private or profile.show_stats) else None,
             # Account creation time is useful in the private editor but is not
             # needed to render a public dossier. Keep the public payload lean.
             "joined_at": user.created_at.isoformat() if (private and user.created_at) else None,

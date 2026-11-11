@@ -27,8 +27,9 @@ export async function request<T>(url: string, csrf = "", init: RequestInit = {})
   return data as T
 }
 
-export function useResource<T>(url: string) {
+export function useResource<T>(url: string, { reloadOnLanguageChange = true } = {}) {
   const { language } = useLanguage()
+  const requestLanguage = reloadOnLanguageChange ? language : null
   const [data, setData] = useState<T | null>(null)
   const [error, setError] = useState("")
   const [loading, setLoading] = useState(true)
@@ -49,6 +50,6 @@ export function useResource<T>(url: string) {
         if (!controller.signal.aborted) setLoading(false)
       })
     return () => controller.abort()
-  }, [url, language, revision])
+  }, [url, requestLanguage, revision])
   return { data, error, loading, setData, reload: () => setRevision((value) => value + 1) }
 }
