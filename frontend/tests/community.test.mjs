@@ -86,6 +86,8 @@ const profile = () => ({
     avatar_url: null,
     xp: 7777,
     level: 7,
+    level_xp: 65,
+    next_level_xp: 250,
     badges: [],
   },
   stats: { contracts_completed: 1, contracts_failed: 0, mode_stats: {} },
@@ -440,7 +442,11 @@ test("visitor preview honors privacy and profile save prevents duplicate posts",
   let posts = 0,
     completeSave,
     savedBody
-  const value = profile()
+  const value = {
+    ...profile(),
+    show_cards: false,
+    cards: [{ id: "card-1", rank: "EX", title: "Hidden portrait", hero_name: "Haze" }],
+  }
   const { doc, w, api } = runtime(async (url, init) => {
     if (init.method === "PUT") {
       posts++
@@ -456,17 +462,34 @@ test("visitor preview honors privacy and profile save prevents duplicate posts",
     root = api.mount(doc.getElementById("mount"), "profile", {
       csrf: "csrf-fixture",
       onNotice() {},
-      onError() {},
-      onRefresh: async () => {},
       onBureau() {},
+      onCollection() {},
+      progression: {
+        level: 8,
+        total_xp: 8115,
+        level_xp: 17,
+        next_level_xp: 350,
+        contracts_completed: 3,
+        contracts_failed: 0,
+        mode_stats: {},
+      },
     })
   })
   assert.equal(doc.querySelector("h1 img"), null)
   assert.match(doc.body.textContent, /Deadlock Hidden Membership/)
+  assert.equal(doc.querySelector(".dossier-level progress").value, 17)
+  assert.equal(doc.querySelector(".dossier-level progress").max, 350)
+  assert.equal(doc.querySelector(".dossier-sidebar dd").textContent, "3")
+  assert.match(doc.body.textContent, /8,115 XP/)
+  assert.match(doc.body.textContent, /Hidden from visitors/)
+  assert.match(doc.querySelector(".dossier-card-showcase").textContent, /Hidden portrait/)
   await api.act(async () => button(doc, "Preview as visitor").click())
   assert.doesNotMatch(doc.body.textContent, /Deadlock Hidden Membership/)
-  assert.doesNotMatch(doc.body.textContent, /7,777/)
-  assert.doesNotMatch(doc.body.textContent, /FEATURED SEAL/)
+  assert.doesNotMatch(doc.body.textContent, /8,115/)
+  assert.equal(doc.querySelector(".dossier-card-showcase"), null)
+  assert.doesNotMatch(doc.body.textContent, /Featured seal/i)
+  assert.equal(doc.querySelector(".dossier-level progress"), null)
+  await api.act(async () => button(doc, "Back to profile").click())
   await api.act(async () => button(doc, "Edit profile").click())
   const form = doc.querySelector(".profile-editor form")
   await api.act(async () => {
@@ -479,6 +502,48 @@ test("visitor preview honors privacy and profile save prevents duplicate posts",
   assert.deepEqual(savedBody.showcase_order, ["contracts", "achievements", "bureau"])
   await api.act(async () => completeSave(response({ profile: value })))
   assert.equal(doc.querySelector(".profile-editor"), null)
+  await api.act(async () => root.unmount())
+})
+
+test("profile draft survives locale change, guest preview and a rejected save", async () => {
+  const value = { ...profile(), is_public: true, public_url: "/u/profile-test" }
+  const { doc, w, api } = runtime(async (_url, init) => {
+    if (init.method === "PUT") {
+      return { ok: false, status: 422, json: async () => ({ detail: "Адрес уже занят" }) }
+    }
+    return response({ profile: value })
+  }, "en")
+  let root
+  await api.act(async () => {
+    root = api.mount(doc.getElementById("mount"), "profile", {
+      csrf: "csrf-fixture",
+      onNotice() {},
+      onBureau() {},
+    })
+  })
+  await api.act(async () => button(doc, "Share").click())
+  assert.equal(fieldByLabel(doc, "Profile link").value, "https://qa.invalid/u/profile-test")
+  await api.act(async () => button(doc, "Edit profile").click())
+  const editedHeadline = "My unsaved profile headline"
+  await api.act(async () => inputValue(w, fieldByLabel(doc, "Headline"), editedHeadline))
+  await api.act(async () => {
+    w.localStorage.setItem("dc.ui.language", "ru")
+    w.dispatchEvent(new w.StorageEvent("storage", { key: "dc.ui.language" }))
+  })
+  assert.equal(fieldByLabel(doc, "Коротко о себе").value, editedHeadline)
+  await api.act(async () => button(doc, "Вид для гостя").click())
+  assert.match(doc.querySelector(".dossier-identity").textContent, /My unsaved profile headline/)
+  assert.equal(button(doc, "Поделиться"), undefined)
+  await api.act(async () => button(doc, "Вернуться к редактированию").click())
+  assert.equal(fieldByLabel(doc, "Коротко о себе").value, editedHeadline)
+  const form = doc.querySelector(".profile-editor form")
+  await api.act(async () => {
+    form.dispatchEvent(new w.Event("submit", { bubbles: true, cancelable: true }))
+  })
+  assert.equal(doc.querySelector(".profile-editor [role=alert]").textContent, "Адрес уже занят")
+  assert.equal(fieldByLabel(doc, "Коротко о себе").value, editedHeadline)
+  await api.act(async () => button(doc, "Отмена").click())
+  assert.match(doc.querySelector(".dossier-identity").textContent, /Ready for the next case/)
   await api.act(async () => root.unmount())
 })
 

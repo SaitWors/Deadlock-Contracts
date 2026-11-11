@@ -64,54 +64,11 @@
 .community-avatar{width:40px;height:40px;object-fit:cover;flex-shrink:0}
 .community-avatar{display:grid;place-items:center}
 .public-leaderboard{padding:100px 24px 0;background:var(--color-page)}
-.public-dossier-shell{min-height:100vh;background:var(--color-page)}
+.public-dossier-shell{min-height:100vh;background:var(--color-page);isolation:isolate}
 .community-footer{padding:20px 24px 40px;max-width:1200px;margin:auto}
 .theme-dossier{--cover-start:#314737;--cover-end:#111d15;--cover-accent:#7ab384}
 .theme-noir{--cover-start:#423329;--cover-end:#171515;--cover-accent:#b79a6e}
 .theme-signal{--cover-start:#28454e;--cover-end:#0b1b22;--cover-accent:#7aa5b1}
-.dossier-view{overflow:visible}
-.dossier-cover{position:relative;overflow:hidden;display:flex;justify-content:space-between}
-.dossier-cover:after{content:"";position:absolute;inset:35% 0 0;pointer-events:none;background:repeating-linear-gradient(90deg,transparent 0 38px,#050b08 38px 62px,transparent 62px 80px),linear-gradient(0deg,#0009,transparent);clip-path:polygon(0 100%,0 52%,8% 52%,8% 14%,15% 14%,15% 46%,23% 46%,23% 0,28% 0,28% 64%,36% 64%,36% 30%,46% 30%,46% 58%,54% 58%,54% 24%,64% 24%,64% 45%,77% 45%,77% 6%,84% 6%,84% 66%,92% 66%,92% 27%,100% 27%,100% 100%)}
-.dossier-cover>img{position:absolute;top:-70px;transform:rotate(-12deg)}
-.dossier-cover>p{position:relative;z-index:1}
-.dossier-cover>p span{display:block;font-weight:400;margin-top:6px}
-.dossier-cover-id{position:relative;z-index:1}
-.dossier-identity{display:grid;align-items:center;position:relative;z-index:1}
-.dossier-avatar{object-fit:cover}
-.dossier-avatar-fallback{display:grid;place-items:center;background:var(--cover-start);color:var(--cover-accent)}
-.dossier-identity p:not(.community-eyebrow){margin:0}
-.dossier-level{text-align:center;display:grid;justify-items:center;gap:8px}
-.dossier-level>b{display:grid;place-items:center}
-.dossier-badges{display:flex;flex-wrap:wrap}
-.dossier-toolbar{display:flex;flex-wrap:wrap;gap:10px;border-bottom:1px solid var(--color-border)}
-.dossier-columns{display:grid}
-.dossier-main{min-width:0;display:grid;align-content:start}
-.dossier-main>div:empty{display:none}
-.dossier-bio p{white-space:pre-wrap}
-.dossier-module{overflow:visible}
-.dossier-module>header{display:flex;align-items:center;justify-content:space-between}
-.dossier-cases{display:grid}
-.dossier-cases h3{line-height:1.3}
-.dossier-cases footer{display:flex;align-items:center;justify-content:space-between;gap:12px}
-.dossier-cases footer b{white-space:nowrap}
-.dossier-seals{display:flex;flex-wrap:wrap}
-.dossier-seals>div{text-align:center}
-.dossier-seals svg{display:block;width:66px;height:66px;margin:0 auto 10px}
-.dossier-seals span{font:500 12px/1.4 var(--font-body);display:block}
-.dossier-bureau{display:flex;align-items:center}
-.dossier-bureau>img{width:54px;opacity:.65}
-.dossier-sidebar dl>div{display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--color-border)}
-.dossier-sidebar dd{margin:0}
-.dossier-modes{margin-top:18px}
-.dossier-modes p{display:flex;justify-content:space-between;gap:12px;margin-bottom:10px}
-.dossier-featured-seal{text-align:center}
-.dossier-featured-seal>svg{width:88px;height:88px;margin:20px auto}
-.dossier-featured-seal>p:last-child{margin:0}
-.dossier-links{display:grid;gap:8px}
-.dossier-links a{text-transform:capitalize}
-.profile-studio-heading{display:flex;align-items:center;justify-content:space-between;gap:20px}
-.profile-studio-heading .community-eyebrow{margin:0}
-.profile-editor{border:1px solid var(--color-border-hi);background:var(--color-panel)}
 .community-section-title{display:flex;align-items:center;justify-content:space-between;gap:16px}
 .community-section-title h2{margin:0}
 .community-page fieldset{border:0;padding:0;margin:0;min-width:0}
@@ -132,7 +89,6 @@
 .profile-module-order li{display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid var(--color-border)}
 .profile-module-order button{width:44px;height:44px}
 .profile-pin-list{max-height:300px;overflow:auto}
-.profile-preview-note{padding:16px}
 .profile-account-settings{margin:0 auto 40px}
 .profile-account-settings>summary{cursor:pointer}
 .profile-account-settings>section{margin-top:24px}
@@ -193,16 +149,6 @@
 .leaderboard-player img{width:32px;height:32px}
 .leaderboard-player .community-avatar{width:32px;height:32px}
 .public-leaderboard{padding:76px 16px 0}
-.dossier-identity .dossier-level{grid-column:1/-1;display:flex;justify-content:flex-start;padding-top:0;gap:12px}
-.dossier-level small{margin-left:auto}
-.dossier-sidebar{display:grid;grid-template-columns:1fr 1fr;gap:12px;align-items:start}
-.dossier-sidebar>.community-footnote{grid-column:1/-1}
-.dossier-toolbar{gap:8px}
-.dossier-toolbar .dc-ghost{font-size:13px;padding:10px 12px}
-.dossier-toolbar .dc-primary{font-size:13px;padding:10px 12px}
-.dossier-toolbar .dc-primary{width:100%}
-.dossier-bureau>img{width:40px}
-.profile-studio-heading{align-items:flex-start}
 .bureau-editor{padding:20px 16px}
 .community-form-grid{grid-template-columns:1fr}
 .community-section-title{align-items:flex-start;flex-direction:column}

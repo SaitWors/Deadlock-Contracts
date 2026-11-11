@@ -1100,6 +1100,7 @@ export default function Dashboard({ initialSession }: { initialSession: SessionP
   const [historyCases, setHistoryCases] = useState<HistoryCase[]>([])
   const [historyTotal, setHistoryTotal] = useState(0)
   const [progression, setProgression] = useState<Progression | null>(null)
+  const [refreshingSteam, setRefreshingSteam] = useState(false)
   const [progressRevision, setProgressRevision] = useState(0)
   const [reviews, setReviews] = useState<ReviewMine[]>([])
   const [selected, setSelected] = useState<Record<Mode, Set<string>>>({
@@ -1422,6 +1423,21 @@ export default function Dashboard({ initialSession }: { initialSession: SessionP
     }
   }
 
+  const refreshSteamProfile = async () => {
+    if (refreshingSteam) return
+    setRefreshingSteam(true)
+    setError("")
+    try {
+      const data = await api<{ user: User }>("/api/profile/refresh", csrf, { method: "POST" })
+      setUser(data.user)
+      await loadProgression()
+    } catch (reason) {
+      setError((reason as Error).message)
+    } finally {
+      setRefreshingSteam(false)
+    }
+  }
+
   const startCompanionPairing = async () => {
     try {
       const data = await api<CompanionPairing>("/api/companion/pairing/start", csrf, {
@@ -1646,7 +1662,7 @@ export default function Dashboard({ initialSession }: { initialSession: SessionP
               </span>
             </button>
             <AccountMenu
-              user={user}
+              user={{ ...user, xp: progression?.total_xp ?? user.xp }}
               level={level}
               csrf={csrf}
               revision={archiveRevision}
@@ -2575,15 +2591,14 @@ export default function Dashboard({ initialSession }: { initialSession: SessionP
               <ProfileStudio
                 csrf={csrf}
                 onNotice={setNotice}
-                onError={setError}
                 onBureau={openBureau}
-                onRefresh={async () => {
-                  const data = await api<{ user: User }>("/api/profile/refresh", csrf, {
-                    method: "POST",
-                  })
-                  setUser(data.user)
-                  await loadProgression()
+                onCollection={() => setTab("collection")}
+                identity={{
+                  display_name: user.display_name,
+                  avatar_url: user.avatar_url,
+                  badges: user.badges,
                 }}
+                progression={progression}
               />
               <details className="profile-account-settings">
                 <summary>
@@ -2591,6 +2606,20 @@ export default function Dashboard({ initialSession }: { initialSession: SessionP
                     ? "Настройки аккаунта · Компаньон и данные"
                     : "Account settings · Companion and data"}
                 </summary>
+                <button
+                  type="button"
+                  className="dc-ghost"
+                  disabled={refreshingSteam}
+                  onClick={() => void refreshSteamProfile()}
+                >
+                  {refreshingSteam
+                    ? language === "ru"
+                      ? "Обновляем…"
+                      : "Refreshing…"
+                    : language === "ru"
+                      ? "Обновить данные Steam"
+                      : "Refresh Steam data"}
+                </button>
                 <section className="dc-profile-page-grid dc-v3-profile-grid">
                   <article className="dc-system-card dc-companion-card">
                     <p className="dc-eyebrow">COMPANION / OVERWOLF</p>

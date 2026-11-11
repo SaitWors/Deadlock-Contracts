@@ -95,6 +95,8 @@ export type Profile = {
     avatar_url: string | null
     level: number
     xp: number | null
+    level_xp?: number | null
+    next_level_xp?: number | null
     badges: string[]
   }
   stats: {
