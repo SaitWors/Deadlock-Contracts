@@ -1,0 +1,184 @@
+/* The demo uses the bureau's existing tokens and leaves the signed-in board alone. */
+:root .ritual-public .guest-modes {
+  min-width: 0;
+  margin: 0;
+}
+:root .ritual-public .guest-modes label {
+  position: relative;
+  display: flex;
+  min-width: 0;
+  cursor: pointer;
+}
+:root .ritual-public .guest-modes input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+}
+:root .ritual-public .guest-modes label > span {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
+  padding: 8px 16px;
+  border-radius: 2px;
+  color: var(--ns-muted);
+  font: 600 12px/1.4 var(--font-body);
+  text-align: center;
+}
+:root .ritual-public .guest-modes input:checked + span {
+  color: var(--ns-text);
+  background: var(--ns-elevated);
+}
+:root .ritual-public .guest-modes input:focus-visible + span {
+  outline: 2px solid var(--ns-accent);
+  outline-offset: 2px;
+}
+:root .ritual-public .guest-board-workspace {
+  position: relative;
+  isolation: isolate;
+}
+:root .ritual-public .guest-board .ritual-contract {
+  scroll-margin-top: 88px;
+  scroll-margin-bottom: 170px;
+}
+:root .ritual-public .guest-selection {
+  position: sticky;
+  bottom: calc(12px + env(safe-area-inset-bottom, 0px));
+  z-index: 3;
+  gap: 24px;
+  padding: 14px 18px;
+  background: var(--ns-surface);
+  box-shadow: 0 4px 20px rgb(0 0 0 / 18%);
+}
+:root .ritual-public .guest-selection > .guest-selection-copy {
+  display: block;
+  flex: 1;
+  min-width: 0;
+}
+:root .ritual-public .guest-selection-total {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+}
+:root .ritual-public .guest-selection-total > span:first-child {
+  color: var(--ns-muted);
+  font: 500 13px/1.4 var(--font-body);
+}
+:root .ritual-public .guest-selection strong {
+  margin-left: 5px;
+  color: var(--ns-text);
+  font-size: 18px;
+  white-space: nowrap;
+}
+:root .ritual-public .guest-selection .ritual-selection-xp {
+  margin-left: 0;
+  font-size: 18px;
+  white-space: nowrap;
+}
+:root .ritual-public .guest-selection-copy > p {
+  margin: 5px 0 0;
+  color: var(--ns-muted);
+  font: 400 12px/1.5 var(--font-body);
+}
+:root .ritual-public .guest-selection > button {
+  flex-shrink: 0;
+  min-height: 44px;
+}
+:root .ritual-public .guest-board .ritual-board-note {
+  max-width: 740px;
+  margin-inline: auto;
+  font-size: 12px;
+}
+:root .ritual-public .guest-board-page {
+  padding-top: 20px;
+}
+:root .ritual-public .guest-board-page .ritual-section-heading > div > .ritual-kicker {
+  display: none;
+}
+:root .ritual-public .guest-board-page .ritual-section-heading {
+  margin-bottom: 18px;
+}
+:root .ritual-public .guest-board-page .ritual-section-heading h2 {
+  font-size: 28px;
+}
+@media (max-width: 600px) {
+  :root .ritual-public .ritual-page-heading {
+    padding-top: 28px;
+    padding-bottom: 8px;
+  }
+  :root .ritual-public .guest-board .ritual-section-heading {
+    gap: 10px;
+  }
+  :root .ritual-public .guest-board .ritual-demo {
+    border: 0;
+    padding: 0;
+    background: transparent;
+    font-size: 11px;
+  }
+  :root .ritual-public .guest-modes label {
+    flex: 1;
+  }
+  :root .ritual-public .guest-modes label > span {
+    width: 100%;
+    padding: 7px 6px;
+    font-size: 12px;
+  }
+  :root .ritual-public .guest-board .ritual-board-toolbar {
+    margin-bottom: 16px;
+    padding-bottom: 14px;
+  }
+  :root .ritual-public .guest-board .ritual-board-toolbar > p {
+    font-size: 12px;
+  }
+  :root .ritual-public .guest-board .ritual-contract {
+    min-height: 0;
+    padding: 16px;
+  }
+  :root .ritual-public .guest-board .ritual-contract-top {
+    padding-bottom: 8px;
+  }
+  :root .ritual-public .guest-board .ritual-contract-category {
+    margin-top: 10px;
+    font-size: 10px;
+  }
+  :root .ritual-public .guest-board .ritual-contract-category > svg {
+    padding: 0;
+    border: 0;
+    background: transparent;
+  }
+  :root .ritual-public .guest-board .ritual-contract-description {
+    max-width: none;
+    margin-block: 8px 14px;
+    font-size: 13px;
+    line-height: 1.6;
+  }
+  :root .ritual-public .guest-board .ritual-contract-bottom {
+    padding-top: 10px;
+  }
+  :root .ritual-public .guest-board .ritual-contract-bottom > b {
+    padding: 0;
+    border: 0;
+    background: transparent;
+    font-size: 23px;
+  }
+  :root .ritual-public .guest-board .ritual-contract-bottom > span {
+    font-size: 11px;
+  }
+  :root .ritual-public .guest-selection {
+    display: grid;
+    gap: 10px;
+    margin-top: 16px;
+    padding: 12px;
+    bottom: calc(8px + env(safe-area-inset-bottom, 0px));
+  }
+  :root .ritual-public .guest-selection-total {
+    justify-content: space-between;
+  }
+  :root .ritual-public .guest-selection-copy > p {
+    font-size: 11px;
+  }
+  :root .ritual-public .guest-selection .btn-primary {
+    width: 100%;
+  }
+}

@@ -15,6 +15,7 @@ import Leaderboard from "./community/Leaderboard"
 import Achievements from "./community/Achievements"
 import Bureaus from "./community/Bureaus"
 import ContractSigning from "./ContractSigning"
+import { PersonalizationContext, VerificationContext } from "./ContractContext"
 import "./contract-board.css"
 import { signSelection, selectionState, type SigningSelection } from "./contract-signing"
 import { prefersReducedMotion, useRipple } from "./motion"
@@ -131,6 +132,8 @@ type Board = {
     phase?: string
     message?: string
     match_id?: string | null
+    active_match_ids?: string[]
+    queued_count?: number
     attempts?: number
     next_check_at?: string
     delayed_by_provider?: boolean
@@ -897,19 +900,6 @@ const categoryLabel = (value: string, language: Language = "ru") =>
       ALL: "Все",
     }[value] || value,
   )
-const phaseLabel = (value?: string | null, language: Language = "ru") =>
-  t(
-    language,
-    {
-      Init: "Инициализация",
-      WaitingForPlayersToJoin: "Ожидание игроков",
-      PreGameWait: "Подготовка к матчу",
-      GameInProgress: "Матч идёт",
-      PostGame: "Матч завершён",
-      GameOver: "Матч завершён",
-    }[value || ""] || (value ? "Неизвестная фаза" : "—"),
-  )
-
 const BADGE_META: Record<
   BadgeId,
   {
@@ -1494,6 +1484,7 @@ export default function Dashboard({ initialSession }: { initialSession: SessionP
       .map((historyCase) => ({
         boardId: historyCase.board_id,
         completionReady: canShowCompletion(historyCase),
+        status: historyCase.status,
         items: historyCase.items,
         mode: historyCase.game_match_mode,
         matchId:
@@ -1501,7 +1492,7 @@ export default function Dashboard({ initialSession }: { initialSession: SessionP
           historyCase.items.find((item) => item.last_attempt_match_id)?.last_attempt_match_id ||
           null,
         attemptsUsed: historyCase.attempts_used || 0,
-        maxAttempts: historyCase.max_attempts || 3,
+        maxAttempts: historyCase.max_attempts,
         date: historyCase.settled_at || historyCase.locked_at,
       }))
   }, [historyCases, historyMode])
@@ -1759,7 +1750,10 @@ export default function Dashboard({ initialSession }: { initialSession: SessionP
                   <strong>
                     {language === "ru" ? "Уровень" : "Level"} {level}
                   </strong>
-                  <span>{(progression?.total_xp ?? user.xp).toLocaleString(locale)} XP</span>
+                  <span>
+                    {(progression?.total_xp ?? user.xp).toLocaleString(locale)} XP ·{" "}
+                    {language === "ru" ? "всего" : "total"}
+                  </span>
                 </div>
                 <div>
                   <small>{language === "ru" ? "ДО СЛЕДУЮЩЕГО УРОВНЯ" : "TO NEXT LEVEL"}</small>
@@ -1794,10 +1788,13 @@ export default function Dashboard({ initialSession }: { initialSession: SessionP
                       {language === "ru" ? "Правила выполнения" : "How contracts work"}
                     </summary>
                     <p>
-                      {t(
-                        language,
-                        "Шесть контрактов на режим. Выберите до трёх. Каждый невыполненный контракт можно закрыть в одном из трёх подходящих матчей; прогресс между матчами не суммируется.",
-                      )}
+                      {language === "ru"
+                        ? "Шесть контрактов на режим. Выберите до трёх. Каждый контракт выполняется целиком в одном подходящем матче; прогресс между матчами не суммируется."
+                        : "Six contracts per mode. Choose up to three. Each contract must be completed within one eligible match; progress does not add up across matches."}
+                      {board &&
+                        (language === "ru"
+                          ? ` Лимит матчей для этого дела: ${board.max_attempts}.`
+                          : ` Match limit for this case: ${board.max_attempts}.`)}
                     </p>
                   </details>
                 </div>
@@ -1920,20 +1917,16 @@ export default function Dashboard({ initialSession }: { initialSession: SessionP
                     <em>{MODE_META[mode].bonus}</em>
                   </section>
 
-                  {pendingReviewForBoard && (
-                    <section className="dc-v3-auto-review-banner">
-                      <SvgIcon name="hourglass" />
-                      <div>
-                        <b>{language === "ru" ? "Автоматическая проверка" : "Automatic review"}</b>
-                        <p>
-                          {t(
-                            language,
-                            "Система сама создала внутреннюю заявку. Ничего загружать или доказывать не нужно.",
-                          )}
-                        </p>
-                      </div>
-                    </section>
-                  )}
+                  <VerificationContext
+                    board={board}
+                    language={language}
+                    pendingReview={Boolean(pendingReviewForBoard)}
+                  />
+                  <PersonalizationContext
+                    key={`personalization-${board.id}`}
+                    options={board.options}
+                    language={language}
+                  />
 
                   <div
                     className="dc-filter-row dc-motion-filter-row"
@@ -2128,35 +2121,6 @@ export default function Dashboard({ initialSession }: { initialSession: SessionP
                   {canShowCompletion(board) && (
                     <CompletionButton key={board.id} boardId={board.id} />
                   )}
-
-                  {board.provider_status?.message && (
-                    <section
-                      className={`dc-policy dc-provider-phase-${(board.provider_status.phase || "searching").toLowerCase()}`}
-                    >
-                      <h2>
-                        {board.provider_status.phase === "MATCH_DETECTED"
-                          ? t(language, "Матч обнаружен")
-                          : board.provider_status.phase === "VERIFYING"
-                            ? t(language, "Автоматическая проверка")
-                            : board.provider_status.phase === "REVIEW_REQUIRED"
-                              ? t(language, "Данные уточняются")
-                              : board.provider_status.phase === "SETTLED"
-                                ? t(language, "Проверка завершена")
-                                : t(language, "Автоматический поиск матча")}
-                      </h2>
-                      <div>
-                        <p>{localizeServerText(board.provider_status.message, language)}</p>
-                        {board.provider_status.phase === "SEARCHING" && (
-                          <p>
-                            {t(
-                              language,
-                              "Ничего нажимать не нужно — проверка продолжится автоматически.",
-                            )}
-                          </p>
-                        )}
-                      </div>
-                    </section>
-                  )}
                 </>
               )}
               {board && (
@@ -2193,7 +2157,7 @@ export default function Dashboard({ initialSession }: { initialSession: SessionP
                   <div>
                     <span>{language === "ru" ? "Попытки" : "Attempts"}</span>
                     <strong>
-                      {board?.attempts_used ?? 0}/{board?.max_attempts ?? 3}
+                      {board.attempts_used}/{board.max_attempts}
                     </strong>
                     <small>{t(language, "для невыполненных контрактов")}</small>
                   </div>
@@ -2261,6 +2225,13 @@ export default function Dashboard({ initialSession }: { initialSession: SessionP
                             {statusLabel(activeBoard.status, language)}
                           </span>
                         </header>
+                        <VerificationContext
+                          board={activeBoard}
+                          language={language}
+                          pendingReview={reviews.some(
+                            (item) => item.board_id === activeBoard.id && item.status === "PENDING",
+                          )}
+                        />
                         <div className="dc-active-case-list">
                           {lockedOptions.map((option) => (
                             <div className="dc-active-contract" key={option.id}>
@@ -2298,27 +2269,6 @@ export default function Dashboard({ initialSession }: { initialSession: SessionP
                                   ? "OFFLINE"
                                   : "NOT PAIRED"}
                             </b>
-                          </span>
-                          <span>
-                            {language === "ru" ? "ФАЗА" : "PHASE"}
-                            <b>
-                              {phaseLabel(
-                                activeBoard.provider_status?.phase || "SEARCHING",
-                                language,
-                              )}
-                            </b>
-                          </span>
-                          <span>
-                            {language === "ru" ? "МАТЧ" : "MATCH"}
-                            <b>
-                              {activeBoard.provider_status?.match_id
-                                ? `#${activeBoard.provider_status.match_id}`
-                                : "—"}
-                            </b>
-                          </span>
-                          <span>
-                            {language === "ru" ? "ИСТОЧНИК" : "SOURCE"}
-                            <b>{language === "ru" ? "Сервер" : "Server"}</b>
                           </span>
                         </div>
                         <button
@@ -2409,7 +2359,16 @@ export default function Dashboard({ initialSession }: { initialSession: SessionP
                   const reward = group.items
                     .filter((x) => x.status === "COMPLETED")
                     .reduce((sum, x) => sum + Number(x.reward_granted_xp || 0), 0)
-                  const hasReview = group.items.some((x) => x.status === "REVIEW_REQUIRED")
+                  const hasReview = group.status === "REVIEW_REQUIRED"
+                  const isVerifying = group.status === "VERIFYING"
+                  const isWaiting = group.status === "LOCKED"
+                  const pendingStatus = hasReview
+                    ? "review_required"
+                    : isVerifying
+                      ? "verifying"
+                      : isWaiting
+                        ? "locked"
+                        : null
                   return (
                     <article className="dc-case-file" key={group.boardId}>
                       <div className="dc-case-file-no">
@@ -2427,16 +2386,25 @@ export default function Dashboard({ initialSession }: { initialSession: SessionP
                             <h2>
                               {hasReview
                                 ? t(language, "Данные уточняются")
-                                : done === group.items.length
-                                  ? t(language, "Дело закрыто успешно")
-                                  : group.items.some((x) => x.status === "LOCKED")
-                                    ? t(language, "Дело продолжается")
-                                    : t(language, "Решение по делу")}
+                                : isVerifying
+                                  ? language === "ru"
+                                    ? "Проверяем результат матча"
+                                    : "Verifying the match result"
+                                  : done === group.items.length
+                                    ? t(language, "Дело закрыто успешно")
+                                    : isWaiting
+                                      ? t(language, "Дело продолжается")
+                                      : t(language, "Решение по делу")}
                             </h2>
                           </div>
                           <span
                             className={`dc-badge ${
-                              hasReview ? "review_required" : done ? "completed" : "failed"
+                              pendingStatus ||
+                              (done
+                                ? "completed"
+                                : group.items.some((item) => item.status === "FAILED")
+                                  ? "failed"
+                                  : "")
                             }`}
                           >
                             {done}/{group.items.length}{" "}
@@ -2485,10 +2453,10 @@ export default function Dashboard({ initialSession }: { initialSession: SessionP
                                     : statusLabel(item.status, language)}
                                 </em>
                               </div>
-                              {(item.evaluations?.length || 0) > 1 && (
+                              {(item.evaluations?.length || 0) > 0 && (
                                 <details className="dc-attempt-log">
                                   <summary>
-                                    {language === "ru" ? "ЖУРНАЛ ПОПЫТОК" : "ATTEMPT LOG"} ·{" "}
+                                    {language === "ru" ? "ЖУРНАЛ ПРОВЕРОК" : "VERIFICATION LOG"} ·{" "}
                                     {item.evaluations.length}
                                   </summary>
                                   <ol>
@@ -2505,7 +2473,9 @@ export default function Dashboard({ initialSession }: { initialSession: SessionP
                                           {localizeServerText(evaluation.explanation, language) ||
                                             "—"}
                                         </span>
-                                        <time>{fmt(evaluation.created_at, language)}</time>
+                                        <time dateTime={evaluation.created_at}>
+                                          {fmt(evaluation.created_at, language)}
+                                        </time>
                                       </li>
                                     ))}
                                   </ol>
@@ -2516,7 +2486,7 @@ export default function Dashboard({ initialSession }: { initialSession: SessionP
                         </div>
                         <footer>
                           <span>
-                            {fmt(group.date)}
+                            {fmt(group.date, language)}
                             {group.items[0].case_expires_at &&
                             ["LOCKED", "VERIFYING", "REVIEW_REQUIRED"].includes(
                               group.items[0].board_status || "",

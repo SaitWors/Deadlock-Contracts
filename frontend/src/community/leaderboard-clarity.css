@@ -1,0 +1,100 @@
+html[data-theme] .leaderboard-page > h2 {
+  margin: 0 0 1.25rem;
+  font: 600 1.25rem/1.4 var(--font-display);
+}
+
+html[data-theme] .leaderboard-page .community-tabs {
+  flex-wrap: wrap;
+  gap: .5rem;
+}
+
+html[data-theme] .leaderboard-page .community-tabs button {
+  min-height: 44px;
+}
+
+.leaderboard-scoring {
+  max-width: 48rem;
+  min-height: 2.75rem;
+}
+
+html[data-theme] .leaderboard-page .leaderboard-table caption {
+  background: var(--ns-surface);
+  color: var(--ns-muted);
+  border-color: var(--ns-line);
+  padding: 1rem 1.25rem;
+  text-transform: none;
+  letter-spacing: 0;
+  font-size: .75rem;
+}
+
+.leaderboard-table caption > span {
+  display: block;
+  margin-top: .25rem;
+  font-weight: 400;
+}
+
+html[data-theme] .leaderboard-page .leaderboard-table th.leaderboard-extra {
+  width: 8.25rem;
+}
+
+.leaderboard-place {
+  display: inline-flex;
+  align-items: center;
+  gap: .5rem;
+}
+
+.leaderboard-place svg { color: var(--ns-accent); }
+
+.leaderboard-state {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+  min-height: 14rem;
+  padding: 1.5rem;
+  border: 1px solid var(--ns-line);
+  border-radius: var(--ns-small);
+  background: var(--ns-surface);
+  color: var(--ns-muted);
+}
+
+html[data-theme] .leaderboard-state h2 {
+  margin: .875rem 0 .5rem;
+  color: var(--ns-text);
+  font: 600 1.125rem/1.5 var(--font-body);
+}
+
+.leaderboard-state p {
+  max-width: 42rem;
+  margin: 0 0 1rem;
+  font: 400 .875rem/1.7 var(--font-body);
+}
+
+html[data-theme] .leaderboard-page .leaderboard-player b {
+  overflow-wrap: anywhere;
+}
+
+html[data-theme] .leaderboard-page .leaderboard-footnote {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: .3rem;
+  line-height: 1.7;
+}
+
+.leaderboard-footnote button {
+  min-height: 44px;
+  padding: .5rem;
+  text-decoration: underline;
+  text-underline-offset: .2em;
+}
+
+@media (max-width: 540px) {
+  html[data-theme] .leaderboard-page .leaderboard-table :is(th, td) {
+    padding: .875rem .625rem;
+  }
+  .leaderboard-place { display: grid; justify-items: center; gap: .25rem; }
+  html[data-theme] .leaderboard-page .leaderboard-table th:last-child { width: 6.5rem; }
+  html[data-theme] .leaderboard-page .leaderboard-table caption { padding: 1rem; }
+  .leaderboard-state { padding: 1.25rem; }
+}

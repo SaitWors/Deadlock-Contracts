@@ -5,6 +5,15 @@ import { publicUrl, type PublicRoute } from "./publicRoutes"
 export type Language = "en" | "ru"
 export type LanguageMode = "auto" | Language
 
+export function matchModeLabel(mode: string, language: Language): string {
+  const labels: Record<string, [string, string]> = {
+    STANDARD: ["Обычный", "Standard"],
+    RANKED: ["Рейтинговый", "Ranked"],
+    STREET_BRAWL: ["Уличная драка", "Street Brawl"],
+  }
+  return labels[mode.toUpperCase().replace(/ /g, "_")]?.[language === "ru" ? 0 : 1] ?? mode
+}
+
 const STORAGE_KEY = "dc.ui.language"
 
 function browserLanguage(): Language {

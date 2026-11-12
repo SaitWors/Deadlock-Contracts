@@ -128,6 +128,20 @@ class Favorite(Strict):
 def build_router(require_permission, effective_role):
     router = APIRouter(prefix="/api", tags=["Archive packs"])
 
+    @router.get("/public/archive/preview")
+    def public_daily_preview(response: Response, db: Session = Depends(get_db)):
+        no_store(response)
+        return service.public_daily_preview(db)
+
+    @router.get("/public/archive/preview/{card_id}/image")
+    def public_daily_preview_image(card_id: UUID, db: Session = Depends(get_db)):
+        card = service.public_daily_preview_image(db, card_id)
+        if card is None:
+            raise HTTPException(404, "Image not found")
+        return Response(card.image_data, media_type="image/webp", headers={
+            "Cache-Control": "no-store", "X-Content-Type-Options": "nosniff",
+        })
+
     def packs(db, offset, *, owner=False, user_id=None, scope="REAL"):
         statement = select(ArchivePack)
         if not owner:

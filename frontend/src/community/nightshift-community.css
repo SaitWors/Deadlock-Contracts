@@ -58,17 +58,6 @@ html[data-theme] .leaderboard-mine .community-eyebrow { color: var(--ns-accent);
 html[data-theme] .leaderboard-mine h2 { font-size: 25px; }
 html[data-theme] .leaderboard-mine h2 span { font-size: 20px; }
 html[data-theme] .leaderboard-mine p:last-child { color: var(--ns-muted); font-size: 12px; }
-html[data-theme] .leaderboard-podium { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); align-items: stretch; gap: 20px; margin: 24px 0; }
-html[data-theme] .leaderboard-podium-place { display: flex; flex-direction: column; align-items: center; position: relative; padding: 28px 20px; border: 1px solid var(--ns-line); border-radius: calc(var(--ns-radius) * .5); background: var(--ns-surface); text-decoration: none; color: var(--ns-text); min-width: 0; }
-html[data-theme] .leaderboard-podium-place[data-place="1"] { background: var(--ns-elevated); border-top: 4px solid var(--ns-stamp); padding-top: 25px; box-shadow: 5px 5px 0 var(--ns-deep); }
-html[data-theme] .leaderboard-podium-rank { position: absolute; top: 16px; left: 20px; font: 400 58px/1 var(--font-poster); letter-spacing: -.03em; color: var(--ns-muted); }
-html[data-theme] .leaderboard-podium-place > svg { align-self: flex-end; color: var(--ns-muted); }
-html[data-theme] .leaderboard-podium-place[data-place="1"] > svg { color: var(--ns-accent); }
-html[data-theme] .leaderboard-podium-place > img,html[data-theme] .leaderboard-podium-place > .community-avatar { width: 76px; height: 76px; border-radius: calc(var(--ns-radius) * .25); object-fit: cover; margin: 8px 0 16px; border: 5px solid var(--ns-paper); box-shadow: 3px 4px 0 var(--ns-deep); transform: rotate(-3deg); }
-html[data-theme] .leaderboard-podium-place > small { font-size: 9px; letter-spacing: .08em; }
-html[data-theme] .leaderboard-podium-place h2 { font-size: 19px; margin: 8px 0 16px; max-width: 100%; text-align: center; }
-html[data-theme] .leaderboard-podium-place > strong { font: 650 28px/1.15 var(--font-body); color: var(--ns-accent); letter-spacing: -.04em; margin-top: auto; }
-html[data-theme] .leaderboard-podium-place > strong small { font-size: 10px; letter-spacing: 0; font-weight: 500; }
 html[data-theme] .leaderboard-table { background: var(--ns-surface); }
 html[data-theme] .leaderboard-table caption { background: var(--ns-paper); padding: 18px 24px; font: 700 11px/1.5 var(--font-body); letter-spacing: .08em; color: var(--ns-ink); border-bottom: 1px solid var(--ns-paper-line); }
 html[data-theme] .leaderboard-table th { background: var(--ns-deep); color: var(--ns-muted); font: 650 11px/1.5 var(--font-body); text-transform: uppercase; letter-spacing: .05em; }
@@ -277,10 +266,6 @@ html[data-theme] .operation-card progress { height: 6px; margin: 20px 0 10px; }
 html[data-theme] .operation-card time { color: var(--ns-muted); font-size: 11px; }
 html[data-theme] .bureau-safety blockquote { border-left: 2px solid var(--ns-line); padding: 12px 16px; margin: 14px 0; }
 html[data-theme] .public-dossier-shell > .community-page { padding: 104px 24px 64px; max-width: 1368px; }
-@media(min-width:900px) {
-  html[data-theme] .leaderboard-podium-place[data-place="2"] { order: -1; margin-top: 18px; }
-  html[data-theme] .leaderboard-podium-place[data-place="3"] { margin-top: 18px; }
-}
 @media(max-width:1100px) {
   html[data-theme] .achievement-grid { grid-template-columns: repeat(3,minmax(0,1fr)); gap: 16px; }
   html[data-theme] .guild-settings-nav { grid-template-columns: repeat(2,minmax(0,1fr)); }
@@ -306,14 +291,6 @@ html[data-theme] .community-collection-summary > button { width: 100%; }
   html[data-theme] .achievement-card h2 { font-size: 17px; }
   html[data-theme] .achievement-card p:not(.community-eyebrow) { font-size: 11px; }
   html[data-theme] .achievement-progress { flex-wrap: wrap; gap: 8px; }
-  html[data-theme] .leaderboard-podium { gap: 12px; }
-  html[data-theme] .leaderboard-podium-place { padding: 18px 12px 20px; border-radius: calc(var(--ns-radius) * .5); }
-  html[data-theme] .leaderboard-podium-rank { top: 16px; left: 12px; font-size: 33px; }
-  html[data-theme] .leaderboard-podium-place > svg { width: 18px; height: 18px; }
-  html[data-theme] .leaderboard-podium-place > img,html[data-theme] .leaderboard-podium-place > .community-avatar { width: 52px; height: 52px; border-radius: calc(var(--ns-radius) * .5); margin-top: 20px; }
-  html[data-theme] .leaderboard-podium-place h2 { font-size: 14px; }
-  html[data-theme] .leaderboard-podium-place > strong { font-size: 20px; }
-  html[data-theme] .leaderboard-podium-place > strong small { display: block; text-align: center; margin-top: 6px; }
   html[data-theme] .leaderboard-mine { padding: 22px 20px; }
   html[data-theme] .leaderboard-mine h2 { font-size: 22px; }
   html[data-theme] .leaderboard-mine h2 span { font-size: 18px; }
@@ -344,15 +321,6 @@ html[data-theme] .guild-directory-card .bureau-card-copy { padding: 16px 20px 20
   html[data-theme] .operation-card h3 { font-size: 21px; }
 }
 @media(max-width:480px) {
-  html[data-theme] .leaderboard-podium { grid-template-columns: 1fr; gap: 10px; }
-  html[data-theme] .leaderboard-podium-place { display: grid; grid-template-columns: 45px 48px minmax(0,1fr) auto; gap: 3px 12px; padding: 16px; align-items: center; }
-  html[data-theme] .leaderboard-podium-rank { position: static; grid-row: 1/4; font-size: 31px; }
-  html[data-theme] .leaderboard-podium-place > svg { display: none; }
-  html[data-theme] .leaderboard-podium-place > img,html[data-theme] .leaderboard-podium-place > .community-avatar { grid-row: 1/4; width: 48px; height: 48px; margin: 0; }
-  html[data-theme] .leaderboard-podium-place > small { grid-column: 3; font-size: 8px; }
-  html[data-theme] .leaderboard-podium-place h2 { grid-column: 3; text-align: left; margin: 0; font-size: 13px; }
-  html[data-theme] .leaderboard-podium-place > strong { grid-column: 4; grid-row: 1/4; margin: 0; font-size: 17px; text-align: right; letter-spacing: -.02em; }
-  html[data-theme] .leaderboard-podium-place > strong small { font-size: 8px; text-align: right; }
   html[data-theme] .achievement-grid { gap: 12px; }
   html[data-theme] .achievement-card { padding: 20px 14px; border-radius: calc(var(--ns-radius) * .5); }
   html[data-theme] .achievement-card h2 { font-size: 16px; }

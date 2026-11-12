@@ -46,10 +46,10 @@
 .archive-card figcaption { position: absolute; inset: auto 7% 11%; display: flex; flex-direction: column; align-items: flex-start; justify-content: flex-end; gap: 1.5cqw; overflow: hidden; z-index: 3; text-align: left; }
 .archive-card figcaption small { color: var(--rank); font: 500 3.1cqw/1.35 var(--font-body); max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 0 0 auto; }
 .archive-card figcaption strong { font: 700 7.4cqw/1.04 var(--font-display); letter-spacing: -.02em; text-transform: uppercase; color: #f7e9d5; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; overflow-wrap: anywhere; max-width: 100%; }
-/* The official landscape posters sit intact inside a portrait collector's mat. */
-.archive-card[data-release] .archive-card-art { inset: 17% 4% 29%; border-radius: 0; background: #181715; }
-.archive-card[data-release] .archive-card-art::after { display: none; }
-html[data-theme] figure.archive-card[data-release] .archive-card-edition,
-html[data-theme] figure.archive-card[data-release] figcaption :is(small,strong) { color: var(--ns-ink); }
+/* A collector's mat preserves full artwork without implying its provenance. */
+.archive-card[data-full-artwork] .archive-card-art { inset: 17% 4% 29%; border-radius: 0; background: #181715; }
+.archive-card[data-full-artwork] .archive-card-art::after { display: none; }
+html[data-theme] figure.archive-card[data-full-artwork] .archive-card-edition,
+html[data-theme] figure.archive-card[data-full-artwork] figcaption :is(small,strong) { color: var(--ns-ink); }
 .dossier-card-showcase { padding: 22px; display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 16px; }
 @media(max-width:600px) { .dossier-card-showcase { grid-template-columns:repeat(2,minmax(0,1fr)); padding:16px; gap:12px; } }

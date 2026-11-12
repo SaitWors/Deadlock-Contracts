@@ -6,10 +6,12 @@ import "./card-preview.css"
 export default function CardPreview({
   card,
   artOverlay,
+  preserveArtwork = false,
 }: {
   card: Pick<Card, "rank" | "title" | "hero_name" | "image_url" | "crop_x" | "crop_y" | "zoom"> &
     Partial<Pick<Card, "id" | "source_url" | "release_poster" | "category">>
   artOverlay?: ReactNode
+  preserveArtwork?: boolean
 }) {
   const base = card.rank === "EX" || card.category === "BASE"
   const tier = base ? 9 : RANKS.indexOf(card.rank as (typeof RANKS)[number])
@@ -26,6 +28,7 @@ export default function CardPreview({
       data-category={base ? "BASE" : "HERO"}
       data-tier={tier}
       data-release={releasePoster ? "city-never-sleeps" : undefined}
+      data-full-artwork={releasePoster || preserveArtwork ? "true" : undefined}
       aria-label={`${card.hero_name} · ${card.title} · ${card.rank}`}
       title={`${card.hero_name} · ${card.title} · ${card.rank}`}
     >
@@ -37,9 +40,9 @@ export default function CardPreview({
             loading="lazy"
             decoding="async"
             style={{
-              objectFit: releasePoster ? "contain" : undefined,
-              objectPosition: `${card.crop_x}% ${card.crop_y}%`,
-              transform: `scale(${card.zoom})`,
+              objectFit: releasePoster || preserveArtwork ? "contain" : undefined,
+              objectPosition: preserveArtwork ? "50% 50%" : `${card.crop_x}% ${card.crop_y}%`,
+              transform: preserveArtwork ? "none" : `scale(${card.zoom})`,
             }}
           />
         ) : (

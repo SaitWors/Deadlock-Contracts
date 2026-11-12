@@ -44,6 +44,73 @@
   max-width: 75ch;
   margin: 8px 0 0;
 }
+/* One calm status, with provenance available on demand on both case views. */
+:root .ns-private .dc-verification-context {
+  margin: 0 0 14px;
+  padding: 12px 14px;
+  border: 1px solid var(--ns-line);
+  border-left: 3px solid var(--ns-accent);
+  border-radius: 6px;
+  background: var(--ns-soft);
+  color: var(--ns-muted);
+  font: 400 14px/1.6 var(--font-body);
+  overflow-wrap: anywhere;
+}
+:root .ns-private .dc-verification-context h3 {
+  margin: 0 0 4px;
+  color: var(--ns-text);
+  font: 600 17px/1.4 var(--font-body);
+  letter-spacing: 0;
+  text-transform: none;
+}
+:root .ns-private .dc-verification-context p,
+:root .ns-private .dc-context-details p {
+  margin: 5px 0 0;
+  max-width: 80ch;
+}
+:root .ns-private .dc-context-details summary {
+  width: fit-content;
+  min-height: 44px;
+  align-content: center;
+  color: var(--ns-accent);
+  cursor: pointer;
+  text-underline-offset: 4px;
+}
+:root .ns-private .dc-context-details summary:hover {
+  text-decoration: underline;
+}
+:root .ns-private .dc-context-details summary:focus-visible {
+  outline: 3px solid var(--ns-accent);
+  outline-offset: 3px;
+}
+:root .ns-private .dc-personalization-context {
+  margin: 0 0 10px;
+  color: var(--ns-muted);
+  font: 400 14px/1.6 var(--font-body);
+  overflow-wrap: anywhere;
+}
+:root .ns-private .dc-personalization-context ul {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px), 1fr));
+  gap: 16px 24px;
+  margin: 14px 0 18px;
+  padding: 0;
+  list-style: none;
+}
+:root .ns-private .dc-personalization-context li {
+  border-top: 1px solid var(--ns-line);
+  padding-top: 10px;
+  min-width: 0;
+}
+:root .ns-private .dc-personalization-context strong {
+  color: var(--ns-text);
+  font-weight: 600;
+}
+:root .ns-private .dc-personalization-context small {
+  display: block;
+  margin-top: 5px;
+  font-size: 12px;
+}
 :root .ns-private .dc-contract-dossier .dc-motion-head-controls {
   flex-wrap: wrap;
   gap: 12px;

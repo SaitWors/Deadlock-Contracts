@@ -731,6 +731,10 @@ for (const language of ["ru", "en"]) {
     await api.act(async () => preview.click())
     assert.equal(document.querySelectorAll(".signing-terms li").length, 1)
     assert.equal(document.querySelector(".signing-terms h3").textContent, title)
+    assert.equal(
+      document.querySelectorAll(".signing-identity dd")[1].textContent,
+      language === "ru" ? "Обычный" : "Standard",
+    )
     const sample = [...document.querySelectorAll("dialog button")].find((button) =>
       /Поставить пробную печать|Place sample seal/.test(button.textContent),
     )
@@ -746,11 +750,7 @@ for (const language of ["ru", "en"]) {
     await api.act(async () => document.querySelector(".signing-close").click())
     assert.equal(document.activeElement, preview)
     assert.equal(cards[0].getAttribute("aria-pressed"), "true")
-    await api.act(async () =>
-      [...document.querySelectorAll("button")]
-        .find((button) => /^(Рейтинговый|Ranked)$/.test(button.textContent.trim()))
-        .click(),
-    )
+    await api.act(async () => document.querySelector('.ritual-modes input[value="RANKED"]').click())
     assert.equal(document.querySelectorAll('[data-contract-choice][aria-pressed="true"]').length, 0)
     assert.equal(preview.disabled, true)
     await api.act(async () => instance.unmount())

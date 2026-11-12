@@ -179,7 +179,13 @@ async function mount({
   await w.CompletionIntegration.act(async () => {
     root = w.CompletionIntegration.mountDashboard(w.document.getElementById("mount"), {
       ...session,
-      user: { ...session.user, locale: language },
+      // Keep this receipt-only test independent of the developer's timezone:
+      // an unrelated preference sync must not be mistaken for reward mutation.
+      user: {
+        ...session.user,
+        locale: language,
+        timezone: w.Intl.DateTimeFormat().resolvedOptions().timeZone,
+      },
     })
   })
   environments.push({ dom, api: w.CompletionIntegration, root })

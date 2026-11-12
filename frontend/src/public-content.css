@@ -1,0 +1,43 @@
+html[data-theme] .ritual-public .public-document.public-document-heading {
+  padding-bottom: 1.5rem;
+}
+
+html[data-theme] .ritual-public .public-document.public-document-compact {
+  padding-top: 1.5rem;
+  padding-bottom: 3rem;
+}
+
+.public-explainer {
+  border-top: 1px solid var(--ns-line);
+  border-bottom: 1px solid var(--ns-line);
+  color: var(--ns-text);
+}
+
+.public-explainer > summary {
+  padding: 1.25rem 0;
+  cursor: pointer;
+  font: 600 .875rem/1.5 var(--font-body);
+}
+
+.public-explainer > summary:focus-visible {
+  outline: 2px solid var(--ns-accent);
+  outline-offset: 4px;
+}
+
+.public-explainer-content {
+  display: grid;
+  gap: 1.5rem;
+  max-width: 48rem;
+  padding-bottom: 1.5rem;
+}
+
+html[data-theme] .ritual-public .public-explainer-content h2 {
+  margin: 0 0 .5rem;
+  font: 600 .9375rem/1.5 var(--font-body);
+}
+
+.public-explainer-content p {
+  margin: 0;
+  color: var(--ns-muted);
+  font: 400 .875rem/1.75 var(--font-body);
+}

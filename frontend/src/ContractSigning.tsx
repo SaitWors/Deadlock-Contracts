@@ -1,6 +1,6 @@
 import Icon from "./icons/Icon"
 import { useEffect, useId, useRef, useState } from "react"
-import { useLanguage } from "./i18n"
+import { matchModeLabel, useLanguage } from "./i18n"
 import { SelectionChangedError, SigningUnconfirmedError } from "./contract-signing"
 import { useReducedMotion } from "./Appearance"
 import SignatureField from "./SignatureField"
@@ -235,7 +235,7 @@ export default function ContractSigning(props: SigningProps) {
           </div>
           <div>
             <dt>{ru ? "Режим" : "Mode"}</dt>
-            <dd>{mode}</dd>
+            <dd>{matchModeLabel(mode, language)}</dd>
           </div>
           <div className="signing-reward">
             <dt>{ru ? "Возможная награда" : "Potential reward"}</dt>
