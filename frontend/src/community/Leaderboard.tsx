@@ -1,8 +1,9 @@
-import { useState } from "react"
+import { useId, useState } from "react"
 import { useLanguage } from "../i18n"
 import { useResource } from "./api"
-import { LoadState, PageHead } from "./Shared"
+import { PageHead } from "./Shared"
 import Icon from "../icons/Icon"
+import "./leaderboard-clarity.css"
 
 type Row = {
   rank: number
@@ -30,14 +31,35 @@ export default function Leaderboard({
 }) {
   const { language, locale } = useLanguage()
   const ru = language === "ru"
+  const explanationId = useId()
   const [scope, setScope] = useState("all_time")
   const resource = useResource<Board>(
     `/api/${authenticated ? "" : "public/"}leaderboard?scope=${scope}&limit=50`,
   )
   const data = resource.data
-  const scoreLabel = scope === "all_time" || scope === "today" ? "XP" : ru ? "ОЧКИ" : "POINTS"
+  const scoreLabel = scope === "all_time" || scope === "today" ? "XP" : ru ? "очки" : "points"
+  const scoreHeading =
+    scope === "all_time"
+      ? ru
+        ? "XP рейтинга"
+        : "Leaderboard XP"
+      : scope === "today"
+        ? ru
+          ? "XP сегодня"
+          : "XP today"
+        : ru
+          ? "Очки"
+          : "Points"
+  const scopes = [
+    ["all_time", ru ? "Всё время" : "All time"],
+    ["today", ru ? "Сегодня" : "Today"],
+    ["rare", ru ? "Редкие дела" : "Rare cases"],
+    ["mastery", ru ? "Мастерство" : "Mastery"],
+  ]
+  const updated = data ? new Date(data.generated_at) : null
+  const reset = data?.reset_at ? new Date(data.reset_at) : null
   return (
-    <section className="community-page">
+    <section className="community-page leaderboard-page" aria-busy={resource.loading}>
       {authenticated ? (
         <PageHead
           number="03 / CITY REGISTER"
@@ -54,24 +76,24 @@ export default function Leaderboard({
       <div
         className="community-tabs"
         role="group"
-        aria-label={ru ? "Период рейтинга" : "Leaderboard scope"}
+        aria-label={ru ? "Раздел рейтинга" : "Leaderboard scope"}
       >
-        {[
-          ["all_time", ru ? "Всё время" : "All time"],
-          ["today", ru ? "Сегодня" : "Today"],
-          ["rare", ru ? "Редкие дела" : "Rare cases"],
-          ["mastery", ru ? "Мастерство" : "Mastery"],
-        ].map(([value, label]) => (
-          <button key={value} aria-pressed={scope === value} onClick={() => setScope(value)}>
+        {scopes.map(([value, label]) => (
+          <button
+            type="button"
+            key={value}
+            aria-pressed={scope === value}
+            onClick={() => setScope(value)}
+          >
             {label}
           </button>
         ))}
       </div>
-      <p className="community-muted">
+      <p className="community-muted leaderboard-scoring" id={explanationId}>
         {scope === "today"
           ? ru
-            ? "Награды с 00:00 UTC. Новый день начинается в 00:00 UTC."
-            : "Awards since 00:00 UTC. Resets at 00:00 UTC."
+            ? "Подтверждённые награды за контракты с 00:00 UTC."
+            : "Verified contract rewards since 00:00 UTC."
           : scope === "rare"
             ? ru
               ? "Редкое дело — 1 очко, эпическое — 2."
@@ -81,11 +103,46 @@ export default function Leaderboard({
                 ? "Сложный контракт — 1 очко, экстремальный — 2."
                 : "Hard contract: 1 point. Extreme contract: 2 points."
               : ru
-                ? "XP за подтверждённые контракты за всё время."
-                : "Verified contract XP earned over all time."}
+                ? "XP за подтверждённые контракты. Общий опыт в профиле может отличаться."
+                : "Verified contract XP. Total experience in a profile may differ."}
+        {scope === "today" && reset && Number.isFinite(reset.getTime()) && (
+          <span>
+            {" "}
+            {ru ? "Следующее обновление:" : "Next reset:"}{" "}
+            <time dateTime={data!.reset_at!}>
+              {reset.toLocaleString(locale, {
+                day: "numeric",
+                month: "short",
+                hour: "2-digit",
+                minute: "2-digit",
+                timeZoneName: "short",
+              })}
+            </time>
+            .
+          </span>
+        )}
       </p>
       {resource.loading || resource.error || !data ? (
-        <LoadState error={resource.error} retry={resource.reload} />
+        <div className="leaderboard-state" role={resource.error ? "alert" : "status"}>
+          <Icon name={resource.error ? "triangle-alert" : "trophy"} size={24} />
+          <h2>
+            {resource.error
+              ? ru
+                ? "Не удалось загрузить рейтинг"
+                : "Could not load the standings"
+              : ru
+                ? "Загружаем рейтинг…"
+                : "Loading the standings…"}
+          </h2>
+          {resource.error && (
+            <>
+              <p>{resource.error}</p>
+              <button type="button" className="dc-ghost" onClick={resource.reload}>
+                {ru ? "Повторить" : "Try again"}
+              </button>
+            </>
+          )}
+        </div>
       ) : (
         <>
           {data.me && (
@@ -119,7 +176,7 @@ export default function Leaderboard({
                         : "Complete a contract that counts toward this board."}
                 </p>
               </div>
-              {data.me.reason === "PRIVATE_PROFILE" && (
+              {data.me.reason === "PRIVATE_PROFILE" && onProfile && (
                 <button className="dc-ghost" onClick={onProfile}>
                   {ru ? "Настроить профиль" : "Profile settings"}
                 </button>
@@ -128,57 +185,34 @@ export default function Leaderboard({
           )}
           {data.rows.length ? (
             <>
-              {data.rows.some((row) => row.rank <= 3) && (
-                <div
-                  className="leaderboard-podium"
-                  aria-label={ru ? "Лидеры рейтинга" : "Leading operatives"}
-                >
-                  {data.rows
-                    .filter((row) => row.rank <= 3)
-                    .map((row) => (
-                      <a
-                        className="leaderboard-podium-place"
-                        data-place={row.rank}
-                        key={row.slug}
-                        href={`/u/${row.slug}`}
-                      >
-                        <span className="leaderboard-podium-rank">
-                          {String(row.rank).padStart(2, "0")}
-                        </span>
-                        <Icon name={row.rank === 1 ? "trophy" : "star"} size={24} />
-                        {row.avatar_url ? (
-                          <img src={row.avatar_url} alt="" loading="lazy" />
-                        ) : (
-                          <span className="community-avatar">DC</span>
-                        )}
-                        <small>LVL {row.level}</small>
-                        <h2>{row.display_name}</h2>
-                        <strong>
-                          {row.score.toLocaleString(locale)} <small>{scoreLabel}</small>
-                        </strong>
-                      </a>
-                    ))}
-                </div>
-              )}
               <div className="leaderboard-table-wrap">
-                <table className="leaderboard-table">
+                <table className="leaderboard-table" aria-describedby={explanationId}>
                   <caption>
-                    {ru ? "Городской реестр · первые 50 мест" : "City register · top 50"}
+                    {scopes.find(([value]) => value === scope)?.[1]} · {ru ? "Показано" : "Showing"}{" "}
+                    {data.rows.length} {ru ? "из" : "of"} {data.total.toLocaleString(locale)}
+                    <span>
+                      {ru ? "Учтённые контракты за всё время" : "Eligible contracts, all-time"}
+                    </span>
                   </caption>
                   <thead>
                     <tr>
                       <th scope="col">#</th>
                       <th scope="col">{ru ? "Оперативник" : "Operative"}</th>
                       <th scope="col" className="leaderboard-extra">
-                        {ru ? "Дела" : "Cases"}
+                        {ru ? "Контракты" : "Contracts"}
                       </th>
-                      <th scope="col">{scoreLabel}</th>
+                      <th scope="col">{scoreHeading}</th>
                     </tr>
                   </thead>
                   <tbody>
                     {data.rows.map((row) => (
                       <tr key={row.slug} className={row.slug === data.me?.row?.slug ? "is-me" : ""}>
-                        <td>{String(row.rank).padStart(2, "0")}</td>
+                        <td>
+                          <span className="leaderboard-place">
+                            {String(row.rank).padStart(2, "0")}
+                            {row.rank === 1 && <Icon name="trophy" size={14} />}
+                          </span>
+                        </td>
                         <td>
                           <a href={`/u/${row.slug}`} className="leaderboard-player">
                             {row.avatar_url ? (
@@ -204,23 +238,36 @@ export default function Leaderboard({
               </div>
             </>
           ) : (
-            <div className="community-empty">
-              <h2>{ru ? "В реестре пока тихо" : "The register is quiet"}</h2>
+            <div className="leaderboard-state" role="status">
+              <Icon name="trophy" size={24} />
+              <h2>
+                {scope === "today"
+                  ? ru
+                    ? "Сегодня результатов ещё нет"
+                    : "No results today yet"
+                  : ru
+                    ? "В этой таблице пока нет результатов"
+                    : "No results on this board yet"}
+              </h2>
               <p>
                 {ru
-                  ? "Здесь появятся игроки с публичной статистикой и подтверждёнными результатами."
-                  : "Players with public stats and verified results will appear here."}
+                  ? "Здесь появятся подтверждённые результаты игроков с публичной статистикой. Можно посмотреть другой раздел рейтинга."
+                  : "Verified results from players with public stats will appear here. You can explore another board in the meantime."}
               </p>
             </div>
           )}
-          <p className="community-footnote">
+          <p className="community-footnote leaderboard-footnote">
             {ru
               ? "Ручные корректировки XP не влияют на место. Обновлено"
               : "Administrative XP adjustments do not affect rank. Updated"}{" "}
-            {new Date(data.generated_at).toLocaleTimeString(locale, {
-              hour: "2-digit",
-              minute: "2-digit",
-            })}{" "}
+            {updated && Number.isFinite(updated.getTime()) && (
+              <time dateTime={data.generated_at}>
+                {updated.toLocaleTimeString(locale, {
+                  hour: "2-digit",
+                  minute: "2-digit",
+                })}
+              </time>
+            )}{" "}
             · <button onClick={resource.reload}>{ru ? "Обновить" : "Refresh"}</button>
           </p>
         </>

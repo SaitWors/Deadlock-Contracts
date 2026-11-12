@@ -36,20 +36,34 @@ export function useResource<T>(url: string, { reloadOnLanguageChange = true } = 
   const [revision, setRevision] = useState(0)
   useEffect(() => {
     const controller = new AbortController()
+    let active = true
     setData(null)
     setError("")
     setLoading(true)
+    // Release the loading state even when a proxy or fetch implementation never
+    // settles. The aborted signal also prevents a late response from winning.
+    const timeout = window.setTimeout(() => {
+      if (!active) return
+      controller.abort()
+      setError(language === "ru" ? "Превышено время ожидания ответа" : "The request timed out")
+      setLoading(false)
+    }, 12000)
     request<T>(url, "", { signal: controller.signal })
       .then((value) => {
-        if (!controller.signal.aborted) setData(value)
+        if (active && !controller.signal.aborted) setData(value)
       })
       .catch((reason) => {
-        if (!controller.signal.aborted) setError((reason as Error).message)
+        if (active && !controller.signal.aborted) setError((reason as Error).message)
       })
       .finally(() => {
-        if (!controller.signal.aborted) setLoading(false)
+        window.clearTimeout(timeout)
+        if (active && !controller.signal.aborted) setLoading(false)
       })
-    return () => controller.abort()
+    return () => {
+      active = false
+      window.clearTimeout(timeout)
+      controller.abort()
+    }
   }, [url, requestLanguage, revision])
   return { data, error, loading, setData, reload: () => setRevision((value) => value + 1) }
 }

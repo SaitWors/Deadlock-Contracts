@@ -2,18 +2,19 @@ import BureauAtmosphere from "./BureauAtmosphere"
 import { lazy, Suspense, useEffect, useRef, useState } from "react"
 import BureauHeader from "./BureauHeader"
 import Icon, { type IconName } from "./icons/Icon"
-import Leaderboard from "./community/Leaderboard"
 import CollectionPreview from "./CollectionPreview"
 import matchCity from "./imports/city/uptown_02.webp"
 import { useReducedMotion } from "./Appearance"
 import { useSceneEntrance } from "./motion"
 import { usePublicNavigation } from "./public-navigation"
 import PublicContent, { readPublicCopy } from "./PublicContent"
-import { MCGCredit, useLanguage } from "./i18n"
+import { MCGCredit, matchModeLabel, useLanguage } from "./i18n"
 import { publicUrl, resolvePublicRoute, type PublicPage } from "./publicRoutes"
 import type { NavigationIconName } from "./icons/NavigationIcon"
+import "./guest-journey.css"
 
 const ContractSigning = lazy(() => import("./ContractSigning"))
+const Leaderboard = lazy(() => import("./community/Leaderboard"))
 type Mode = "STANDARD" | "RANKED" | "STREET_BRAWL"
 type ExampleContract = {
   id: number
@@ -130,6 +131,7 @@ export default function Landing() {
   }
   const page = route.page
   const hero = useRef<HTMLElement>(null)
+  const selectionSummary = useRef<HTMLDivElement>(null)
   const reducedMotion = useReducedMotion()
   useSceneEntrance(hero, page, reducedMotion)
   const copy = readPublicCopy({ page, language })
@@ -163,7 +165,7 @@ export default function Landing() {
   ]
   const board = (
     <section
-      className="ritual-board ritual-container"
+      className={`ritual-board ritual-container guest-board ${boardPage ? "guest-board-page" : ""}`}
       id="contract-board"
       aria-labelledby="board-title"
     >
@@ -180,91 +182,135 @@ export default function Landing() {
         </span>
       </div>
       <div className="ritual-board-toolbar">
-        <div className="ritual-modes" role="group" aria-label={ru ? "Режим игры" : "Game mode"}>
+        <fieldset className="ritual-modes guest-modes">
+          <legend className="sr-only">{ru ? "Режим игры" : "Game mode"}</legend>
           {(["STANDARD", "RANKED", "STREET_BRAWL"] as Mode[]).map((m) => (
-            <button
-              type="button"
-              key={m}
-              aria-pressed={mode === m}
-              onClick={() => {
-                setMode(m)
-                setSelected([])
-              }}
-            >
-              {
-                {
-                  STANDARD: ru ? "Обычный" : "Standard",
-                  RANKED: ru ? "Рейтинговый" : "Ranked",
-                  STREET_BRAWL: ru ? "Уличная драка" : "Street Brawl",
-                }[m]
-              }
-            </button>
+            <label key={m}>
+              <input
+                type="radio"
+                name="demo-match-mode"
+                value={m}
+                checked={mode === m}
+                onChange={() => {
+                  setMode(m)
+                  setSelected([])
+                }}
+              />
+              <span>{matchModeLabel(m, language)}</span>
+            </label>
           ))}
-        </div>
+        </fieldset>
         <p>
           {ru
             ? "Выбери до трёх контрактов на один матч"
             : "Choose up to three contracts for one match"}
         </p>
       </div>
-      <div className="ritual-contracts">
-        {EXAMPLES.map((c, i) => (
+      <div className="guest-board-workspace">
+        <div
+          className="ritual-contracts"
+          aria-describedby="guest-selection-help guest-demo-note"
+          onFocusCapture={(event) => {
+            const card = event.target
+            if (!(card instanceof HTMLButtonElement) || !card.matches(":focus-visible")) return
+            const bounds = card.getBoundingClientRect()
+            if (bounds.height <= 0) return
+            const header = card.closest(".ritual-public")?.querySelector(".bureau-header")
+            const top = Math.max(0, header?.getBoundingClientRect().bottom ?? 0)
+            const summary = selectionSummary.current?.getBoundingClientRect()
+            const bottom =
+              summary && summary.height > 0 && summary.bottom > 0
+                ? Math.min(window.innerHeight, summary.top)
+                : window.innerHeight
+            // Native focus scrolling does not account for an overlapping sticky dock.
+            // Repair only keyboard focus; selecting a card with a pointer stays in place.
+            if (bounds.top < top + 8 || bounds.bottom > bottom - 8)
+              card.scrollIntoView({ block: "center", inline: "nearest", behavior: "instant" })
+          }}
+        >
+          {EXAMPLES.map((c, i) => (
+            <button
+              type="button"
+              data-contract-choice={c.id}
+              key={c.id}
+              className={`ritual-contract ${selected.includes(c.id) ? "is-selected" : ""}`}
+              aria-pressed={selected.includes(c.id)}
+              aria-describedby={
+                selected.length === 3 && !selected.includes(c.id)
+                  ? "guest-selection-help"
+                  : undefined
+              }
+              disabled={selected.length === 3 && !selected.includes(c.id)}
+              onClick={() => toggle(c.id)}
+            >
+              <span className="ritual-contract-top">
+                <span>DC / {String(i + 1).padStart(3, "0")}</span>
+                <span className="ritual-choice-check">
+                  <Icon name={selected.includes(c.id) ? "check" : "plus"} size={17} />
+                </span>
+              </span>
+              <span className="ritual-contract-category">
+                <Icon name={c.icon} size={17} />
+                {c.category[lang]}
+              </span>
+              <strong>{c.title[lang]}</strong>
+              <span className="ritual-contract-description">{c.description[lang]}</span>
+              <span className="ritual-contract-bottom">
+                <span>{c.difficulty[lang]}</span>
+                <b>
+                  +{c.reward} <small>XP</small>
+                </b>
+              </span>
+            </button>
+          ))}
+        </div>
+        <div
+          ref={selectionSummary}
+          className="ritual-selection guest-selection"
+          role="region"
+          aria-label={ru ? "Выбранные контракты" : "Selected contracts"}
+        >
+          <div className="guest-selection-copy" role="status" aria-atomic="true">
+            <div className="guest-selection-total">
+              <span>
+                {ru ? "Выбрано" : "Selected"} <strong>{selected.length} / 3</strong>
+              </span>
+              <span className="ritual-selection-xp">
+                +{total} <span>XP</span>
+              </span>
+            </div>
+            <p id="guest-selection-help">
+              {selected.length === 3
+                ? ru
+                  ? "Чтобы заменить контракт, сними один из выбранных."
+                  : "Deselect a contract to choose a different one."
+                : selected.length === 0
+                  ? ru
+                    ? "Выбери 1–3 контракта и попробуй подписать."
+                    : "Choose 1–3 contracts to try signing."
+                  : ru
+                    ? "Можно подписать выбор или добавить ещё."
+                    : "Preview your selection or add another contract."}
+            </p>
+          </div>
           <button
             type="button"
-            data-contract-choice={c.id}
-            key={c.id}
-            className={`ritual-contract ${selected.includes(c.id) ? "is-selected" : ""}`}
-            aria-pressed={selected.includes(c.id)}
-            disabled={selected.length === 3 && !selected.includes(c.id)}
-            onClick={() => toggle(c.id)}
+            className="btn-primary"
+            disabled={!selected.length}
+            aria-describedby="guest-selection-help guest-demo-note"
+            onClick={() => setPreviewOpen(true)}
           >
-            <span className="ritual-contract-top">
-              <span>DC / {String(i + 1).padStart(3, "0")}</span>
-              <span className="ritual-choice-check">
-                <Icon name={selected.includes(c.id) ? "check" : "plus"} size={17} />
-              </span>
-            </span>
-            <span className="ritual-contract-category">
-              <Icon name={c.icon} size={17} />
-              {c.category[lang]}
-            </span>
-            <strong>{c.title[lang]}</strong>
-            <span className="ritual-contract-description">{c.description[lang]}</span>
-            <span className="ritual-contract-bottom">
-              <span>{c.difficulty[lang]}</span>
-              <b>
-                +{c.reward} <small>XP</small>
-              </b>
-            </span>
+            <Icon name="feather" size={18} />
+            {ru ? "Примерить подпись" : "Preview signing"}
+            <Icon name="arrow-up-right" size={18} />
           </button>
-        ))}
-      </div>
-      <div className="ritual-selection" aria-live="polite">
-        <div>
-          <span>{ru ? "ТВОЙ ВЫБОР" : "YOUR SELECTION"}</span>
-          <strong>
-            {selected.length} / 3 <small>{ru ? "контракта" : "contracts"}</small>
-          </strong>
         </div>
-        <div className="ritual-selection-xp">
-          +{total} <span>XP</span>
-        </div>
-        <button
-          type="button"
-          className="btn-primary"
-          disabled={!selected.length}
-          onClick={() => setPreviewOpen(true)}
-        >
-          <Icon name="feather" size={18} />
-          {ru ? "Примерить подпись" : "Preview signing"}
-          <Icon name="arrow-up-right" size={18} />
-        </button>
       </div>
-      <p className="ritual-board-note">
+      <p className="ritual-board-note" id="guest-demo-note">
         <Icon name="info" size={15} />
         {ru
-          ? "Это пример выбора. После входа появятся твои реальные контракты, условия и награды."
-          : "This is a preview. Sign in for your real contracts, conditions and rewards."}
+          ? "Демо: выбор не сохраняется, XP не начисляется. После входа через Steam появится твоя доска контрактов."
+          : "Demo: your selection is not saved and no XP is awarded. Sign in with Steam to see your contract board."}
       </p>
     </section>
   )
@@ -309,8 +355,8 @@ export default function Landing() {
                   </h1>
                   <p>
                     {ru
-                      ? "В каждом матче есть что-то большее, чем победа. Бери контракты, ставь свою подпись и превращай игру в личную историю."
-                      : "Every match has more to offer than a win. Pick your contracts, sign the deal and turn every game into your own story."}
+                      ? "Выбери до трёх заданий и подпиши их до матча в Deadlock. Выполни условия — получи XP после проверки результата."
+                      : "Choose up to three objectives and sign them before your Deadlock match. Complete the terms to earn XP after the result is verified."}
                   </p>
                   <div className="ritual-hero-actions" data-intro>
                     <a className="btn-primary" href={publicUrl("contracts", language)}>
@@ -519,27 +565,50 @@ export default function Landing() {
         )}
         {page === "cards" && (
           <>
-            <PublicContent copy={copy} />
+            <PublicContent copy={copy ? { ...copy, sections: [] } : null} />
             <section className="ritual-collection-callout ritual-container">
-              <CollectionPreview language={language} />
+              <CollectionPreview language={language} detailed />
               <div>
                 <p className="ritual-kicker">{ru ? "ЕЖЕДНЕВНЫЙ ПАК" : "DAILY PACK"}</p>
                 <h2>{ru ? "Забирай, открывай, собирай" : "Claim, reveal, collect"}</h2>
                 <p>
                   {ru
-                    ? "Один бесплатный пак на аккаунт в сутки. Следующая выдача — в 00:00 UTC (03:00 МСК)."
-                    : "One free pack per account per day. Resets at 00:00 UTC."}
+                    ? "Открой пак, сохрани находки в коллекции и выбери любимые карточки для своего профиля."
+                    : "Open a pack, keep your finds in the collection and choose your favorites for your profile."}
                 </p>
                 <SignIn />
               </div>
             </section>
+            <PublicContent
+              copy={copy}
+              heading={false}
+              compact
+              summary={ru ? "Как устроена коллекция" : "How the collection works"}
+            />
           </>
         )}
-        {!boardPage && !["home", "cards"].includes(page) && <PublicContent copy={copy} />}
+        {!boardPage && !["home", "cards", "leaderboards"].includes(page) && (
+          <PublicContent copy={copy} />
+        )}
         {page === "leaderboards" && (
-          <div className="ritual-container ritual-ranking">
-            <Leaderboard />
-          </div>
+          <>
+            <PublicContent copy={copy ? { ...copy, sections: [] } : null} />
+            <div className="ritual-container ritual-ranking">
+              <Suspense
+                fallback={
+                  <p role="status">{ru ? "Загружаем рейтинг…" : "Loading the leaderboard…"}</p>
+                }
+              >
+                <Leaderboard />
+              </Suspense>
+            </div>
+            <PublicContent
+              copy={copy}
+              heading={false}
+              compact
+              summary={ru ? "Как считается рейтинг" : "How standings work"}
+            />
+          </>
         )}
         {page === "how" && (
           <div className="ritual-container ritual-how-action">

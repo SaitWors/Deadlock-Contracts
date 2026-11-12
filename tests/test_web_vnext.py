@@ -5,6 +5,7 @@ ROOT = Path(__file__).resolve().parents[1]
 LANDING = (ROOT / "frontend/src/Landing.tsx").read_text(encoding="utf-8")
 APP = (ROOT / "frontend/src/App.tsx").read_text(encoding="utf-8")
 DASHBOARD = (ROOT / "frontend/src/Dashboard.tsx").read_text(encoding="utf-8")
+CONTRACT_CONTEXT = (ROOT / "frontend/src/ContractContext.tsx").read_text(encoding="utf-8")
 INDEX_CSS = (ROOT / "frontend/src/index.css").read_text(encoding="utf-8")
 VNEXT_CSS = (ROOT / "frontend/src/vnext.css").read_text(encoding="utf-8")
 SECURITY = (ROOT / "app/security.py").read_text(encoding="utf-8")
@@ -30,8 +31,9 @@ def test_public_and_authenticated_screens_share_the_bureau_header() -> None:
 def test_active_case_is_server_state_only() -> None:
     assert "Only server-locked conditions appear here." in DASHBOARD
     assert "activeBoards" in DASHBOARD
-    assert "SOURCE" in DASHBOARD
-    assert 'language === "ru" ? "Сервер" : "Server"' in DASHBOARD
+    assert "<VerificationContext" in DASHBOARD
+    assert "Status supplied by the server. Companion signals are provisional until the final decision." in CONTRACT_CONTEXT
+    assert "Статус получен от сервера." in CONTRACT_CONTEXT
 
 
 def test_fonts_are_self_hosted_and_csp_has_no_google_font_exception() -> None:
@@ -113,7 +115,8 @@ def test_alpha11_public_release_hygiene() -> None:
     assert '"companion_manifest_version": "0.5.2.18"' in release
 
     assert 'href="#"' not in LANDING
-    assert "This is a preview. Sign in for your real contracts, conditions and rewards." in LANDING
+    assert "Demo: your selection is not saved and no XP is awarded." in LANDING
+    assert "Демо: выбор не сохраняется, XP не начисляется." in LANDING
     assert "Примерить подпись" in LANDING
 
     legal = (

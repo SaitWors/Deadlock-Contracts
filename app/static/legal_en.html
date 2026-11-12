@@ -81,10 +81,11 @@
     <article id="statusDocument" class="legal-document hidden">
       <p class="eyebrow">SERVICE STATUS</p>
       <h1>Service status</h1>
-      <p class="legal-updated">Updated August 24, 2026</p>
-      <p>Current public release, component state and published incident history:</p>
+      <p>Server-reported information about connected services and reward delivery. The retrieval time appears below.</p>
       <div id="publicStatus" class="public-status-grid" role="status" aria-live="polite">Loading status…</div>
-      <p>If the status endpoint is unavailable, use the <a href="/en/support">support page</a>.</p>
+      <button id="refreshStatus" class="ghost-button" type="button" hidden>Refresh information</button>
+      <p class="public-status-note">This describes service configuration, not an independent availability check. A configured connection does not guarantee that the match source is responding right now.</p>
+      <p>If a match result is delayed, visit <a href="/en/support">support</a>. Waiting for data does not itself mean a contract has failed.</p>
     </article>
 
     <article id="changelogDocument" class="legal-document hidden">
@@ -103,13 +104,15 @@
       <p class="eyebrow">DATA SOURCES</p>
       <h1>Data sources</h1>
       <h2>Steam</h2>
-      <p>Steam OpenID identifies the account. Public name and avatar may be enriched server-side through the Steam Web API.</p>
+      <p>Steam confirms which account belongs to you. We may also retrieve its public name and avatar through the Steam API. Your Steam password is not shared with this site.</p>
       <h2>Deadlock match data</h2>
-      <p>Final statistics may come from a community-operated Deadlock API. Availability of this external source is not guaranteed.</p>
+      <p>Final statistics may come from Deadlock API, an independent source run by the community. Results can arrive with a delay; we do not control this source's availability.</p>
       <h2>Companion / Overwolf GEP</h2>
-      <p>The Companion receives supported live game signals through the Overwolf Game Events Provider. Those signals are provisional and diagnostic.</p>
-      <h2>Authority</h2>
-      <p>Only the server evaluator, using final provider facts, determines the contract verdict. Only the server XP ledger determines granted XP.</p>
+      <p>The Companion receives supported events from your current game through the Overwolf Game Events Provider. They help track the match, but are provisional and cannot confirm contract completion on their own.</p>
+      <h2>How contracts and XP are confirmed</h2>
+      <p>After the match, the server checks final data against the signed contract conditions. Depending on the available verification method, it uses match-source data or eligible final Companion data. The server always decides completion and awarded XP; provisional progress in the app is not a reward. Leaderboard eligibility may follow different rules.</p>
+      <h2>If data is still missing</h2>
+      <p>Waiting or further review does not mean failure. Open the active case to see the verification state and the next step. If you need help, visit <a href="/en/support">support</a>.</p>
       <h2>Project status</h2>
       <p>Deadlock Contracts is a community project and is not an official Valve or Overwolf product.</p>
     </article>

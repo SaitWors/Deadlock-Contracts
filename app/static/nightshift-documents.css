@@ -32,6 +32,11 @@ html:has(.ns-static){background:var(--ns-bg)}
 .ns-documents .public-status-item{display:grid;gap:7px;padding:20px;background:var(--ns-elevated);border:1px solid var(--ns-line);border-radius:calc(var(--ns-radius) * .5)}
 .ns-documents .public-status-item span{color:var(--ns-muted);font-size:13px}.ns-documents .public-status-item strong{color:var(--ns-info);font-size:17px;overflow-wrap:anywhere}
 .ns-documents .public-status-meta{grid-column:1/-1;font-size:13px!important}
+.ns-documents .public-status-item[data-state=attention] strong{color:var(--ns-warning)}
+.ns-documents #refreshStatus{margin:8px 0 20px;cursor:pointer}
+.ns-documents #refreshStatus[hidden]{display:none}
+.ns-documents #refreshStatus[aria-disabled=true]{opacity:.6;cursor:wait}
+.ns-documents .legal-document .public-status-note{font-size:14px;line-height:1.7}
 .ns-documents .site-footer{border-top:1px solid var(--ns-line);background:var(--ns-deep);color:var(--ns-muted);font-size:12px}.ns-documents .footer-inner{display:flex;align-items:center;justify-content:space-between;gap:24px;padding:25px 0}.ns-documents .site-footer a{color:inherit;text-underline-offset:4px}
 /* These fallback nodes are replaced by React after hydration; they remain complete without JavaScript. */
 body:has(.city-public){margin:0;background:var(--ns-bg)}

@@ -77,19 +77,20 @@ def cards_for_pool(db, entries, *, lock=False):
     return {card.id: card for card in db.scalars(statement)}
 
 
-def collectible_pack_card(card):
+def collectible_pack_card(card, *, has_artwork=None):
     from .arena_catalog_repair import is_pristine_arena_card
     return bool(card.status == "PUBLISHED" and card.hero in HEROES and card.rank in RANKS
-                and card.image_digest and card.image_data and not is_pristine_arena_card(card))
+                and card.image_digest and (card.image_data if has_artwork is None else has_artwork)
+                and not is_pristine_arena_card(card))
 
 
-def ready_pool(entries, cards):
-    return bool(entries) and all(entry["card_id"] in cards and collectible_pack_card(cards[entry["card_id"]])
+def ready_pool(entries, cards, *, collectible=collectible_pack_card):
+    return bool(entries) and all(entry["card_id"] in cards and collectible(cards[entry["card_id"]])
                                  for entry in entries)
 
 
-def ready_v2_pool(db, entries, cards, *, lock=False):
-    if not entries or not ready_pool(entries, cards) or {entry["rank"] for entry in entries} != set(pack_rules.RANKS):
+def ready_v2_pool(db, entries, cards, *, lock=False, collectible=collectible_pack_card):
+    if not entries or not ready_pool(entries, cards, collectible=collectible) or {entry["rank"] for entry in entries} != set(pack_rules.RANKS):
         return False
     groups = {}
     for entry in entries:
@@ -559,7 +560,7 @@ def _daily_operation(db, user_id, key):
                                                    ArchiveOperation.benefit_key == key))
 
 
-def _daily_pool(db, *, lock=False):
+def _daily_pool(db, *, lock=False, metadata_only=False):
     # Prefer the existing introductory release; otherwise use the oldest active
     # release. Skip unavailable releases rather than consuming the entitlement.
     statement = select(ArchivePack).where(ArchivePack.active.is_(True)).order_by(
@@ -571,9 +572,22 @@ def _daily_pool(db, *, lock=False):
         if version is None:
             continue
         config = version.config
-        cards = cards_for_pool(db, config["entries"], lock=lock)
-        ready = (ready_v2_pool(db, config["entries"], cards, lock=lock)
-                 if config.get("rule_version") == pack_rules.RULE_VERSION else ready_pool(config["entries"], cards))
+        collectible = collectible_pack_card
+        if metadata_only:
+            # SQL checks for nonempty artwork without sending each pool BLOB
+            # to the public request. image_data stays deferred on each card.
+            rows = db.execute(select(ArchiveCard, func.length(ArchiveCard.image_data)).where(
+                ArchiveCard.id.in_([entry["card_id"] for entry in config["entries"]])))
+            cards = {}
+            image_sizes = {}
+            for card, image_size in rows:
+                cards[card.id] = card
+                image_sizes[card.id] = image_size or 0
+            collectible = lambda card: collectible_pack_card(card, has_artwork=image_sizes[card.id] > 0)
+        else:
+            cards = cards_for_pool(db, config["entries"], lock=lock)
+        ready = (ready_v2_pool(db, config["entries"], cards, lock=lock, collectible=collectible)
+                 if config.get("rule_version") == pack_rules.RULE_VERSION else ready_pool(config["entries"], cards, collectible=collectible))
         if ready:
             return pack, version, cards
     return None
@@ -587,6 +601,48 @@ def daily_status(db, user_id, scope="REAL"):
     return {"available": claimed is None and pool is not None, "next_reset_at": reset,
             "claimed_at": aware(claimed.created_at).isoformat() if claimed else None,
             "pack": pack, "operation_id": claimed.id if claimed else None}
+
+
+def daily_preview_cards(pool):
+    """Only a few illustrated cards from the currently claimable daily pool.
+
+    This is not a public catalogue or an ownership/odds API. Prefer distinct
+    heroes so a preview does not imply that three ranks of one hero are a draw.
+    """
+    if pool is None:
+        return []
+    cards = sorted(
+        pool[2].values(),
+        key=lambda card: (card.hero, card.rank, str(card.id)),
+    )
+    selected = []
+    heroes = set()
+    for card in cards:
+        if card.hero in heroes:
+            continue
+        selected.append(card)
+        heroes.add(card.hero)
+        if len(selected) == 3:
+            break
+    return selected
+
+
+def public_daily_preview(db):
+    pool = _daily_pool(db, metadata_only=True)
+    _, _, reset = _daily_window("REAL")
+    fields = ("id", "rank", "title", "crop_x", "crop_y", "zoom", "source_url")
+    cards = []
+    for card in daily_preview_cards(pool):
+        cards.append({
+            **{field: getattr(card, field) for field in fields},
+            "hero_name": HEROES[card.hero],
+            "image_url": f"/api/public/archive/preview/{card.id}/image?r={card.revision}",
+        })
+    return {"available": pool is not None, "next_reset_at": reset, "cards": cards}
+
+
+def public_daily_preview_image(db, card_id):
+    return next((card for card in daily_preview_cards(_daily_pool(db, metadata_only=True)) if str(card.id) == str(card_id)), None)
 
 
 

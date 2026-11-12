@@ -2,10 +2,31 @@ import ratKing from "./hero-votes/portraits/84.webp"
 import solomon from "./hero-votes/portraits/85.webp"
 import violet from "./hero-votes/portraits/86.webp"
 import Icon from "./icons/Icon"
+import { lazy, Suspense } from "react"
+
+const DailyCollectionPreview = lazy(() => import("./DailyCollectionPreview"))
 
 // Existing Valve portraits; this is an illustration of the collection, not a pack result.
-export default function CollectionPreview({ language }: { language: "ru" | "en" }) {
+export default function CollectionPreview({
+  language,
+  detailed = false,
+}: {
+  language: "ru" | "en"
+  detailed?: boolean
+}) {
   const ru = language === "ru"
+  if (detailed)
+    return (
+      <Suspense
+        fallback={
+          <p className="community-muted" role="status">
+            {ru ? "Загружаем коллекцию…" : "Loading the collection…"}
+          </p>
+        }
+      >
+        <DailyCollectionPreview language={language} />
+      </Suspense>
+    )
   return (
     <div
       className="ritual-collection-preview"

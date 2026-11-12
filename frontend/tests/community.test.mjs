@@ -438,6 +438,42 @@ test("leaderboard errors can be retried and private players get a settings actio
   await api.act(async () => root.unmount())
 })
 
+test("leaderboard is table-first, distinguishes ranked XP and keeps all-time counts clear across scopes", async () => {
+  const { doc, api } = runtime(
+    async () =>
+      response({
+        rows: [row(1, "First operative", 5080), row(2, "Second operative", 240)],
+        total: 2,
+        generated_at: "2026-11-13T12:00:00Z",
+        reset_at: "2026-11-14T00:00:00Z",
+      }),
+    "en",
+  )
+  let root
+  await api.act(async () => {
+    root = api.mount(doc.getElementById("mount"), "leaderboard", {})
+  })
+  assert.equal(doc.querySelectorAll(".leaderboard-table tbody tr").length, 2)
+  assert.equal(doc.querySelectorAll('a[href="/u/agent-1"]').length, 1)
+  assert.equal(doc.querySelector(".leaderboard-podium"), null)
+  assert.match(doc.querySelector("thead").textContent, /Leaderboard XP/)
+  assert.match(doc.querySelector("caption").textContent, /Showing 2 of 2/)
+  assert.match(
+    doc.querySelector(".leaderboard-scoring").textContent,
+    /Total experience in a profile may differ/,
+  )
+  await api.act(async () => button(doc, "Today").click())
+  assert.match(doc.querySelector("caption").textContent, /Eligible contracts, all-time/)
+  assert.match(doc.querySelector("thead").textContent, /XP today/)
+  assert.equal(doc.querySelector(".leaderboard-scoring time").dateTime, "2026-11-14T00:00:00Z")
+  assert.equal(doc.querySelectorAll('.community-tabs button[aria-pressed="true"]').length, 1)
+  await api.act(async () => button(doc, "Rare cases").click())
+  assert.match(doc.querySelector("thead").textContent, /Points/)
+  assert.match(doc.querySelector(".leaderboard-scoring").textContent, /Rare case: 1 point/)
+  assert.equal(doc.querySelector(".leaderboard-scoring time"), null)
+  await api.act(async () => root.unmount())
+})
+
 test("visitor preview honors privacy and profile save prevents duplicate posts", async () => {
   let posts = 0,
     completeSave,

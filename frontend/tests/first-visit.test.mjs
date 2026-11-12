@@ -161,11 +161,115 @@ test("changing public match mode clears the trial selection", async () => {
   const first = doc.querySelector("[data-contract-choice]")
   await api.act(async () => first.click())
   assert.equal(first.getAttribute("aria-pressed"), "true")
-  await api.act(async () => button(doc.querySelector(".ritual-modes"), "Рейтинговый").click())
+  await api.act(async () => doc.querySelector('.ritual-modes input[value="RANKED"]').click())
   assert.equal(doc.querySelectorAll('[data-contract-choice][aria-pressed="true"]').length, 0)
   assert.equal(button(doc, "Примерить подпись").disabled, true)
   await api.act(async () => root.unmount())
 })
+
+test("keyboard focus reveals a contract occluded by the dock or header without moving pointer selection", async () => {
+  const { api, doc, root, w } = await mountGuest()
+  const card = doc.querySelector('[data-contract-choice="3"]')
+  const summary = doc.querySelector(".guest-selection")
+  const scrolls = []
+  let keyboard = true
+  let bounds = { top: 734, bottom: 977, height: 243 }
+  // Geometry is controlled to exercise the visibility decision, not assert browser layout.
+  // The occluded case comes from the manual 390 x 844 browser check.
+  Object.defineProperty(w, "innerHeight", { value: 844, configurable: true })
+  doc.querySelector(".bureau-header").getBoundingClientRect = () => ({ bottom: 64 })
+  summary.getBoundingClientRect = () => ({ top: 707, bottom: 836, height: 129 })
+  card.getBoundingClientRect = () => bounds
+  const matches = card.matches.bind(card)
+  card.matches = (selector) => (selector === ":focus-visible" ? keyboard : matches(selector))
+  card.scrollIntoView = (options) => scrolls.push({ ...options })
+  assert.equal(summary.getAttribute("role"), "region")
+  await api.act(async () => card.focus())
+  assert.equal(doc.activeElement, card)
+  assert.deepEqual(scrolls, [{ block: "center", inline: "nearest", behavior: "instant" }])
+  await api.act(async () => {
+    card.blur()
+    bounds = { top: 100, bottom: 343, height: 243 }
+    card.focus()
+  })
+  assert.equal(scrolls.length, 1, "a fully visible card does not move")
+  await api.act(async () => {
+    card.blur()
+    bounds = { top: 30, bottom: 273, height: 243 }
+    card.focus()
+  })
+  assert.equal(scrolls.length, 2, "the fixed header is also an occluder")
+  await api.act(async () => {
+    card.blur()
+    keyboard = false
+    bounds = { top: 734, bottom: 977, height: 243 }
+    card.focus()
+    card.click()
+  })
+  assert.equal(scrolls.length, 2, "pointer selection does not scroll the board")
+  assert.equal(card.getAttribute("aria-pressed"), "true")
+  await api.act(async () => {
+    keyboard = true
+    const mode = doc.querySelector('.ritual-modes input[value="RANKED"]')
+    mode.focus()
+    mode.click()
+  })
+  assert.equal(scrolls.length, 2, "mode changes and their rerenders do not scroll")
+  assert.equal(card.getAttribute("aria-pressed"), "false")
+  await api.act(async () => root.unmount())
+})
+
+for (const language of ["ru", "en"])
+  test(`${language}: trial selection explains the limit and releases a slot without losing other choices`, async () => {
+    const { api, doc, root } = await mountGuest({ language })
+    const cards = [...doc.querySelectorAll("[data-contract-choice]")]
+    const summary = doc.querySelector(".guest-selection")
+    const status = summary.querySelector('[role="status"]')
+    const preview = summary.querySelector("button")
+    const modeInputs = [...doc.querySelectorAll('.ritual-modes input[type="radio"]')]
+    assert.equal(modeInputs.length, 3)
+    assert.deepEqual(
+      modeInputs.filter((input) => input.checked).map((input) => input.value),
+      ["STANDARD"],
+    )
+    assert.ok(doc.querySelector(".ritual-modes legend").textContent)
+    assert.equal(preview.disabled, true)
+    assert.match(status.textContent, /0 \/ 3/)
+    for (const card of cards.slice(0, 3)) await api.act(async () => card.click())
+    assert.equal(preview.disabled, false)
+    assert.match(status.textContent, /3 \/ 3/)
+    assert.match(status.textContent, /\+500/)
+    assert.match(status.textContent, language === "ru" ? /сними один/ : /Deselect/)
+    assert.equal(
+      cards.slice(0, 3).every((card) => !card.disabled),
+      true,
+    )
+    assert.equal(
+      cards.slice(3).every((card) => card.disabled),
+      true,
+    )
+    assert.equal(cards[3].getAttribute("aria-describedby"), "guest-selection-help")
+    await api.act(async () => cards[3].click())
+    assert.equal(doc.querySelectorAll('[data-contract-choice][aria-pressed="true"]').length, 3)
+    await api.act(async () => modeInputs[0].click())
+    assert.equal(doc.querySelectorAll('[data-contract-choice][aria-pressed="true"]').length, 3)
+    await api.act(async () => cards[1].click())
+    assert.equal(
+      cards.every((card) => !card.disabled),
+      true,
+    )
+    assert.match(status.textContent, /2 \/ 3/)
+    assert.match(status.textContent, /\+380/)
+    assert.equal(cards[0].getAttribute("aria-pressed"), "true")
+    assert.equal(cards[2].getAttribute("aria-pressed"), "true")
+    await api.act(async () => cards[3].click())
+    assert.match(status.textContent, /\+620/)
+    assert.match(
+      doc.getElementById("guest-demo-note").textContent,
+      language === "ru" ? /XP не начисляется/ : /no XP is awarded/,
+    )
+    await api.act(async () => root.unmount())
+  })
 
 test("the prominent home action leads to contract selection without a cipher", async () => {
   const { api, doc } = runtime({ pathname: "/en/", language: "en" })

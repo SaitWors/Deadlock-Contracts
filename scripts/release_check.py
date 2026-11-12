@@ -213,10 +213,10 @@ def main() -> int:
                 "landing still contains dead href=# links",
             )
 
-        if (
-            "This is a preview. Sign in for your real contracts, conditions and rewards."
-            not in landing
-        ):
+        if not all(disclaimer in landing for disclaimer in (
+            "Демо: выбор не сохраняется, XP не начисляется.",
+            "Demo: your selection is not saved and no XP is awarded.",
+        )):
             fail(
                 errors,
                 "landing preview is not marked as non-persistent",

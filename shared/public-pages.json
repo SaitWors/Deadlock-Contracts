@@ -165,11 +165,11 @@
       "sections": [
         {
           "heading": "Ежедневный пак",
-          "text": "Войди через Steam и забери один доступный пак за день. Следующая выдача обновляется в 00:00 UTC (03:00 МСК). Повторный запрос показывает тот же результат и не выдаёт дополнительные карты."
+          "text": "Войди через Steam и забери один бесплатный пак за день. Следующий станет доступен в 00:00 UTC — это 03:00 по Москве. Если открытие прервётся, вернись к нему: полученные карточки сохранятся."
         },
         {
           "heading": "Карточки остаются у тебя",
-          "text": "Результат сохраняется сервером до анимации открытия. Карты доступны в твоей коллекции: ищи героев, отмечай избранное и выбирай витрину профиля."
+          "text": "В коллекции можно найти карточки по герою, отметить избранное и выбрать до трёх для витрины профиля. Открытие и пропуск анимации приводят к одному и тому же результату."
         },
         {
           "heading": "Редкость и оформление",
@@ -186,11 +186,11 @@
       "sections": [
         {
           "heading": "A daily pack",
-          "text": "Sign in with Steam and claim one available pack per day. Availability resets at 00:00 UTC. Repeating the request shows the same result without awarding extra cards."
+          "text": "Sign in with Steam and claim one free pack per day. The next pack becomes available at 00:00 UTC. If the reveal is interrupted, come back to it: your received cards are saved."
         },
         {
           "heading": "Your cards stay with you",
-          "text": "The server saves the result before the reveal animation. Search your collection by hero, save your favorites and choose a profile showcase."
+          "text": "Search your collection by hero, save your favorites and choose up to three cards for your profile showcase. Watching or skipping the reveal gives you the same cards."
         },
         {
           "heading": "Rarity and artwork",
@@ -257,11 +257,11 @@
       "sections": [
         {
           "heading": "Что учитывается",
-          "text": "Таблица опирается на подтверждённые награды за контракты. Тестовые начисления администратора не дают места в рейтинге."
+          "text": "Место по XP зависит от подтверждённых контрактных наград, допущенных в рейтинг. Ручные корректировки не учитываются, поэтому общий опыт в профиле может отличаться. Число контрактов в таблице — только учтённые рейтингом за всё время, в том числе на вкладке «Сегодня»."
         },
         {
-          "heading": "Актуальные результаты",
-          "text": "Таблица ниже загружает результаты с сервера. Если данные временно недоступны, попробуйте позже. Свой прогресс и место можно смотреть и из кабинета, не выходя из аккаунта."
+          "heading": "Как попасть в рейтинг",
+          "text": "Опубликуйте профиль, включите показ статистики и получите результат, который учитывается в выбранной таблице. В кабинете видно своё место, даже если оно ниже первых 50. Дневной рейтинг начинается заново в 00:00 UTC."
         }
       ]
     },
@@ -274,11 +274,11 @@
       "sections": [
         {
           "heading": "What counts",
-          "text": "Only verified contract rewards count toward the standings. Administrative test grants do not count."
+          "text": "XP standings use verified contract rewards eligible for this board. Administrative adjustments are excluded, so total profile experience may differ. The contract count includes eligible completions over all time, including on the Today board."
         },
         {
-          "heading": "Current standings",
-          "text": "The table below loads current results from the server. If data is temporarily unavailable, try again later. Your dashboard also shows your progress and place in the standings."
+          "heading": "How to join the standings",
+          "text": "Publish your profile, enable public stats and earn a result that counts toward the selected board. Your dashboard shows your own position even outside the top 50. The daily board resets at 00:00 UTC."
         }
       ]
     }
