@@ -1,14 +1,15 @@
 from __future__ import annotations
 
+import time
+from dataclasses import replace
+from datetime import datetime, timezone
+from urllib.parse import parse_qs, urlparse
 from uuid import UUID
 
-import time
-from datetime import datetime, timezone
-
+from fastapi.testclient import TestClient
 from sqlalchemy import select
 
-from fastapi.testclient import TestClient
-
+from app.config import settings
 from app.db import SessionLocal
 from app.main import (
     AdminUserStatusRequest,
@@ -16,6 +17,7 @@ from app.main import (
     app,
 )
 from app.models import (
+    AuditLog,
     BoardOption,
     CompanionDevice,
     CompanionPairing,
@@ -23,7 +25,6 @@ from app.models import (
     Match,
     RewardLedgerEntry,
     User,
-    AuditLog,
 )
 from app.services.companion import create_pairing
 
@@ -245,6 +246,73 @@ def test_desktop_bootstrap_lock_and_reroll_use_bearer_authority() -> None:
         assert rerolled.json()["board"]["generation"] == 1
         assert rerolled.json()["refresh"]["remaining"] == 0
         assert client.post("/api/desktop/v1/boards/STREET_BRAWL/reroll", headers=headers).status_code == 409
+
+
+def test_browser_pairing_authorizes_the_requesting_companion_and_its_native_contract_board(monkeypatch) -> None:
+    monkeypatch.setattr("app.main.settings", replace(settings, companion_minimum_version="0.5.2-alpha.18"))
+    unique = int(time.time_ns() % 1_000_000_000)
+    steam_id64 = 76561199000000000 + unique
+    with SessionLocal() as db:
+        user = User(steam_id64=steam_id64, account_id=steam_id64 - 76561197960265728, display_name="Browser Pairing Test")
+        db.add(user)
+        db.commit()
+        db.refresh(user)
+        db.expunge(user)
+    monkeypatch.setattr("app.main.verify_steam_callback", lambda *_: steam_id64)
+    monkeypatch.setattr("app.main.get_or_create_steam_user", lambda *_: user)
+
+    link = "/api/companion/pairing/link"
+    device = {"device_id": f"browser-pairing-{unique}", "version": "0.5.2-alpha.19"}
+    origin = {"Origin": "www.overwolf.com://deadlockcontracts"}
+    with TestClient(app) as browser, TestClient(app) as companion:
+        page = browser.get("/pair", headers={"Accept-Language": "ru-RU"})
+        assert page.status_code == 200
+        assert '<html lang="en">' in page.text
+        assert "no-store" in page.headers["Cache-Control"]
+        old_build = companion.post(f"{link}/start", json={**device, "version": "0.5.2-alpha.8"}, headers=origin)
+        assert old_build.status_code == 426
+        assert old_build.headers["X-Minimum-Companion-Version"] == "0.5.2-alpha.18"
+
+        issued = companion.post(f"{link}/start", json=device, headers=origin)
+        assert issued.status_code == 200
+        challenge = issued.json()["challenge"]
+        claimant = {**device, "verifier": issued.json()["verifier"]}
+        approval = {"challenge": challenge}
+        assert claimant["verifier"] not in challenge
+        assert companion.post(f"{link}/claim", json=claimant, headers=origin).json() == {"pending": True}
+        assert browser.post(f"{link}/approve", json=approval).status_code == 403
+
+        login = browser.get("/auth/steam?return_to=pair", follow_redirects=False)
+        callback = parse_qs(urlparse(login.headers["Location"]).query)["openid.return_to"][0]
+        state = parse_qs(urlparse(callback).query)["state"][0]
+        assert state.startswith("pair.")
+        signed_in = browser.get(f"/auth/steam/callback?state={state}", follow_redirects=False)
+        assert signed_in.headers["Location"] == "/pair?login=ok"
+
+        session = browser.get("/api/me").json()
+        csrf = {"X-CSRF-Token": session["csrf_token"]}
+        assert browser.post(f"{link}/approve", json=approval).status_code == 403
+        assert browser.post(f"{link}/approve", json=approval, headers={**csrf, "Origin": "https://example.org"}).status_code == 403
+        wrong_signature = challenge[:-1] + ("1" if challenge[-1] == "0" else "0")
+        assert browser.post(f"{link}/approve", json={"challenge": wrong_signature}, headers=csrf).status_code == 410
+        assert browser.post(f"{link}/approve", json=approval, headers=csrf).json() == {"approved": True}
+        assert companion.post(f"{link}/claim", json={**claimant, "device_id": "different-device"}, headers=origin).json() == {"pending": True}
+        linked = companion.post(f"{link}/claim", json=claimant, headers=origin)
+        assert linked.status_code == 200
+        assert linked.json()["account"]["steam_id64"] == str(steam_id64)
+        token = linked.json()["token"]
+        # Losing the response must leave the same token available for this device.
+        assert companion.post(f"{link}/claim", json=claimant, headers=origin).json()["token"] == token
+
+        bearer = {**origin, "Authorization": f"Bearer {token}"}
+        bootstrap = companion.get("/api/desktop/v1/bootstrap", headers=bearer)
+        board = next(item for item in bootstrap.json()["boards"] if item["game_match_mode"] == "STANDARD")
+        chosen = [option["id"] for option in board["options"][:3]]
+        locked = companion.post("/api/desktop/v1/boards/lock", json={"mode": "STANDARD", "option_ids": chosen}, headers=bearer)
+        assert locked.status_code == 200
+        assert locked.json()["board"]["status"] == "LOCKED"
+        website_board = browser.get("/api/board/today?mode=STANDARD").json()
+        assert {item["id"] for item in website_board["options"] if item["selected"]} == set(chosen)
 
 
 def test_desktop_token_respects_account_status() -> None:

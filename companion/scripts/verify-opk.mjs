@@ -3,8 +3,9 @@ import path from 'node:path'
 import zlib from 'node:zlib'
 import {fileURLToPath} from 'node:url'
 
-const file=process.argv[2]
-if(!file) throw new Error('Usage: node scripts/verify-opk.mjs <file.opk>')
+const root = fileURLToPath(new URL('../', import.meta.url))
+const release = JSON.parse(fs.readFileSync(path.join(root, 'release.json'), 'utf8'))
+const file = process.argv[2] || path.join(root, 'dist', `Deadlock-Contracts-Companion-${release.product_version}.opk`)
 const buf=fs.readFileSync(file)
 const entries=[]
 for(let i=0;i<=buf.length-46;i++){
@@ -39,18 +40,8 @@ if(manifestEntry){
   let manifest
   try{manifest=JSON.parse(extract(manifestEntry).toString('utf8'))}catch(error){errors.push(`manifest invalid: ${error.message}`)}
   if(manifest){
-    const release=JSON.parse(
-      fs.readFileSync(
-        path.resolve(
-          path.dirname(fileURLToPath(import.meta.url)),
-          '..',
-          'release.json'
-        ),
-        'utf8'
-      )
-    )
     if(manifest.meta?.version!==release.manifest_version) errors.push('manifest version mismatch')
-    const paths=[manifest.meta?.icon,manifest.meta?.icon_gray,manifest.meta?.launcher_icon,manifest.meta?.window_icon,...Object.values(manifest.data?.windows||{}).map(w=>w?.file)].filter(Boolean)
+    const paths=[manifest.meta?.icon,manifest.meta?.icon_gray,manifest.meta?.launcher_icon,manifest.meta?.window_icon,manifest.data?.uninstall_window?.file,...Object.values(manifest.data?.windows||{}).map(w=>w?.file)].filter(Boolean)
     for(const p of paths) if(!names.has(String(p).replaceAll('\\','/'))) errors.push(`manifest path missing: ${p}`)
   }
 }

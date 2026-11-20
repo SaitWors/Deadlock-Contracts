@@ -142,10 +142,16 @@ def _rate_rule(path: str) -> tuple[str, int, int] | None:
         return "auth", settings.auth_rate_limit_per_10_minutes, 600
     if path == "/api/reviewer/access":
         return "overwolf-qa", 6, 900
+    if path == "/api/feedback/companion-uninstall":
+        return "companion-feedback", 5, 3600
     if path == "/api/admin/auth/totp":
         return "admin-totp", 8, 600
     if path == "/api/matches/sync":
         return "sync", settings.sync_rate_limit_per_hour, 3600
+    if path == "/api/companion/pairing/link/claim":
+        return "companion-link-claim", 120, 60
+    if path in {"/api/companion/pairing/link/start", "/api/companion/pairing/link/approve"}:
+        return "companion-link-start", 20, 600
     if path in {"/api/companion/pairing/start", "/api/companion/pairing/claim"}:
         return "companion-pairing", 20, 600
     if path == "/api/companion/heartbeat":
@@ -224,7 +230,7 @@ class RequestSecurityMiddleware:
                 await self._reject(send, 400, "Некорректный Content-Length", request_id)
                 return
 
-        bearer_client_path = path.startswith("/api/companion/") or path.startswith("/api/desktop/v1/")
+        bearer_client_path = path.startswith(("/api/companion/", "/api/desktop/v1/")) and path != "/api/companion/pairing/link/approve"
         if method in UNSAFE_METHODS and path.startswith("/api/") and not bearer_client_path and not _origin_allowed(headers):
             await self._reject(send, 403, "Источник запроса не разрешён", request_id)
             return

@@ -253,10 +253,12 @@ def steam_login_url(state: str) -> str:
     return settings.steam_openid_url + "?" + urlencode(params)
 
 
-def begin_steam_login(db: Session, response: Response) -> str:
+def begin_steam_login(db: Session, response: Response, *, for_companion: bool = False) -> str:
     now = utcnow()
     db.execute(delete(OpenIDState).where(OpenIDState.expires_at <= now))
     state = secrets.token_urlsafe(32)
+    if for_companion:
+        state = "pair." + state
     db.add(OpenIDState(state_hash=hash_secret(state, "openid-state"), expires_at=now + timedelta(minutes=10)))
     db.commit()
     response.set_cookie(

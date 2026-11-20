@@ -4,7 +4,6 @@
   const Storage = window.DCStorage
   const OFFICIAL_SITE = 'https://deadlock-contracts.online'
   const MCG_URL = 'https://t.me/MandarinCreatorGroup'
-  const HOTKEY_URL = 'overwolf://settings/games-overlay?hotkey=toggle_contract_overlay&gameId=24482'
   const FTUE_KEY = 'dc.desktop.ftue.v2'
   const DEBRIEF_SEEN_KEY = 'dc.desktop.debrief.seen.v1'
   const DRAFT_KEY = 'dc.desktop.contract-drafts.v1'
@@ -233,7 +232,7 @@
   function toast(title, message = '', kind = 'success') {
     const element = document.createElement('div')
     element.className = `toast ${kind === 'error' ? 'error' : ''}`
-    element.innerHTML = `<div></div><div><b>${escapeHtml(title)}</b>${message ? `<span>${escapeHtml(message)}</span>` : ''}</div>`
+    element.innerHTML = `<div><b>${escapeHtml(title)}</b>${message ? `<span>${escapeHtml(message)}</span>` : ''}</div>`
     $('toastRegion').appendChild(element)
     setTimeout(() => element.remove(), 4400)
   }
@@ -246,31 +245,25 @@
   }
 
   function isSafeDesktopAdMoment() {
-    const gepStatus = String(snapshot.health?.gep?.status || '')
-    // Fail closed on unknown/stale state. Ads are never eligible while Deadlock
-    // is running in the initial QA channel.
-    if (!['LIVE', 'LAGGING', 'NO_MATCH'].includes(gepStatus)) return false
-    return snapshot.game_running === false
+    // GEP stays STARTING outside the game. Use the process watchdog instead.
+    const ageMs = Date.now() - Date.parse(snapshot.game_state_observed_at)
+    return snapshot.game_running === false && ageMs >= 0 && ageMs < 60000
   }
 
   function syncDesktopAdSlot() {
-    const hqIsOpen = $('view-hq')?.classList.contains('active')
     const ftueIsClosed = $('ftue')?.hidden === true
     const modalIsClosed = $('confirmModal')?.hidden === true && !modalResolve
+      && !document.querySelector('.desktop-announcement-modal-backdrop')
     const productReady = snapshot.product?.status === 'ONLINE'
       && ((snapshot.product?.boards?.length || 0) > 0 || (snapshot.product?.active_cases?.length || 0) > 0)
     const serverAllowsAds = snapshot.product?.server_features?.includes('desktop_ads_v1') === true
-    const eligible = serverAllowsAds
-      && !!snapshot.paired
-      && hqIsOpen
+    const eligible = !!snapshot.paired
       && ftueIsClosed
       && modalIsClosed
-      && !busy
       && navigator.onLine !== false
-      && document.visibilityState === 'visible'
       && productReady
       && isSafeDesktopAdMoment()
-    window.DCDesktopAds?.setEligible(eligible)
+    window.DCDesktopAds?.setEligible(eligible, serverAllowsAds)
   }
 
   function setView(name) {
@@ -602,6 +595,7 @@
     let actionReasonClass = ''
     if (busy) { actionReason = t('lockBlockedBusy'); actionReasonClass = 'warn' }
     else if (!modeKnown) { actionReason = t('lockBlockedMode'); actionReasonClass = 'bad' }
+    else if (board && !canEdit) { actionReason = statusLabel(board.status) }
     else if (backendStatus === 'OFFLINE') { actionReason = t('lockBlockedOffline'); actionReasonClass = 'bad' }
     else if (!serverFresh || product.status === 'INCOMPATIBLE') { actionReason = t('lockBlockedStale'); actionReasonClass = 'bad' }
     else if (attemptsRemaining <= 0) { actionReason = t('lockBlockedAttempts'); actionReasonClass = 'bad' }
@@ -882,6 +876,7 @@
     setText('pairAccount', account?.display_name || t('unpaired'))
     setText('pairBadge', snapshot.paired ? statusLabel(product.status || 'CONNECTING') : t('unpaired'))
     $('pairBadge').className = `outline-badge ${snapshot.paired ? statusClass(product.status) : ''}`
+    $('pairOptions').hidden = snapshot.paired
     $('disconnectBtn').disabled = busy || !snapshot.paired
     $('forceSignOutBtn').disabled = busy || !snapshot.paired
     $('syncBtn').disabled = busy || !snapshot.paired
@@ -910,11 +905,19 @@
     if (pairError) {
       $('pairMessage').classList.add('error')
       const code=String(pairError.code || 'PAIR_FAILED')
-      const messageKey = /EXPIRED/.test(code) ? 'pairErrorExpired' : /USED|CLAIMED/.test(code) ? 'pairErrorUsed' : /FORMAT|INVALID|NOT_FOUND/.test(code) ? 'pairErrorInvalid' : /OFFLINE|NETWORK|TIMEOUT/.test(code) ? 'pairErrorOffline' : 'pairErrorGeneric'
+      const linkMessage = {
+        COMPANION_UPDATE_REQUIRED: 'pairUpdateRequired',
+        PAIR_LINK_UNAVAILABLE: 'pairBrowserUnavailable',
+        PAIR_LINK_EXPIRED: 'pairBrowserExpired',
+      }[code]
+      const messageKey = linkMessage || (/EXPIRED/.test(code) ? 'pairErrorExpired' : /USED|CLAIMED/.test(code) ? 'pairErrorUsed' : /FORMAT|INVALID|NOT_FOUND/.test(code) ? 'pairErrorInvalid' : /OFFLINE|NETWORK|TIMEOUT/.test(code) ? 'pairErrorOffline' : 'pairErrorGeneric')
       setText('pairMessage', `${t(messageKey)} (${code})${pairError.request_id ? ` · ${t('requestId')}: ${pairError.request_id}` : ''}`)
     } else {
       $('pairMessage').classList.remove('error')
-      setText('pairMessage', t('pairHelp'))
+      const message = snapshot.pair_link_hint
+        ? t('pairBrowserWaiting', language(), { code: snapshot.pair_link_hint })
+        : t('pairBrowserHelp')
+      setText('pairMessage', snapshot.paired ? t('pairSuccess') : message)
     }
 
     all('[data-overlay-scale]').forEach(button => button.classList.toggle('active', button.dataset.overlayScale === (snapshot.overlay_scale || 'compact')))
@@ -936,6 +939,7 @@
   }
 
   function render(next, force = false) {
+    const wasWaitingForPairing = snapshot.pair_link_hint && !snapshot.paired
     const incoming = next || {}
     const lifecycleSession = incoming.lifecycle?.session || null
     const accountSteam = String(incoming.account?.steam_id64 || incoming.product?.account?.steam_id64 || '')
@@ -950,6 +954,7 @@
       gep_feature_health: { status: incoming.health?.gep?.status || 'WAITING', last_error: incoming.health?.gep?.message || null },
       identity_ok: incoming.steam_id64 && accountSteam ? String(incoming.steam_id64) === accountSteam : null,
     }
+    if (wasWaitingForPairing && snapshot.paired) toast(t('pairSuccess'))
     const latest = Product.latestVerdictGroup(snapshot.product?.history || [])
     const seen = readSeenDebriefId()
     const unseen = !!latest?.match_id && String(latest.match_id) !== seen
@@ -962,7 +967,7 @@
     }
     renderTelemetry()
     renderDesktopAnnouncements()
-    const signature = JSON.stringify({ product: snapshot.product, paired: snapshot.paired, account: snapshot.account, lang: language(), game_running: snapshot.game_running, mode: Product.normalizeMode(snapshot.mode_display) })
+    const signature = JSON.stringify({ product: snapshot.product, paired: snapshot.paired, pair_link_hint: snapshot.pair_link_hint, pairing_error: snapshot.pairing_error, account: snapshot.account, lang: language(), game_running: snapshot.game_running, mode: Product.normalizeMode(snapshot.mode_display) })
     const nextLiveSignature = JSON.stringify({
       evidence_revision: Number(snapshot.evidence_revision || 0),
       match_clock_s: snapshot.match_clock_s,
@@ -1091,14 +1096,73 @@
 
   function bindWindow() {
     if (typeof overwolf === 'undefined') return
-    overwolf.windows.getCurrentWindow(result => { currentWindowId = result?.window?.id || result?.id || null })
+    const maximize = $('maximizeBtn')
+    const update = state => {
+      if (!state) return
+      const name = String(state).toLowerCase()
+      const maximized = name === 'maximized'
+      maximize.textContent = maximized ? '❐' : '□'
+      maximize.dataset.i18nAria = maximized ? 'restoreWindow' : 'maximizeWindow'
+      maximize.setAttribute('aria-label', t(maximize.dataset.i18nAria))
+      window.DCDesktopAds?.setWindowVisible?.(['normal', 'maximized'].includes(name))
+    }
+    overwolf.windows.getCurrentWindow(result => {
+      currentWindowId = result?.window?.id || result?.id || null
+      maximize.hidden = !currentWindowId
+      update(result?.window?.stateEx || result?.window?.state)
+    })
+    overwolf.windows.onStateChanged?.addListener(event => {
+      if (event?.window_id === currentWindowId) update(event.window_state_ex || event.window_state)
+    })
     $('titlebar').addEventListener('mousedown', event => {
       if (event.button !== 0 || event.target.closest('button, input')) return
-      if (currentWindowId) overwolf.windows.dragMove(currentWindowId)
+      if (currentWindowId) overwolf.windows.dragMove(currentWindowId, result => {
+        if (result?.success) overwolf.windows.getCurrentWindow(next => {
+          controller()?.rememberDesktopMonitor?.(next?.window?.monitorId)
+        })
+      })
     })
     $('minimizeBtn').addEventListener('click', () => currentWindowId && overwolf.windows.minimize(currentWindowId, () => {}))
+    maximize.addEventListener('click', () => {
+      void call('toggleDesktopMaximized').then(update).catch(error => toast(t('actionFailed'), error?.message || String(error), 'error'))
+    })
     $('closeBtn').addEventListener('click', () => {
       void call('hideDesktop').catch(error => toast(t('actionFailed'), error?.message || String(error), 'error'))
+    })
+  }
+
+  function bindHotkeySettings() {
+    const button = $('hotkeyBtn')
+    const hint = $('hotkeyCaptureHint')
+    const stop = () => { hint.hidden = true }
+    const start = () => {
+      hint.hidden = false
+      button.focus()
+    }
+    button.addEventListener('click', start)
+    button.addEventListener('blur', stop)
+    $('hqHotkeyBtn')?.addEventListener('click', () => {
+      setView('settings')
+      start()
+    })
+    button.addEventListener('keydown', event => {
+      if (hint.hidden || event.key === 'Tab') return
+      event.preventDefault()
+      event.stopPropagation()
+      const modifiers = { ctrl: event.ctrlKey, alt: event.altKey, shift: event.shiftKey }
+      if (!Object.values(modifiers).some(Boolean)) {
+        if (event.key === 'Escape') stop()
+        return
+      }
+      const virtualKey = event.keyCode
+      if (event.repeat || event.metaKey || !virtualKey || ['Alt','Control','Shift','Meta','AltGraph'].includes(event.key)) return
+      stop()
+      button.disabled = true
+      void call('assignOverlayHotkey', virtualKey, modifiers).then(next => {
+        render(next, true)
+        toast(t('hotkeyUpdated'))
+      }).catch(error => toast(t('actionFailed'), error?.message || t('hotkeyAssignFailed'), 'error'))
+        .finally(() => { button.disabled = false; button.focus() })
     })
   }
 
@@ -1112,7 +1176,10 @@
       else syncDesktopAdSlot()
     }
     $('ftueContinue').addEventListener('click', () => done('hq'))
-    $('ftuePair').addEventListener('click', () => done('settings'))
+    $('ftuePair').addEventListener('click', () => {
+      done('settings')
+      void openBrowserPairing()
+    })
   }
 
   function bindContracts() {
@@ -1139,19 +1206,21 @@
       const board = Product.boardForMode(snapshot.product, activeMode)
       if (board) persistSelectionDraft(board, selected)
       renderContracts()
+      $('contractBoard').querySelector(`[data-option-id="${CSS.escape(id)}"]`)?.focus()
     })
     $('lockBtn').addEventListener('click', async () => {
-      const board = Product.boardForMode(snapshot.product, activeMode)
-      const ids = [...(selections.get(activeMode) || [])]
+      const mode = activeMode
+      const board = Product.boardForMode(snapshot.product, mode)
+      const ids = [...(selections.get(mode) || [])]
       const options = board?.options?.filter(option => ids.includes(option.id)) || []
       if (!options.length) return
       const confirmed = await openModal({
         title: t('lockTitle'), body: t('lockWarning'), confirmLabel: t('confirmLock'),
-        summary: [{ label: t('summaryMode'), value: Product.modeLabel(activeMode) }, { label: t('summaryExpiry'), value: formatDateTime(board?.expires_at) }, { label: t('summaryAttempt'), value: `${board?.current_attempt || 1} / ${board?.max_attempts || 3}` }, { label: t('summaryReward'), value: `${formatNumber(options.reduce((sum, option) => sum + option.reward_xp, 0))} XP` }, {label:t('summaryDataAge'),value:formatRelativeSync(snapshot.product?.loaded_at)}, ...options.map((option, index) => ({ label: `${t('summaryContract')} 0${index + 1}`, value: `${optionTitle(option)} — ${optionDescription(option, activeMode)}` }))],
+        summary: [{ label: t('summaryMode'), value: Product.modeLabel(mode) }, { label: t('summaryExpiry'), value: formatDateTime(board?.expires_at) }, { label: t('summaryAttempt'), value: `${board?.current_attempt || 1} / ${board?.max_attempts || 3}` }, { label: t('summaryReward'), value: `${formatNumber(options.reduce((sum, option) => sum + option.reward_xp, 0))} XP` }, {label:t('summaryDataAge'),value:formatRelativeSync(snapshot.product?.loaded_at)}, ...options.map((option, index) => ({ label: `${t('summaryContract')} 0${index + 1}`, value: `${optionTitle(option)} — ${optionDescription(option, mode)}` }))],
       })
       if (confirmed) {
-        const result = await runAction(() => call('lockContracts', activeMode, ids), t('syncComplete'))
-        if (result) { selections.get(activeMode)?.clear(); clearSelectionDraft(activeMode) }
+        const result = await runAction(() => call('lockContracts', mode, ids), t('caseLocked'))
+        if (result) { selections.get(mode)?.clear(); clearSelectionDraft(mode) }
       }
     })
     $('rerollBtn').addEventListener('click', async () => {
@@ -1171,6 +1240,21 @@
     }))
   }
 
+  async function openBrowserPairing() {
+    if (busy || snapshot.paired) return
+    setBusy(true)
+    try {
+      const url = await call('startBrowserPairing')
+      if (url) openExternal(url)
+    } catch (error) {
+      $('pairManual').open = true
+      if (error.code !== 'PAIR_LINK_UNAVAILABLE') toast(t('actionFailed'), error.message, 'error')
+    } finally {
+      setBusy(false)
+      await refresh()
+    }
+  }
+
   function bindActions() {
     $('mcgBtn').addEventListener('click', () => openExternal(MCG_URL))
     $('healthGrid')?.addEventListener('click', event => {
@@ -1181,9 +1265,8 @@
       if (action === 'gep-retry') return void call('checkEventStatus', {force:true}).then(() => refresh()).catch(error => toast(t('actionFailed'), error?.message || String(error), 'error'))
       if (action === 'export') return void call('exportPendingUploads').then(text => copyText(text)).then(() => toast(ui('Pending uploads copied.', 'Очередь скопирована.'))).catch(error => toast(t('actionFailed'), error?.message || String(error), 'error'))
     })
-    $('pairSiteBtn').addEventListener('click', async () => {
-      try { openExternal(await call('pairingUrl')) } catch (_) { openExternal(`${OFFICIAL_SITE}/pair`) }
-    })
+    $('pairSiteBtn').addEventListener('click', openBrowserPairing)
+    $('pairProfileBtn').addEventListener('click', () => openExternal(`${OFFICIAL_SITE}/en/#profile`))
     const submitPair = async () => {
       const raw = $('pairCode').value
       let normalized
@@ -1223,14 +1306,6 @@
       await call('setOverlayAutoHide', Number(button.dataset.autoHide))
       return await call('getSnapshot')
     }, ui('Overlay auto-hide updated.', 'Автоскрытие оверлея обновлено.'))))
-    $('hotkeyBtn').addEventListener('click', () => {
-      void call('openHotkeySettings')
-      setTimeout(() => void call('refreshHotkeyBinding').then(next => render(next, true)).catch(() => {}), 1200)
-    })
-    $('hqHotkeyBtn')?.addEventListener('click', () => {
-      void call('openHotkeySettings')
-      setTimeout(() => void call('refreshHotkeyBinding').then(next => render(next, true)).catch(() => {}), 1200)
-    })
     $('reportBtn').addEventListener('click', async () => {
       try { await copyText(await call('diagnosticsText')); toast(t('reportCopied')) } catch (error) { toast(t('actionFailed'), error?.message || String(error), 'error') }
     })
@@ -1310,7 +1385,10 @@
   }
 
   function bindNetwork() {
-    const update = () => renderSystemStatus()
+    const update = () => {
+      renderSystemStatus()
+      syncDesktopAdSlot()
+    }
     window.addEventListener('online', update)
     window.addEventListener('offline', update)
   }
@@ -1333,9 +1411,11 @@
   }
 
   function init() {
+    setText('buildVersion', window.DCRelease.productVersion)
     bindNavigation()
     bindLanguage()
     bindWindow()
+    bindHotkeySettings()
     bindFtue()
     bindContracts()
     bindHistory()

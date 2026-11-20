@@ -29,6 +29,7 @@ from . import seo
 from .db import Base, SessionLocal, engine, get_db
 from .community import router as community_router
 from .case_completion import router as case_completion_router
+from .companion_feedback import router as companion_feedback_router
 from .personal_progress import router as personal_progress_router
 from .services.personal_progress import build_personal_progress
 from .services.achievements import achievement_collection, awarded_contract_filter
@@ -79,13 +80,24 @@ from .services.auth import (
     verify_reviewer_access_code,
     verify_steam_callback,
 )
-from .services.companion import claim_pairing, companion_version_supported, create_pairing, get_device_by_token, record_snapshot, select_primary_device, serialize_device
+from .services.companion import (
+    approve_pairing_link,
+    claim_pairing,
+    claim_pairing_link,
+    companion_version_supported,
+    create_pairing,
+    get_device_by_token,
+    record_snapshot,
+    select_primary_device,
+    serialize_device,
+    start_pairing_link,
+)
 from .services.gep_settlement import (
     finalize_gep_match,
     start_gep_attempt_lease,
 )
 from .services.contract_factory import GENERATOR_VERSION, generate_contracts_v2, preview_payload
-from .services.boards import GAME_MODES, ensure_daily_board, ensure_daily_boards, lock_board, normalize_mode, refresh_summary, reroll_board, serialize_board, today_utc
+from .services.boards import GAME_MODES, board_timestamp, ensure_daily_board, ensure_daily_boards, lock_board, normalize_mode, refresh_summary, reroll_board, serialize_board, today_utc
 from .services.jobs import enqueue_job
 from .services.seed import seed_missions
 from .services.archive_seed import seed_archive_cards
@@ -343,11 +355,22 @@ class AdminGeneratorPreviewRequest(StrictModel):
     seed_prefix: str = Field(default="admin-preview", min_length=1, max_length=80, pattern=r"^[A-Za-z0-9._:-]+$")
 
 
-class CompanionClaimRequest(StrictModel):
-    code: str = Field(min_length=8, max_length=12)
+class CompanionDeviceRequest(StrictModel):
     device_id: str = Field(min_length=8, max_length=120, pattern=r"^[A-Za-z0-9._:-]+$")
     label: str = Field(default="Deadlock Contracts Companion", min_length=3, max_length=120)
     version: str | None = Field(default=None, max_length=32)
+
+
+class CompanionClaimRequest(CompanionDeviceRequest):
+    code: str = Field(min_length=8, max_length=12)
+
+
+class CompanionLinkClaimRequest(CompanionDeviceRequest):
+    verifier: str = Field(pattern=r"^[A-Za-z0-9_-]{43}$")
+
+
+class CompanionLinkApprovalRequest(StrictModel):
+    challenge: str = Field(pattern=r"^[0-9]{10}\.[0-9a-f]{64}\.[0-9a-f]{64}$")
 
 
 class CompanionAttemptStartRequest(StrictModel):
@@ -546,6 +569,7 @@ app.add_middleware(RequestSecurityMiddleware)
 app.add_middleware(SecurityHeadersMiddleware)
 app.include_router(community_router)
 app.include_router(case_completion_router)
+app.include_router(companion_feedback_router)
 app.include_router(personal_progress_router)
 
 
@@ -679,9 +703,9 @@ def overwolf_qa_access(payload: OverwolfQaAccessRequest, response: Response) -> 
 
 
 @app.get("/auth/steam")
-def steam_login(db: Session = Depends(get_db)) -> RedirectResponse:
+def steam_login(return_to: Literal["pair"] | None = None, db: Session = Depends(get_db)) -> RedirectResponse:
     response = RedirectResponse("/", status_code=302)
-    response.headers["Location"] = begin_steam_login(db, response)
+    response.headers["Location"] = begin_steam_login(db, response, for_companion=return_to == "pair")
     return response
 
 
@@ -691,6 +715,7 @@ def steam_callback(request: Request, db: Session = Depends(get_db)) -> RedirectR
     # but only becomes useful after a valid Steam OpenID callback. It bypasses
     # only the Closed Alpha allowlist, never RBAC/admin authorization.
     qa_access = has_reviewer_access(request)
+    return_path = "/pair" if request.query_params.get("state", "").startswith("pair.") else "/"
     try:
         steam_id64 = verify_steam_callback(request, db)
         allowlisted = str(steam_id64) in settings.alpha_allowed_steam_ids
@@ -708,7 +733,7 @@ def steam_callback(request: Request, db: Session = Depends(get_db)) -> RedirectR
             code = "closed_alpha"
         else:
             code = "steam_rejected"
-        response = RedirectResponse(f"/?auth_error={code}", status_code=303)
+        response = RedirectResponse(f"{return_path}?auth_error={code}", status_code=303)
         response.delete_cookie(
             OPENID_COOKIE_NAME,
             path="/",
@@ -716,7 +741,7 @@ def steam_callback(request: Request, db: Session = Depends(get_db)) -> RedirectR
             samesite="lax",
         )
         return response
-    response = RedirectResponse("/?login=ok", status_code=303)
+    response = RedirectResponse(f"{return_path}?login=ok", status_code=303)
     response.delete_cookie(
         OPENID_COOKIE_NAME,
         path="/",
@@ -1582,7 +1607,7 @@ def _history_items(
                 "board_id": option.board_id,
                 "game_match_mode": option.board.game_match_mode,
                 "board_status": option.board.status,
-                "case_expires_at": option.board.expires_at.isoformat() if option.board.locked_at else None,
+                "case_expires_at": board_timestamp(option.board.expires_at) if option.board.locked_at else None,
                 "attempts_used": option.board.attempts_used,
                 "max_attempts": option.board.max_attempts,
                 "title": option.rendered_title,
@@ -1609,7 +1634,7 @@ def _history_items(
                     else None
                 ),
                 "evaluations": [evaluation_payload(item) for item in attempt_evaluations],
-                "locked_at": option.locked_at.isoformat() if option.locked_at else None,
+                "locked_at": board_timestamp(option.locked_at),
                 "settled_at": option.settled_at.isoformat() if option.settled_at else None,
             }
         )
@@ -1757,6 +1782,39 @@ def companion_pairing_claim(payload: CompanionClaimRequest, db: Session = Depend
         raise HTTPException(503, "Приём данных Companion временно отключён")
     _require_companion_version(payload.version)
     token, device, user = claim_pairing(db, payload.code, payload.device_id, payload.label, payload.version)
+    return _paired_companion_response(db, token, device, user)
+
+
+@app.post("/api/companion/pairing/link/start")
+def companion_link_start(payload: CompanionDeviceRequest) -> dict:
+    if not settings.companion_ingest_enabled:
+        raise HTTPException(503, "Приём данных Companion временно отключён")
+    _require_companion_version(payload.version)
+    return start_pairing_link(payload.device_id)
+
+
+@app.post("/api/companion/pairing/link/approve", dependencies=[Depends(require_csrf)])
+def companion_link_approve(
+    payload: CompanionLinkApprovalRequest, user: User = Depends(require_user), db: Session = Depends(get_db)
+) -> dict:
+    if not settings.companion_ingest_enabled:
+        raise HTTPException(503, "Companion is temporarily unavailable.")
+    approve_pairing_link(db, user, payload.challenge)
+    return {"approved": True}
+
+
+@app.post("/api/companion/pairing/link/claim")
+def companion_link_claim(payload: CompanionLinkClaimRequest, db: Session = Depends(get_db)) -> dict:
+    if not settings.companion_ingest_enabled:
+        raise HTTPException(503, "Приём данных Companion временно отключён")
+    _require_companion_version(payload.version)
+    result = claim_pairing_link(db, payload.verifier, payload.device_id, payload.label, payload.version)
+    if result is None:
+        return {"pending": True}
+    return _paired_companion_response(db, *result)
+
+
+def _paired_companion_response(db: Session, token: str, device: CompanionDevice, user: User) -> dict:
     db.add(AuditLog(user_id=user.id, action="companion.paired", entity_type="companion_device", entity_id=device.id, data={"device_id": device.device_id, "version": device.version}))
     db.commit()
     return {
@@ -4900,6 +4958,14 @@ def reviewer_page() -> FileResponse:
             "Cache-Control": "no-store, max-age=0",
             "X-Robots-Tag": "noindex, nofollow, noarchive",
         },
+    )
+
+
+@app.get("/pair", include_in_schema=False)
+def companion_pairing_page() -> FileResponse:
+    return FileResponse(
+        STATIC / "pair.html",
+        headers={"Cache-Control": "private, no-store", "X-Robots-Tag": "noindex, nofollow, noarchive"},
     )
 
 

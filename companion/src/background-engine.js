@@ -9,7 +9,7 @@ const EVIDENCE_SCHEMA_VERSION = window.DCRelease?.evidenceSchemaVersion || 9
 const HOTKEY_NAME = 'toggle_contract_overlay'
 const DEFAULT_HOTKEY = 'Ctrl+Shift+C'
 const ALLOWED_SERVER_URLS = new Set(['https://deadlock-contracts.online'])
-const PAIRING_URL = 'https://deadlock-contracts.online/'
+const PAIRING_URL = 'https://deadlock-contracts.online/pair'
 const EVENT_STATUS_URL = `https://game-events-status.overwolf.com/${GAME_ID}_prod.json`
 const HEARTBEAT_MS = 15000
 const PRODUCT_REFRESH_MS = 60000
@@ -57,6 +57,7 @@ const STORAGE = Object.freeze({
   lifecycleSecure: 'dc.lifecycle.v3.secure',
   gepSettlementSecure: 'dc.gep.settlement.v1.secure',
   product: 'dc.product.v4',
+  desktopMonitor: 'dc.desktop.monitor.v1',
   overlayScale: 'dc.overlay.scale.v2',
   overlayAutoHide: 'dc.overlay.autohide.v2',
   overlayPosition: 'dc.overlay.position.v3',
@@ -89,6 +90,9 @@ const recoveryTimers = new Set()
 const postMatchTimers = new Set()
 let flushPromise = null
 let productRefreshPromise = null
+let browserPairing = null
+let pairingFinishing = false
+let pairingRevision = 0
 let reconnectPromise = null
 let featureAttempt = 0
 let lastEventStatusCheck = 0
@@ -104,6 +108,9 @@ let overlayLastSignature = ''
 let lastLifecycleCheckpointAt = 0
 let lastEvidenceCheckpointAt = 0
 let logLines = []
+let desktopLaunchReady = false
+let desktopOpened = false
+let desktopAction = Promise.resolve()
 
 const runtimeSessionId = randomId('runtime')
 const performanceCounters = { overlay_dto_max_bytes: 0, runtime_state_publications: 0, queue_flushes: 0, queue_flush_failures: 0, queue_flush_ms_max: 0, product_refresh_ms_max: 0 }
@@ -326,6 +333,8 @@ async function loadToken() {
   }
 }
 function clearLocalAuth() {
+  pairingRevision += 1
+  browserPairing = null
   state.token = ''
   state.account = null
   Storage.remove(STORAGE.tokenLegacy)
@@ -1571,8 +1580,17 @@ function handleNewEvents(info) { for (const event of Array.isArray(info?.events)
 function handleRunningGameInfo(info, { resolutionChanged = false } = {}) {
   const running = !!(info && info.isRunning && Number(info.classId) === GAME_ID)
   const previous = state.gameRunning
+  const previousMonitor = state.gameInfo?.monitorHandle?.value
   state.gameInfo = info || null
   state.gameRunning = running
+  if (desktopLaunchReady) {
+    const monitor = info?.monitorHandle?.value
+    if (running !== previous) {
+      openDesktopWindow(running ? { placement: 'game', gameInfo: info, focus: false } : { placement: 'primary' })
+    } else if (running && monitor && monitor !== previousMonitor) {
+      openDesktopWindow({ placement: 'game', gameInfo: info, focus: false, reopen: false })
+    }
+  }
   state.processObservedAt = nowIso()
   const before = lifecycle.snapshot().state
   lifecycle.observeProcess({ running, processId: info?.processId || null, gameSessionId: info?.sessionId || null, observedAt: state.processObservedAt })
@@ -1736,6 +1754,9 @@ async function reconnect() {
   return reconnectPromise
 }
 async function pair(serverUrl, rawCode) {
+  if (pairingFinishing) throw Object.assign(new Error('Pairing is in progress'), { code: 'PAIR_IN_PROGRESS' })
+  const revision = ++pairingRevision
+  browserPairing = null
   clearPairingError()
   const allowed = allowedServerUrl(serverUrl)
   const code = normalizePairCode(rawCode)
@@ -1744,19 +1765,109 @@ async function pair(serverUrl, rawCode) {
   state.serverUrl = allowed
   writeStoredValue(STORAGE.serverUrl, allowed)
   try {
-    const data = await serverFetch('/api/companion/pairing/claim', { auth: false, method: 'POST', body: JSON.stringify({ code: code.normalized, device_id: ensureDeviceId(), label: 'Deadlock Contracts Desktop', version: VERSION }) })
-    state.token = String(data.token || '')
-    state.account = data.account || null
-    const saved = await storeToken(state.token)
-    if (!saved.ok) throw Object.assign(new Error(I18n.t('pair.storage_invalid')), { code: saved.code })
-    setHealth('auth', 'OK')
-    clearPairingError()
-    await sendPresenceHeartbeat()
-    await flushQueue()
-    await refreshProduct({ requireFresh: true })
+    pairingFinishing = true
+    const data = await pairingRequest('/api/companion/pairing/claim', { code: code.normalized })
+    return await finishPairing(data, revision)
+  } catch (error) {
+    if (revision !== pairingRevision) return null
+    setPairingError(error)
+    throw error
+  }
+  finally { pairingFinishing = false }
+}
+
+function pairingRequest(path, payload) {
+  return serverFetch(path, {
+    auth: false,
+    method: 'POST',
+    body: JSON.stringify({ device_id: ensureDeviceId(), label: 'Deadlock Contracts Desktop', version: VERSION, ...payload }),
+  })
+}
+
+async function finishPairing(data, revision) {
+  if (revision !== pairingRevision) return null
+  const token = String(data.token || '')
+  if (!token) throw Object.assign(new Error('Pairing token missing'), { code: 'PAIR_FAILED' })
+  const saved = await storeToken(token)
+  if (revision !== pairingRevision) {
+    await storeToken('')
+    return null
+  }
+  if (!saved.ok) throw Object.assign(new Error(I18n.t('pair.storage_invalid')), { code: saved.code })
+  state.token = token
+  state.account = data.account || null
+  clearPairingError()
+  setHealth('auth', 'OK')
+  await sendPresenceHeartbeat()
+  await flushQueue()
+  await refreshProduct({ requireFresh: true })
+  publishRuntimeState()
+  return publicSnapshot()
+}
+
+async function startBrowserPairing() {
+  if (state.token || pairingFinishing) return null
+  if (browserPairing && Date.now() < browserPairing.expiresAt) return browserPairing.url
+  const revision = pairingRevision
+  clearPairingError()
+  try {
+    const data = await pairingRequest('/api/companion/pairing/link/start')
+    if (state.token || pairingFinishing || revision !== pairingRevision) return null
+    if (browserPairing && Date.now() < browserPairing.expiresAt) return browserPairing.url
+    const expiresAt = Date.parse(data.expires_at)
+    if (!/^\d{10}\.[a-f0-9]{64}\.[a-f0-9]{64}$/.test(data.challenge) ||
+        !/^[A-Za-z0-9_-]{43}$/.test(data.verifier) || !(expiresAt > Date.now())) {
+      throw Object.assign(new Error('Invalid connection request'), { code: 'PAIR_LINK_FAILED' })
+    }
+    const flow = {
+      url: `${PAIRING_URL}#${data.challenge}`,
+      hint: data.challenge.slice(-6).toUpperCase(),
+      verifier: data.verifier,
+      expiresAt,
+    }
+    browserPairing = flow
+    setTimeout(() => void pollBrowserPairing(flow), 3000)
     publishRuntimeState()
-    return publicSnapshot()
-  } catch (error) { setPairingError(error); throw error }
+    return flow.url
+  } catch (error) {
+    if (revision !== pairingRevision) return null
+    if (error.status === 404 || error.status === 405) error.code = 'PAIR_LINK_UNAVAILABLE'
+    setPairingError(error)
+    throw error
+  }
+}
+
+async function pollBrowserPairing(flow) {
+  if (browserPairing !== flow) return
+  let delay = 3000
+  try {
+    if (Date.now() >= flow.expiresAt) {
+      throw Object.assign(new Error('Connection request expired'), { code: 'PAIR_LINK_EXPIRED' })
+    }
+    const data = await pairingRequest('/api/companion/pairing/link/claim', { verifier: flow.verifier })
+    if (browserPairing !== flow) return
+    if (!data.pending) {
+      pairingFinishing = true
+      try {
+        await finishPairing(data, pairingRevision)
+      } catch (error) {
+        if (browserPairing === flow) setPairingError(error)
+      } finally {
+        if (browserPairing === flow) browserPairing = null
+        pairingFinishing = false
+      }
+      return
+    }
+  } catch (error) {
+    if (browserPairing !== flow) return
+    if (error.status !== 0 && error.status !== 429 && !(error.status >= 500)) {
+      browserPairing = null
+      setPairingError(error)
+      return
+    }
+    delay = Math.max(delay, Number(error.retryAfter || 0) * 1000)
+  }
+  setTimeout(() => void pollBrowserPairing(flow), Math.min(delay, Math.max(0, flow.expiresAt - Date.now())))
 }
 async function testServer(serverUrl) {
   const allowed = allowedServerUrl(serverUrl)
@@ -1807,6 +1918,8 @@ async function clearAllLocalData() {
   if ([Lifecycle.MATCH_STATE.MATCH_CONFIRMED, Lifecycle.MATCH_STATE.TERMINAL_PENDING].includes(lifecycleState)) {
     throw Object.assign(new Error('Local data cannot be cleared during an active match.'), { code: 'ACTIVE_MATCH_BLOCKS_CLEAR' })
   }
+  pairingRevision += 1
+  browserPairing = null
   uploadQueue.clear({ deadLetters: true })
   clearRecoveryTimers()
   for (const timer of postMatchTimers) clearTimeout(timer)
@@ -1917,24 +2030,92 @@ function windowAction(method, id, ...args) { return new Promise((resolve, reject
   if (!fn) return reject(Object.assign(new Error(`Window API ${method} unavailable`), { code: 'WINDOW_API_UNAVAILABLE' }))
   fn(id, ...args, result => result?.success === false ? reject(Object.assign(new Error(result?.error || `${method} failed`), { code: `WINDOW_${method.toUpperCase()}_FAILED` })) : resolve(result || { success: true }))
 }) }
-async function showDesktop({ minimized = false } = {}) {
-  const id = await obtainWindow('desktop')
-  if (minimized) {
-    await windowAction('minimize', id)
-    return { ok: true, visible: false }
-  }
-  await windowAction('restore', id)
-  if (overwolf.windows.bringToFront) await windowAction('bringToFront', id)
-  const check = await getWindowState(id)
-  if (!check.visible) throw Object.assign(new Error('Desktop window did not become visible'), { code: 'WINDOW_VISIBILITY_VERIFY_FAILED' })
-  return { ok: true, visible: true }
+function withDesktopWindow(action) {
+  const result = desktopAction.then(async () => action(await obtainWindow('desktop')))
+  desktopAction = result.catch(() => {})
+  return result
 }
-async function hideDesktop() {
-  const id = await obtainWindow('desktop')
-  await windowAction('minimize', id)
-  const check = await getWindowState(id)
-  if (check.visible) throw Object.assign(new Error('Desktop window remained visible after minimize'), { code: 'WINDOW_HIDE_VERIFY_FAILED' })
-  return { ok: true, visible: false }
+function desktopWindowInfo() {
+  return new Promise(resolve => overwolf.windows.getWindow('desktop', result => resolve(result?.window)))
+}
+function monitorId(value) { return String(value ?? '').split('\\').pop().toLowerCase() }
+
+async function placeDesktop(id, placement, gameInfo, before) {
+  const displays = await new Promise(resolve => overwolf.utils.getMonitorsList(result => resolve(result?.displays || [])))
+  const primary = displays.find(display => display.is_primary) || displays[0]
+  let display = primary
+  if (placement === 'game') {
+    const gameHandle = gameInfo?.monitorHandle?.value
+    display = displays.filter(item => gameHandle ? item.handle?.value !== gameHandle : !item.is_primary)
+      .sort((a, b) => b.width * b.height - a.width * a.height)[0] || primary
+  } else if (placement === 'saved') {
+    const saved = readStoredValue(STORAGE.desktopMonitor)
+    display = displays.find(item => monitorId(item.id) === saved) || primary
+  }
+  if (!display) return
+  let current = await desktopWindowInfo()
+  if (!current || monitorId(current.monitorId) === monitorId(display.id)) return
+
+  const maximized = before.state === 'maximized'
+  if (maximized) {
+    await windowAction('restore', id)
+    current = await desktopWindowInfo() || current
+  }
+  try {
+    // Monitor offsets are in virtual desktop pixels and the native window size is DPI-adjusted.
+    const width = display.width / ((display.dpiX || 96) / 96)
+    const height = display.height / ((display.dpiY || 96) / 96)
+    const left = display.x + Math.max(0, (width - current.width) / 2)
+    const top = display.y + Math.max(0, (height - current.height) / 2)
+    await windowAction('changePosition', id, Math.floor(left), Math.floor(top))
+  } finally {
+    if (maximized) await windowAction('maximize', id)
+  }
+}
+function showDesktop({ placement = 'saved', gameInfo = null, focus = true, reopen = true } = {}) {
+  return withDesktopWindow(async id => {
+    let before = await getWindowState(id)
+    const reopened = ['hidden', 'closed'].includes(before.state)
+    if (!before.visible && !reopen) return { ok: true, visible: false }
+    if (!before.visible) {
+      await windowAction('restore', id)
+      before = await getWindowState(id)
+    }
+    if (placement !== 'saved' || reopened || !desktopOpened) {
+      await placeDesktop(id, placement, gameInfo, before).catch(error => log('DESKTOP_POSITION_FAILED', { code: error.code }))
+    }
+    // Explicit dock launches take focus. Automatic game launches must leave the game in focus.
+    await windowAction('bringToFront', id, focus)
+    const check = await getWindowState(id)
+    if (!check.visible) throw Object.assign(new Error('Desktop window did not become visible'), { code: 'WINDOW_VISIBILITY_VERIFY_FAILED' })
+    desktopOpened = true
+    return { ok: true, visible: true }
+  })
+}
+function openDesktopWindow(options) {
+  void showDesktop(options).catch(error => log('DESKTOP_SHOW_FAILED', { code: error.code }))
+}
+function rememberDesktopMonitor(value) {
+  const id = monitorId(value)
+  if (id) writeStoredValue(STORAGE.desktopMonitor, id)
+}
+function hideDesktop() {
+  return withDesktopWindow(async id => {
+    const current = await desktopWindowInfo()
+    rememberDesktopMonitor(current?.monitorId)
+    await windowAction('hide', id)
+    const check = await getWindowState(id)
+    if (check.visible) throw Object.assign(new Error('Desktop window remained visible after hiding'), { code: 'WINDOW_HIDE_VERIFY_FAILED' })
+    return { ok: true, visible: false }
+  })
+}
+function toggleDesktopMaximized() {
+  return withDesktopWindow(async id => {
+    const before = await getWindowState(id)
+    if (!before.visible) return before.state
+    await windowAction(before.state === 'maximized' ? 'restore' : 'maximize', id)
+    return (await getWindowState(id)).state
+  })
 }
 function cancelOverlayAutoHide() { if (overlayAutoHideTimer) clearTimeout(overlayAutoHideTimer); overlayAutoHideTimer = 0 }
 function scheduleOverlayAutoHide() {
@@ -1999,7 +2180,15 @@ function refreshHotkeyBinding() { return new Promise(resolve => {
   if (!overwolf.settings?.hotkeys?.get) { state.hotkeyBinding = DEFAULT_HOTKEY; return resolve(state.hotkeyBinding) }
   overwolf.settings.hotkeys.get(result => { const binding = hotkeyFromResult(result); if (binding !== null) state.hotkeyBinding = binding; publishRuntimeState(); resolve(state.hotkeyBinding) })
 }) }
-function openHotkeySettings() { try { overwolf.settings?.hotkeys?.openHotkeySettings?.(); return { ok: true } } catch (error) { return { ok: false, code: 'HOTKEY_SETTINGS_FAILED' } } }
+async function assignOverlayHotkey(virtualKey, modifiers) {
+  const hotkeys = overwolf.settings?.hotkeys
+  if (!hotkeys?.assign) throw new Error('Overwolf hotkey settings are unavailable.')
+  await new Promise((resolve, reject) => hotkeys.assign({
+    name: HOTKEY_NAME, gameId: GAME_ID, virtualKey, modifiers,
+  }, result => result?.success ? resolve() : reject(new Error(result?.error || 'Unable to assign hotkey.'))))
+  await refreshHotkeyBinding()
+  return publicSnapshot()
+}
 
 let overlayStickyFocusKey = null
 let overlayStickyFocusUntil = 0
@@ -2137,6 +2326,7 @@ function publicSnapshot() {
     paired: !!state.token,
     account: state.account ? { ...state.account, steam_id64: state.account.steam_id64 ? String(state.account.steam_id64) : null } : null,
     game_running: state.gameRunning,
+    game_state_observed_at: state.processObservedAt,
     steam_id64: state.steamId,
     steam_id_masked: maskIdentifier(state.steamId),
     phase: state.phase,
@@ -2158,6 +2348,7 @@ function publicSnapshot() {
     overlay_scale: overlayScale(),
     overlay_auto_hide_ms: overlayAutoHideMs(),
     pairing_error: clone(state.pairingError),
+    pair_link_hint: browserPairing?.hint || null,
     health: health.snapshot(),
     lifecycle: lifecycleSnapshot,
     queue: { ...totals, last_ack_at: state.lastAckAt },
@@ -2226,9 +2417,13 @@ function startTimers() {
 }
 function launchSource(value = window.location.href) { try { return new URL(value).searchParams.get('source') || '' } catch (_) { return '' } }
 function installLaunchOrchestrator() {
-  const open = value => void showDesktop({ minimized: launchSource(value) === 'gamelaunchevent' }).catch(error => log('DESKTOP_SHOW_FAILED', { code: error.code }))
-  open(window.location.href)
-  overwolf.extensions?.onAppLaunchTriggered?.addListener(origin => open(String(origin || '')))
+  desktopLaunchReady = true
+  const fromGame = launchSource() === 'gamelaunchevent'
+  openDesktopWindow(fromGame ? { placement: 'game', gameInfo: state.gameInfo, focus: false } : undefined)
+  overwolf.extensions?.onAppLaunchTriggered?.addListener(origin => {
+    // Process transitions already handle game launches for a running extension.
+    if (launchSource(origin) !== 'gamelaunchevent') openDesktopWindow()
+  })
 }
 async function init() {
   ensureDeviceId()
@@ -2239,9 +2434,9 @@ async function init() {
   await restoreQueue()
   await restoreLifecycleCheckpoint()
   installListeners()
+  await queryRunningGame()
   installLaunchOrchestrator()
   await refreshHotkeyBinding()
-  await queryRunningGame()
   setRequiredFeatures()
   resumePendingTerminal()
   void checkEventStatus({ force: true })
@@ -2257,7 +2452,7 @@ window.dcCompanion = {
   diagnosticsText,
   getLogs: () => logLines.slice(),
   pair,
-  pairingUrl: () => PAIRING_URL,
+  startBrowserPairing,
   normalizePairCode,
   testServer,
   syncNow,
@@ -2270,12 +2465,14 @@ window.dcCompanion = {
   disconnect: revokeAndDisconnect,
   showDesktop,
   hideDesktop,
+  toggleDesktopMaximized,
+  rememberDesktopMonitor,
   toggleOverlay,
   setOverlayScale,
   setOverlayAutoHide,
   resetOverlayPosition,
   refreshHotkeyBinding: async () => { await refreshHotkeyBinding(); return publicSnapshot() },
-  openHotkeySettings,
+  assignOverlayHotkey,
   copyText,
   exportPendingUploads,
   clearLocalCache,

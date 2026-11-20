@@ -26,7 +26,9 @@
         <button type="button" data-language="auto">AUTO</button><button type="button" data-language="en">EN</button><button type="button" data-language="ru">RU</button>
       </div>
       <div class="window-actions">
-        <button id="minimizeBtn" type="button" data-i18n-aria="minimize" aria-label="Minimize">—</button><button id="closeBtn" type="button" data-i18n-aria="closeWindow" aria-label="Close window">×</button>
+        <button id="minimizeBtn" type="button" data-i18n-aria="minimize" aria-label="Minimize">—</button>
+        <button id="maximizeBtn" type="button" data-i18n-aria="maximizeWindow" aria-label="Maximize window" hidden>□</button>
+        <button id="closeBtn" type="button" data-i18n-aria="closeWindow" aria-label="Close window">×</button>
       </div>
     </header>
 
@@ -47,11 +49,19 @@
         </nav>
         <div class="sidebar-footer">
           <button id="mcgBtn" class="mcg-credit" type="button"><span data-i18n="createdBy">CREATED BY</span><strong>M.C.G.</strong><small data-i18n="mcg">MANDARIN CREATOR GROUP</small></button>
-          <div class="build-mark"><span data-i18n="qaCandidate">QA CANDIDATE</span><b id="buildVersion">—</b></div>
+          <div class="build-mark"><b id="buildVersion">—</b></div>
         </div>
       </aside>
 
       <main id="workspace" class="workspace">
+        <aside id="desktopAdRail" class="desktop-ad-rail" data-i18n-aria="sponsoredContent" aria-label="Sponsored content" hidden>
+          <span class="desktop-ad-label" data-i18n="sponsoredContent">SPONSORED CONTENT</span>
+          <div class="desktop-ad-stage"><div id="desktopAdContainer" class="overwolf-ad-container"></div></div>
+        </aside>
+        <aside id="desktopAdStudio" class="desktop-ad-studio" data-i18n-aria="sponsoredContent" aria-label="Sponsored content" hidden>
+          <div class="desktop-ad-stage"><div id="desktopStudioContainer" class="overwolf-ad-container"></div></div>
+        </aside>
+
         <section id="view-hq" class="view active" data-view="hq">
           <div class="page-head hq-page-head"><div><span class="eyebrow" data-i18n="bureauSignal">BUREAU / COMPANION</span><h1 data-i18n="operationsHq">Your control room.</h1><p data-i18n="hqSubtitle">A new goal for your next match.</p></div><span class="outline-badge" data-i18n="cityName">CITY NEVER SLEEPS</span></div>
           <div class="hero-panel">
@@ -72,15 +82,9 @@
           </div>
           <div class="curator-note"><img src="assets/nightshift/mascot-dossier.webp" alt=""><div><b data-i18n="curatorTitle">Your next case is waiting.</b><p data-i18n="curatorBody">Choose a goal. The Companion keeps the details close.</p></div><button type="button" class="text-btn" data-view-target="settings" data-i18n="connectionSettings">Connection settings</button></div>
           <div id="gepAlert" class="notice warning" hidden><b>GEP</b><span id="gepAlertText"></span></div>
-          <div id="hqHotkeyAlert" class="notice warning" hidden><b data-i18n="overlayHotkeyUnassigned">Overlay hotkey is not assigned.</b><button id="hqHotkeyBtn" class="text-btn" type="button" data-i18n="openHotkeySettings">OPEN OVERWOLF HOTKEY SETTINGS</button></div>
+          <div id="hqHotkeyAlert" class="notice warning" hidden><b data-i18n="overlayHotkeyUnassigned">Overlay hotkey is not assigned.</b><button id="hqHotkeyBtn" class="text-btn" type="button" data-i18n="changeHotkey">CHANGE HOTKEY</button></div>
           <div id="hqOperations" class="operations-grid" aria-live="polite"></div>
           <div id="hqCaseStrip" class="case-strip"></div>
-          <aside id="desktopAdRail" class="desktop-ad-rail" aria-label="Sponsored content" hidden>
-            <div class="desktop-ad-copy"><span data-i18n="sponsoredContent">SPONSORED CONTENT</span><b data-i18n="desktopAdSpace">DESKTOP-ONLY AD SPACE</b><small id="desktopAdStatus" data-i18n="adsInitialDisabled">AVAILABLE AFTER OVERWOLF QA ENABLES ADS</small></div>
-            <div class="desktop-ad-stage">
-              <div id="desktopAdContainer" class="overwolf-ad-container"></div>
-            </div>
-          </aside>
         </section>
 
         <section id="view-contracts" class="view" data-view="contracts">
@@ -160,13 +164,20 @@
             </article>
             <article class="settings-card wide">
               <div class="settings-head"><div><span class="eyebrow" data-i18n="pairTitle">CONNECT DEADLOCK CONTRACTS</span><h3 id="pairAccount">NOT PAIRED</h3></div><span id="pairBadge" class="outline-badge">NOT PAIRED</span></div>
-              <p data-i18n="pairBody">Create a short-lived code on the official site, then enter it here. The code is exchanged once; the resulting token is encrypted for the current Windows user.</p>
-              <div class="pair-row"><label class="sr-only" for="pairCode" data-i18n="pairingCodeLabel">Pairing code</label><input id="pairCode" type="text" inputmode="text" autocomplete="off" spellcheck="false" maxlength="12" placeholder="ABCD-EFGH"><button id="pairBtn" class="primary-btn" type="button" data-i18n="connect">CONNECT</button><button id="pairSiteBtn" class="secondary-btn" type="button" data-i18n="openWebsite">OPEN PAIRING PAGE</button></div>
-              <small id="pairMessage" class="durable-message" aria-live="polite" data-i18n="pairHelp">Generate a short-lived code on the official site, then enter it here.</small>
+              <div id="pairOptions">
+                <div class="settings-actions"><button id="pairSiteBtn" class="primary-btn" type="button" data-i18n="pairBrowser">Connect in browser</button></div>
+                <details id="pairManual">
+                  <summary data-i18n="pairManual">Use a pairing code</summary>
+                  <p data-i18n="pairManualHelp">In your website profile, expand Account settings and create a Companion pairing code.</p>
+                  <div class="pair-row"><label class="sr-only" for="pairCode" data-i18n="pairingCodeLabel">Pairing code</label><input id="pairCode" type="text" inputmode="text" autocomplete="off" spellcheck="false" maxlength="12" placeholder="ABCD-EFGH"><button id="pairBtn" class="secondary-btn" type="button" data-i18n="connect">CONNECT</button></div>
+                  <button id="pairProfileBtn" class="text-btn" type="button" data-i18n="pairOpenProfile">Open website profile</button>
+                </details>
+              </div>
+              <small id="pairMessage" class="durable-message" aria-live="polite"></small>
               <div class="settings-actions"><button id="disconnectBtn" class="text-btn danger-text" type="button" data-i18n="revokeDisconnect">REVOKE &amp; DISCONNECT</button><button id="forceSignOutBtn" class="text-btn danger-text" type="button" data-i18n="forceLocalSignOut">FORCE LOCAL SIGN-OUT</button><button id="syncBtn" class="text-btn" type="button" data-i18n="syncNow">SYNC NOW</button></div>
             </article>
             <article class="settings-card"><span class="eyebrow" data-i18n="language">LANGUAGE</span><h3>AUTO / EN / RU</h3><p data-i18n="languageBody">Use the system language or keep a manual choice.</p><div class="language-switch settings-language"><button type="button" data-language="auto">AUTO</button><button type="button" data-language="en">EN</button><button type="button" data-language="ru">RU</button></div></article>
-            <article class="settings-card"><span class="eyebrow" data-i18n="overlay">OVERLAY</span><h3 id="hotkeyBinding">CTRL + SHIFT + C</h3><p data-i18n="overlayBody">A minimal, input-pass-through case widget that auto-hides after a few seconds. You can resize or reset it here.</p><div class="overlay-presets"><button type="button" data-overlay-scale="compact">S</button><button type="button" data-overlay-scale="regular">M</button><button type="button" data-overlay-scale="large">L</button></div><div class="auto-hide-row" aria-label="Overlay auto-hide"><span data-i18n="autoHide">AUTO-HIDE</span><button type="button" data-auto-hide="0" data-i18n="never">NEVER</button><button type="button" data-auto-hide="5000">5s</button><button type="button" data-auto-hide="10000">10s</button><button type="button" data-auto-hide="30000">30s</button></div><div id="hotkeyWarning" class="inline-warning" hidden data-i18n="overlayHotkeyWarning">Overlay hotkey is unassigned. Open Overwolf Hotkey Settings to assign one.</div><div class="settings-actions"><button id="overlayBtn" class="secondary-btn" type="button" data-i18n="showOverlay">SHOW / HIDE</button><button id="overlayResetBtn" class="text-btn" type="button" data-i18n="resetPosition">RESET POSITION</button><button id="hotkeyBtn" class="text-btn" type="button" data-i18n="hotkeySettings">HOTKEY</button></div></article>
+            <article class="settings-card"><span class="eyebrow" data-i18n="overlay">OVERLAY</span><h3 id="hotkeyBinding">CTRL + SHIFT + C</h3><p data-i18n="overlayBody">A minimal, input-pass-through case widget that auto-hides after a few seconds. You can resize or reset it here.</p><div class="overlay-presets"><button type="button" data-overlay-scale="compact">S</button><button type="button" data-overlay-scale="regular">M</button><button type="button" data-overlay-scale="large">L</button></div><div class="auto-hide-row" aria-label="Overlay auto-hide"><span data-i18n="autoHide">AUTO-HIDE</span><button type="button" data-auto-hide="0" data-i18n="never">NEVER</button><button type="button" data-auto-hide="5000">5s</button><button type="button" data-auto-hide="10000">10s</button><button type="button" data-auto-hide="30000">30s</button></div><div id="hotkeyWarning" class="inline-warning" hidden data-i18n="overlayHotkeyUnassigned">Overlay hotkey is not assigned.</div><div class="settings-actions"><button id="overlayBtn" class="secondary-btn" type="button" data-i18n="showOverlay">SHOW / HIDE</button><button id="overlayResetBtn" class="text-btn" type="button" data-i18n="resetPosition">RESET POSITION</button><button id="hotkeyBtn" class="text-btn" type="button" data-i18n="changeHotkey" aria-describedby="hotkeyCaptureHint">CHANGE HOTKEY</button></div><p id="hotkeyCaptureHint" role="status" hidden data-i18n="hotkeyCaptureHint">Press Ctrl, Alt or Shift with another key. Press Esc to cancel.</p></article>
             <article class="settings-card wide"><span class="eyebrow" data-i18n="diagnostics">DIAGNOSTICS</span><h3 id="diagState" data-i18n="backgroundReady">BACKGROUND READY</h3><p id="diagCopy" data-i18n="diagnosticsSafe">Diagnostics omit bearer tokens, raw GEP payloads, and full SteamID by default.</p><div id="healthGrid" class="health-grid" aria-live="polite"></div><div class="settings-actions"><button id="reportBtn" class="secondary-btn" type="button" data-i18n="copyReport">COPY REPORT</button><button id="exportQueueBtn" class="text-btn" type="button" data-i18n="exportPending">EXPORT PENDING</button><button id="clearCacheBtn" class="text-btn" type="button" data-i18n="clearCache">CLEAR CACHE</button><button id="clearAllDataBtn" class="text-btn danger-text" type="button" data-i18n="clearAllData">CLEAR ALL LOCAL DATA</button></div></article>
             <article class="settings-card"><span class="eyebrow" data-i18n="updateHelp">APP UPDATE / HELP</span><h3 id="updateState" data-i18n="notChecked">NOT CHECKED</h3><p data-i18n="updateBody">Release updates are delivered by Overwolf.</p><div class="settings-actions"><button id="updateBtn" class="secondary-btn" type="button" data-i18n="checkUpdate">CHECK UPDATE</button><button id="helpBtn" class="text-btn" type="button" data-i18n="helpRules">HELP &amp; RULES</button><button id="privacyBtn" class="text-btn" type="button" data-i18n="privacy">PRIVACY</button><button id="supportBtn" class="text-btn" type="button" data-i18n="support">REPORT A PROBLEM</button><button id="replayIntroBtn" class="text-btn" type="button" data-i18n="replayIntro">REPLAY INTRODUCTION</button><button id="exitBtn" class="danger-btn" type="button" data-i18n="exitApp">EXIT APP</button></div></article>
           </div>

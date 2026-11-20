@@ -1,8 +1,89 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import fs from 'node:fs'
+import vm from 'node:vm'
 
 const src = fs.readFileSync(new URL('../../src/background-engine.js', import.meta.url), 'utf8')
+
+test('dock restores the last display and focuses desktop while game transitions use the other display', async () => {
+  const primary = { id: 'DISPLAY1', handle: { value: 1 }, is_primary: true, x: 0, y: 0, width: 1920, height: 1080 }
+  const secondary = { id: 'DISPLAY2', handle: { value: 2 }, x: -1920, y: 0, width: 1920, height: 1080 }
+  const window = { id: 'desktop-id', width: 1200, height: 700, monitorId: primary.id }
+  let state = 'closed'
+  let displayList = [primary, secondary]
+  let relaunch
+  let hotkey
+  const events = []
+  const values = new Map()
+  const context = vm.createContext({
+    URL, addEventListener() {}, document: { getElementById: () => null },
+    location: { href: 'overwolf-extension://fixture/background.html?source=dock' },
+    localStorage: {
+      getItem: key => values.get(key) ?? null,
+      setItem: (key, value) => values.set(key, value),
+    },
+    overwolf: {
+      extensions: { onAppLaunchTriggered: { addListener: callback => { relaunch = callback } } },
+      settings: { hotkeys: {
+        assign: (options, cb) => { hotkey = options; cb({ success: true }) },
+        get: cb => cb({ success: true, games: { 24482: [{ name: 'toggle_contract_overlay', binding: 'Ctrl+F1' }] } }),
+      } },
+      games: { events: { getInfo: cb => cb({ success: false }) } },
+      utils: { getMonitorsList: cb => cb({ displays: displayList }) },
+      windows: {
+        obtainDeclaredWindow: (_, cb) => cb({ success: true, window }),
+        getWindow: (_, cb) => cb({ success: true, window }),
+        getWindowState: (_, cb) => cb({ success: true, window_state_ex: state }),
+        hide: (_, cb) => { state = 'hidden'; cb({ success: true }) },
+        minimize: (_, cb) => cb({ success: true }),
+        restore: (_, cb) => { state = 'normal'; cb({ success: true }) },
+        maximize: (_, cb) => { state = 'maximized'; cb({ success: true }) },
+        changePosition: (_, left, top, cb) => {
+          window.monitorId = left < 0 ? secondary.id : primary.id
+          events.push(['move', left, top])
+          cb({ success: true })
+        },
+        bringToFront: (id, focus, cb) => { events.push(['front', id, focus]); cb({ success: true }) },
+      },
+    },
+  })
+  context.window = context
+  const background = fs.readFileSync(new URL('../../background.html', import.meta.url), 'utf8')
+  for (const [, source] of background.matchAll(/<script src="([^"]+)"/g)) {
+    vm.runInContext(fs.readFileSync(new URL(`../../${source}`, import.meta.url), 'utf8'), context, { filename: source })
+  }
+  const api = context.dcCompanion
+  const run = code => vm.runInContext(code, context)
+
+  await run('installLaunchOrchestrator(); desktopAction')
+  assert.deepEqual(events.splice(0), [['front', 'desktop-id', true]])
+  await api.hideDesktop()
+  await run('handleRunningGameInfo({ isRunning: true, classId: 24482, monitorHandle: { value: 1 } }); desktopAction')
+  assert.deepEqual(events.splice(0), [['move', -1560, 190], ['front', 'desktop-id', false]])
+  assert.equal(await api.toggleDesktopMaximized(), 'maximized')
+  assert.equal(await api.toggleDesktopMaximized(), 'normal')
+  await api.hideDesktop()
+  await run('handleRunningGameInfo(null); desktopAction')
+  assert.deepEqual(events.splice(0), [['move', 360, 190], ['front', 'desktop-id', true]])
+  await api.hideDesktop()
+  api.rememberDesktopMonitor('\\\\.\\DISPLAY2')
+  relaunch(context.location.href)
+  await run('desktopAction')
+  assert.deepEqual(events.splice(0), [['move', -1560, 190], ['front', 'desktop-id', true]])
+  await api.hideDesktop()
+  await api.showDesktop({ placement: 'game', gameInfo: { monitorHandle: secondary.handle }, focus: false, reopen: false })
+  assert.equal(state, 'hidden')
+  assert.deepEqual(events.splice(0), [])
+  displayList = [primary]
+  await api.showDesktop()
+  assert.deepEqual(events, [['move', 360, 190], ['front', 'desktop-id', true]])
+
+  const snapshot = await api.assignOverlayHotkey(112, { ctrl: true, alt: false, shift: false })
+  assert.equal(hotkey.name, 'toggle_contract_overlay')
+  assert.equal(hotkey.gameId, 24482)
+  assert.equal(hotkey.virtualKey, 112)
+  assert.equal(snapshot.hotkey_binding, 'Ctrl+F1')
+})
 
 test('menu/game stop cannot synthesize final', () => {
   assert.doesNotMatch(src, /finishSession\(['"]game_stopped/)

@@ -24,6 +24,7 @@ const runtimeFiles = [
   'background.html',
   'index.html',
   'overlay.html',
+  'uninstall.html',
   'THIRD_PARTY_NOTICES.txt',
 ]
 const runtimeDirectories = ['src', 'styles', 'assets', 'licenses', 'fixtures']

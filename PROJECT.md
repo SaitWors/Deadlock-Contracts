@@ -31,8 +31,8 @@
 | Компонент | Версия в исходниках |
 | --- | --- |
 | Сайт и backend | 0.10.1-alpha.12 |
-| Companion | 0.5.2-alpha.18 |
-| Версия manifest Overwolf | 0.5.2.18 |
+| Companion | 0.5.2-alpha.19 |
+| Версия manifest Overwolf | 0.5.2.19 |
 | Локальная схема evidence Companion | 9 |
 | Схема bootstrap Companion | 2; поддерживается совместимость с 1 |
 | Исторический production wire contract | companion-heartbeat.v1 |
@@ -240,6 +240,9 @@ Worker выбирает доступную задачу через `FOR UPDATE S
 | `GET /api/public/profiles/{slug}` | Публичное досье |
 | `POST /api/companion/pairing/start` | Создание pairing-кода из web-сессии |
 | `POST /api/companion/pairing/claim` | Привязка устройства |
+| `POST /api/companion/pairing/link/start` | Короткоживущий запрос на подключение из Компаньона |
+| `GET /pair` и `POST /api/companion/pairing/link/approve` | Подтверждение привязки через Steam-сессию сайта |
+| `POST /api/companion/pairing/link/claim` | Получение токена устройством после подтверждения |
 | `POST /api/companion/heartbeat` | Совместимые события и состояние Companion |
 | `POST /api/companion/attempts/start` | Начало серверной попытки GEP-пути |
 | `POST /api/companion/matches/finalize` | Финализация попытки GEP-пути |
@@ -453,9 +456,9 @@ Overlay и Desktop показывают оценку по доступным liv
 
 ### Реклама
 
-Рекламный слот имеет отдельную возможность `desktop_ads_v1` и серверное управление. Он закрыт для overlay, gameplay, FTUE, pairing, диалогов, ошибок и пустых состояний. Во время жизни процесса Deadlock Desktop-реклама также скрывается.
+В обычном режиме реклама работает при серверном флаге `desktop_ads_v1` (`COMPANION_ADS_ENABLED=true`) и включении показов со стороны Overwolf. Слоты Studio Plus закреплены вне прокручиваемой области. Верхний баннер 400×60 доступен при минимальном размере окна. При ширине от 1440 CSS-пикселей справа добавляется слот 400×300. Реклама скрывается в оверлее, при запуске Deadlock, сворачивании окна, первичном входе, в диалогах и когда данные недоступны.
 
-Реклама остаётся выключенной до отдельной проверки на конкретном OPK. Disabled и no-fill не доказывают успешную показанную рекламу.
+**Overwolf QA.** Install the OPK, connect a website account with a daily contract board, and close Deadlock. In the Companion desktop window, open DevTools, run `localStorage.owAdTestAd = true`, and reload. This requests Overwolf test creatives even when the server disables live ads. Scroll and switch views at 900×620, then widen the window to at least 1440 CSS pixels and verify both placements. Minimize the window and verify the SDK stops displaying ads. To exit test mode, run `localStorage.removeItem('owAdTestAd')` and reload. Record the result for the tested OPK hash. [Overwolf Native ad testing](https://dev.overwolf.com/ow-native/guides/test-your-app/how-to-test-your-app/#ads)
 
 <a id="database"></a>
 ## База данных и миграции
@@ -763,6 +766,8 @@ QA-комплект содержит:
 
 `CANDIDATE.json` фиксирует версии, хеши и автоматические проверки упаковки. Поля manual_qa, overwolf_submission и overwolf_approval не получают положительный результат автоматически.
 
+Companion 0.5.2.19 совместим с API сайта 0.10.1-alpha.12. На уже развёрнутом сайте доступна привязка по коду. Для проверки подключения через браузер и опроса при удалении сначала разверните сервер из той же ревизии. После публикации OPK обновите `COMPANION_DOWNLOAD_URL` на имя нового файла.
+
 ### CI и границы проверки
 
 Workflow содержит пять основных направлений: backend, frontend, миграции PostgreSQL, Companion/OPK и Docker release image.
@@ -782,10 +787,12 @@ Workflow содержит пять основных направлений: back
 | --- | --- | --- |
 | Установка | Установлен именно выбранный frozen OPK, Desktop видим | NOT RUN |
 | Первое открытие | FTUE, ссылки, pairing, понятные ошибки | NOT RUN |
-| Pairing | Верный аккаунт, неверный и истёкший код, revoke, восстановление | NOT RUN |
+| Pairing | Англоязычная страница, подтверждение Steam-аккаунта, резервный код, истечение и отзыв привязки | NOT RUN |
 | Контракты | Выбор 1/2/3 условий, подписание и сохранение дела после рестарта | NOT RUN |
 | Overlay | HUD, позиция, фокус, toggle, rebind и unassigned hotkey | NOT RUN |
 | Auto-hide | Never / 5 / 10 / 30 секунд | NOT RUN |
+| Окно | Док выводит окно перед другим полноэкранным приложением. Проверьте один и два монитора, запуск и выход из Deadlock и разворачивание окна | NOT RUN |
+| Удаление | Открывается необязательный опрос. Ответ сохраняется в аудите как `companion.uninstall_feedback` | NOT RUN |
 | Режимы | Standard, Ranked, Street Brawl и неизвестный режим | NOT RUN |
 | Обычный матч | Точная сессия и Match ID, поздние данные, один final | NOT RUN |
 | Exit после match_end | Финал сохранён до выхода и доставляется после запуска | NOT RUN |
@@ -799,7 +806,7 @@ Workflow содержит пять основных направлений: back
 | Окна | Fullscreen, borderless, windowed, Alt+Tab, закрытие и явный Exit | NOT RUN |
 | Язык и доступность | RU/EN, длинные строки, контраст, ошибки сети | NOT RUN |
 | Нагрузка | CPU, RAM и сеть в наблюдаемой среде | NOT RUN |
-| Реклама | Отдельно включённый тест; отсутствие в gameplay и запрещённых состояниях | NOT RUN |
+| Реклама | Overwolf test creative, неподвижные слоты без обрезки, скрытие при запуске игры и сворачивании | NOT RUN |
 | Whitelist / отправка / одобрение | Подтверждение для конкретного аккаунта и кандидата | NOT RECORDED |
 
 Минимальная матрица экранов: 1366×720 @100%, 1366×768 @100%, 1920×1080 @125%, 3840×2160 @150%. По возможности проверяется второй монитор.

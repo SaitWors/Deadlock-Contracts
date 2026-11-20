@@ -1,6 +1,6 @@
 {
   "name": "deadlock-contracts-companion",
-  "version": "0.5.2-alpha.18",
+  "version": "0.5.2-alpha.19",
   "private": true,
   "type": "commonjs",
   "scripts": {
@@ -14,7 +14,7 @@
     "build:opk": "node scripts/package-release.mjs",
     "build:qa-bundle": "node scripts/package-qa-bundle.mjs",
     "test:qa-bundle": "node --test tests/packaging/*.test.mjs",
-    "verify:opk": "node scripts/verify-opk.mjs dist/Deadlock-Contracts-Companion-0.5.2-alpha.18.opk",
+    "verify:opk": "node scripts/verify-opk.mjs",
     "test:contrast": "node scripts/check-contrast.mjs",
     "package": "node scripts/package-release.mjs"
   }

@@ -16,7 +16,7 @@ if(write){
   fs.writeFileSync(manifestPath,JSON.stringify(manifest,null,2)+'\n')
   fs.writeFileSync(metaPath,expectedMeta)
 }else{
-  const current=fs.readFileSync(metaPath,'utf8')
+  const current=fs.readFileSync(metaPath,'utf8').replace(/\r\n/g,'\n')
   if(current!==expectedMeta) throw new Error('src/release-meta.js is not generated from release.json; run node scripts/build-release.mjs --write')
   if(manifest.meta?.version!==release.manifest_version) throw new Error('manifest version does not match release.json')
 }
@@ -26,7 +26,7 @@ if(!buildOpk){
 }
 const stage=path.join(root,'dist','opk-stage')
 fs.rmSync(stage,{recursive:true,force:true});fs.mkdirSync(stage,{recursive:true})
-const roots=['manifest.json','background.html','index.html','overlay.html','THIRD_PARTY_NOTICES.txt']
+const roots=['manifest.json','background.html','index.html','overlay.html','uninstall.html','THIRD_PARTY_NOTICES.txt']
 const dirs=['src','styles','assets','licenses','fixtures']
 for(const file of roots) fs.copyFileSync(path.join(root,file),path.join(stage,file))
 for(const dir of dirs) fs.cpSync(path.join(root,dir),path.join(stage,dir),{recursive:true})

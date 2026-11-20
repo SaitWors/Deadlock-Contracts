@@ -48,7 +48,7 @@ const copyFile = (source, destination) => {
 const sha256 = file => crypto.createHash('sha256').update(fs.readFileSync(file)).digest('hex')
 const sourceFiles = [
   'release.json', 'package.json', 'manifest.json', 'background.html',
-  'index.html', 'overlay.html', 'THIRD_PARTY_NOTICES.txt',
+  'index.html', 'overlay.html', 'uninstall.html', 'THIRD_PARTY_NOTICES.txt',
 ]
 const sourceDirectories = [
   'assets', 'licenses', 'scripts', 'src', 'styles', 'tests', 'schemas', 'fixtures', 'docs',

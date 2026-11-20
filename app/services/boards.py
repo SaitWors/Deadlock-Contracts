@@ -36,6 +36,15 @@ def utcnow() -> datetime:
     return datetime.now(timezone.utc)
 
 
+def board_timestamp(value: datetime | None) -> str | None:
+    if value is None:
+        return None
+    if value.tzinfo is None:
+        # SQLite reads persisted UTC timestamps without the original tzinfo.
+        value = value.replace(tzinfo=timezone.utc)
+    return value.astimezone(timezone.utc).isoformat()
+
+
 def today_utc() -> date:
     """Логический день доски.
 
@@ -862,18 +871,16 @@ def serialize_board(
             ),
 
         "offered_at":
-            board.offered_at.isoformat(),
+            board_timestamp(board.offered_at),
 
         "locked_at":
-            board.locked_at.isoformat()
-            if board.locked_at
-            else None,
+            board_timestamp(board.locked_at),
 
         "expires_at":
-            board.expires_at.isoformat(),
+            board_timestamp(board.expires_at),
 
         "case_expires_at":
-            board.expires_at.isoformat()
+            board_timestamp(board.expires_at)
             if active
             else None,
 
