@@ -36,6 +36,15 @@ def utcnow() -> datetime:
     return datetime.now(timezone.utc)
 
 
+def board_timestamp(value: datetime | None) -> str | None:
+    if value is None:
+        return None
+    if value.tzinfo is None:
+        # SQLite reads persisted UTC timestamps without the original tzinfo.
+        value = value.replace(tzinfo=timezone.utc)
+    return value.astimezone(timezone.utc).isoformat()
+
+
 def today_utc() -> date:
     """Логический день доски.
 
@@ -251,7 +260,7 @@ def _load_board(
     )
 
     if for_update:
-        active_stmt = active_stmt.with_for_update()
+        active_stmt = active_stmt.with_for_update().execution_options(populate_existing=True)
 
     active = db.scalar(active_stmt)
 
@@ -278,7 +287,7 @@ def _load_board(
     )
 
     if for_update:
-        stmt = stmt.with_for_update()
+        stmt = stmt.with_for_update().execution_options(populate_existing=True)
 
     return db.scalar(stmt)
 
@@ -639,6 +648,8 @@ def lock_board(
     user: User,
     option_ids: list[str],
     mode: str = "STANDARD",
+    *,
+    replay_same_selection: bool = False,
 ) -> ContractBoard:
 
     mode = normalize_mode(mode)
@@ -660,6 +671,8 @@ def lock_board(
         raise ValueError("Доска не найдена")
 
     if board.status != "OFFERED":
+        if replay_same_selection and set(option_ids) == {option.id for option in board.options if option.selected}:
+            return board
         raise ValueError(
             "Дело этого режима уже зафиксировано"
         )
@@ -862,18 +875,16 @@ def serialize_board(
             ),
 
         "offered_at":
-            board.offered_at.isoformat(),
+            board_timestamp(board.offered_at),
 
         "locked_at":
-            board.locked_at.isoformat()
-            if board.locked_at
-            else None,
+            board_timestamp(board.locked_at),
 
         "expires_at":
-            board.expires_at.isoformat(),
+            board_timestamp(board.expires_at),
 
         "case_expires_at":
-            board.expires_at.isoformat()
+            board_timestamp(board.expires_at)
             if active
             else None,
 

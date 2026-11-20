@@ -1,4 +1,5 @@
 from dataclasses import replace
+from datetime import datetime, timedelta, timezone
 
 import pytest
 from fastapi.testclient import TestClient
@@ -63,3 +64,25 @@ def test_demo_session_can_lock_a_case_using_the_normal_csrf_protected_api(previe
     assert receipt["status"] == "LOCKED"
     assert {item["id"] for item in receipt["options"] if item["selected"]} == set(selected)
     assert receipt["locked_at"] and receipt["expires_at"] and receipt["max_attempts"] > 0
+
+    # SQLite drops tzinfo on readback. API timestamps must remain unambiguous in
+    # browsers outside UTC, both immediately after signing and on the next GET.
+    refreshed = client.get("/api/boards/today").json()
+    persisted = next(item for item in refreshed["boards"] if item["id"] == board["id"])
+    now = datetime.fromisoformat(refreshed["server_time"])
+    for candidate in (receipt, persisted):
+        for key in ("offered_at", "locked_at", "expires_at", "case_expires_at"):
+            parsed = datetime.fromisoformat(candidate[key])
+            assert parsed.utcoffset() == timedelta(0), key
+        locked = datetime.fromisoformat(candidate["locked_at"])
+        expiry = datetime.fromisoformat(candidate["case_expires_at"])
+        assert expiry - locked == timedelta(hours=main.settings.case_ttl_hours)
+        assert expiry - now > timedelta(hours=main.settings.case_ttl_hours, minutes=-1)
+        assert expiry.astimezone(timezone(timedelta(hours=3))).timestamp() == expiry.timestamp()
+
+    case = next(
+        item for item in client.get("/api/history").json()["cases"]
+        if item["board_id"] == board["id"]
+    )
+    assert case["locked_at"] == persisted["locked_at"]
+    assert case["case_expires_at"] == persisted["case_expires_at"]

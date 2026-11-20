@@ -1,0 +1,45 @@
+# Companion QA deployment notes
+
+The public website currently serves the legacy pairing-code routes and web version `0.10.1-alpha.12`. The candidate uses the same heartbeat and bootstrap v1 wire contracts. The new browser pairing and uninstall survey require the backend in this PR. A release version string alone cannot verify the deployed commit.
+
+## Staging
+
+1. Use an isolated database, Redis, session secret and Steam access configuration. Provision `https://qa.deadlock-contracts.online` if this QA build must be reachable by Overwolf testers. Keep the production project and storage separate. Apply the migrations with `python -m app.migrate` and verify `python -m alembic current --check-heads` reports `0026`.
+2. Set the environment values below on the stage. Confirm health and readiness, verify that `/pair` and `/companion/uninstall` return 200, and test both pairing methods with a Steam account that has access.
+3. Build the QA OPK in the `companion` directory with Node and the standard `zip` command available. It uses the alternate origin for the API, pairing page and uninstall survey.
+
+   ```bash
+   COMPANION_QA_ORIGIN=https://qa.deadlock-contracts.online npm run build:opk
+   npm run verify:opk -- dist/qa/Deadlock-Contracts-Companion-0.5.2-alpha.21-QA-standalone.opk
+   ```
+
+   PowerShell equivalent:
+
+   ```powershell
+   $env:COMPANION_QA_ORIGIN = 'https://qa.deadlock-contracts.online'
+   npm run build:opk
+   npm run verify:opk -- dist/qa/Deadlock-Contracts-Companion-0.5.2-alpha.21-QA-standalone.opk
+   Remove-Item Env:COMPANION_QA_ORIGIN
+   ```
+
+   Windows-only development can use `http://127.0.0.1:<port>` with a local web server and test account. Steam authentication on that local setup depends on Steam's callback configuration. The public candidate is built without this variable. The normal QA bundle always contains the production-origin package.
+4. Run all cases in [OVERWOLF_RELEASE_CHECKLIST.md](OVERWOLF_RELEASE_CHECKLIST.md). Use the staged ad flag alongside Overwolf's official test-creative control.
+
+| Environment value | Stage | Production rollout |
+| --- | --- | --- |
+| `APP_BASE_URL`, `DOMAIN`, `TRUSTED_HOSTS` | Stage origin and hosts | Existing public host and trusted proxy configuration |
+| `COMPANION_INGEST_ENABLED` | `true` | Keep current operator setting |
+| `COMPANION_ADS_ENABLED` | `true` on isolated QA stage | `false` until Overwolf approval and owner authorization |
+| `COMPANION_MINIMUM_VERSION` | `0.5.2-alpha.18` for compatibility checks | Keep the deployed floor during rollout |
+| `COMPANION_PAIRING_TTL_MINUTES` | `10` by default | 2–60 minute supported range |
+| `COMPANION_DEVICE_IDLE_DAYS` | `90` by default | Existing active credentials continue to work. Idle devices reconnect after the configured period. |
+| `CLOSED_ALPHA`, `ALPHA_ALLOWED_STEAM_IDS` | Limit the review stage to intended Steam accounts as needed | Keep the project's public access policy |
+| `OVERWOLF_QA_ACCESS_ENABLED`, `OVERWOLF_QA_ACCESS_CODE_HASH`, `OVERWOLF_QA_ACCESS_UNTIL` | Optional closed-alpha reviewer gateway with an expiring private code | Leave disabled when no reviewer window is needed |
+| `COMPANION_DOWNLOAD_URL` | Stage OPK if deliberately exposed there | Change only after authorized delivery of the public OPK |
+
+## Approved rollout and rollback
+
+- Build and verify the backend image, then back up the database and record the current web and worker image tags, settings and Companion OPK download URL.
+- Apply migration `0026` before replacing the web or worker image. Smoke the version gate, browser and legacy pairing, bootstrap, board lock and uninstall survey. Keep the existing Companion minimum until the new build is verified and distributed.
+- Publish the public release OPK and update the download URL only after the owner authorizes publication. Submit the matching OPK to Overwolf with the test evidence. Production ads remain off until both approvals are recorded.
+- To revert, restore the earlier web and worker images and previous download settings. The added table is compatible with the previous code and can stay in the database during rollback. Existing device rows and contract data are independent of it. Downgrading from `0026` to `0025` drops browser pairing sessions, so run that step only after reverting the application and closing any active review sessions.

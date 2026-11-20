@@ -71,6 +71,7 @@ test('QA bundle contains verifiable current artifacts and a reproducible standal
   assert.equal(digest(path.join(bundle, 'PROJECT.md')), digest(projectDocumentation))
   const packedManifest = JSON.parse(run(bundle, 'unzip', ['-p', candidate.opk.path, 'manifest.json']))
   assert.equal(packedManifest.meta.version, candidate.manifest_version)
+  assert.doesNotMatch(run(bundle, 'unzip', ['-Z1', candidate.opk.path]), /^fixtures\//m)
 
   const sourceDirectory = path.join(directory, 'source')
   run(bundle, 'unzip', ['-q', candidate.source.path, '-d', sourceDirectory])
@@ -92,6 +93,24 @@ test('QA bundle contains verifiable current artifacts and a reproducible standal
   const rebuilt = JSON.parse(fs.readFileSync(path.join(extracted, 'release', `${releaseName}-QA`, 'CANDIDATE.json'), 'utf8'))
   assert.equal(rebuilt.opk.sha256, candidate.opk.sha256)
   assert.equal(rebuilt.sbom.sha256, candidate.sbom.sha256)
+})
+
+test('an isolated QA package pins its own API and CSP without replacing the normal package', t => {
+  const { companion } = fixture(t)
+  run(companion, process.execPath, ['scripts/package-release.mjs'])
+  const normal = path.join(companion, 'dist', `${releaseName}.opk`)
+  const initial = digest(normal)
+  const staging = 'https://qa.deadlock-contracts.online'
+  execFileSync(process.execPath, ['scripts/package-release.mjs'], {
+    cwd: companion, env: { ...process.env, COMPANION_QA_ORIGIN: staging }, stdio: 'pipe',
+  })
+  const qa = path.join(companion, 'dist', 'qa', `${releaseName}-QA-standalone.opk`)
+  const meta = run(companion, 'unzip', ['-p', qa, 'src/release-meta.js'])
+  const background = run(companion, 'unzip', ['-p', qa, 'background.html'])
+  assert.ok(meta.includes(`serverOrigin: "${staging}"`))
+  assert.match(background, /connect-src 'self' https:\/\/qa\.deadlock-contracts\.online/)
+  assert.equal(digest(normal), initial)
+  assert.notEqual(digest(qa), initial)
 })
 
 test('QA packaging stops on conflicting repository metadata before replacing an earlier bundle', t => {

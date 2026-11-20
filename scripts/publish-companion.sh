@@ -5,16 +5,18 @@ cd "$ROOT"
 
 VERSION="$(python3 - <<'PY'
 import json
-print(json.load(open('companion/release.json'))['product_version'])
+with open('companion/release.json') as f:
+    companion = json.load(f)
+with open('release.json') as f:
+    project = json.load(f)
+if (companion['product_version'] != project['companion_version']
+        or companion['manifest_version'] != project['companion_manifest_version']):
+    raise SystemExit('Project and Companion release.json versions disagree')
+print(companion['product_version'])
 PY
 )"
-EXPECTED="0.5.2-alpha.18"
-[[ "$VERSION" == "$EXPECTED" ]] || {
-  echo "[publish-companion][FAIL] expected $EXPECTED, got $VERSION" >&2
-  exit 1
-}
 
-echo "[publish-companion] Validating Alpha.17 source"
+echo "[publish-companion] Validating $VERSION source"
 (
   cd companion
   npm run release:check

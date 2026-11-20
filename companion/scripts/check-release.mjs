@@ -6,12 +6,15 @@ const root=fileURLToPath(new URL('../',import.meta.url))
 const errors=[]
 const json=name=>JSON.parse(fs.readFileSync(path.join(root,name),'utf8'))
 const release=json('release.json'), manifest=json('manifest.json'), pkg=json('package.json')
-if(release.product_version!=='0.5.2-alpha.18')errors.push('release product_version mismatch')
-if(release.manifest_version!=='0.5.2.18')errors.push('release manifest_version mismatch')
+const alphaVersion = /^(\d+\.\d+\.\d+)-alpha\.(\d+)$/.exec(release.product_version)
+if (!alphaVersion || release.manifest_version !== `${alphaVersion[1]}.${alphaVersion[2]}`) {
+  errors.push('release product and manifest versions disagree')
+}
 if(manifest.meta?.version!==release.manifest_version)errors.push('manifest version mismatch')
 if(pkg.version!==release.product_version)errors.push('package version mismatch')
+if(manifest.data?.uninstall_window?.file!=='uninstall.html')errors.push('uninstall survey window missing')
 const notices=fs.readFileSync(path.join(root,'THIRD_PARTY_NOTICES.txt'),'utf8')
-if(!notices.startsWith(`Deadlock Contracts Companion ${release.product_version}\n`))errors.push('third-party notices version mismatch')
+if(notices.split(/\r?\n/,1)[0]!==`Deadlock Contracts Companion ${release.product_version}`)errors.push('third-party notices version mismatch')
 const compat=fs.readFileSync(path.join(root,'src/server-compat.js'),'utf8')
 if(!compat.includes(`PRODUCTION_WEB_VERSION = '${release.production_web_version}'`))errors.push('server compat target mismatch')
 if(!manifest.permissions?.includes('Clipboard'))errors.push('Clipboard permission missing')
@@ -65,10 +68,11 @@ if(bg.includes('new WebSocket('))errors.push('WebSocket transport is not approve
 if(manifest.permissions?.includes('FileSystem'))errors.push('FileSystem permission must not be added')
 
 const desktop=fs.readFileSync(path.join(root,'src/desktop.js'),'utf8')
+if(fs.readFileSync(path.join(root,'index.html'),'utf8').includes('QA CANDIDATE'))errors.push('QA build label shipped in the desktop')
 if(!desktop.includes("call('hideDesktop')"))errors.push('desktop close does not hide')
 if(desktop.includes('document.execCommand'))errors.push('deprecated execCommand remains')
 const overlay=fs.readFileSync(path.join(root,'src/overlay.js'),'utf8')
 if(overlay.includes('overlayHoverSensor')||overlay.includes('installDodgeBehavior'))errors.push('overlay dodge remains')
 if(!overlay.includes('REFRESH_MS = 1000'))errors.push('overlay polling is not 1s fallback')
 if(errors.length){console.error('[release-check] FAIL\n - '+errors.join('\n - '));process.exit(1)}
-console.log('[release-check] PASS: Alpha.18 source identity and settlement invariants')
+console.log(`[release-check] PASS: ${release.product_version} source identity and settlement invariants`)

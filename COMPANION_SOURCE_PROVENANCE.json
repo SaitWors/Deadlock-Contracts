@@ -1,15 +1,14 @@
 {
   "product": "Deadlock Contracts Companion",
-  "runtime_version": "0.5.2-alpha.18",
-  "manifest_version": "0.5.2.18",
+  "runtime_version": "0.5.2-alpha.21",
+  "manifest_version": "0.5.2.21",
   "evidence_schema": 9,
-  "remediation_base_runtime_version": "0.5.2-alpha.17",
-  "remediation_base_manifest_version": "0.5.2.17",
-  "imported_at": "2026-08-31",
-  "source_bundle": "Git main + Alpha18 canary hotfix",
-  "source_bundle_sha256": null,
-  "source_archive": "Git main + Alpha18 canary hotfix",
-  "source_archive_sha256": null,
-  "verified_tests": 106,
-  "source_commit_base": "04c91d40fb3cef281bf9fd3b218701e1fa4a95c0"
+  "remediation_base_runtime_version": "0.5.2-alpha.20",
+  "remediation_base_manifest_version": "0.5.2.20",
+  "imported_at": "2026-11-20",
+  "source_bundle": "Deadlock-Contracts-Companion-0.5.2-alpha.20.zip",
+  "source_bundle_sha256": "b635c530ac7615e5f802fd4ce55c00ace7d2544eb6d3008b2a948a450c9b1aa0",
+  "source_archive": "Deadlock-Contracts-Companion-0.5.2-alpha.20.opk",
+  "source_archive_sha256": "2d7266c09cf60517ae79ef988e3fba4613cc19bc629152163dd54017c39373c8",
+  "source_commit_base": "76817b2f3d5325f531bd8843716bad70ef6af7f3"
 }

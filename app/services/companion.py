@@ -1,25 +1,27 @@
 from __future__ import annotations
 
+import base64
 import hashlib
 import hmac
 import json
 import re
 import secrets
-import base64
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
 from fastapi import Header, HTTPException
-from sqlalchemy import delete, select
+from sqlalchemy import delete, select, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from ..config import settings
 from ..db import SessionLocal
 from ..models import (
+    AuditLog,
     BoardOption,
     CompanionDevice,
     CompanionEvent,
+    CompanionLinkSession,
     CompanionMatchEvidence,
     CompanionPairing,
     ContractBoard,
@@ -214,27 +216,192 @@ def create_pairing(db: Session, user: User) -> tuple[str, CompanionPairing]:
     raise RuntimeError("Не удалось создать код привязки Companion")
 
 
+def _link_hash(verifier: str, device_id: str) -> str:
+    return hash_secret(f"companion-link-v1:{verifier}:{device_id}")
+
+
+def _link_signature(payload: str) -> str:
+    return hmac.new(
+        settings.session_secret.encode(),
+        f"companion-link-v1:{payload}".encode(),
+        hashlib.sha256,
+    ).hexdigest()
+
+
+def start_pairing_link(db: Session, device_id: str) -> dict[str, str]:
+    # The browser receives a signed commitment. The verifier stays in the app.
+    verifier = new_device_token()
+    now = utcnow()
+    expires_at = (now + timedelta(minutes=settings.companion_pairing_ttl_minutes)).replace(microsecond=0)
+    code_hash = _link_hash(verifier, device_id)
+    payload = f"{int(expires_at.timestamp())}.{code_hash}"
+    db.execute(delete(CompanionLinkSession).where(CompanionLinkSession.expires_at < now - timedelta(days=1)))
+    db.add(CompanionLinkSession(code_hash=code_hash, expires_at=expires_at))
+    db.commit()
+    return {
+        "challenge": f"{payload}.{_link_signature(payload)}",
+        "verifier": verifier,
+        "expires_at": expires_at.isoformat(),
+    }
+
+
+def approve_pairing_link(db: Session, user: User, challenge: str) -> None:
+    expiry, code_hash, signature = challenge.split(".")
+    if not hmac.compare_digest(signature, _link_signature(f"{expiry}.{code_hash}")):
+        raise HTTPException(410, "Open a new connection request from the Companion.")
+    now = utcnow()
+    if int(expiry) <= now.timestamp():
+        raise HTTPException(410, "This Companion connection request expired.")
+
+    approved = db.execute(
+        update(CompanionLinkSession)
+        .where(
+            CompanionLinkSession.code_hash == code_hash,
+            CompanionLinkSession.expires_at > now,
+            CompanionLinkSession.finished_at.is_(None),
+            CompanionLinkSession.user_id.is_(None),
+        )
+        .values(user_id=user.id)
+        .returning(CompanionLinkSession.code_hash)
+    ).scalar_one_or_none()
+    if approved is None:
+        current = db.get(CompanionLinkSession, code_hash)
+        if current is None or current.finished_at is not None or current.claimed_token_hash is not None or (aware(current.expires_at) or now) <= now:
+            raise HTTPException(410, "This Companion connection request expired or was closed.")
+        if current.user_id != user.id:
+            raise HTTPException(409, "This connection request has already been approved.")
+        return
+
+    db.add(AuditLog(
+        user_id=user.id,
+        action="companion.pairing_started",
+        entity_type="user",
+        entity_id=user.id,
+        data={"method": "browser"},
+    ))
+    db.commit()
+
+
+def cancel_pairing_link(db: Session, verifier: str, device_id: str) -> bool:
+    now = utcnow()
+    cancelled = db.execute(
+        update(CompanionLinkSession)
+        .where(
+            CompanionLinkSession.code_hash == _link_hash(verifier, device_id),
+            CompanionLinkSession.expires_at > now,
+            CompanionLinkSession.finished_at.is_(None),
+            CompanionLinkSession.claimed_token_hash.is_(None),
+        )
+        .values(finished_at=now)
+        .returning(CompanionLinkSession.code_hash)
+    ).scalar_one_or_none()
+    db.commit()
+    return cancelled is not None
+
+
 def claim_pairing(db: Session, code: str, device_id: str, label: str, version: str | None) -> tuple[str, CompanionDevice, User]:
     normalized = normalize_pairing_code(code)
     if len(normalized) != 8:
         raise HTTPException(422, "Некорректный код привязки")
-    now = utcnow()
-    pairing = db.scalar(select(CompanionPairing).where(CompanionPairing.code_hash == hash_secret(normalized)).with_for_update())
-    if not pairing or (aware(pairing.expires_at) or now) <= now:
+    result = _claim_pairing(db, hash_secret(normalized), normalized, device_id, label, version)
+    if result is None:
         raise HTTPException(410, "Код привязки истёк или уже использован")
-    user = db.get(User, pairing.user_id)
+    return result
+
+
+def claim_pairing_link(db: Session, verifier: str, device_id: str, label: str, version: str | None) -> tuple[str, CompanionDevice, User] | None:
+    now = utcnow()
+    code_hash = _link_hash(verifier, device_id)
+    token = pairing_device_token(f"browser:{verifier}", device_id)
+    token_hash = hash_secret(token)
+    user_id = db.execute(
+        update(CompanionLinkSession)
+        .where(
+            CompanionLinkSession.code_hash == code_hash,
+            CompanionLinkSession.expires_at > now,
+            CompanionLinkSession.finished_at.is_(None),
+            CompanionLinkSession.claimed_token_hash.is_(None),
+            CompanionLinkSession.user_id.is_not(None),
+        )
+        .values(claimed_token_hash=token_hash)
+        .returning(CompanionLinkSession.user_id)
+    ).scalar_one_or_none()
+    if user_id is not None:
+        user = _pairing_user(db, user_id)
+        existing = _pairing_device(db, user.id, device_id)
+        return token, _register_device(db, user.id, device_id, token, label, version, now, existing), user
+
+    current = db.get(CompanionLinkSession, code_hash)
+    if current is None:
+        return None
+    if current.finished_at is not None or (aware(current.expires_at) or now) <= now:
+        raise HTTPException(410, "This Companion connection request expired or was closed.")
+    if current.claimed_token_hash is None:
+        return None
+
+    # Recover a lost response only until this credential's first authenticated heartbeat.
+    user = _pairing_user(db, current.user_id)
+    device = _pairing_device(db, user.id, device_id)
+    if not device or device.revoked_at is not None or not hmac.compare_digest(device.token_hash, token_hash):
+        raise HTTPException(410, "This Companion connection request expired or was closed.")
+    return token, device, user
+
+
+def acknowledge_pairing_link(db: Session, device: CompanionDevice) -> None:
+    db.execute(
+        update(CompanionLinkSession)
+        .where(
+            CompanionLinkSession.claimed_token_hash == device.token_hash,
+            CompanionLinkSession.finished_at.is_(None),
+        )
+        .values(finished_at=utcnow())
+    )
+
+
+def _pairing_user(db: Session, user_id: str) -> User:
+    # Serialize new device registrations for one owner, including manual codes.
+    user = db.scalar(select(User).where(User.id == user_id).with_for_update())
     if not user:
         raise HTTPException(404, "Пользователь не найден")
     if user.status != "ACTIVE":
         raise HTTPException(403, "Аккаунт заблокирован")
+    return user
 
-    token = pairing_device_token(normalized, device_id)
-    existing = db.scalar(
-        select(CompanionDevice).where(
-            CompanionDevice.user_id == user.id,
-            CompanionDevice.device_id == device_id,
-        ).with_for_update()
+
+def _pairing_device(db: Session, user_id: str, device_id: str) -> CompanionDevice | None:
+    return db.scalar(
+        select(CompanionDevice)
+        .where(CompanionDevice.user_id == user_id, CompanionDevice.device_id == device_id)
+        .with_for_update()
     )
+
+
+def _register_device(
+    db: Session, user_id: str, device_id: str, token: str, label: str, version: str | None,
+    now: datetime, existing: CompanionDevice | None,
+) -> CompanionDevice:
+    device = existing
+    if device is None:
+        device = CompanionDevice(user_id=user_id, device_id=device_id)
+        db.add(device)
+    device.token_hash = hash_secret(token)
+    device.label = label
+    device.version = version
+    device.revoked_at = None
+    device.last_seen_at = now
+    return device
+
+
+def _claim_pairing(db: Session, code_hash: str, proof: str, device_id: str, label: str, version: str | None) -> tuple[str, CompanionDevice, User] | None:
+    now = utcnow()
+    pairing = db.scalar(select(CompanionPairing).where(CompanionPairing.code_hash == code_hash).with_for_update())
+    if pairing is None:
+        return None
+    if (aware(pairing.expires_at) or now) <= now:
+        raise HTTPException(410, "Код привязки истёк или уже использован")
+    user = _pairing_user(db, pairing.user_id)
+    token = pairing_device_token(proof, device_id)
+    existing = _pairing_device(db, user.id, device_id)
 
     if pairing.claimed_at is not None:
         if (
@@ -246,27 +413,9 @@ def claim_pairing(db: Session, code: str, device_id: str, label: str, version: s
             raise HTTPException(410, "Код привязки истёк или уже использован")
         return token, existing, user
 
-    if existing:
-        device = existing
-        device.token_hash = hash_secret(token)
-        device.label = label
-        device.version = version
-        device.revoked_at = None
-        device.last_seen_at = now
-    else:
-        device = CompanionDevice(
-            user_id=user.id,
-            device_id=device_id,
-            token_hash=hash_secret(token),
-            label=label,
-            version=version,
-            last_seen_at=now,
-        )
-        db.add(device)
+    device = _register_device(db, user.id, device_id, token, label, version, now, existing)
     pairing.claimed_at = now
     pairing.claimed_device_id = device_id
-    db.commit()
-    db.refresh(device)
     return token, device, user
 
 
@@ -276,6 +425,9 @@ def get_device_by_token(db: Session, token: str) -> CompanionDevice:
     device = db.scalar(select(CompanionDevice).where(CompanionDevice.token_hash == hash_secret(token)))
     if not device or device.revoked_at is not None:
         raise HTTPException(401, "Companion token недействителен")
+    last_seen = aware(device.last_seen_at or device.created_at)
+    if last_seen and utcnow() - last_seen >= timedelta(days=settings.companion_device_idle_days):
+        raise HTTPException(401, "Срок действия токена Companion истёк")
     return device
 
 

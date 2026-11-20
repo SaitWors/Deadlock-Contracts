@@ -3,8 +3,9 @@ import path from 'node:path'
 import zlib from 'node:zlib'
 import {fileURLToPath} from 'node:url'
 
-const file=process.argv[2]
-if(!file) throw new Error('Usage: node scripts/verify-opk.mjs <file.opk>')
+const root = fileURLToPath(new URL('../', import.meta.url))
+const release = JSON.parse(fs.readFileSync(path.join(root, 'release.json'), 'utf8'))
+const file = process.argv[2] || path.join(root, 'dist', `Deadlock-Contracts-Companion-${release.product_version}.opk`)
 const buf=fs.readFileSync(file)
 const entries=[]
 for(let i=0;i<=buf.length-46;i++){
@@ -18,11 +19,11 @@ for(let i=0;i<=buf.length-46;i++){
 if(!entries.length) throw new Error('ZIP central directory not found')
 const names=new Set(entries.map(e=>e.name))
 const errors=[]
+if (names.size !== entries.length) errors.push('duplicate OPK entry')
 if(!names.has('manifest.json')) errors.push('manifest.json is not at package root')
-if(!names.has('fixtures/preview.json')) errors.push('fixtures/preview.json missing')
 for(const name of names){
   if(name.startsWith('/')||name.includes('../')) errors.push(`unsafe path: ${name}`)
-  if(/(^|\/)(?:\.git|node_modules|tests|scripts|docs|schemas)(?:\/|$)/.test(name)) errors.push(`development-only content in OPK: ${name}`)
+  if(/(^|\/)(?:\.git|node_modules|tests|scripts|docs|schemas|fixtures)(?:\/|$)/.test(name)) errors.push(`development-only content in OPK: ${name}`)
   if(/(^|\/)(?:\.env(?:\.|$)|secrets?\/|review-reports?\/)/i.test(name)) errors.push(`forbidden sensitive/review content: ${name}`)
 }
 function extract(entry){
@@ -34,23 +35,14 @@ function extract(entry){
   if(entry.method===8)return zlib.inflateRawSync(data)
   throw new Error(`unsupported compression method ${entry.method} for ${entry.name}`)
 }
+if (entries.some(entry => entry.name.endsWith('/manifest.json'))) errors.push('multiple application roots in OPK')
 const manifestEntry=entries.find(e=>e.name==='manifest.json')
 if(manifestEntry){
   let manifest
   try{manifest=JSON.parse(extract(manifestEntry).toString('utf8'))}catch(error){errors.push(`manifest invalid: ${error.message}`)}
   if(manifest){
-    const release=JSON.parse(
-      fs.readFileSync(
-        path.resolve(
-          path.dirname(fileURLToPath(import.meta.url)),
-          '..',
-          'release.json'
-        ),
-        'utf8'
-      )
-    )
     if(manifest.meta?.version!==release.manifest_version) errors.push('manifest version mismatch')
-    const paths=[manifest.meta?.icon,manifest.meta?.icon_gray,manifest.meta?.launcher_icon,manifest.meta?.window_icon,...Object.values(manifest.data?.windows||{}).map(w=>w?.file)].filter(Boolean)
+    const paths=[manifest.meta?.icon,manifest.meta?.icon_gray,manifest.meta?.launcher_icon,manifest.meta?.window_icon,manifest.data?.uninstall_window?.file,...Object.values(manifest.data?.windows||{}).map(w=>w?.file)].filter(Boolean)
     for(const p of paths) if(!names.has(String(p).replaceAll('\\','/'))) errors.push(`manifest path missing: ${p}`)
   }
 }

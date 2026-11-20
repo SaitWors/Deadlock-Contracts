@@ -10,7 +10,6 @@
   const CATALOG = {
     en: {
       'app.name': 'DEADLOCK CONTRACTS',
-      'app.qa_candidate': 'QA CANDIDATE',
       'common.cancel': 'CANCEL',
       'common.confirm': 'CONFIRM',
       'common.never': 'Never',
@@ -20,6 +19,9 @@
       'mode.STANDARD': 'Standard',
       'mode.RANKED': 'Ranked',
       'mode.STREET_BRAWL': 'Street Brawl',
+      'mode.label.STANDARD': 'Standard',
+      'mode.label.RANKED': 'Ranked',
+      'mode.label.STREET_BRAWL': 'Street Brawl',
       'mode.unknown': 'Mode is not determined yet',
       'objective.prefix': 'In your next {mode} match: {conditions}.',
       'join.and.two': '{a} and {b}',
@@ -92,13 +94,6 @@
       'sync.ok': 'Data updated',
       'sync.offline': 'Offline. Local evidence is retained and will sync after reconnection.',
       'sync.failed': 'Sync failed',
-      'ad.unavailable': 'AD UNAVAILABLE',
-      'ad.served': 'AD SERVED BY OVERWOLF',
-      'ad.sponsored': 'SPONSORED CONTENT',
-      'ad.requesting': 'REQUESTING OVERWOLF AD',
-      'ad.loading_sdk': 'LOADING OVERWOLF AD SDK',
-      'ad.sdk_init_failed': 'AD SDK DID NOT INITIALIZE',
-      'ad.sdk_unavailable': 'AD SDK UNAVAILABLE',
       'privacy.summary': 'For contract verification, Companion processes your SteamID, selected contracts, Deadlock game events, synchronization history, and technical diagnostics. Ads and their technical events run only in the desktop window. See Privacy for details.',
       'exit.title': 'EXIT COMPANION?',
       'exit.keep': 'KEEP RUNNING',
@@ -121,7 +116,6 @@
     },
     ru: {
       'app.name': 'DEADLOCK CONTRACTS',
-      'app.qa_candidate': 'QA-КАНДИДАТ',
       'common.cancel': 'ОТМЕНА',
       'common.confirm': 'ПОДТВЕРДИТЬ',
       'common.never': 'Никогда',
@@ -131,6 +125,9 @@
       'mode.STANDARD': 'обычном',
       'mode.RANKED': 'рейтинговом',
       'mode.STREET_BRAWL': 'уличном',
+      'mode.label.STANDARD': 'Обычный',
+      'mode.label.RANKED': 'Рейтинговый',
+      'mode.label.STREET_BRAWL': 'Уличная драка',
       'mode.unknown': 'Режим пока не определён',
       'objective.prefix': 'В следующем {mode} матче: {conditions}.',
       'join.and.two': '{a} и {b}',
@@ -203,13 +200,6 @@
       'sync.ok': 'Данные обновлены',
       'sync.offline': 'Нет сети. Локальные данные сохранены и отправятся после подключения.',
       'sync.failed': 'Синхронизация не удалась',
-      'ad.unavailable': 'РЕКЛАМА НЕДОСТУПНА',
-      'ad.served': 'РЕКЛАМА ПОЛУЧЕНА ЧЕРЕЗ OVERWOLF',
-      'ad.sponsored': 'СПОНСОРСКИЙ КОНТЕНТ',
-      'ad.requesting': 'ЗАПРАШИВАЕМ РЕКЛАМУ OVERWOLF',
-      'ad.loading_sdk': 'ЗАГРУЖАЕМ OVERWOLF ADS SDK',
-      'ad.sdk_init_failed': 'ADS SDK НЕ ИНИЦИАЛИЗИРОВАЛСЯ',
-      'ad.sdk_unavailable': 'ADS SDK НЕДОСТУПЕН',
       'privacy.summary': 'Для проверки контрактов Companion обрабатывает ваш SteamID, выбранные контракты, игровые события Deadlock, историю синхронизации и техническую диагностику. Реклама и её технические события работают только в desktop-окне. Подробнее — в Privacy.',
       'exit.title': 'ВЫЙТИ ИЗ COMPANION?',
       'exit.keep': 'ОСТАВИТЬ РАБОТАТЬ',
@@ -242,13 +232,10 @@
   // after the compatibility catalog so legacy keys cannot overwrite them.
   Object.assign(CATALOG.en, {
     brandSub: 'COMPANION / M.C.G.',
-    qaCandidate: 'QA CANDIDATE',
     deadlockLabel: 'DEADLOCK',
     gepEvidenceLabel: 'GEP / EVIDENCE',
     identityLabel: 'IDENTITY',
     sponsoredContent: 'SPONSORED CONTENT',
-    desktopAdSpace: 'DESKTOP-ONLY AD SPACE',
-    adsInitialDisabled: 'AVAILABLE AFTER OVERWOLF QA ENABLES ADS',
     dailyBoardEyebrow: 'DAILY BOARD / CONTRACTS 2.0',
     liveCaseEyebrow: 'LIVE CASE / MATCH EVIDENCE',
     currentMatchEyebrow: 'CURRENT MATCH',
@@ -257,7 +244,6 @@
     profileEyebrow: 'OPERATIVE RECORD / SERVER VERIFIED',
     historyAll: 'ALL', historyActive: 'ACTIVE', historyCompleted: 'COMPLETED', historyFailed: 'FAILED',
     showId: 'SHOW ID', copyId: 'COPY ID', totalXp: 'TOTAL XP', successRate: 'SUCCESS RATE',
-    overlayHotkeyWarning: 'Overlay hotkey is unassigned. Open Overwolf Hotkey Settings to assign one.',
     ftuePlay: 'PLAY', ftueComplete: 'COMPLETE', ftueEarn: 'EARN', authoritativeAction: 'AUTHORITATIVE ACTION',
     ftuePrivacy: 'For contract verification, Companion processes your SteamID, selected contracts, Deadlock game events, synchronization history, and technical diagnostics. Ads and their technical events run only in the desktop window. See Privacy for details.',
     overlayBody: 'A minimal input-pass-through case widget. Choose a tested size preset, reset its position, and configure auto-hide here.',
@@ -281,7 +267,23 @@
     backgroundReady: 'BACKGROUND READY',
     notChecked: 'NOT CHECKED',
     pairingCodeLabel: 'Pairing code',
+    pairBrowser: 'Connect in browser',
+    pairCancel: 'Cancel connection',
+    pairConfirming: 'Waiting for the server to confirm the connection…',
+    pairSessionExpired: 'Your Companion session expired. Connect your account again.',
+    companionVersionRequired: 'Overwolf must update the Companion to {version} or newer.',
+    pairBrowserHelp: 'Approve the connection on the official website. The Companion connects automatically.',
+    pairBrowserWaiting: 'Check for {code} in your browser and approve the connection there.',
+    pairBrowserUnavailable: 'Browser connection is unavailable. Use a pairing code to continue.',
+    pairBrowserExpired: 'The connection request expired. Open a new request to try again.',
+    pairUpdateRequired: 'Update the Companion in Overwolf before connecting.',
+    pairManual: 'Use a pairing code',
+    pairManualHelp: 'In your website profile, expand Account settings and create a Companion pairing code.',
+    pairOpenProfile: 'Open website profile',
+    caseLocked: 'Contracts locked.',
     minimize: 'Minimize',
+    maximizeWindow: 'Maximize window',
+    restoreWindow: 'Restore window size',
     closeWindow: 'Close window',
     systemStatus: 'System status',
     languageLabel: 'Language',
@@ -309,7 +311,11 @@
     requestId: 'Request ID',
     summaryMode: 'MODE', summaryExpiry: 'BOARD EXPIRES', summaryAttempt: 'ATTEMPT AFTER LOCK', summaryReward: 'MAXIMUM REWARD', summaryDataAge: 'SERVER DATA AGE', summaryContract: 'CONTRACT',
     server: 'SERVER', deadlock: 'DEADLOCK', generation: 'GENERATION', available: 'AVAILABLE', phase: 'PHASE', versionLabel: 'VERSION', match: 'MATCH', activeSession: 'ACTIVE SESSION', noSession: 'NO SESSION', waitingDeadlock: 'WAITING FOR DEADLOCK', deadlockDetected: 'DEADLOCK DETECTED',
-    overlayHotkeyUnassigned: 'Overlay hotkey is not assigned.', openHotkeySettings: 'OPEN OVERWOLF HOTKEY SETTINGS',
+    overlayHotkeyUnassigned: 'Overlay hotkey is not assigned.',
+    changeHotkey: 'CHANGE HOTKEY',
+    hotkeyCaptureHint: 'Press Ctrl, Alt or Shift with another key. Press Esc to cancel.',
+    hotkeyUpdated: 'Overlay hotkey updated.',
+    hotkeyAssignFailed: 'Unable to assign the overlay hotkey.',
     copied: 'COPIED',
     privacyLink: 'https://deadlock-contracts.online/privacy',
     supportLink: 'https://deadlock-contracts.online/support',
@@ -317,13 +323,10 @@
   })
   Object.assign(CATALOG.ru, {
     brandSub: 'КОМПАНЬОН / M.C.G.',
-    qaCandidate: 'QA-КАНДИДАТ',
     deadlockLabel: 'DEADLOCK',
     gepEvidenceLabel: 'GEP / ДОКАЗАТЕЛЬСТВА',
     identityLabel: 'ЛИЧНОСТЬ',
     sponsoredContent: 'СПОНСОРСКИЙ КОНТЕНТ',
-    desktopAdSpace: 'РЕКЛАМА ТОЛЬКО В DESKTOP',
-    adsInitialDisabled: 'РЕКЛАМА ОТКЛЮЧЕНА ДЛЯ ПЕРВОГО QA',
     dailyBoardEyebrow: 'ЕЖЕДНЕВНАЯ ДОСКА / CONTRACTS 2.0',
     liveCaseEyebrow: 'АКТИВНОЕ ДЕЛО / ДАННЫЕ МАТЧА',
     currentMatchEyebrow: 'ТЕКУЩИЙ МАТЧ',
@@ -332,7 +335,6 @@
     profileEyebrow: 'ДОСЬЕ ОПЕРАТИВНИКА / ПОДТВЕРЖДЕНО СЕРВЕРОМ',
     historyAll: 'ВСЕ', historyActive: 'АКТИВНЫЕ', historyCompleted: 'ВЫПОЛНЕНЫ', historyFailed: 'ПРОВАЛЕНЫ',
     showId: 'ПОКАЗАТЬ ID', copyId: 'КОПИРОВАТЬ ID', totalXp: 'ВСЕГО XP', successRate: 'ДОЛЯ УСПЕХА',
-    overlayHotkeyWarning: 'Hotkey оверлея не назначен. Откройте настройки hotkey Overwolf и назначьте клавиши.',
     ftuePlay: 'ИГРАЙ', ftueComplete: 'ВЫПОЛНЯЙ', ftueEarn: 'ПОЛУЧАЙ XP', authoritativeAction: 'НЕОБРАТИМОЕ ДЕЙСТВИЕ',
     ftuePrivacy: 'Для проверки контрактов Companion обрабатывает ваш SteamID, выбранные контракты, игровые события Deadlock, историю синхронизации и техническую диагностику. Реклама и её технические события работают только в desktop-окне. Подробнее — в Privacy.',
     overlayBody: 'Минимальный input-pass-through виджет дела. Здесь можно выбрать проверенный размер, сбросить позицию и настроить автоскрытие.',
@@ -356,7 +358,23 @@
     backgroundReady: 'ФОНОВЫЙ КОНТРОЛЛЕР ГОТОВ',
     notChecked: 'НЕ ПРОВЕРЕНО',
     pairingCodeLabel: 'Код привязки',
+    pairBrowser: 'Подключить в браузере',
+    pairCancel: 'Отменить подключение',
+    pairConfirming: 'Ждём подтверждения подключения от сервера…',
+    pairSessionExpired: 'Срок действия сеанса Companion истёк. Подключите аккаунт снова.',
+    companionVersionRequired: 'Обновите Companion через Overwolf до версии {version} или новее.',
+    pairBrowserHelp: 'Подтвердите привязку на официальном сайте. Компаньон подключится автоматически.',
+    pairBrowserWaiting: 'Сверьте код {code} в браузере и подтвердите подключение.',
+    pairBrowserUnavailable: 'Подключение через браузер недоступно. Воспользуйтесь кодом привязки.',
+    pairBrowserExpired: 'Запрос на подключение истёк. Откройте новый запрос и попробуйте снова.',
+    pairUpdateRequired: 'Перед подключением обновите Компаньон в Overwolf.',
+    pairManual: 'Использовать код привязки',
+    pairManualHelp: 'Откройте настройки аккаунта в профиле на сайте и создайте код привязки Компаньона.',
+    pairOpenProfile: 'Открыть профиль на сайте',
+    caseLocked: 'Контракты зафиксированы.',
     minimize: 'Свернуть',
+    maximizeWindow: 'Развернуть окно',
+    restoreWindow: 'Восстановить размер окна',
     closeWindow: 'Закрыть окно',
     systemStatus: 'Состояние системы',
     languageLabel: 'Язык',
@@ -384,7 +402,11 @@
     requestId: 'Request ID',
     summaryMode: 'РЕЖИМ', summaryExpiry: 'ДОСКА ИСТЕКАЕТ', summaryAttempt: 'ПОПЫТКА ПОСЛЕ ФИКСАЦИИ', summaryReward: 'МАКСИМАЛЬНАЯ НАГРАДА', summaryDataAge: 'ВОЗРАСТ ДАННЫХ СЕРВЕРА', summaryContract: 'КОНТРАКТ',
     server: 'СЕРВЕР', deadlock: 'DEADLOCK', generation: 'ПОКОЛЕНИЕ', available: 'ДОСТУПНО', phase: 'ФАЗА', versionLabel: 'ВЕРСИЯ', match: 'МАТЧ', activeSession: 'АКТИВНАЯ СЕССИЯ', noSession: 'НЕТ СЕССИИ', waitingDeadlock: 'ОЖИДАНИЕ DEADLOCK', deadlockDetected: 'DEADLOCK ОБНАРУЖЕН',
-    overlayHotkeyUnassigned: 'Hotkey оверлея не назначен.', openHotkeySettings: 'ОТКРЫТЬ НАСТРОЙКИ HOTKEY OVERWOLF',
+    overlayHotkeyUnassigned: 'Горячая клавиша оверлея не назначена.',
+    changeHotkey: 'ИЗМЕНИТЬ СОЧЕТАНИЕ КЛАВИШ',
+    hotkeyCaptureHint: 'Нажмите Ctrl, Alt или Shift вместе с другой клавишей. Esc отменяет ввод.',
+    hotkeyUpdated: 'Горячая клавиша оверлея обновлена.',
+    hotkeyAssignFailed: 'Не удалось назначить горячую клавишу оверлея.',
     copied: 'СКОПИРОВАНО',
     privacyLink: 'https://deadlock-contracts.online/privacy',
     supportLink: 'https://deadlock-contracts.online/support',
@@ -394,24 +416,24 @@
   // City Never Sleeps presentation copy. Technical and contract semantics remain unchanged.
   Object.assign(CATALOG.en, {
     hq: 'Overview', contracts: 'Contracts', activeCase: 'Active case', debrief: 'Debrief', history: 'Match history', profile: 'Profile', settings: 'Settings',
-    brandSub: 'COMPANION / M.C.G.', navWorkspace: 'YOUR NEXT MATCH', bureauSignal: 'YOUR BUREAU / COMPANION', operationsHq: 'Your control room.',
-    hqSubtitle: 'A new goal for your next match.', cityName: 'CITY NEVER SLEEPS', cityEyebrow: 'CITY GUIDE / YOUR NEXT MATCH',
-    heroTitle: 'A good match starts with a goal.', heroBody: 'Choose a case, play your match, and let the server confirm the result. Your next objective is always close.',
-    openContracts: 'Choose a contract', openActive: 'Active case', curatorTitle: 'Your next case is waiting.', curatorBody: 'Choose a goal. The Companion keeps the details close.', connectionSettings: 'Connection settings',
-    appearanceEyebrow: 'YOUR COMPANION', appearanceTitle: 'Five moods. One city.', appearanceBody: 'Choose a look for the desktop and overlay. Your choice stays on this device.',
-    themeLabel: 'Color theme', themeSystem: 'System', themeSystemBody: 'Follow your device', themeDark: 'Night city', themeDarkBody: 'Charcoal and orange', themeLight: 'City paper', themeLightBody: 'Warm cream and ink', themeBlack: 'Blackout', themeBlackBody: 'Quiet. Pure black.', themeCustom: 'After hours', themeCustomBody: 'Plum and lilac',
+    navWorkspace: 'Companion', mcg: 'Mandarin Creator Group', hqEyebrow: 'Contracts for your next match', hqStatusTitle: 'Match readiness',
+    heroTitle: 'Your match', heroTitleAccent: 'Your terms',
+    heroBody: 'Pick up to three contracts and lock them before your Deadlock match. Earn XP after your result is verified.',
+    openContracts: 'Choose a contract', openActive: 'Active case', connectionSettings: 'Connection settings',
+    appearanceTitle: 'Appearance', appearanceBody: 'Choose a theme for the desktop and in-game overlay.',
+    themeLabel: 'Color theme', themeSystem: 'System', themeSystemBody: 'Follow your device', themeDark: 'Dark', themeDarkBody: 'Website palette', themeLight: 'Light', themeLightBody: 'Cool grey and sage', themeBlack: 'Black', themeBlackBody: 'Pure black background', themeCustom: 'After hours', themeCustomBody: 'Slate and teal',
     motionTitle: 'Motion', motionBody: 'System accessibility preferences are always respected.', motionSystem: 'System', motionReduced: 'Reduced',
     settingsSecurity: 'Your connection, appearance, overlay and diagnostic controls, in one place.',
     ftueTitle: 'Your next match starts here.', ftueEyebrow: 'WELCOME TO THE CITY', continue: 'Enter the bureau', pairNow: 'Pair account',
   })
   Object.assign(CATALOG.ru, {
     hq: 'Обзор', contracts: 'Контракты', activeCase: 'Активное дело', debrief: 'Итог матча', history: 'История матчей', profile: 'Профиль', settings: 'Настройки',
-    brandSub: 'COMPANION / M.C.G.', navWorkspace: 'ТВОЯ СЛЕДУЮЩАЯ ИГРА', bureauSignal: 'ЛИЧНОЕ БЮРО / COMPANION', operationsHq: 'Твой центр управления.',
-    hqSubtitle: 'Новая цель для следующего матча.', cityName: 'ГОРОД НЕ СПИТ', cityEyebrow: 'ГОРОДСКОЙ ГИД / СЛЕДУЮЩИЙ МАТЧ',
-    heroTitle: 'Хороший матч начинается с цели.', heroBody: 'Выбери дело, сыграй матч и дождись подтверждения сервера. Следующая цель всегда рядом.',
-    openContracts: 'Выбрать контракт', openActive: 'Активное дело', curatorTitle: 'Твоё следующее дело уже ждёт.', curatorBody: 'Выбери цель. Companion сохранит все детали.', connectionSettings: 'Настройки подключения',
-    appearanceEyebrow: 'ТВОЙ COMPANION', appearanceTitle: 'Пять настроений. Один город.', appearanceBody: 'Выбери оформление окна и оверлея. Настройка сохранится на этом устройстве.',
-    themeLabel: 'Цветовая тема', themeSystem: 'Системная', themeSystemBody: 'Как на устройстве', themeDark: 'Ночной город', themeDarkBody: 'Уголь и оранжевый', themeLight: 'Городская газета', themeLightBody: 'Бумага и чернила', themeBlack: 'Ультрачёрная', themeBlackBody: 'Тишина. Чистый чёрный.', themeCustom: 'После полуночи', themeCustomBody: 'Слива и сирень',
+    navWorkspace: 'Компаньон', mcg: 'Mandarin Creator Group', hqEyebrow: 'Контракты на следующий матч', hqStatusTitle: 'Готовность к матчу',
+    heroTitle: 'Твой матч', heroTitleAccent: 'Твои условия',
+    heroBody: 'Выбери до трёх контрактов и зафиксируй их до матча в Deadlock. XP начисляется после проверки результата.',
+    openContracts: 'Выбрать контракт', openActive: 'Активное дело', connectionSettings: 'Настройки подключения',
+    appearanceTitle: 'Оформление', appearanceBody: 'Выбери тему для окна компаньона и оверлея в игре.',
+    themeLabel: 'Цветовая тема', themeSystem: 'Системная', themeSystemBody: 'Как на устройстве', themeDark: 'Тёмная', themeDarkBody: 'Палитра сайта', themeLight: 'Светлая', themeLightBody: 'Холодный серый и зелёный', themeBlack: 'Чёрная', themeBlackBody: 'Чистый чёрный фон', themeCustom: 'После полуночи', themeCustomBody: 'Графит и бирюза',
     motionTitle: 'Анимации', motionBody: 'Системное уменьшение движения действует всегда.', motionSystem: 'Системные', motionReduced: 'Сокращённые',
     settingsSecurity: 'Подключение, оформление, оверлей и диагностика — в одном месте.',
     ftueTitle: 'Твой следующий матч начинается здесь.', ftueEyebrow: 'ДОБРО ПОЖАЛОВАТЬ В ГОРОД', continue: 'Войти в бюро', pairNow: 'Подключить аккаунт',
@@ -447,11 +469,11 @@
       ? navigator.languages : [typeof navigator !== 'undefined' ? navigator.language : 'en']
     return langs.some(value => String(value).toLowerCase().startsWith('ru')) ? 'ru' : 'en'
   }
-  function preference() {
-    if (typeof localStorage === 'undefined') return 'en'
+  function savedPreference() {
     const value = storedPreference(PREF_KEY)
-    return ['auto','en','ru','pseudo'].includes(value) ? value : 'auto'
+    return ['auto', 'en', 'ru', 'pseudo'].includes(value) ? value : null
   }
+  function preference() { return savedPreference() || 'en' }
   function language() { return preference() === 'auto' ? detectedLanguage() : preference() }
   function setPreference(value) {
     if (!['auto','en','ru','pseudo'].includes(value)) return false
@@ -535,5 +557,5 @@
   }
   function missingTranslations() { return [...MISSING].sort() }
 
-  return {PREF_KEY, SERVER_LANGUAGE_KEY, CATALOG, METRICS, detectedLanguage, preference, language, setPreference, setServerLanguage, t, literal, formatNumber, formatDuration, metricLabel, renderCondition, renderObjective, contractTitle, missingTranslations, normalizeLang}
+  return {PREF_KEY, SERVER_LANGUAGE_KEY, CATALOG, METRICS, detectedLanguage, savedPreference, preference, language, setPreference, setServerLanguage, t, literal, formatNumber, formatDuration, metricLabel, renderCondition, renderObjective, contractTitle, missingTranslations, normalizeLang}
 })

@@ -1,3 +1,4 @@
+import json
 import re
 from pathlib import Path
 
@@ -106,13 +107,13 @@ def test_public_navigation_and_verified_leaderboard_are_restored() -> None:
 
 
 def test_alpha11_public_release_hygiene() -> None:
-    release = (
-        ROOT / "release.json"
-    ).read_text(encoding="utf-8")
+    release = json.loads((ROOT / "release.json").read_text(encoding="utf-8"))
+    companion = json.loads((ROOT / "companion/release.json").read_text(encoding="utf-8"))
+    manifest = json.loads((ROOT / "companion/manifest.json").read_text(encoding="utf-8"))
 
-    assert '"web_version": "0.10.1-alpha.12"' in release
-    assert '"companion_version": "0.5.2-alpha.18"' in release
-    assert '"companion_manifest_version": "0.5.2.18"' in release
+    assert release["web_version"] == companion["production_web_version"]
+    assert release["companion_version"] == companion["product_version"]
+    assert release["companion_manifest_version"] == companion["manifest_version"] == manifest["meta"]["version"]
 
     assert 'href="#"' not in LANDING
     assert "Demo: your selection is not saved and no XP is awarded." in LANDING
