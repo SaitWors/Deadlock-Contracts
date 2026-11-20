@@ -21,10 +21,9 @@ const names=new Set(entries.map(e=>e.name))
 const errors=[]
 if (names.size !== entries.length) errors.push('duplicate OPK entry')
 if(!names.has('manifest.json')) errors.push('manifest.json is not at package root')
-if(!names.has('fixtures/preview.json')) errors.push('fixtures/preview.json missing')
 for(const name of names){
   if(name.startsWith('/')||name.includes('../')) errors.push(`unsafe path: ${name}`)
-  if(/(^|\/)(?:\.git|node_modules|tests|scripts|docs|schemas)(?:\/|$)/.test(name)) errors.push(`development-only content in OPK: ${name}`)
+  if(/(^|\/)(?:\.git|node_modules|tests|scripts|docs|schemas|fixtures)(?:\/|$)/.test(name)) errors.push(`development-only content in OPK: ${name}`)
   if(/(^|\/)(?:\.env(?:\.|$)|secrets?\/|review-reports?\/)/i.test(name)) errors.push(`forbidden sensitive/review content: ${name}`)
 }
 function extract(entry){

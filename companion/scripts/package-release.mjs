@@ -33,7 +33,7 @@ const runtimeFiles = [
   'uninstall.html',
   'THIRD_PARTY_NOTICES.txt',
 ]
-const runtimeDirectories = ['src', 'styles', 'assets', 'licenses', 'fixtures']
+const runtimeDirectories = ['src', 'styles', 'assets', 'licenses']
 
 function sortedEntries(directory) {
   return fs.readdirSync(directory, { withFileTypes: true }).sort((a, b) => a.name.localeCompare(b.name, 'en'))

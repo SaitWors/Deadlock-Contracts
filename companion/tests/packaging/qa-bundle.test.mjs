@@ -71,6 +71,7 @@ test('QA bundle contains verifiable current artifacts and a reproducible standal
   assert.equal(digest(path.join(bundle, 'PROJECT.md')), digest(projectDocumentation))
   const packedManifest = JSON.parse(run(bundle, 'unzip', ['-p', candidate.opk.path, 'manifest.json']))
   assert.equal(packedManifest.meta.version, candidate.manifest_version)
+  assert.doesNotMatch(run(bundle, 'unzip', ['-Z1', candidate.opk.path]), /^fixtures\//m)
 
   const sourceDirectory = path.join(directory, 'source')
   run(bundle, 'unzip', ['-q', candidate.source.path, '-d', sourceDirectory])

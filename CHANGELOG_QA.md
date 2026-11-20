@@ -8,9 +8,9 @@
 - Offer English and Russian on the pairing page, carry the explicit preference through Steam and default clean Companion installations to English.
 - Gate both official Overwolf ad slots on fresh data in Overview or Contracts. Tear down slots on modal, screen or window transitions. Package a separate build for isolated ad QA.
 - Serialize desktop window operations, restore Dock focus, use the documented monitor permission, and recover a window after a display change. Keep hotkey reassignment inline and refresh the actual native binding.
-- Preserve native contract selection and make retries of the same lock request return the existing server receipt. Improve wrapping of notices and dialog content.
+- Preserve native contract selection and make retries of the same lock request return the existing server receipt. Give long status messages their own row so they cannot cover the current view. Improve wrapping in dialogs.
 - Open an optional anonymous uninstall survey with a fixed set of reasons, an optional comment and a skip action.
-- Build a single-root OPK with aligned release metadata, hashes and an inventory of bundled files.
+- Build a single-root OPK with aligned release metadata, hashes and an inventory of bundled files. Keep browser preview fixtures in source only.
 
 ## Included alpha.19 and alpha.20 work
 

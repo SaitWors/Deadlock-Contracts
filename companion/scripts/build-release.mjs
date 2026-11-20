@@ -27,7 +27,7 @@ if(!buildOpk){
 const stage=path.join(root,'dist','opk-stage')
 fs.rmSync(stage,{recursive:true,force:true});fs.mkdirSync(stage,{recursive:true})
 const roots=['manifest.json','background.html','index.html','overlay.html','uninstall.html','THIRD_PARTY_NOTICES.txt']
-const dirs=['src','styles','assets','licenses','fixtures']
+const dirs=['src','styles','assets','licenses']
 for(const file of roots) fs.copyFileSync(path.join(root,file),path.join(stage,file))
 for(const dir of dirs) fs.cpSync(path.join(root,dir),path.join(stage,dir),{recursive:true})
 const out=path.join(root,'dist',`Deadlock-Contracts-Companion-${release.product_version}.opk`)

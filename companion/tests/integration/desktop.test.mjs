@@ -39,6 +39,14 @@ test('decorative images opt out of dragging and functional text remains selectab
   assert.match(js, /classList.toggle\('copyable', !!snapshot.pair_link_hint\)/)
 })
 
+test('long status messages reserve their own row above the scrollable view', () => {
+  const css = fs.readFileSync(new URL('../../styles/app.css', import.meta.url), 'utf8')
+  assert.match(html, /<main id="workspace"[^>]*>\s*<div id="offlineBar"/)
+  assert.match(css, /\.system-bar \{ grid-area:1 \/ 1 \/ 2 \/ -1;/)
+  assert.match(css, /\.view \{ grid-area:2 \/ 1;/)
+  assert.doesNotMatch(css, /--offline-height/)
+})
+
 test('active case explains provider wait and durable next-match queue',()=>{
   assert.match(js,/WAITING FOR PROVIDER/)
   assert.match(js,/ЖДЁМ ПОДТВЕРЖДЕНИЕ/)
