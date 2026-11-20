@@ -65,7 +65,9 @@ for (const relative of sourceDirectories) {
   if (!fs.statSync(path.join(root, relative)).isDirectory()) throw new Error(`missing source directory: ${relative}`)
 }
 
-execFileSync(process.execPath, [path.join(root, 'scripts/package-release.mjs')], { stdio: 'inherit' })
+const environment = { ...process.env }
+delete environment.COMPANION_QA_ORIGIN
+execFileSync(process.execPath, [path.join(root, 'scripts/package-release.mjs')], { env: environment, stdio: 'inherit' })
 const opk = path.join(root, 'dist', `${releaseName}.opk`)
 execFileSync(process.execPath, [path.join(root, 'scripts/verify-opk.mjs'), opk], { stdio: 'inherit' })
 

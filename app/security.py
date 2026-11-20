@@ -150,7 +150,7 @@ def _rate_rule(path: str) -> tuple[str, int, int] | None:
         return "sync", settings.sync_rate_limit_per_hour, 3600
     if path == "/api/companion/pairing/link/claim":
         return "companion-link-claim", 120, 60
-    if path in {"/api/companion/pairing/link/start", "/api/companion/pairing/link/approve"}:
+    if path in {"/api/companion/pairing/link/start", "/api/companion/pairing/link/approve", "/api/companion/pairing/link/cancel"}:
         return "companion-link-start", 20, 600
     if path in {"/api/companion/pairing/start", "/api/companion/pairing/claim"}:
         return "companion-pairing", 20, 600

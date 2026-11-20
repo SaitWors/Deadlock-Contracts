@@ -268,6 +268,10 @@
     notChecked: 'NOT CHECKED',
     pairingCodeLabel: 'Pairing code',
     pairBrowser: 'Connect in browser',
+    pairCancel: 'Cancel connection',
+    pairConfirming: 'Waiting for the server to confirm the connection…',
+    pairSessionExpired: 'Your Companion session expired. Connect your account again.',
+    companionVersionRequired: 'Overwolf must update the Companion to {version} or newer.',
     pairBrowserHelp: 'Approve the connection on the official website. The Companion connects automatically.',
     pairBrowserWaiting: 'Check for {code} in your browser and approve the connection there.',
     pairBrowserUnavailable: 'Browser connection is unavailable. Use a pairing code to continue.',
@@ -355,6 +359,10 @@
     notChecked: 'НЕ ПРОВЕРЕНО',
     pairingCodeLabel: 'Код привязки',
     pairBrowser: 'Подключить в браузере',
+    pairCancel: 'Отменить подключение',
+    pairConfirming: 'Ждём подтверждения подключения от сервера…',
+    pairSessionExpired: 'Срок действия сеанса Companion истёк. Подключите аккаунт снова.',
+    companionVersionRequired: 'Обновите Companion через Overwolf до версии {version} или новее.',
     pairBrowserHelp: 'Подтвердите привязку на официальном сайте. Компаньон подключится автоматически.',
     pairBrowserWaiting: 'Сверьте код {code} в браузере и подтвердите подключение.',
     pairBrowserUnavailable: 'Подключение через браузер недоступно. Воспользуйтесь кодом привязки.',
@@ -461,11 +469,11 @@
       ? navigator.languages : [typeof navigator !== 'undefined' ? navigator.language : 'en']
     return langs.some(value => String(value).toLowerCase().startsWith('ru')) ? 'ru' : 'en'
   }
-  function preference() {
-    if (typeof localStorage === 'undefined') return 'en'
+  function savedPreference() {
     const value = storedPreference(PREF_KEY)
-    return ['auto','en','ru','pseudo'].includes(value) ? value : 'auto'
+    return ['auto', 'en', 'ru', 'pseudo'].includes(value) ? value : null
   }
+  function preference() { return savedPreference() || 'en' }
   function language() { return preference() === 'auto' ? detectedLanguage() : preference() }
   function setPreference(value) {
     if (!['auto','en','ru','pseudo'].includes(value)) return false
@@ -549,5 +557,5 @@
   }
   function missingTranslations() { return [...MISSING].sort() }
 
-  return {PREF_KEY, SERVER_LANGUAGE_KEY, CATALOG, METRICS, detectedLanguage, preference, language, setPreference, setServerLanguage, t, literal, formatNumber, formatDuration, metricLabel, renderCondition, renderObjective, contractTitle, missingTranslations, normalizeLang}
+  return {PREF_KEY, SERVER_LANGUAGE_KEY, CATALOG, METRICS, detectedLanguage, savedPreference, preference, language, setPreference, setServerLanguage, t, literal, formatNumber, formatDuration, metricLabel, renderCondition, renderObjective, contractTitle, missingTranslations, normalizeLang}
 })

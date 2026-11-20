@@ -52,5 +52,5 @@ html[data-reduced-motion="true"] *, html[data-reduced-motion="true"] *::before, 
 html[data-reduced-motion="true"] progress::-webkit-progress-value { transition:none !important; }
 @media (prefers-reduced-motion:reduce) { *, *::before, *::after { animation-duration:.001ms !important; animation-iteration-count:1 !important; transition-duration:.001ms !important; scroll-behavior:auto !important; } progress::-webkit-progress-value { transition:none !important; } }
 body { -webkit-user-select:none; user-select:none; }
-:is(input, textarea, [contenteditable="true"]) { -webkit-user-select:text; user-select:text; }
+:is(input, textarea, [contenteditable="true"], .copyable) { -webkit-user-select:text; user-select:text; }
 img { -webkit-user-drag:none; }

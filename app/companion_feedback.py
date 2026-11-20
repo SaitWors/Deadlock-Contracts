@@ -22,9 +22,11 @@ REASONS = {
 
 
 @router.get(SURVEY_PATH)
-def uninstall_survey(submitted: bool = False) -> HTMLResponse:
+def uninstall_survey(submitted: bool = False, skipped: bool = False) -> HTMLResponse:
     if submitted:
         content = '<h1>Thanks for your feedback</h1><p>You can close this tab.</p>'
+    elif skipped:
+        content = '<h1>Survey skipped</h1><p>You can close this tab.</p>'
     else:
         choices = "".join(
             f'<label><input type="radio" name="reason" value="{key}" required> {label}</label>'
@@ -35,7 +37,12 @@ def uninstall_survey(submitted: bool = False) -> HTMLResponse:
             '<p>Your answer helps improve setup and match tracking. This survey is optional and anonymous.</p>'
             '<form class="uninstall-survey" method="post" action="/api/feedback/companion-uninstall">'
             f'<fieldset><legend>Choose one reason</legend>{choices}</fieldset>'
-            '<button class="ghost-button" type="submit">Send feedback</button></form>'
+            '<label for="comment">Anything else? (Optional)</label>'
+            '<textarea id="comment" name="comment" rows="4" maxlength="500" '
+            'aria-describedby="survey-hint"></textarea>'
+            '<p id="survey-hint">Please leave out contact details and account information.</p>'
+            '<button class="ghost-button" type="submit">Send feedback</button> '
+            '<a class="ghost-button" href="/companion/uninstall?skipped=true">Skip survey</a></form>'
         )
     return HTMLResponse(
         seo.render_document(
@@ -64,30 +71,40 @@ def uninstall_survey(submitted: bool = False) -> HTMLResponse:
     )
 
 
-async def survey_reason(request: Request) -> str:
+async def survey_response(request: Request) -> dict[str, str]:
     if request.headers.get("content-type", "").partition(";")[0] != "application/x-www-form-urlencoded":
         raise HTTPException(415, "Unsupported survey format")
     body = await request.body()
-    if len(body) > 128:
+    if len(body) > 8192:
         raise HTTPException(413, "Survey response is too large")
     try:
-        reasons = parse_qs(body.decode("ascii"), max_num_fields=1).get("reason", [])
+        fields = parse_qs(
+            body.decode("ascii"), encoding="utf-8", errors="strict",
+            max_num_fields=2, strict_parsing=True, keep_blank_values=True,
+        )
     except ValueError as exc:
         raise HTTPException(422, "Invalid survey response") from exc
-    if len(reasons) != 1 or reasons[0] not in REASONS:
+    if fields.keys() - {"reason", "comment"} or any(len(values) != 1 for values in fields.values()):
+        raise HTTPException(422, "Invalid survey response")
+    reason = fields.get("reason", [""])[0]
+    comment = fields.get("comment", [""])[0].strip()
+    if reason not in REASONS:
         raise HTTPException(422, "Choose a survey reason")
-    return reasons[0]
+    if len(comment) > 500 or any(ord(char) < 32 and char not in "\n\r\t" for char in comment):
+        raise HTTPException(422, "Enter a comment of up to 500 characters")
+    # Store plain text in JSON. The survey page never renders submitted responses.
+    return {"reason": reason, **({"comment": comment} if comment else {})}
 
 
 @router.post("/api/feedback/companion-uninstall")
 def submit_uninstall_survey(
-    reason: str = Depends(survey_reason), db: Session = Depends(get_db)
+    feedback: dict[str, str] = Depends(survey_response), db: Session = Depends(get_db)
 ) -> RedirectResponse:
     db.add(AuditLog(
         action="companion.uninstall_feedback",
         entity_type="companion",
         entity_id="uninstall",
-        data={"reason": reason},
+        data=feedback,
     ))
     db.commit()
     return RedirectResponse(f"{SURVEY_PATH}?submitted=true", status_code=303)

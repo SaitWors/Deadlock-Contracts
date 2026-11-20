@@ -1,3 +1,4 @@
 if (typeof overwolf !== 'undefined') {
-  overwolf.utils.openUrlInDefaultBrowser('https://deadlock-contracts.online/companion/uninstall')
+  const origin = window.DCRelease.serverOrigin
+  overwolf.utils.openUrlInDefaultBrowser(new URL('/companion/uninstall', origin).href)
 }

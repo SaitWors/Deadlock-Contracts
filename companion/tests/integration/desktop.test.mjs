@@ -27,6 +27,18 @@ test('active case re-renders on live evidence revision without full product refr
   assert.match(js,/renderActiveCase\(\)/)
 })
 
+test('decorative images opt out of dragging and functional text remains selectable', () => {
+  const overlay = fs.readFileSync(new URL('../../overlay.html', import.meta.url), 'utf8')
+  const tokens = fs.readFileSync(new URL('../../styles/tokens.css', import.meta.url), 'utf8')
+  for (const markup of [html, overlay]) {
+    for (const image of markup.match(/<img[^>]*>/g) || []) {
+      assert.match(image, /draggable="false"/)
+    }
+  }
+  assert.match(tokens, /:is\(input, textarea, \[contenteditable="true"\], \.copyable\).*user-select:text/)
+  assert.match(js, /classList.toggle\('copyable', !!snapshot.pair_link_hint\)/)
+})
+
 test('active case explains provider wait and durable next-match queue',()=>{
   assert.match(js,/WAITING FOR PROVIDER/)
   assert.match(js,/ЖДЁМ ПОДТВЕРЖДЕНИЕ/)

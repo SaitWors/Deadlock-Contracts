@@ -8,11 +8,13 @@ const src = fs.readFileSync(new URL('../../src/background-engine.js', import.met
 test('dock restores the last display and focuses desktop while game transitions use the other display', async () => {
   const primary = { id: 'DISPLAY1', handle: { value: 1 }, is_primary: true, x: 0, y: 0, width: 1920, height: 1080 }
   const secondary = { id: 'DISPLAY2', handle: { value: 2 }, x: -1920, y: 0, width: 1920, height: 1080 }
+  const tertiary = { id: 'DISPLAY3', handle: { value: 3 }, x: 1920, y: 0, width: 2560, height: 1440, dpiX: 120, dpiY: 120 }
   const window = { id: 'desktop-id', width: 1200, height: 700, monitorId: primary.id }
   let state = 'closed'
   let displayList = [primary, secondary]
   let relaunch
   let hotkey
+  let rejectedFocus = false
   const events = []
   const values = new Map()
   const context = vm.createContext({
@@ -39,11 +41,11 @@ test('dock restores the last display and focuses desktop while game transitions 
         restore: (_, cb) => { state = 'normal'; cb({ success: true }) },
         maximize: (_, cb) => { state = 'maximized'; cb({ success: true }) },
         changePosition: (_, left, top, cb) => {
-          window.monitorId = left < 0 ? secondary.id : primary.id
+          window.monitorId = left < 0 ? secondary.id : left >= 1920 ? tertiary.id : primary.id
           events.push(['move', left, top])
           cb({ success: true })
         },
-        bringToFront: (id, focus, cb) => { events.push(['front', id, focus]); cb({ success: true }) },
+        bringToFront: (id, focus, cb) => { events.push(['front', id, focus]); cb({ success: !rejectedFocus }) },
       },
     },
   })
@@ -76,7 +78,22 @@ test('dock restores the last display and focuses desktop while game transitions 
   assert.deepEqual(events.splice(0), [])
   displayList = [primary]
   await api.showDesktop()
-  assert.deepEqual(events, [['move', 360, 190], ['front', 'desktop-id', true]])
+  assert.deepEqual(events.splice(0), [['move', 360, 190], ['front', 'desktop-id', true]])
+
+  displayList = [secondary, primary, tertiary]
+  await api.showDesktop({ placement: 'game', gameInfo: { monitorHandle: tertiary.handle }, focus: false })
+  assert.deepEqual(events.splice(0), [['move', -1560, 190], ['front', 'desktop-id', false]])
+  relaunch({ origin: 'overwolf-extension://fixture/background.html?source=gamelaunchevent' })
+  await run('desktopAction')
+  assert.deepEqual(events.splice(0), [])
+
+  displayList = [primary]
+  rejectedFocus = true
+  await assert.rejects(api.showDesktop(), { code: 'WINDOW_BRINGTOFRONT_FAILED' })
+  assert.deepEqual(events.splice(0), [['move', 360, 190], ['front', 'desktop-id', true]])
+  rejectedFocus = false
+  assert.equal((await api.showDesktop()).visible, true)
+  assert.deepEqual(events.splice(0), [['front', 'desktop-id', true]])
 
   const snapshot = await api.assignOverlayHotkey(112, { ctrl: true, alt: false, shift: false })
   assert.equal(hotkey.name, 'toggle_contract_overlay')

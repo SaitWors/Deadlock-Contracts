@@ -260,7 +260,7 @@ def _load_board(
     )
 
     if for_update:
-        active_stmt = active_stmt.with_for_update()
+        active_stmt = active_stmt.with_for_update().execution_options(populate_existing=True)
 
     active = db.scalar(active_stmt)
 
@@ -287,7 +287,7 @@ def _load_board(
     )
 
     if for_update:
-        stmt = stmt.with_for_update()
+        stmt = stmt.with_for_update().execution_options(populate_existing=True)
 
     return db.scalar(stmt)
 
@@ -648,6 +648,8 @@ def lock_board(
     user: User,
     option_ids: list[str],
     mode: str = "STANDARD",
+    *,
+    replay_same_selection: bool = False,
 ) -> ContractBoard:
 
     mode = normalize_mode(mode)
@@ -669,6 +671,8 @@ def lock_board(
         raise ValueError("Доска не найдена")
 
     if board.status != "OFFERED":
+        if replay_same_selection and set(option_ids) == {option.id for option in board.options if option.selected}:
+            return board
         raise ValueError(
             "Дело этого режима уже зафиксировано"
         )

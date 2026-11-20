@@ -19,6 +19,7 @@ for(let i=0;i<=buf.length-46;i++){
 if(!entries.length) throw new Error('ZIP central directory not found')
 const names=new Set(entries.map(e=>e.name))
 const errors=[]
+if (names.size !== entries.length) errors.push('duplicate OPK entry')
 if(!names.has('manifest.json')) errors.push('manifest.json is not at package root')
 if(!names.has('fixtures/preview.json')) errors.push('fixtures/preview.json missing')
 for(const name of names){
@@ -35,6 +36,7 @@ function extract(entry){
   if(entry.method===8)return zlib.inflateRawSync(data)
   throw new Error(`unsupported compression method ${entry.method} for ${entry.name}`)
 }
+if (entries.some(entry => entry.name.endsWith('/manifest.json'))) errors.push('multiple application roots in OPK')
 const manifestEntry=entries.find(e=>e.name==='manifest.json')
 if(manifestEntry){
   let manifest

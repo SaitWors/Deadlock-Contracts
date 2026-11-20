@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 import time
 from dataclasses import replace
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 from uuid import UUID
@@ -22,6 +22,7 @@ from app.models import (
     AuditLog,
     BoardOption,
     CompanionDevice,
+    CompanionLinkSession,
     CompanionPairing,
     Evaluation,
     Match,
@@ -238,6 +239,20 @@ def test_desktop_bootstrap_lock_and_reroll_use_bearer_authority() -> None:
         assert locked.json()["board"]["status"] == "LOCKED"
         assert [item["id"] for item in locked.json()["board"]["options"] if item["selected"]] == [selected_id]
 
+        retry = client.post(
+            "/api/desktop/v1/boards/lock",
+            json={"mode": "STANDARD", "option_ids": [selected_id]},
+            headers=headers,
+        )
+        assert retry.status_code == 200
+        assert retry.json()["board"]["locked_at"] == locked.json()["board"]["locked_at"]
+        changed_selection = client.post(
+            "/api/desktop/v1/boards/lock",
+            json={"mode": "STANDARD", "option_ids": [standard["options"][1]["id"]]},
+            headers=headers,
+        )
+        assert changed_selection.status_code == 409
+
         after_lock = client.get("/api/desktop/v1/bootstrap", headers=headers).json()
         active = next(item for item in after_lock["active_cases"] if item["game_match_mode"] == "STANDARD")
         assert [item["id"] for item in active["options"]] == [selected_id]
@@ -275,6 +290,7 @@ def test_browser_pairing_authorizes_the_requesting_companion_and_its_native_cont
         old_build = companion.post(f"{link}/start", json={**device, "version": "0.5.2-alpha.8"}, headers=origin)
         assert old_build.status_code == 426
         assert old_build.headers["X-Minimum-Companion-Version"] == "0.5.2-alpha.18"
+        assert "x-minimum-companion-version" in old_build.headers["Access-Control-Expose-Headers"].lower()
 
         issued = companion.post(f"{link}/start", json=device, headers=origin)
         assert issued.status_code == 200
@@ -308,6 +324,14 @@ def test_browser_pairing_authorizes_the_requesting_companion_and_its_native_cont
         assert companion.post(f"{link}/claim", json=claimant, headers=origin).json()["token"] == token
 
         bearer = {**origin, "Authorization": f"Bearer {token}"}
+        heartbeat = companion.post(
+            "/api/companion/heartbeat",
+            headers=bearer,
+            json={"client_event_id": "first-pairing-ack", "version": device["version"]},
+        )
+        assert heartbeat.status_code == 200 and heartbeat.json()["ok"] is True
+        assert companion.post(f"{link}/claim", json=claimant, headers=origin).status_code == 410
+        assert browser.post(f"{link}/approve", json=approval, headers=csrf).status_code == 410
         bootstrap = companion.get("/api/desktop/v1/bootstrap", headers=bearer)
         board = next(item for item in bootstrap.json()["boards"] if item["game_match_mode"] == "STANDARD")
         chosen = [option["id"] for option in board["options"][:3]]
@@ -316,6 +340,44 @@ def test_browser_pairing_authorizes_the_requesting_companion_and_its_native_cont
         assert locked.json()["board"]["status"] == "LOCKED"
         website_board = browser.get("/api/board/today?mode=STANDARD").json()
         assert {item["id"] for item in website_board["options"] if item["selected"]} == set(chosen)
+
+
+
+def test_browser_pairing_remains_cancelled_and_expired_requests_cannot_be_claimed():
+    with TestClient(app) as companion:
+        link = "/api/companion/pairing/link"
+        device = {"device_id": "browser-cancellation", "version": "0.5.2-alpha.20"}
+        origin = {"Origin": "www.overwolf.com://deadlockcontracts"}
+        started = companion.post(f"{link}/start", json=device, headers=origin)
+        assert started.status_code == 200
+        claimant = {**device, "verifier": started.json()["verifier"]}
+        assert companion.post(f"{link}/cancel", json=claimant, headers=origin).json() == {"cancelled": True}
+        assert companion.post(f"{link}/cancel", json=claimant, headers=origin).json() == {"cancelled": False}
+        assert companion.post(f"{link}/claim", json=claimant, headers=origin).status_code == 410
+
+        expiring = companion.post(f"{link}/start", json=device, headers=origin).json()
+        with SessionLocal() as db:
+            code_hash = expiring["challenge"].split(".")[1]
+            pending = db.get(CompanionLinkSession, code_hash)
+            pending.expires_at = datetime.now(timezone.utc) - timedelta(seconds=1)
+            db.commit()
+        result = companion.post(f"{link}/claim", json={**device, "verifier": expiring["verifier"]}, headers=origin)
+        assert result.status_code == 410
+
+
+def test_inactive_companion_session_expires():
+    with TestClient(app) as client:
+        headers = paired_headers(client)
+        assert client.get("/api/companion/hello", headers=headers).status_code == 200
+        from app.services.companion import get_device_by_token
+
+        with SessionLocal() as db:
+            device = get_device_by_token(db, headers["Authorization"].split(" ", 1)[1])
+            device.last_seen_at = datetime.now(timezone.utc) - timedelta(days=settings.companion_device_idle_days + 1)
+            db.commit()
+        for path in ("/api/companion/hello", "/api/desktop/v1/bootstrap"):
+            result = client.get(path, headers=headers)
+            assert result.status_code == 401 and result.json()["code"] == "TOKEN_EXPIRED"
 
 
 def test_desktop_token_respects_account_status() -> None:

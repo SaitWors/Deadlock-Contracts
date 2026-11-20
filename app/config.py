@@ -212,6 +212,7 @@ class Settings:
     )
 
     companion_ads_enabled: bool = _bool("COMPANION_ADS_ENABLED", False)
+    companion_device_idle_days: int = int(os.getenv("COMPANION_DEVICE_IDLE_DAYS", "90"))
     companion_minimum_version: str = os.getenv("COMPANION_MINIMUM_VERSION", "").strip()
     reward_settlement_enabled: bool = _bool("REWARD_SETTLEMENT_ENABLED", True)
     # Pause delivery without discarding signed policies, reservations or events.
@@ -455,6 +456,8 @@ class Settings:
                 "MATCH_AUDIT_RETRY_SECONDS must be between 60 and 86400"
             )
 
+        if not 1 <= self.companion_device_idle_days <= 365:
+            raise RuntimeError("COMPANION_DEVICE_IDLE_DAYS must be between 1 and 365")
         if self.companion_minimum_version and not re.fullmatch(
             r"\d+\.\d+\.\d+(?:-(?:alpha|beta|rc)\.\d+)?",
             self.companion_minimum_version,

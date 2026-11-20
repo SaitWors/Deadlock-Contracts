@@ -139,7 +139,7 @@
         <section id="view-profile" class="view" data-view="profile">
           <div class="page-head"><div><span class="eyebrow" data-i18n="profileEyebrow">OPERATIVE RECORD / SERVER VERIFIED</span><h1 data-i18n="profile">PROFILE</h1><p data-i18n="profileBody">Identity, progression and performance by operation.</p></div><span id="profileLevelBadge" class="outline-badge">LEVEL —</span></div>
           <div class="profile-grid">
-            <article class="profile-card identity-card"><img src="assets/nightshift/mascot-dossier.webp" alt=""><div><span data-i18n="account">ACCOUNT</span><h2 id="profileName">UNPAIRED OPERATIVE</h2><p id="profileSteam">Steam ID —</p><div class="profile-id-actions"><button id="showSteamBtn" class="text-btn" type="button" data-i18n="showId">SHOW ID</button><button id="copySteamBtn" class="text-btn" type="button" data-i18n="copyId">COPY ID</button></div><div id="profileBadges" class="badge-row"></div></div></article>
+            <article class="profile-card identity-card"><img draggable="false" src="assets/nightshift/mascot-dossier.webp" alt=""><div><span data-i18n="account">ACCOUNT</span><h2 id="profileName">UNPAIRED OPERATIVE</h2><p id="profileSteam">Steam ID —</p><div class="profile-id-actions"><button id="showSteamBtn" class="text-btn" type="button" data-i18n="showId">SHOW ID</button><button id="copySteamBtn" class="text-btn" type="button" data-i18n="copyId">COPY ID</button></div><div id="profileBadges" class="badge-row"></div></div></article>
             <article class="metric-card"><span data-i18n="totalXp">TOTAL XP</span><strong id="profileXp">—</strong><small id="profileXpNext">Server ledger</small></article>
             <article class="metric-card"><span>COMPLETED</span><strong id="profileCompleted">—</strong><small id="profileReview">0 under review</small></article>
             <article class="metric-card"><span data-i18n="successRate">SUCCESS RATE</span><strong id="profileSuccess">—</strong><small id="profileFailed">0 failed</small></article>
@@ -168,7 +168,7 @@
             <article class="settings-card wide">
               <div class="settings-head"><div><span class="eyebrow" data-i18n="pairTitle">CONNECT DEADLOCK CONTRACTS</span><h3 id="pairAccount">NOT PAIRED</h3></div><span id="pairBadge" class="outline-badge">NOT PAIRED</span></div>
               <div id="pairOptions">
-                <div class="settings-actions"><button id="pairSiteBtn" class="primary-btn" type="button" data-i18n="pairBrowser">Connect in browser</button></div>
+                <div class="settings-actions"><button id="pairSiteBtn" class="primary-btn" type="button" data-i18n="pairBrowser">Connect in browser</button><button id="pairCancelBtn" class="text-btn" type="button" data-i18n="pairCancel" hidden>Cancel connection</button></div>
                 <details id="pairManual">
                   <summary data-i18n="pairManual">Use a pairing code</summary>
                   <p data-i18n="pairManualHelp">In your website profile, expand Account settings and create a Companion pairing code.</p>
@@ -192,7 +192,7 @@
   <div id="ftue" class="ftue-backdrop" hidden>
     <section class="ftue-card" role="dialog" aria-modal="true" aria-labelledby="ftueTitle">
       <div class="ftue-copy"><span class="eyebrow" data-i18n="ftueEyebrow">WELCOME TO THE CONTRACT BUREAU</span><h1 id="ftueTitle" data-i18n="ftueTitle">YOUR NEXT MATCH HAS A FILE NUMBER</h1><p data-i18n="ftueBody">Pick one to three contracts, play the matching Deadlock mode, and wait for the server verdict. Live numbers are guidance, never a self-issued reward.</p><div class="ftue-points"><span><b>01</b><em data-i18n="ftueOne">Pair your website account</em></span><span><b>02</b><em data-i18n="ftueTwo">Lock a daily case before the match</em></span><span><b>03</b><em><span data-i18n="ftueThreePrefix">Toggle the overlay with</span> <strong id="ftueHotkey">Ctrl + Shift + C</strong></em></span></div><div class="ftue-actions"><button id="ftueContinue" class="primary-btn" type="button" data-i18n="continue">ENTER HQ</button><button id="ftuePair" class="secondary-btn" type="button" data-i18n="pairNow">PAIR ACCOUNT</button></div><small data-i18n="ftuePrivacy">The app processes your account pairing, local Deadlock telemetry, cached contract data, and technical ad/diagnostic events. Rewards and final verdicts remain server-authoritative.</small></div>
-      <div class="ftue-art" aria-hidden="true"><img src="assets/nightshift/mascot-welcome.webp" alt=""></div>
+      <div class="ftue-art" aria-hidden="true"><img draggable="false" src="assets/nightshift/mascot-welcome.webp" alt=""></div>
     </section>
   </div>
 

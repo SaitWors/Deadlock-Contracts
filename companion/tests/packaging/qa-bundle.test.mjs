@@ -94,6 +94,24 @@ test('QA bundle contains verifiable current artifacts and a reproducible standal
   assert.equal(rebuilt.sbom.sha256, candidate.sbom.sha256)
 })
 
+test('an isolated QA package pins its own API and CSP without replacing the normal package', t => {
+  const { companion } = fixture(t)
+  run(companion, process.execPath, ['scripts/package-release.mjs'])
+  const normal = path.join(companion, 'dist', `${releaseName}.opk`)
+  const initial = digest(normal)
+  const staging = 'https://qa.deadlock-contracts.online'
+  execFileSync(process.execPath, ['scripts/package-release.mjs'], {
+    cwd: companion, env: { ...process.env, COMPANION_QA_ORIGIN: staging }, stdio: 'pipe',
+  })
+  const qa = path.join(companion, 'dist', 'qa', `${releaseName}-QA-standalone.opk`)
+  const meta = run(companion, 'unzip', ['-p', qa, 'src/release-meta.js'])
+  const background = run(companion, 'unzip', ['-p', qa, 'background.html'])
+  assert.ok(meta.includes(`serverOrigin: "${staging}"`))
+  assert.match(background, /connect-src 'self' https:\/\/qa\.deadlock-contracts\.online/)
+  assert.equal(digest(normal), initial)
+  assert.notEqual(digest(qa), initial)
+})
+
 test('QA packaging stops on conflicting repository metadata before replacing an earlier bundle', t => {
   const { directory, companion, parentRelease } = fixture(t)
   parentRelease.companion_manifest_version = '0.0.0.0'

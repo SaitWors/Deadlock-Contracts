@@ -81,7 +81,9 @@ from .services.auth import (
     verify_steam_callback,
 )
 from .services.companion import (
+    acknowledge_pairing_link,
     approve_pairing_link,
+    cancel_pairing_link,
     claim_pairing,
     claim_pairing_link,
     companion_version_supported,
@@ -562,6 +564,7 @@ app.add_middleware(
     allow_credentials=False,
     allow_methods=["GET", "POST", "OPTIONS"],
     allow_headers=["Authorization", "Content-Type", "Accept", "Accept-Language"],
+    expose_headers=["X-Minimum-Companion-Version", "X-Request-ID", "Retry-After"],
     max_age=600,
 )
 app.add_middleware(TrustedHostMiddleware, allowed_hosts=list(settings.trusted_hosts))
@@ -1786,11 +1789,11 @@ def companion_pairing_claim(payload: CompanionClaimRequest, db: Session = Depend
 
 
 @app.post("/api/companion/pairing/link/start")
-def companion_link_start(payload: CompanionDeviceRequest) -> dict:
+def companion_link_start(payload: CompanionDeviceRequest, db: Session = Depends(get_db)) -> dict:
     if not settings.companion_ingest_enabled:
         raise HTTPException(503, "Приём данных Companion временно отключён")
     _require_companion_version(payload.version)
-    return start_pairing_link(payload.device_id)
+    return start_pairing_link(db, payload.device_id)
 
 
 @app.post("/api/companion/pairing/link/approve", dependencies=[Depends(require_csrf)])
@@ -1814,8 +1817,15 @@ def companion_link_claim(payload: CompanionLinkClaimRequest, db: Session = Depen
     return _paired_companion_response(db, *result)
 
 
+@app.post("/api/companion/pairing/link/cancel")
+def companion_link_cancel(payload: CompanionLinkClaimRequest, db: Session = Depends(get_db)) -> dict:
+    return {"cancelled": cancel_pairing_link(db, payload.verifier, payload.device_id)}
+
+
 def _paired_companion_response(db: Session, token: str, device: CompanionDevice, user: User) -> dict:
-    db.add(AuditLog(user_id=user.id, action="companion.paired", entity_type="companion_device", entity_id=device.id, data={"device_id": device.device_id, "version": device.version}))
+    if device in db.new or db.is_modified(device):
+        db.flush()
+        db.add(AuditLog(user_id=user.id, action="companion.paired", entity_type="companion_device", entity_id=device.id, data={"device_id": device.device_id, "version": device.version}))
     db.commit()
     return {
         "token": token,
@@ -1942,7 +1952,7 @@ def desktop_board_lock(
 ) -> dict:
     _, owner = _desktop_context(request, db)
     try:
-        board = lock_board(db, owner, [str(value) for value in payload.option_ids], payload.mode)
+        board = lock_board(db, owner, [str(value) for value in payload.option_ids], payload.mode, replay_same_selection=True)
     except ValueError as exc:
         raise HTTPException(409, str(exc)) from exc
     return {
@@ -2052,6 +2062,7 @@ def companion_heartbeat(payload: CompanionHeartbeatRequest, request: Request, db
         raise HTTPException(503, "Приём данных Companion временно отключён")
     device, owner = _companion_from_request(request, db)
     _require_companion_version(payload.version or device.version)
+    acknowledge_pairing_link(db, device)
     updated, woken = record_snapshot(
         db,
         device,
@@ -4965,7 +4976,7 @@ def reviewer_page() -> FileResponse:
 def companion_pairing_page() -> FileResponse:
     return FileResponse(
         STATIC / "pair.html",
-        headers={"Cache-Control": "private, no-store", "X-Robots-Tag": "noindex, nofollow, noarchive"},
+        headers={"Cache-Control": "private, no-store", "Referrer-Policy": "no-referrer", "X-Robots-Tag": "noindex, nofollow, noarchive"},
     )
 
 

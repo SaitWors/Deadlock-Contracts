@@ -7,15 +7,11 @@
     { rail: 'desktopAdStudio', container: 'desktopStudioContainer', id: 'dc_400x300_dt_right', height: 300, wide: true },
   ]
   let eligible = false
-  let nativeWindowVisible = true
-  let sdkLoading = false
+  let nativeWindowVisible = false
+  let sdkScript = null
   let retrySdkAt = 0
 
   const get = id => document.getElementById(id)
-  const testAds = (() => {
-    // Overwolf's SDK reads this same flag and serves its own QA creatives.
-    try { return localStorage.getItem('owAdTestAd') === 'true' } catch (_) { return false }
-  })()
 
   function stopSlot(slot) {
     if (slot.ad) {
@@ -55,22 +51,27 @@
   }
 
   function loadSdk() {
-    if (sdkLoading || Date.now() < retrySdkAt) return
+    if (sdkScript || Date.now() < retrySdkAt) return
 
-    sdkLoading = true
     const script = document.createElement('script')
+    sdkScript = script
     script.src = SDK_URL
     script.async = true
-    const failed = () => {
-      sdkLoading = false
+    const timeout = setTimeout(failed, 12000)
+    function failed() {
+      if (sdkScript !== script) return
+      clearTimeout(timeout)
+      sdkScript = null
       retrySdkAt = Date.now() + RETRY_MS
       script.remove()
       console.warn('Overwolf Ads SDK unavailable')
     }
     script.onerror = failed
     script.onload = () => {
+      if (sdkScript !== script) return
       if (typeof window.OwAd !== 'function') return failed()
-      sdkLoading = false
+      clearTimeout(timeout)
+      sdkScript = null
       syncSlots()
     }
     document.head.appendChild(script)
@@ -78,13 +79,13 @@
 
   document.addEventListener('visibilitychange', syncSlots)
   wideWindow.addEventListener('change', syncSlots)
-  window.addEventListener('beforeunload', () => {
+  window.addEventListener('pagehide', () => {
     eligible = false
     syncSlots()
   })
   window.DCDesktopAds = {
-    setEligible(canDisplay, liveAdsAllowed) {
-      eligible = typeof overwolf !== 'undefined' && canDisplay && (liveAdsAllowed || testAds)
+    setEligible(canDisplay) {
+      eligible = typeof overwolf !== 'undefined' && canDisplay
       syncSlots()
     },
     setWindowVisible(visible) {

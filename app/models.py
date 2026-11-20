@@ -215,6 +215,16 @@ class CompanionPairing(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
 
+class CompanionLinkSession(Base):
+    __tablename__ = "companion_link_sessions"
+
+    code_hash: Mapped[str] = mapped_column(String(64), primary_key=True)
+    user_id: Mapped[str | None] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"))
+    claimed_token_hash: Mapped[str | None] = mapped_column(String(64), index=True)
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)
+    finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
 class CompanionDevice(Base):
     __tablename__ = "companion_devices"
     __table_args__ = (UniqueConstraint("user_id", "device_id", name="uq_companion_user_device"),)

@@ -3,6 +3,7 @@
   const Product = window.DCProduct
   const Storage = window.DCStorage
   const OFFICIAL_SITE = 'https://deadlock-contracts.online'
+  const SERVER_ORIGIN = window.DCRelease?.serverOrigin || OFFICIAL_SITE
   const MCG_URL = 'https://t.me/MandarinCreatorGroup'
   const FTUE_KEY = 'dc.desktop.ftue.v2'
   const DEBRIEF_SEEN_KEY = 'dc.desktop.debrief.seen.v1'
@@ -234,7 +235,8 @@
     element.className = `toast ${kind === 'error' ? 'error' : ''}`
     element.innerHTML = `<div><b>${escapeHtml(title)}</b>${message ? `<span>${escapeHtml(message)}</span>` : ''}</div>`
     $('toastRegion').appendChild(element)
-    setTimeout(() => element.remove(), 4400)
+    syncDesktopAdSlot()
+    setTimeout(() => { element.remove(); syncDesktopAdSlot() }, 4400)
   }
 
   function setBusy(value) {
@@ -254,15 +256,21 @@
     const ftueIsClosed = $('ftue')?.hidden === true
     const modalIsClosed = $('confirmModal')?.hidden === true && !modalResolve
       && !document.querySelector('.desktop-announcement-modal-backdrop')
-    const productReady = snapshot.product?.status === 'ONLINE'
-      && ((snapshot.product?.boards?.length || 0) > 0 || (snapshot.product?.active_cases?.length || 0) > 0)
-    const serverAllowsAds = snapshot.product?.server_features?.includes('desktop_ads_v1') === true
-    const canDisplay = ftueIsClosed
-      && modalIsClosed
-      && navigator.onLine !== false
-      && isSafeDesktopAdMoment()
-    const liveAdsAllowed = !!snapshot.paired && productReady && serverAllowsAds
-    window.DCDesktopAds?.setEligible(canDisplay, liveAdsAllowed)
+    const view = document.querySelector('[data-view].active')?.dataset.view
+    const product = snapshot.product
+    const usableBoard = board => !!board?.options?.length
+    const populated = view === 'hq' ? product?.boards?.some(usableBoard)
+      : view === 'contracts' && usableBoard(Product.boardForMode(product, activeMode))
+    const noticesVisible = !$('toastRegion')?.matches(':empty')
+      || !!document.querySelector('.desktop-announcement')
+      || !$('offlineBar')?.hidden
+
+    const eligible = !PREVIEW && !busy && !!snapshot.paired
+      && product?.status === 'ONLINE' && !product.stale && populated
+      && product.server_features?.includes('desktop_ads_v1') === true
+      && ftueIsClosed && modalIsClosed && !noticesVisible
+      && navigator.onLine !== false && isSafeDesktopAdMoment()
+    window.DCDesktopAds?.setEligible(eligible)
   }
 
   function setView(name) {
@@ -394,8 +402,9 @@
       setText('offlineTitle', ui('OFFLINE MODE', 'ОФЛАЙН-РЕЖИМ'))
       setText('offlineCopy', language() === 'ru' ? 'GEP продолжает работу локально. Серверные действия возобновятся после подключения.' : 'Live GEP continues locally. Server actions will resume after reconnection.')
     } else if (incompatible) {
-      setText('offlineTitle', t('incompatible'))
-      setText('offlineCopy', productError || ui('Desktop API v1 must be deployed before this build can be submitted.', 'Перед отправкой этой сборки необходимо развернуть Desktop API v1.'))
+      const minimum = product.last_error?.minimum_version
+      setText('offlineTitle', minimum ? t('checkUpdate') : t('incompatible'))
+      setText('offlineCopy', minimum ? t('companionVersionRequired', language(), { version: minimum }) : productError || t('pairUpdateRequired'))
     } else if (degraded) {
       setText('offlineTitle', t('degraded'))
       setText('offlineCopy', productError || ui('Server data could not be refreshed. Cached data is marked as stale.', 'Не удалось обновить серверные данные. Кэш помечен как устаревший.'))
@@ -882,6 +891,8 @@
     setText('pairBadge', snapshot.paired ? statusLabel(product.status || 'CONNECTING') : t('unpaired'))
     $('pairBadge').className = `outline-badge ${snapshot.paired ? statusClass(product.status) : ''}`
     $('pairOptions').hidden = snapshot.paired
+    $('pairCancelBtn').hidden = !snapshot.pair_link_hint
+    $('pairMessage').classList.toggle('copyable', !!snapshot.pair_link_hint)
     $('disconnectBtn').disabled = busy || !snapshot.paired
     $('forceSignOutBtn').disabled = busy || !snapshot.paired
     $('syncBtn').disabled = busy || !snapshot.paired
@@ -914,6 +925,8 @@
         COMPANION_UPDATE_REQUIRED: 'pairUpdateRequired',
         PAIR_LINK_UNAVAILABLE: 'pairBrowserUnavailable',
         PAIR_LINK_EXPIRED: 'pairBrowserExpired',
+        TOKEN_EXPIRED: 'pairSessionExpired',
+        COMPANION_TOKEN_INVALID: 'pairSessionExpired',
       }[code]
       const messageKey = linkMessage || (/EXPIRED/.test(code) ? 'pairErrorExpired' : /USED|CLAIMED/.test(code) ? 'pairErrorUsed' : /FORMAT|INVALID|NOT_FOUND/.test(code) ? 'pairErrorInvalid' : /OFFLINE|NETWORK|TIMEOUT/.test(code) ? 'pairErrorOffline' : 'pairErrorGeneric')
       setText('pairMessage', `${t(messageKey)} (${code})${pairError.request_id ? ` · ${t('requestId')}: ${pairError.request_id}` : ''}`)
@@ -922,7 +935,8 @@
       const message = snapshot.pair_link_hint
         ? t('pairBrowserWaiting', language(), { code: snapshot.pair_link_hint })
         : t('pairBrowserHelp')
-      setText('pairMessage', snapshot.paired ? t('pairSuccess') : message)
+      const pairedMessage = product.status === 'ONLINE' ? t('pairSuccess') : t('pairConfirming')
+      setText('pairMessage', snapshot.paired ? pairedMessage : message)
     }
 
     all('[data-overlay-scale]').forEach(button => button.classList.toggle('active', button.dataset.overlayScale === (snapshot.overlay_scale || 'compact')))
@@ -958,7 +972,7 @@
       gep_feature_health: { status: incoming.health?.gep?.status || 'WAITING', last_error: incoming.health?.gep?.message || null },
       identity_ok: incoming.steam_id64 && accountSteam ? String(incoming.steam_id64) === accountSteam : null,
     }
-    if (wasWaitingForPairing && snapshot.paired) toast(t('pairSuccess'))
+    if (wasWaitingForPairing && snapshot.paired && snapshot.product?.status === 'ONLINE') toast(t('pairSuccess'))
     const latest = Product.latestVerdictGroup(snapshot.product?.history || [])
     const seen = readSeenDebriefId()
     const unseen = !!latest?.match_id && String(latest.match_id) !== seen
@@ -1154,10 +1168,8 @@
       event.preventDefault()
       event.stopPropagation()
       const modifiers = { ctrl: event.ctrlKey, alt: event.altKey, shift: event.shiftKey }
-      if (!Object.values(modifiers).some(Boolean)) {
-        if (event.key === 'Escape') stop()
-        return
-      }
+      if (event.key === 'Escape') { stop(); return }
+      if (!Object.values(modifiers).some(Boolean)) return
       const virtualKey = event.keyCode
       if (event.repeat || event.metaKey || !virtualKey || ['Alt','Control','Shift','Meta','AltGraph'].includes(event.key)) return
       stop()
@@ -1274,7 +1286,8 @@
       if (action === 'export') return void call('exportPendingUploads').then(text => copyText(text)).then(() => toast(ui('Pending uploads copied.', 'Очередь скопирована.'))).catch(error => toast(t('actionFailed'), error?.message || String(error), 'error'))
     })
     $('pairSiteBtn').addEventListener('click', openBrowserPairing)
-    $('pairProfileBtn').addEventListener('click', () => openExternal(`${OFFICIAL_SITE}/en/#profile`))
+    $('pairCancelBtn').addEventListener('click', () => void runAction(() => call('cancelBrowserPairing')))
+    $('pairProfileBtn').addEventListener('click', () => openExternal(`${SERVER_ORIGIN}${language() === 'ru' ? '/' : '/en/'}#profile`))
     const submitPair = async () => {
       const raw = $('pairCode').value
       let normalized
@@ -1284,8 +1297,9 @@
         setText('pairMessage', ui('Use the exact pairing code shown on the website. Invalid characters are not changed silently.', 'Введите код точно как на сайте. Недопустимые символы не исправляются автоматически.'))
         return
       }
-      const next = await runAction(() => call('pair', OFFICIAL_SITE, normalized.normalized), null)
-      if (next) { $('pairCode').value = ''; setText('pairMessage', t('pairSuccess')); toast(t('pairSuccess')) }
+      const next = await runAction(() => call('pair', SERVER_ORIGIN, normalized.normalized), null)
+      if (next?.paired) $('pairCode').value = ''
+      if (next?.product?.status === 'ONLINE') toast(t('pairSuccess'))
     }
     $('pairBtn').addEventListener('click', submitPair)
     $('pairCode').addEventListener('keydown', event => { if (event.key === 'Enter') { event.preventDefault(); void submitPair() } })
@@ -1338,7 +1352,7 @@
     $('helpBtn').addEventListener('click', () => openExternal(`${OFFICIAL_SITE}/data-sources`))
     $('privacyBtn').addEventListener('click', () => openExternal(`${OFFICIAL_SITE}/privacy`))
     $('supportBtn').addEventListener('click', () => openExternal(`${OFFICIAL_SITE}/support`))
-    $('replayIntroBtn').addEventListener('click', () => { Storage?.remove?.(FTUE_KEY); $('ftue').hidden = false; $('ftueContinue').focus() })
+    $('replayIntroBtn').addEventListener('click', () => { Storage?.remove?.(FTUE_KEY); $('ftue').hidden = false; syncDesktopAdSlot(); $('ftueContinue').focus() })
     $('exportQueueBtn').addEventListener('click', async () => { try { await copyText(await call('exportPendingUploads')); toast(ui('Pending uploads copied.', 'Очередь скопирована.')) } catch (error) { toast(t('actionFailed'), error?.message || String(error), 'error') } })
     $('clearCacheBtn').addEventListener('click', async () => { const yes = await openModal({title:ui('CLEAR LOCAL CACHE?','ОЧИСТИТЬ ЛОКАЛЬНЫЙ КЭШ?'),body:ui('Account/product cache is removed. Pairing and pending uploads are preserved.','Кэш аккаунта/контрактов будет удалён. Pairing и очередь сохранятся.'),confirmLabel:ui('CLEAR CACHE','ОЧИСТИТЬ')}); if (yes) await runAction(() => call('clearLocalCache'), ui('Local cache cleared.','Локальный кэш очищен.')) })
     $('clearAllDataBtn').addEventListener('click', async () => { const yes = await openModal({title:ui('CLEAR ALL LOCAL DATA?','ОЧИСТИТЬ ВСЕ ЛОКАЛЬНЫЕ ДАННЫЕ?'),body:ui('Pairing, cache, lifecycle checkpoints and pending uploads will be removed from this Windows profile. Export pending uploads first if needed.','Pairing, кэш, lifecycle checkpoints и очередь отправок будут удалены из этого профиля Windows. При необходимости сначала экспортируйте очередь.'),confirmLabel:ui('CLEAR EVERYTHING','ОЧИСТИТЬ ВСЁ')}); if (yes) { await call('clearAllLocalData'); Storage?.remove?.(DRAFT_KEY); location.reload() } })

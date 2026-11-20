@@ -12,10 +12,16 @@ const manifestVersion = String(releaseMetadata.manifest_version || releaseMetada
 if (!release) throw new Error('release.json product_version is required')
 if (!manifestVersion) throw new Error('release.json manifest_version is required')
 
-const dist = path.join(root, 'dist')
+const qaOrigin = process.env.COMPANION_QA_ORIGIN
+if (qaOrigin && !/^https:\/\/qa\.deadlock-contracts\.online$|^http:\/\/127\.0\.0\.1:\d{1,5}$/.test(qaOrigin)) {
+  throw new Error('COMPANION_QA_ORIGIN must be https://qa.deadlock-contracts.online or a local 127.0.0.1 HTTP origin')
+}
+if (qaOrigin) new URL(qaOrigin)
+const packageName = `Deadlock-Contracts-Companion-${release}${qaOrigin ? '-QA-standalone' : ''}`
+const dist = path.join(root, 'dist', qaOrigin ? 'qa' : '')
 const staging = path.join(dist, '.opk-staging')
-const opk = path.join(dist, `Deadlock-Contracts-Companion-${release}.opk`)
-const sbom = path.join(dist, `Deadlock-Contracts-Companion-${release}.cdx.json`)
+const opk = path.join(dist, `${packageName}.opk`)
+const sbom = path.join(dist, `${packageName}.cdx.json`)
 const checksum = path.join(dist, 'SHA256SUMS.txt')
 const archiveEpoch = new Date('2000-01-01T00:00:00.000Z')
 
@@ -60,7 +66,8 @@ function archiveFileList(directory, prefix = '') {
 }
 
 execFileSync(process.execPath, [path.join(root, 'scripts/check-release.mjs')], { stdio: 'inherit' })
-fs.rmSync(dist, { recursive: true, force: true })
+fs.rmSync(staging, { recursive: true, force: true })
+fs.rmSync(opk, { force: true })
 fs.mkdirSync(staging, { recursive: true })
 
 for (const relative of runtimeFiles) {
@@ -74,6 +81,18 @@ for (const relative of runtimeDirectories) {
   const source = path.join(root, relative)
   if (!fs.existsSync(source)) throw new Error(`missing runtime directory: ${relative}`)
   fs.cpSync(source, path.join(staging, relative), { recursive: true })
+}
+
+if (qaOrigin) {
+  const metadataFile = path.join(staging, 'src/release-meta.js')
+  const metadataSource = fs.readFileSync(metadataFile, 'utf8')
+  fs.writeFileSync(metadataFile, metadataSource.replace(
+    "serverOrigin: 'https://deadlock-contracts.online'",
+    `serverOrigin: ${JSON.stringify(qaOrigin)}`,
+  ))
+  const backgroundFile = path.join(staging, 'background.html')
+  const background = fs.readFileSync(backgroundFile, 'utf8')
+  fs.writeFileSync(backgroundFile, background.replace('https://deadlock-contracts.online', qaOrigin))
 }
 
 normalizeArchiveTree(staging)
@@ -103,6 +122,7 @@ const cyclonedx = {
       version: release,
       properties: [
         { name: 'deadlock-contracts:manifest-version', value: manifestVersion },
+        { name: 'deadlock-contracts:api-origin', value: qaOrigin || 'https://deadlock-contracts.online' },
         { name: 'deadlock-contracts:runtime-dependencies', value: 'none; bundled runtime files are enumerated below' },
       ],
     },

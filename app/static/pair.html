@@ -13,18 +13,24 @@
 <body class="ns-static ns-documents">
   <header class="site-header">
     <div class="shell header-inner">
-      <a class="brand" href="/en/"><span class="document-wordmark">DEADLOCK<small>CONTRACTS</small></span></a>
+      <a id="home" class="brand" href="/en/"><span class="document-wordmark">DEADLOCK<small>CONTRACTS</small></span></a>
     </div>
   </header>
   <main class="shell legal-page">
     <article class="legal-document">
-      <h1>Connect the Companion</h1>
+      <label for="language" id="language-label">Language</label>
+      <select id="language">
+        <option value="en" lang="en">English</option>
+        <option value="ru" lang="ru">Русский</option>
+      </select>
+      <h1 id="heading">Connect the Companion</h1>
       <p id="status" role="status">Checking your connection request…</p>
-      <div id="sign-in" hidden><a class="ghost-button" href="/auth/steam?return_to=pair">Sign in with Steam</a></div>
+      <div id="sign-in" hidden><a class="ghost-button" id="sign-in-link" href="/auth/steam?return_to=pair">Sign in with Steam</a></div>
       <div id="approval" hidden><button class="ghost-button" id="approve" type="button">Connect this Companion</button></div>
       <noscript><p>Enable JavaScript to connect, or open your website profile and generate a manual pairing code.</p></noscript>
-      <h2>Using a pairing code</h2>
-      <p>Open <a href="/en/#profile">your profile</a>, expand Account settings, and generate a Companion pairing code. Enter the code under Settings → Use a pairing code in the Companion.</p>
+      <h2 id="manual-heading">Using a pairing code</h2>
+      <p id="manual-copy">Generate a Companion pairing code in your account settings. Then choose Settings → Use a pairing code in the Companion.</p>
+      <p><a id="profile" href="/en/#profile">Open your profile</a></p>
     </article>
   </main>
 </body>

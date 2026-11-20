@@ -8,8 +8,7 @@ if (!VERSION) throw new Error('Generated release metadata is missing')
 const EVIDENCE_SCHEMA_VERSION = window.DCRelease?.evidenceSchemaVersion || 9
 const HOTKEY_NAME = 'toggle_contract_overlay'
 const DEFAULT_HOTKEY = 'Ctrl+Shift+C'
-const ALLOWED_SERVER_URLS = new Set(['https://deadlock-contracts.online'])
-const PAIRING_URL = 'https://deadlock-contracts.online/pair'
+const SERVER_ORIGIN = window.DCRelease.serverOrigin || 'https://deadlock-contracts.online'
 const EVENT_STATUS_URL = `https://game-events-status.overwolf.com/${GAME_ID}_prod.json`
 const HEARTBEAT_MS = 15000
 const PRODUCT_REFRESH_MS = 60000
@@ -49,6 +48,7 @@ const STORAGE = Object.freeze({
   serverUrl: 'dc.serverUrl',
   tokenLegacy: 'dc.token',
   tokenEncrypted: 'dc.token.secure.v2',
+  browserPairing: 'dc.pair.browser.secure.v1',
   tokenEncryptedLegacy: 'dc.token.enc.v1',
   deviceId: 'dc.deviceId',
   diagnosticInstallId: 'dc.diagnostic.install.v1',
@@ -91,6 +91,10 @@ const postMatchTimers = new Set()
 let flushPromise = null
 let productRefreshPromise = null
 let browserPairing = null
+let browserPairingStart = null
+let browserPairingPoll = Promise.resolve()
+let browserPairingTimer = 0
+let presencePromise = null
 let pairingFinishing = false
 let pairingRevision = 0
 let reconnectPromise = null
@@ -110,13 +114,14 @@ let lastEvidenceCheckpointAt = 0
 let logLines = []
 let desktopLaunchReady = false
 let desktopOpened = false
+let desktopRecoveryPending = false
 let desktopAction = Promise.resolve()
 
 const runtimeSessionId = randomId('runtime')
 const performanceCounters = { overlay_dto_max_bytes: 0, runtime_state_publications: 0, queue_flushes: 0, queue_flush_failures: 0, queue_flush_ms_max: 0, product_refresh_ms_max: 0 }
 
 const state = {
-  serverUrl: allowedServerUrl(readStoredValue(STORAGE.serverUrl)) || 'https://deadlock-contracts.online',
+  serverUrl: SERVER_ORIGIN,
   token: '',
   deviceId: String(readStoredValue(STORAGE.deviceId) || ''),
   diagnosticInstallId: String(readStoredValue(STORAGE.diagnosticInstallId) || ''),
@@ -159,6 +164,7 @@ const state = {
   hotkeyBinding: DEFAULT_HOTKEY,
   lastSyncedAt: null,
   lastAckAt: null,
+  connectionConfirmed: false,
   lastUploadStatus: '—',
   product: Product.emptyProductState(),
   pairingError: null,
@@ -177,7 +183,7 @@ function randomId(prefix = 'dc') {
   }
 }
 function cleanServerUrl(value) { return String(value || '').trim().replace(/\/+$/, '') }
-function allowedServerUrl(value) { const clean = cleanServerUrl(value); return ALLOWED_SERVER_URLS.has(clean) ? clean : null }
+function allowedServerUrl(value) { const clean = cleanServerUrl(value); return clean === SERVER_ORIGIN ? clean : null }
 function asInt(value) { const n = Number(value); return Number.isFinite(n) ? Math.trunc(n) : null }
 function asSteamId(value) {
   if (value === null || value === undefined || value === '') return null
@@ -262,6 +268,7 @@ function setPairingError(error) {
     code: String(error?.code || 'PAIR_FAILED'),
     message: String(error?.message || error || 'Pairing failed'),
     request_id: error?.requestId || null,
+    minimum_version: error?.minimumVersion || null,
     at: nowIso(),
   }
   publishRuntimeState()
@@ -293,7 +300,7 @@ async function loadToken() {
   const current = await Storage.readSecureJson(STORAGE.tokenEncrypted, { schemaVersion: 2 })
   if (current.ok && current.value?.token) {
     state.token = String(current.value.token)
-    setHealth('auth', 'OK')
+    setHealth('auth', 'CONNECTING')
     setHealth('secureStorage', 'OK')
     return
   }
@@ -312,7 +319,7 @@ async function loadToken() {
       state.token = await tokenDecrypt(legacyCipher)
       const migrated = await storeToken(state.token)
       if (!migrated.ok) throw Object.assign(new Error(migrated.error || 'Token migration failed'), { code: migrated.code })
-      setHealth('auth', 'OK')
+      setHealth('auth', 'CONNECTING')
       return
     } catch (error) {
       state.token = ''
@@ -327,16 +334,21 @@ async function loadToken() {
     state.token = legacy
     const result = await storeToken(legacy)
     if (!result.ok) setHealth('auth', 'STORAGE_INVALID', result.code, I18n.t('pair.storage_invalid'))
-    else setHealth('auth', 'OK')
+    else setHealth('auth', 'CONNECTING')
   } else {
     setHealth('auth', 'UNPAIRED')
   }
 }
 function clearLocalAuth() {
   pairingRevision += 1
-  browserPairing = null
+  clearBrowserPairing()
   state.token = ''
   state.account = null
+  state.lastAckAt = null
+  state.connectionConfirmed = false
+  state.lastSyncedAt = null
+  state.product = Product.emptyProductState('UNPAIRED')
+  Storage.remove(STORAGE.product)
   Storage.remove(STORAGE.tokenLegacy)
   Storage.remove(STORAGE.tokenEncrypted)
   Storage.remove(STORAGE.tokenEncryptedLegacy)
@@ -477,15 +489,18 @@ async function serverFetch(path, options = {}) {
   if (state.token && options.auth !== false) headers.set('Authorization', `Bearer ${state.token}`)
   const controller = new AbortController()
   const timer = setTimeout(() => controller.abort(), options.timeoutMs || 12000)
-  let response
+  let response, data
   try {
     response = await fetch(base + path, { method: options.method || 'GET', headers, body: options.body || undefined, signal: controller.signal, cache: 'no-store', credentials: 'omit', redirect: 'error', referrerPolicy: 'no-referrer' })
+    data = await response.json().catch(error => {
+      if (controller.signal.aborted) throw error
+      return {}
+    })
   } catch (error) {
     const wrapped = Object.assign(new Error(error?.name === 'AbortError' ? 'Request timed out' : String(error?.message || error)), { code: error?.name === 'AbortError' ? 'REQUEST_TIMEOUT' : 'NETWORK_ERROR', status: 0 })
     setHealth('backend', navigator.onLine === false ? 'OFFLINE' : 'DEGRADED', wrapped.code, wrapped.message)
     throw wrapped
   } finally { clearTimeout(timer) }
-  const data = await response.json().catch(() => ({}))
   if (!response.ok) {
     const error = Object.assign(new Error(String(data?.message || data?.detail || `HTTP ${response.status}`)), {
       status: response.status,
@@ -504,10 +519,11 @@ async function serverFetch(path, options = {}) {
 function productErrorState(error) {
   const status = error?.status === 401 ? 'UNPAIRED'
     : ['API_VERSION_MISMATCH', 'SCHEMA_VERSION_UNSUPPORTED', 'SCHEMA_VERSION_MISSING'].includes(error?.code) || error?.status === 426 ? 'INCOMPATIBLE'
-      : navigator.onLine === false ? 'OFFLINE' : 'DEGRADED'
-  return { ...state.product, status, stale: !!state.product?.loaded_at, last_error: { code: error?.code || 'PRODUCT_SYNC_FAILED', message: String(error?.message || error), status: error?.status || null, request_id: error?.requestId || null, at: nowIso() } }
+      : navigator.onLine === false || error?.status === 0 ? 'OFFLINE' : 'DEGRADED'
+  return { ...state.product, status, stale: !!state.product?.loaded_at, last_error: { code: error?.code || 'PRODUCT_SYNC_FAILED', message: String(error?.message || error), status: error?.status || null, request_id: error?.requestId || null, minimum_version: error?.minimumVersion || null, at: nowIso() } }
 }
 function restoreProductCache() {
+  if (!state.token) return
   const cached = Storage.readJson(STORAGE.product, { schemaVersion: Product.PRODUCT_CACHE_VERSION, ttlMs: Storage.CACHE_TTL_MS })
   if (cached.ok && cached.value) state.product = { ...Product.emptyProductState('OFFLINE'), ...cached.value, status: 'OFFLINE', stale: true }
 }
@@ -523,11 +539,14 @@ async function refreshProduct({ requireFresh = false } = {}) {
     return { ok: false, code: 'UNPAIRED', fresh: false, product: state.product }
   }
   if (productRefreshPromise) return productRefreshPromise
+  const token = state.token
   productRefreshPromise = (async () => {
     try {
       const data = await serverFetch('/api/desktop/v1/bootstrap')
+      if (token !== state.token) return { ok: false, code: 'AUTH_CHANGED', fresh: false }
       const previousFingerprints = state.product?.logic_fingerprints || {}
       const next = Product.normalizeBootstrap(data)
+      if (!state.connectionConfirmed) return { ok: false, code: 'CONNECTING', fresh: false }
       const sameBoardIds = new Set((state.product?.boards || []).map(board => board.id))
       for (const board of next.boards) {
         if (!sameBoardIds.has(board.id)) continue
@@ -547,6 +566,7 @@ async function refreshProduct({ requireFresh = false } = {}) {
       publishRuntimeState()
       return { ok: true, fresh: true, server_time: next.server_time, product: next }
     } catch (error) {
+      if (token !== state.token) return { ok: false, code: 'AUTH_CHANGED', fresh: false }
       if (error?.status === 401 || ['TOKEN_EXPIRED', 'TOKEN_REVOKED', 'AUTH_REQUIRED'].includes(error?.code)) transitionToUnpaired(error.code || 'AUTH_REQUIRED')
       state.product = productErrorState(error)
       publishRuntimeState()
@@ -1090,21 +1110,26 @@ async function flushQueue({ deadlineMs = null } = {}) {
   performanceCounters.queue_flushes += 1
   flushPromise = (async () => {
     const started = Date.now()
+    const token = state.token
     let acknowledged = 0
     let rejected = 0
     if (!state.token) return { ok: false, code: 'UNPAIRED', acknowledged, rejected }
-    while (state.token) {
+    while (state.token === token) {
       if (deadlineMs && Date.now() - started >= deadlineMs) break
       const item = uploadQueue.nextDue({ prerequisite: candidate => candidate.event_type !== 'match_ended' || uploadQueue.allPriorAcknowledged(candidate.session_key, candidate.sequence) })
       if (!item) break
       uploadQueue.markInFlight(item.id)
       await persistQueue()
       try {
+        if (state.token !== token) throw Object.assign(new Error('Account changed'), { code: 'AUTH_CHANGED' })
         const wirePayload = ServerCompat.toHeartbeatV1(item.payload)
         const data = await serverFetch('/api/companion/heartbeat', { method: 'POST', body: JSON.stringify(wirePayload) })
-        uploadQueue.acknowledge(item.id, { request_id: data?.request_id || null, server_time: data?.server_time || null, duplicate: data?.duplicate === true })
-        state.lastSyncedAt = data?.server_time || nowIso()
-        state.lastAckAt = state.lastSyncedAt
+        const serverTime = confirmedServerTime(data)
+        uploadQueue.acknowledge(item.id, { request_id: data?.request_id || null, server_time: serverTime, duplicate: data?.duplicate === true })
+        if (state.token === token) {
+          state.lastSyncedAt = serverTime
+          state.lastAckAt = serverTime
+        }
         state.lastUploadStatus = 'ACKNOWLEDGED'
         acknowledged += 1
         uploadQueue.removeAcknowledged()
@@ -1113,13 +1138,16 @@ async function flushQueue({ deadlineMs = null } = {}) {
       } catch (error) {
         performanceCounters.queue_flush_failures += 1
         const kind = UploadQueue.classifyUploadError(error)
-        if (kind === 'AUTH') {
+        if (state.token !== token || kind === 'AUTH' || error.status === 426) {
           uploadQueue.retry(item.id, error)
           await persistQueue()
-          transitionToUnpaired(error.code || 'AUTH_REQUIRED')
+          if (state.token === token) recordConnectionError(error)
           break
         }
-        if (kind === 'RETRY') uploadQueue.retry(item.id, error)
+        if (kind === 'RETRY') {
+          uploadQueue.retry(item.id, error)
+          recordConnectionError(error)
+        }
         else { uploadQueue.deadLetter(item.id, { status: error.status || null, code: error.code || 'REJECTED', request_id: error.requestId || null, message: String(error.message || error) }); rejected += 1 }
         await persistQueue()
         if (kind === 'RETRY') continue
@@ -1672,10 +1700,34 @@ function transitionToUnpaired(reason = 'AUTH_REQUIRED') {
   clearLocalAuth()
   state.product = Product.emptyProductState('UNPAIRED')
   setHealth('auth', reason === 'TOKEN_EXPIRED' ? 'EXPIRED' : 'UNPAIRED', reason, null)
-  publishRuntimeState()
+  if (reason === 'TOKEN_EXPIRED' || reason === 'COMPANION_TOKEN_INVALID') setPairingError({ code: reason })
 }
-async function sendPresenceHeartbeat() {
-  if (!state.token) return { ok: false, code: 'UNPAIRED' }
+function sendPresenceHeartbeat() {
+  if (!state.token) return Promise.resolve({ ok: false, code: 'UNPAIRED' })
+  if (presencePromise) return presencePromise
+  presencePromise = sendPresence(state.token).finally(() => { presencePromise = null })
+  return presencePromise
+}
+
+function recordConnectionError(error) {
+  state.connectionConfirmed = false
+  if (UploadQueue.classifyUploadError(error) === 'AUTH') {
+    transitionToUnpaired(error.code || 'AUTH_REQUIRED')
+  } else {
+    state.product = productErrorState(error)
+    if (error.status === 426) setHealth('auth', 'INCOMPATIBLE', error.code, error.message)
+    publishRuntimeState()
+  }
+}
+
+function confirmedServerTime(data) {
+  if (data?.ok !== true || !Number.isFinite(Date.parse(data.server_time))) {
+    throw Object.assign(new Error('Invalid server acknowledgement'), { code: 'INVALID_SERVER_ACK', status: 502 })
+  }
+  return data.server_time
+}
+
+async function sendPresence(token) {
 
   const activeGepSession = lifecycle.currentSession()
   if (activeGepSession) void ensureGepAttemptLease(activeGepSession)
@@ -1717,16 +1769,17 @@ async function sendPresenceHeartbeat() {
       method: 'POST',
       body: JSON.stringify(wirePayload),
     })
-    state.lastSyncedAt = data?.server_time || nowIso()
+    if (token !== state.token) return { ok: false, code: 'AUTH_CHANGED' }
+    state.lastSyncedAt = confirmedServerTime(data)
     state.lastAckAt = state.lastSyncedAt
+    state.connectionConfirmed = true
     state.lastUploadStatus = 'ACKNOWLEDGED'
     setHealth('auth', 'OK')
     publishRuntimeState()
     return { ok: true, last_ack_at: state.lastAckAt }
   } catch (error) {
-    if (UploadQueue.classifyUploadError(error) === 'AUTH') {
-      transitionToUnpaired(error.code || 'AUTH_REQUIRED')
-    }
+    if (token !== state.token) return { ok: false, code: 'AUTH_CHANGED' }
+    recordConnectionError(error)
     state.lastUploadStatus = error?.code || 'PRESENCE_FAILED'
     publishRuntimeState()
     return { ok: false, code: error?.code || 'PRESENCE_FAILED' }
@@ -1736,18 +1789,21 @@ async function sendPresenceHeartbeat() {
 async function reconnect() {
   if (!state.token) return { ok: false, code: 'UNPAIRED' }
   if (reconnectPromise) return reconnectPromise
+  const token = state.token
   reconnectPromise = (async () => {
     try {
-      const data = await serverFetch('/api/companion/hello')
-      state.account = data.account || state.account
-      state.lastSyncedAt = data.server_time || nowIso()
-      setHealth('auth', 'OK')
+      // Older backends check the stored version on /hello. Presence registers the new version first.
       const presence = await sendPresenceHeartbeat()
-      const upload = await flushQueue()
+      if (!presence.ok) return presence
+      const data = await serverFetch('/api/companion/hello')
+      if (token !== state.token) return { ok: false, code: 'AUTH_CHANGED' }
+      confirmedServerTime(data)
+      state.account = data.account || state.account
       const product = await refreshProduct({ requireFresh: true })
-      return { ok: product.ok && presence.ok, presence, upload, product }
+      const upload = await flushQueue()
+      return { ok: product.ok, presence, upload, product }
     } catch (error) {
-      if (UploadQueue.classifyUploadError(error) === 'AUTH') transitionToUnpaired(error.code || 'AUTH_REQUIRED')
+      if (token === state.token) recordConnectionError(error)
       return { ok: false, code: error.code || 'RECONNECT_FAILED' }
     } finally { reconnectPromise = null }
   })()
@@ -1755,8 +1811,9 @@ async function reconnect() {
 }
 async function pair(serverUrl, rawCode) {
   if (pairingFinishing) throw Object.assign(new Error('Pairing is in progress'), { code: 'PAIR_IN_PROGRESS' })
+  if (browserPairing) await cancelBrowserPairing()
+  if (state.token) return publicSnapshot()
   const revision = ++pairingRevision
-  browserPairing = null
   clearPairingError()
   const allowed = allowedServerUrl(serverUrl)
   const code = normalizePairCode(rawCode)
@@ -1787,7 +1844,9 @@ function pairingRequest(path, payload) {
 async function finishPairing(data, revision) {
   if (revision !== pairingRevision) return null
   const token = String(data.token || '')
-  if (!token) throw Object.assign(new Error('Pairing token missing'), { code: 'PAIR_FAILED' })
+  if (!/^[A-Za-z0-9_-]{43}$/.test(token) || !data.account?.steam_id64) {
+    throw Object.assign(new Error('Invalid connection response'), { code: 'PAIR_FAILED' })
+  }
   const saved = await storeToken(token)
   if (revision !== pairingRevision) {
     await storeToken('')
@@ -1797,38 +1856,79 @@ async function finishPairing(data, revision) {
   state.token = token
   state.account = data.account || null
   clearPairingError()
-  setHealth('auth', 'OK')
-  await sendPresenceHeartbeat()
-  await flushQueue()
-  await refreshProduct({ requireFresh: true })
+  setHealth('auth', 'CONNECTING')
+  await reconnect()
   publishRuntimeState()
   return publicSnapshot()
 }
 
-async function startBrowserPairing() {
-  if (state.token || pairingFinishing) return null
-  if (browserPairing && Date.now() < browserPairing.expiresAt) return browserPairing.url
-  const revision = pairingRevision
+function browserPairingUrl(flow) {
+  const url = new URL('/pair', SERVER_ORIGIN)
+  const language = I18n.savedPreference()
+  if (language === 'en' || language === 'ru') url.searchParams.set('lang', language)
+  url.hash = flow.challenge
+  return url.href
+}
+
+function clearBrowserPairing() {
+  browserPairing = null
+  clearTimeout(browserPairingTimer)
+  Storage.remove(STORAGE.browserPairing)
+}
+
+function validBrowserPairing(flow) {
+  return /^\d{10}\.[a-f0-9]{64}\.[a-f0-9]{64}$/.test(flow?.challenge)
+    && /^[A-Za-z0-9_-]{43}$/.test(flow?.verifier) && flow.expiresAt > Date.now()
+}
+
+async function restoreBrowserPairing() {
+  const stored = await Storage.readSecureJson(STORAGE.browserPairing)
+  if (state.token || !stored.ok || !validBrowserPairing(stored.value)) {
+    clearBrowserPairing()
+    return
+  }
+  browserPairing = stored.value
+  scheduleBrowserPairing(browserPairing, 0)
+}
+
+function scheduleBrowserPairing(flow, delay) {
+  clearTimeout(browserPairingTimer)
+  browserPairingTimer = setTimeout(() => {
+    browserPairingPoll = pollBrowserPairing(flow)
+  }, Math.min(delay, Math.max(0, flow.expiresAt - Date.now())))
+}
+
+function startBrowserPairing() {
+  if (state.token || pairingFinishing) return Promise.resolve(null)
+  if (validBrowserPairing(browserPairing)) {
+    clearPairingError()
+    return Promise.resolve(browserPairingUrl(browserPairing))
+  }
+  if (!browserPairingStart) {
+    browserPairingStart = prepareBrowserPairing(pairingRevision).finally(() => { browserPairingStart = null })
+  }
+  return browserPairingStart
+}
+
+async function prepareBrowserPairing(revision) {
   clearPairingError()
   try {
     const data = await pairingRequest('/api/companion/pairing/link/start')
     if (state.token || pairingFinishing || revision !== pairingRevision) return null
-    if (browserPairing && Date.now() < browserPairing.expiresAt) return browserPairing.url
-    const expiresAt = Date.parse(data.expires_at)
-    if (!/^\d{10}\.[a-f0-9]{64}\.[a-f0-9]{64}$/.test(data.challenge) ||
-        !/^[A-Za-z0-9_-]{43}$/.test(data.verifier) || !(expiresAt > Date.now())) {
+    const flow = { challenge: data.challenge, verifier: data.verifier, expiresAt: Date.parse(data.expires_at) }
+    if (!validBrowserPairing(flow)) {
       throw Object.assign(new Error('Invalid connection request'), { code: 'PAIR_LINK_FAILED' })
     }
-    const flow = {
-      url: `${PAIRING_URL}#${data.challenge}`,
-      hint: data.challenge.slice(-6).toUpperCase(),
-      verifier: data.verifier,
-      expiresAt,
+    const saved = await Storage.writeSecureJson(STORAGE.browserPairing, flow)
+    if (revision !== pairingRevision) {
+      clearBrowserPairing()
+      return null
     }
+    if (!saved.ok) throw Object.assign(new Error(I18n.t('pair.storage_invalid')), { code: saved.code })
     browserPairing = flow
-    setTimeout(() => void pollBrowserPairing(flow), 3000)
+    scheduleBrowserPairing(flow, 3000)
     publishRuntimeState()
-    return flow.url
+    return browserPairingUrl(flow)
   } catch (error) {
     if (revision !== pairingRevision) return null
     if (error.status === 404 || error.status === 405) error.code = 'PAIR_LINK_UNAVAILABLE'
@@ -1846,28 +1946,47 @@ async function pollBrowserPairing(flow) {
     }
     const data = await pairingRequest('/api/companion/pairing/link/claim', { verifier: flow.verifier })
     if (browserPairing !== flow) return
-    if (!data.pending) {
+    if (data.pending !== true) {
       pairingFinishing = true
       try {
         await finishPairing(data, pairingRevision)
-      } catch (error) {
-        if (browserPairing === flow) setPairingError(error)
       } finally {
-        if (browserPairing === flow) browserPairing = null
         pairingFinishing = false
       }
+      clearBrowserPairing()
+      publishRuntimeState()
       return
     }
+    clearPairingError()
   } catch (error) {
     if (browserPairing !== flow) return
-    if (error.status !== 0 && error.status !== 429 && !(error.status >= 500)) {
-      browserPairing = null
-      setPairingError(error)
-      return
-    }
-    delay = Math.max(delay, Number(error.retryAfter || 0) * 1000)
+    if (error.status === 410) error.code = 'PAIR_LINK_EXPIRED'
+    const retryable = error.status === 0 || error.status === 429 || error.status >= 500
+    if (!retryable) clearBrowserPairing()
+    setPairingError(error)
+    if (!retryable) return
+    delay = Math.max(6000, Number(error.retryAfter || 0) * 1000)
   }
-  setTimeout(() => void pollBrowserPairing(flow), Math.min(delay, Math.max(0, flow.expiresAt - Date.now())))
+  scheduleBrowserPairing(flow, delay)
+  publishRuntimeState()
+}
+
+async function cancelBrowserPairing() {
+  const flow = browserPairing
+  clearTimeout(browserPairingTimer)
+  await browserPairingPoll
+  if (!flow || browserPairing !== flow) return publicSnapshot()
+  pairingRevision += 1
+  clearBrowserPairing()
+  clearPairingError()
+  try {
+    await pairingRequest('/api/companion/pairing/link/cancel', { verifier: flow.verifier })
+  } catch (error) {
+    // The discarded verifier prevents further claims from this installation even offline.
+    if (![404, 405].includes(error.status)) setPairingError(error)
+  }
+  publishRuntimeState()
+  return publicSnapshot()
 }
 async function testServer(serverUrl) {
   const allowed = allowedServerUrl(serverUrl)
@@ -1893,20 +2012,23 @@ function forceLocalSignOut() {
 }
 async function lockContracts(mode, optionIds) {
   if (!state.token) throw Object.assign(new Error('Pairing required'), { code: 'UNPAIRED' })
-  if (health.state.backend.status === 'OFFLINE' || state.product.stale || state.product.status !== 'ONLINE') throw Object.assign(new Error('Fresh server data is required'), { code: 'ACTION_BLOCKED_STALE' })
+  if (!state.connectionConfirmed || health.state.backend.status === 'OFFLINE' || state.product.stale || state.product.status !== 'ONLINE') throw Object.assign(new Error('Fresh server data is required'), { code: 'ACTION_BLOCKED_STALE' })
   const normalized = Product.normalizeMode(mode)
   const ids = [...new Set((Array.isArray(optionIds) ? optionIds : []).map(String).filter(Boolean))]
   if (!normalized) throw Object.assign(new Error('Unknown mode'), { code: 'MODE_UNKNOWN' })
   if (ids.length < 1 || ids.length > 3) throw Object.assign(new Error('Select 1–3 contracts'), { code: 'SELECTION_INVALID' })
   const board = Product.boardForMode(state.product, normalized)
   if (!board || board.attempts_remaining <= 0) throw Object.assign(new Error('No attempts remaining'), { code: 'ATTEMPTS_EXHAUSTED' })
-  await serverFetch('/api/desktop/v1/boards/lock', { method: 'POST', body: JSON.stringify({ mode: normalized, option_ids: ids }) })
+  const receipt = await serverFetch('/api/desktop/v1/boards/lock', { method: 'POST', body: JSON.stringify({ mode: normalized, option_ids: ids }) })
+  if (receipt.ok !== true || receipt.board?.id !== board.id) {
+    throw Object.assign(new Error('Contract selection was not confirmed'), { code: 'INVALID_SERVER_ACK' })
+  }
   await refreshProduct({ requireFresh: true })
   return publicSnapshot()
 }
 async function rerollBoard(mode) {
   if (!state.token) throw Object.assign(new Error('Pairing required'), { code: 'UNPAIRED' })
-  if (health.state.backend.status === 'OFFLINE' || state.product.stale || state.product.status !== 'ONLINE') throw Object.assign(new Error('Fresh server data is required'), { code: 'ACTION_BLOCKED_STALE' })
+  if (!state.connectionConfirmed || health.state.backend.status === 'OFFLINE' || state.product.stale || state.product.status !== 'ONLINE') throw Object.assign(new Error('Fresh server data is required'), { code: 'ACTION_BLOCKED_STALE' })
   const normalized = Product.normalizeMode(mode)
   if (!normalized) throw Object.assign(new Error('Unknown mode'), { code: 'MODE_UNKNOWN' })
   await serverFetch(`/api/desktop/v1/boards/${encodeURIComponent(normalized)}/reroll`, { method: 'POST' })
@@ -1919,7 +2041,7 @@ async function clearAllLocalData() {
     throw Object.assign(new Error('Local data cannot be cleared during an active match.'), { code: 'ACTIVE_MATCH_BLOCKS_CLEAR' })
   }
   pairingRevision += 1
-  browserPairing = null
+  clearBrowserPairing()
   uploadQueue.clear({ deadLetters: true })
   clearRecoveryTimers()
   for (const timer of postMatchTimers) clearTimeout(timer)
@@ -1938,6 +2060,9 @@ async function clearAllLocalData() {
   }
   state.token = ''
   state.account = null
+  state.connectionConfirmed = false
+  state.lastAckAt = null
+  state.lastSyncedAt = null
   state.product = Product.emptyProductState('UNPAIRED')
   state.pairingError = null
   state.evidence = {}
@@ -1951,6 +2076,7 @@ async function clearAllLocalData() {
 
 async function syncNow() {
   if (navigator.onLine === false) return { ok: false, code: 'OFFLINE', upload: { ok: false, code: 'OFFLINE' }, product: { ok: false, code: 'OFFLINE' }, snapshot: publicSnapshot() }
+  if (state.token && !state.connectionConfirmed) await reconnect()
   let info
   try { info = await getInfoSnapshot() } catch (error) { info = { ok: false, code: error.code || 'GEP_GET_INFO_FAILED' } }
   if (lifecycle.currentSession()) await enqueueSessionEvent('heartbeat')
@@ -2040,38 +2166,80 @@ function desktopWindowInfo() {
 }
 function monitorId(value) { return String(value ?? '').split('\\').pop().toLowerCase() }
 
+function monitorWorkArea(display, workingArea) {
+  const area = display.workingArea || workingArea
+  if (area && area.width > 0 && area.height > 0
+      && area.left >= display.x && area.top >= display.y
+      && area.left + area.width <= display.x + display.width
+      && area.top + area.height <= display.y + display.height) return area
+  return { left: display.x, top: display.y, width: display.width, height: display.height }
+}
+
 async function placeDesktop(id, placement, gameInfo, before) {
-  const displays = await new Promise(resolve => overwolf.utils.getMonitorsList(result => resolve(result?.displays || [])))
+  const result = await new Promise(resolve => overwolf.utils.getMonitorsList(resolve))
+  const displays = result?.displays || []
   const primary = displays.find(display => display.is_primary) || displays[0]
+  if (!primary) return
+
+  let current = await desktopWindowInfo()
+  if (!current) return
+  const currentDisplay = displays.find(item => monitorId(item.id) === monitorId(current.monitorId))
+
   let display = primary
   if (placement === 'game') {
     const gameHandle = gameInfo?.monitorHandle?.value
-    display = displays.filter(item => gameHandle ? item.handle?.value !== gameHandle : !item.is_primary)
-      .sort((a, b) => b.width * b.height - a.width * a.height)[0] || primary
+    display = displays.filter(item => gameHandle != null ? item.handle?.value !== gameHandle : !item.is_primary)
+      .sort((a, b) => Number(!!a.is_primary) - Number(!!b.is_primary) || b.width * b.height - a.width * a.height)[0] || primary
   } else if (placement === 'saved') {
     const saved = readStoredValue(STORAGE.desktopMonitor)
     display = displays.find(item => monitorId(item.id) === saved) || primary
+  } else if (placement === 'recover') {
+    display = currentDisplay || primary
   }
-  if (!display) return
-  let current = await desktopWindowInfo()
-  if (!current || monitorId(current.monitorId) === monitorId(display.id)) return
 
+  const sameDisplay = currentDisplay === display
   const maximized = before.state === 'maximized'
+  if (maximized && sameDisplay) return
   if (maximized) {
     await windowAction('restore', id)
     current = await desktopWindowInfo() || current
   }
+
   try {
-    // Monitor offsets are in virtual desktop pixels and the native window size is DPI-adjusted.
-    const width = display.width / ((display.dpiX || 96) / 96)
-    const height = display.height / ((display.dpiY || 96) / 96)
-    const left = display.x + Math.max(0, (width - current.width) / 2)
-    const top = display.y + Math.max(0, (height - current.height) / 2)
-    await windowAction('changePosition', id, Math.floor(left), Math.floor(top))
+    const area = monitorWorkArea(display, result.workingArea)
+    const width = area.width / ((display.dpiX || 96) / 96)
+    const height = area.height / ((display.dpiY || 96) / 96)
+    let windowWidth = current.width
+    let windowHeight = current.height
+    // The platform applies the destination display's DPI. Shrink only when the work area can honor the manifest minimum.
+    if ((windowWidth > width && width >= 900) || (windowHeight > height && height >= 620)) {
+      windowWidth = width >= 900 ? Math.min(windowWidth, Math.floor(width)) : windowWidth
+      windowHeight = height >= 620 ? Math.min(windowHeight, Math.floor(height)) : windowHeight
+      await windowAction('changeSize', id, windowWidth, windowHeight)
+    }
+    const spaceX = Math.max(0, width - windowWidth)
+    const spaceY = Math.max(0, height - windowHeight)
+    const hasPosition = Number.isFinite(current.left) && Number.isFinite(current.top)
+    if (sameDisplay && !hasPosition) return
+    const left = Math.floor(area.left + (sameDisplay ? Math.min(spaceX, Math.max(0, current.left - area.left)) : spaceX / 2))
+    const top = Math.floor(area.top + (sameDisplay ? Math.min(spaceY, Math.max(0, current.top - area.top)) : spaceY / 2))
+    if (!sameDisplay || left !== current.left || top !== current.top) {
+      await windowAction('changePosition', id, left, top)
+    }
   } finally {
     if (maximized) await windowAction('maximize', id)
   }
 }
+
+function recoverDesktopPosition() {
+  if (!desktopOpened || desktopRecoveryPending) return
+  desktopRecoveryPending = true
+  void withDesktopWindow(async id => {
+    const current = await getWindowState(id)
+    if (current.visible) await placeDesktop(id, 'recover', null, current)
+  }).catch(error => log('DESKTOP_POSITION_FAILED', { code: error.code })).finally(() => { desktopRecoveryPending = false })
+}
+
 function showDesktop({ placement = 'saved', gameInfo = null, focus = true, reopen = true } = {}) {
   return withDesktopWindow(async id => {
     let before = await getWindowState(id)
@@ -2081,9 +2249,8 @@ function showDesktop({ placement = 'saved', gameInfo = null, focus = true, reope
       await windowAction('restore', id)
       before = await getWindowState(id)
     }
-    if (placement !== 'saved' || reopened || !desktopOpened) {
-      await placeDesktop(id, placement, gameInfo, before).catch(error => log('DESKTOP_POSITION_FAILED', { code: error.code }))
-    }
+    const target = placement === 'saved' && !reopened && desktopOpened ? 'recover' : placement
+    await placeDesktop(id, target, gameInfo, before).catch(error => log('DESKTOP_POSITION_FAILED', { code: error.code }))
     // Explicit dock launches take focus. Automatic game launches must leave the game in focus.
     await windowAction('bringToFront', id, focus)
     const check = await getWindowState(id)
@@ -2113,8 +2280,13 @@ function toggleDesktopMaximized() {
   return withDesktopWindow(async id => {
     const before = await getWindowState(id)
     if (!before.visible) return before.state
-    await windowAction(before.state === 'maximized' ? 'restore' : 'maximize', id)
-    return (await getWindowState(id)).state
+    const maximized = before.state === 'maximized'
+    await windowAction(maximized ? 'restore' : 'maximize', id)
+    const after = await getWindowState(id)
+    if (!after.visible || (after.state === 'maximized') === maximized) {
+      throw Object.assign(new Error('Desktop window did not change size'), { code: 'WINDOW_SIZE_VERIFY_FAILED' })
+    }
+    return after.state
   })
 }
 function cancelOverlayAutoHide() { if (overlayAutoHideTimer) clearTimeout(overlayAutoHideTimer); overlayAutoHideTimer = 0 }
@@ -2348,7 +2520,7 @@ function publicSnapshot() {
     overlay_scale: overlayScale(),
     overlay_auto_hide_ms: overlayAutoHideMs(),
     pairing_error: clone(state.pairingError),
-    pair_link_hint: browserPairing?.hint || null,
+    pair_link_hint: browserPairing?.challenge.slice(-6).toUpperCase() || null,
     health: health.snapshot(),
     lifecycle: lifecycleSnapshot,
     queue: { ...totals, last_ack_at: state.lastAckAt },
@@ -2392,10 +2564,20 @@ function installListeners() {
   overwolf.games.events.onNewEvents.addListener(handleNewEvents)
   overwolf.games.events.onError.addListener(error => { log('GEP_ERROR', { code: error?.error || error?.message || 'GEP_ERROR' }); setHealth('gep', 'UNAVAILABLE', 'LOCAL_GEP_ERROR', String(error?.error || error?.message || 'GEP error')); void checkEventStatus({ force: true }) })
   overwolf.games.onGameInfoUpdated.addListener(event => { handleRunningGameInfo(event?.gameInfo || null, { resolutionChanged: event?.resolutionChanged === true }) })
-  overwolf.settings?.hotkeys?.onPressed?.addListener(event => { if (event?.name === HOTKEY_NAME) void toggleOverlay().catch(error => log('OVERLAY_TOGGLE_FAILED', { code: error.code })) })
-  overwolf.settings?.hotkeys?.onChanged?.addListener(event => { if (event?.name === HOTKEY_NAME) { state.hotkeyBinding = String(event.binding || '').trim() || 'UNASSIGNED'; publishRuntimeState() } })
+  overwolf.windows.onScreenPropertyChanged?.addListener(recoverDesktopPosition)
+  overwolf.settings?.hotkeys?.onPressed?.addListener(event => {
+    if (event?.name === HOTKEY_NAME && state.gameRunning) {
+      void toggleOverlay().catch(error => log('OVERLAY_TOGGLE_FAILED', { code: error.code }))
+    }
+  })
+  overwolf.settings?.hotkeys?.onChanged?.addListener(event => {
+    if (event?.name === HOTKEY_NAME) void refreshHotkeyBinding()
+  })
   window.addEventListener('online', () => { setHealth('backend', 'DEGRADED', 'RECOVERING', 'Network restored; recovering'); void runRecoveryOnce() })
-  window.addEventListener('offline', () => { setHealth('backend', 'OFFLINE', 'OFFLINE', 'No network connection') })
+  window.addEventListener('offline', () => {
+    setHealth('backend', 'OFFLINE', 'OFFLINE', 'No network connection')
+    if (state.token) recordConnectionError({ status: 0, code: 'OFFLINE', message: 'No network connection' })
+  })
 }
 async function runRecoveryOnce() {
   if (reconnectPromise) return reconnectPromise
@@ -2405,6 +2587,7 @@ function startTimers() {
   scheduleWatchdog()
   heartbeatTimer = setInterval(() => {
     if (!state.token) return
+    if (!state.connectionConfirmed) { void reconnect(); return }
     if (lifecycle.currentSession()) {
       void enqueueSessionEvent('heartbeat').then(() => flushQueue())
       return
@@ -2415,7 +2598,10 @@ function startTimers() {
   flushTimer = setInterval(() => void flushQueue(), 10000)
   healthTimer = setInterval(() => { updateGepHealth(); if (health.state.gep.status === 'STALE') void checkEventStatus(); publishRuntimeState() }, 1000)
 }
-function launchSource(value = window.location.href) { try { return new URL(value).searchParams.get('source') || '' } catch (_) { return '' } }
+function launchSource(value = window.location.href) {
+  const origin = typeof value === 'string' ? value : value?.origin
+  try { return new URL(origin).searchParams.get('source') || '' } catch (_) { return '' }
+}
 function installLaunchOrchestrator() {
   desktopLaunchReady = true
   const fromGame = launchSource() === 'gamelaunchevent'
@@ -2429,6 +2615,7 @@ async function init() {
   ensureDeviceId()
   ensureDiagnosticInstallId()
   await loadToken()
+  await restoreBrowserPairing()
   await restoreGepSettlementState()
   restoreProductCache()
   await restoreQueue()
@@ -2453,6 +2640,7 @@ window.dcCompanion = {
   getLogs: () => logLines.slice(),
   pair,
   startBrowserPairing,
+  cancelBrowserPairing,
   normalizePairCode,
   testServer,
   syncNow,
