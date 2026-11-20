@@ -48,8 +48,8 @@ test('applying presentation sets resolved theme and accessible selected states o
 })
 
 
-test('resolved City themes update the browser window color', () => {
-  const colors = { dark: '#181715', light: '#eee6d5', black: '#000000', custom: '#201921' }
+test('resolved Companion themes update the browser window color', () => {
+  const colors = { dark: '#0b0d0d', light: '#edf1f2', black: '#000000', custom: '#0d1214' }
   let actual
   const doc = {
     documentElement: { setAttribute() {} },

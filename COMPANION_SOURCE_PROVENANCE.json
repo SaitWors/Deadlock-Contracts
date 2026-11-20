@@ -1,15 +1,15 @@
 {
   "product": "Deadlock Contracts Companion",
-  "runtime_version": "0.5.2-alpha.19",
-  "manifest_version": "0.5.2.19",
+  "runtime_version": "0.5.2-alpha.20",
+  "manifest_version": "0.5.2.20",
   "evidence_schema": 9,
-  "remediation_base_runtime_version": "0.5.2-alpha.18",
-  "remediation_base_manifest_version": "0.5.2.18",
+  "remediation_base_runtime_version": "0.5.2-alpha.19",
+  "remediation_base_manifest_version": "0.5.2.19",
   "imported_at": "2026-11-20",
-  "source_bundle": "Git main + Overwolf QA fixes",
+  "source_bundle": "Companion Alpha 19 + website design and Overwolf QA",
   "source_bundle_sha256": null,
-  "source_archive": "Git main + Overwolf QA fixes",
+  "source_archive": "Companion Alpha 19 + website design and Overwolf QA",
   "source_archive_sha256": null,
   "verified_tests": 137,
-  "source_commit_base": "d02d855a2052e680cb118e0a4fa91f9c2dd0fa96"
+  "source_commit_base": "23d324c9d782fdc90745bc8fc4f41bed2847bad7"
 }

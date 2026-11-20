@@ -117,7 +117,7 @@
     return normalizeMode(gm)||normalizeMode(mm)
   }
   function normalizeModeResult(value){const raw=typeof value==='string'?value:JSON.stringify(value??'');const normalized=normalizeGameModePayload(value);if(normalized)return{value:normalized,state:'KNOWN',raw_for_diagnostics:raw};if(value===null||value===undefined||value==='')return{value:null,state:'UNKNOWN',raw_for_diagnostics:raw};return{value:null,state:'UNSUPPORTED',raw_for_diagnostics:raw}}
-  function modeLabel(value,lang='en'){const normalized=normalizeMode(value);return normalized?(I18n?.t(`mode.${normalized}`,lang)||normalized):(I18n?.t('mode.unknown',lang)||'UNKNOWN MODE')}
+  function modeLabel(value,lang='en'){const normalized=normalizeMode(value);return normalized?(I18n?.t(`mode.label.${normalized}`,lang)||normalized):(I18n?.t('mode.unknown',lang)||'UNKNOWN MODE')}
   function contractTitle(option,lang='en'){return I18n?.contractTitle(option,lang) || String(option?.title_i18n?.[lang]||'UNTITLED CONTRACT')}
   function contractDescription(option,mode,lang='en'){return I18n?.renderObjective({mode:normalizeMode(mode),conditions:cleanArray(option?.conditions)},lang)||''}
   function coinRewardLabel(receipt,lang='en') {

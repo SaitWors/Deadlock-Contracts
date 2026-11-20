@@ -240,7 +240,7 @@
   function setBusy(value) {
     busy = !!value
     $('workspace').classList.toggle('busy', busy)
-    all('#view-contracts button, #view-settings button').forEach(button => { button.disabled = busy || button.dataset.baseDisabled === '1' })
+    all('#view-contracts button, #view-settings button, #hqConnectionBtn').forEach(button => { button.disabled = busy || button.dataset.baseDisabled === '1' })
     syncDesktopAdSlot()
   }
 
@@ -257,18 +257,22 @@
     const productReady = snapshot.product?.status === 'ONLINE'
       && ((snapshot.product?.boards?.length || 0) > 0 || (snapshot.product?.active_cases?.length || 0) > 0)
     const serverAllowsAds = snapshot.product?.server_features?.includes('desktop_ads_v1') === true
-    const eligible = !!snapshot.paired
-      && ftueIsClosed
+    const canDisplay = ftueIsClosed
       && modalIsClosed
       && navigator.onLine !== false
-      && productReady
       && isSafeDesktopAdMoment()
-    window.DCDesktopAds?.setEligible(eligible, serverAllowsAds)
+    const liveAdsAllowed = !!snapshot.paired && productReady && serverAllowsAds
+    window.DCDesktopAds?.setEligible(canDisplay, liveAdsAllowed)
   }
 
   function setView(name) {
     all('[data-view]').forEach(view => view.classList.toggle('active', view.dataset.view === name))
-    all('.side-nav [data-view-target]').forEach(button => button.classList.toggle('active', button.dataset.viewTarget === name))
+    all('.side-nav [data-view-target]').forEach(button => {
+      const active = button.dataset.viewTarget === name
+      button.classList.toggle('active', active)
+      if (active) button.setAttribute('aria-current', 'page')
+      else button.removeAttribute('aria-current')
+    })
     if (name === 'active') renderActiveCase()
     if (name === 'contracts') renderContracts()
     if (name === 'debrief') {
@@ -403,7 +407,7 @@
     const evidence = snapshot.evidence || {}
     const game = !!snapshot.game_running
     const gepStatus = String(snapshot.health?.gep?.status || '')
-    const gepReady = ['LIVE','LAGGING','NO_MATCH','PAUSED','STARTING'].includes(gepStatus) || !!snapshot.gep_version || (Array.isArray(snapshot.features) && snapshot.features.length > 0)
+    const gepReady = game && ['LIVE','LAGGING','NO_MATCH','PAUSED'].includes(gepStatus)
     const accountSteam = String(snapshot.account?.steam_id64 || snapshot.product?.account?.steam_id64 || '')
     const identity = snapshot.steam_id64 && accountSteam ? String(snapshot.steam_id64) === accountSteam : null
 
@@ -416,6 +420,7 @@
     setText('hqSteam', `Steam: ${snapshot.steam_id_masked || '—'}`)
     setText('hqServer', snapshot.paired ? statusLabel(product.status) : t('unpaired'))
     setText('hqServerTime', `${product.stale ? `${t('staleCache')} · ` : ''}${t('updated')}: ${formatRelativeSync(product.loaded_at)}`)
+    setText('hqConnectionBtn', snapshot.paired ? t('connectionSettings') : t('pairNow'))
 
     const gepProblem = ['STALE','UNAVAILABLE'].includes(gepStatus)
     $('gepAlert').hidden = !gepProblem
@@ -444,12 +449,12 @@
     const cases = product.active_cases || []
     $('navContractsCount').textContent = product.boards?.length ? String(product.boards.length) : ''
     $('navActiveCount').textContent = cases.length ? String(cases.length) : ''
-    $('hqOperations').innerHTML = Product.MODES.map((mode, index) => {
+    $('hqOperations').innerHTML = Product.MODES.map(mode => {
       const board = Product.boardForMode(product, mode)
       const activeCase = cases.find(item => item.game_match_mode === mode)
       const available = board?.status === 'OFFERED' ? board.options?.length || 0 : 0
       const state = activeCase ? statusLabel(activeCase.status) : board ? (board.status === 'OFFERED' ? `${available} ${ui('AVAILABLE', 'ДОСТУПНО')}` : statusLabel(board.status)) : t('waiting')
-      return `<article class="operation-card ${activeCase ? 'active-case' : ''}"><div><span>${Product.modeLabel(mode)} / 0${index + 1}</span><h3>${Product.modeLabel(mode)}</h3></div><b>${escapeHtml(state)}</b><button type="button" data-operation-mode="${mode}" data-operation-target="${activeCase ? 'active' : 'contracts'}">${escapeHtml(activeCase ? t('openActive') : t('openBoard'))} →</button></article>`
+      return `<article class="operation-card ${activeCase ? 'active-case' : ''}"><h2>${escapeHtml(Product.modeLabel(mode, language()))}</h2><span>${escapeHtml(state)}</span><button type="button" data-operation-mode="${mode}" data-operation-target="${activeCase ? 'active' : 'contracts'}">${escapeHtml(activeCase ? t('openActive') : t('openBoard'))} →</button></article>`
     }).join('')
 
     const active = Product.activeCaseFor(product, Product.normalizeMode(snapshot.mode_display))
@@ -473,7 +478,7 @@
       const active = cases.find(item => item.game_match_mode === mode)
       const marker = active ? '●' : casesOnly ? '' : board?.status === 'OFFERED' ? String(board.options?.length || 0) : board ? '•' : ''
       const selected = mode === selectedMode
-      return `<button class="${selected ? 'active' : ''}" type="button" role="tab" aria-selected="${selected}" aria-controls="${panelId}" tabindex="${selected ? '0' : '-1'}" data-mode="${mode}">${Product.modeLabel(mode)}${marker ? `<em>${marker}</em>` : ''}</button>`
+      return `<button class="${selected ? 'active' : ''}" type="button" role="tab" aria-selected="${selected}" aria-controls="${panelId}" tabindex="${selected ? '0' : '-1'}" data-mode="${mode}">${escapeHtml(Product.modeLabel(mode, language()))}${marker ? `<em>${marker}</em>` : ''}</button>`
     }).join('')
   }
 
@@ -949,7 +954,6 @@
       product: incoming.product || fallback.product,
       session: lifecycleSession ? { ...lifecycleSession, id: lifecycleSession.session_id } : null,
       queue_count: incoming.queue?.items ?? incoming.queue_count ?? 0,
-      game_state_observed_at: incoming.health?.gep?.observed_at || incoming.game_state_observed_at || null,
       game_state_confirmed: !['UNAVAILABLE','STARTING'].includes(String(incoming.health?.gep?.status || '')),
       gep_feature_health: { status: incoming.health?.gep?.status || 'WAITING', last_error: incoming.health?.gep?.message || null },
       identity_ok: incoming.steam_id64 && accountSteam ? String(incoming.steam_id64) === accountSteam : null,
@@ -1257,6 +1261,10 @@
 
   function bindActions() {
     $('mcgBtn').addEventListener('click', () => openExternal(MCG_URL))
+    $('hqConnectionBtn').addEventListener('click', () => {
+      setView('settings')
+      if (!snapshot.paired) void openBrowserPairing()
+    })
     $('healthGrid')?.addEventListener('click', event => {
       const action=event.target.closest('[data-health-action]')?.dataset.healthAction
       if (!action) return

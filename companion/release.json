@@ -1,6 +1,6 @@
 {
-  "product_version": "0.5.2-alpha.19",
-  "manifest_version": "0.5.2.19",
+  "product_version": "0.5.2-alpha.20",
+  "manifest_version": "0.5.2.20",
   "evidence_schema_version": 9,
   "bootstrap_schema_version": 2,
   "bootstrap_compatible_versions": [

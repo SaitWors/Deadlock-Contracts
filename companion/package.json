@@ -1,6 +1,6 @@
 {
   "name": "deadlock-contracts-companion",
-  "version": "0.5.2-alpha.19",
+  "version": "0.5.2-alpha.20",
   "private": true,
   "type": "commonjs",
   "scripts": {

@@ -31,8 +31,8 @@
 | Компонент | Версия в исходниках |
 | --- | --- |
 | Сайт и backend | 0.10.1-alpha.12 |
-| Companion | 0.5.2-alpha.19 |
-| Версия manifest Overwolf | 0.5.2.19 |
+| Companion | 0.5.2-alpha.20 |
+| Версия manifest Overwolf | 0.5.2.20 |
 | Локальная схема evidence Companion | 9 |
 | Схема bootstrap Companion | 2; поддерживается совместимость с 1 |
 | Исторический production wire contract | companion-heartbeat.v1 |
@@ -458,7 +458,7 @@ Overlay и Desktop показывают оценку по доступным liv
 
 В обычном режиме реклама работает при серверном флаге `desktop_ads_v1` (`COMPANION_ADS_ENABLED=true`) и включении показов со стороны Overwolf. Слоты Studio Plus закреплены вне прокручиваемой области. Верхний баннер 400×60 доступен при минимальном размере окна. При ширине от 1440 CSS-пикселей справа добавляется слот 400×300. Реклама скрывается в оверлее, при запуске Deadlock, сворачивании окна, первичном входе, в диалогах и когда данные недоступны.
 
-**Overwolf QA.** Install the OPK, connect a website account with a daily contract board, and close Deadlock. In the Companion desktop window, open DevTools, run `localStorage.owAdTestAd = true`, and reload. This requests Overwolf test creatives even when the server disables live ads. Scroll and switch views at 900×620, then widen the window to at least 1440 CSS pixels and verify both placements. Minimize the window and verify the SDK stops displaying ads. To exit test mode, run `localStorage.removeItem('owAdTestAd')` and reload. Record the result for the tested OPK hash. [Overwolf Native ad testing](https://dev.overwolf.com/ow-native/guides/test-your-app/how-to-test-your-app/#ads)
+**Overwolf QA.** Close Deadlock and dismiss the welcome dialog in the Companion desktop window. Open DevTools, run `localStorage.owAdTestAd = true`, and reload. The test flag works before account pairing and asks the Overwolf SDK for a test creative while live advertising is disabled. Scroll and switch views at 900×620, then widen the window to at least 1440 CSS pixels and verify both placements. Minimize the window and verify the SDK stops displaying ads. To exit test mode, run `localStorage.removeItem('owAdTestAd')` and reload. Record the result for the tested OPK hash. [Overwolf Native ad testing](https://dev.overwolf.com/ow-native/guides/test-your-app/how-to-test-your-app/#ads)
 
 <a id="database"></a>
 ## База данных и миграции
@@ -766,7 +766,7 @@ QA-комплект содержит:
 
 `CANDIDATE.json` фиксирует версии, хеши и автоматические проверки упаковки. Поля manual_qa, overwolf_submission и overwolf_approval не получают положительный результат автоматически.
 
-Companion 0.5.2.19 совместим с API сайта 0.10.1-alpha.12. На уже развёрнутом сайте доступна привязка по коду. Для проверки подключения через браузер и опроса при удалении сначала разверните сервер из той же ревизии. После публикации OPK обновите `COMPANION_DOWNLOAD_URL` на имя нового файла.
+Companion 0.5.2.20 совместим с API сайта 0.10.1-alpha.12. На уже развёрнутом сайте доступна привязка по коду. Для проверки подключения через браузер и опроса при удалении сначала разверните сервер из той же ревизии. После публикации OPK обновите `COMPANION_DOWNLOAD_URL` на имя нового файла.
 
 ### CI и границы проверки
 
@@ -778,6 +778,32 @@ Workflow содержит пять основных направлений: back
 
 <a id="companion-qa"></a>
 ## Проверка Companion на Windows
+
+### Повторная сверка с отчётом Overwolf по версии 0.5.2.8
+
+Сверка относится к Companion 0.5.2.20 от 20 ноября 2026 года. Сайт сообщил версию `0.10.1-alpha.12`, минимальную версию компаньона `0.5.2-alpha.18` и выключенную боевую рекламу. Страницы `/pair` и `/companion/uninstall` на рабочем сайте вернули 404. [Рабочий API статуса](https://deadlock-contracts.online/api/status)
+
+| Пункт Overwolf | Важность | Результат повторной сверки |
+| --- | --- | --- |
+| Реклама недоступна для тестирования | Critical | Режим Overwolf SDK запускается без привязки при закрытом Deadlock. Проверка логики прошла с имитацией SDK. Показ настоящего тестового креатива ещё требуется проверить в клиенте Overwolf. |
+| Маркировка QA CANDIDATE | Critical | В окне показывается номер сборки. Отсутствие метки проверено в браузере и при сборке OPK. |
+| Привязка заблокирована требованием обновить компаньон | Critical | 0.5.2.20 проходит порог сайта 0.5.2.18. Поведение API для старой версии и текущего клиента покрыто интеграционным тестом. |
+| Окно не выходит на передний план из дока | High | Вызов `bringToFront` с фокусом покрыт тестом обработчика дока. Нужен повтор на двух физических мониторах с другим полноэкранным окном. |
+| Выбор контрактов доступен только на сайте | High | В компаньоне доступны выбор и фиксация до трёх контрактов. Интеграционный тест сверяет зафиксированные контракты с сайтом. |
+| Страница привязки по умолчанию на английском | High | `/pair` проверена локально с русским браузером. Ручная привязка открывает `/en/#profile` на рабочем сайте. Для новой страницы нужен деплой сервера. |
+| Лишнее окно при настройке хоткея | Medium | Комбинация вводится в настройках компаньона и записывается через Overwolf Hotkeys API. Вызов API покрыт интеграционным тестом. |
+| Рекомендованное размещение рекламы | Critical | Studio Plus с неподвижными слотами 400×60 и 400×300. Проверены размеры, прокрутка, переходы и сворачивание на 900×620 и 1440×620 с имитацией SDK. |
+| Упрощённая привязка | Critical | Действие в обзоре открывает браузер. После подтверждения Steam компаньон сам получает токен. Интеграционный тест проходит локально. Для работы на сайте нужен деплой сервера. |
+| Положение окна при открытии, запуске и выходе из игры | High | Первый запуск на основном экране, восстановление запомненного экрана, переход на свободный экран при запуске Deadlock и обратно при выходе проверены в тесте Windows API с имитацией Overwolf. |
+| Полноэкранный режим | High | Кнопка вызывает штатное разворачивание Overwolf с `use_os_windowing` и возвращает окно в обычный размер. Проверены оба перехода через имитацию API. |
+| Слова переносятся по одному на строку | High | Проверено реальное уведомление об ошибке при 900×620. Поле текста занимает свою колонку и переносится по доступной ширине. |
+| Опрос при удалении | Medium | В manifest объявлено окно удаления. Локальная форма принимает ответ без аккаунта и сохраняет выбранную причину. Рабочий сайт требует деплоя, открытие формы при удалении проверяется в Overwolf. |
+| Выделяемый текст | Low | В интерфейсе отключено выделение. Поля ввода сохраняют выделение для редактирования кода подключения. |
+| Сообщество в Discord | Low | Для реализации нужен действующий официальный Discord-инвайт проекта. Публичная ссылка поддержки сейчас ведёт в Telegram. |
+| Круглые иконки дока | Low | У цветной и серой иконки круглый контур, прозрачные углы и размер 256×256. Оба файла укладываются в лимит Overwolf. |
+| Перетаскивание изображений | Low | Для изображений отключён drag. Правило проверено в браузере на интерфейсе компаньона. |
+
+Обзор компаньона сверён со скриншотом сайта при размере окна 1179×695. Дополнительные проверки прошли на 900×620 и 1440×900. Компаньон использует палитру и статичный фон сайта, Inter для текста и шрифт Podkova под лицензией OFL для заголовков.
 
 Перед началом записываются: имя OPK, SHA-256, версия manifest, ревизия исходников, версия backend, серверные флаги, Windows, Overwolf, GEP, Deadlock, разрешение и масштабирование. Для PASS нужны наблюдение и привязанные к кандидату материалы.
 

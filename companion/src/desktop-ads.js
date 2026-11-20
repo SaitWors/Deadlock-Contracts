@@ -83,8 +83,8 @@
     syncSlots()
   })
   window.DCDesktopAds = {
-    setEligible(canDisplay, serverAllowsAds) {
-      eligible = typeof overwolf !== 'undefined' && canDisplay && (serverAllowsAds || testAds)
+    setEligible(canDisplay, liveAdsAllowed) {
+      eligible = typeof overwolf !== 'undefined' && canDisplay && (liveAdsAllowed || testAds)
       syncSlots()
     },
     setWindowVisible(visible) {

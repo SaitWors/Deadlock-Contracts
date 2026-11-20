@@ -36,7 +36,7 @@
     const resolved = resolve(state, system)
     doc.documentElement.setAttribute('data-theme', resolved.theme)
     doc.documentElement.setAttribute('data-reduced-motion', String(resolved.reduced))
-    doc.querySelector?.('meta[name="theme-color"]')?.setAttribute('content', { dark: '#181715', light: '#eee6d5', black: '#000000', custom: '#201921' }[resolved.theme])
+    doc.querySelector?.('meta[name="theme-color"]')?.setAttribute('content', { dark: '#0b0d0d', light: '#edf1f2', black: '#000000', custom: '#0d1214' }[resolved.theme])
     for (const button of doc.querySelectorAll('[data-appearance-theme]')) {
       button.setAttribute('aria-pressed', String(button.dataset.appearanceTheme === state.theme))
     }

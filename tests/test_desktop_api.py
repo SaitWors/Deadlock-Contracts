@@ -1,8 +1,10 @@
 from __future__ import annotations
 
+import json
 import time
 from dataclasses import replace
 from datetime import datetime, timezone
+from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 from uuid import UUID
 
@@ -262,7 +264,8 @@ def test_browser_pairing_authorizes_the_requesting_companion_and_its_native_cont
     monkeypatch.setattr("app.main.get_or_create_steam_user", lambda *_: user)
 
     link = "/api/companion/pairing/link"
-    device = {"device_id": f"browser-pairing-{unique}", "version": "0.5.2-alpha.19"}
+    release = json.loads((Path(__file__).resolve().parents[1] / "companion/release.json").read_text(encoding="utf-8"))
+    device = {"device_id": f"browser-pairing-{unique}", "version": release["product_version"]}
     origin = {"Origin": "www.overwolf.com://deadlockcontracts"}
     with TestClient(app) as browser, TestClient(app) as companion:
         page = browser.get("/pair", headers={"Accept-Language": "ru-RU"})
