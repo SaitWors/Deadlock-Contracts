@@ -1213,6 +1213,7 @@ def _provider_status(db: Session, board_id: str) -> dict | None:
                         Job.type == "resolve_companion_match_auto",
                         Job.user_id == board.user_id,
                         Job.game_match_mode == board.game_match_mode,
+                        Job.created_at >= (board.locked_at or board.created_at),
                     ),
                 ),
             )
@@ -1227,9 +1228,8 @@ def _provider_status(db: Session, board_id: str) -> dict | None:
             for item in direct_jobs
             if item.board_id == board_id
             or (
-                item.type == "resolve_companion_match_auto"
-                and item.user_id == board.user_id
-                and item.game_match_mode == board.game_match_mode
+                str((item.payload or {}).get("external_match_id") or "").isdigit()
+                and int(item.payload["external_match_id"]) > int(board.baseline_match_id or 0)
             )
         ),
         None,

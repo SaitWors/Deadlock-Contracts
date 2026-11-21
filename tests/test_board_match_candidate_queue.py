@@ -3,7 +3,7 @@ from types import SimpleNamespace
 from sqlalchemy import select
 
 from app.models import BoardMatchCandidate, Job
-from app.worker import _capture_or_bind_companion_match, handle_promote_board_match_candidate, store_normalized_match
+from app.worker import _capture_or_bind_match, handle_promote_board_match_candidate, store_normalized_match
 from tests.test_companion_provisional_binding import (
     _add_board,
     _add_mission,
@@ -25,7 +25,7 @@ def test_second_match_is_captured_then_promoted_once_previous_attempt_releases()
         option = _add_option(db, board, mission, status="VERIFYING", bound_match_id=first.id)
         db.commit()
 
-        state = _capture_or_bind_companion_match(
+        state = _capture_or_bind_match(
             db, board, second, capture_source="COMPANION_AUTO"
         )
         assert state == "CAPTURED"
@@ -41,7 +41,7 @@ def test_second_match_is_captured_then_promoted_once_previous_attempt_releases()
         assert candidate.status == "CAPTURED"
         assert candidate.attempt_no is None
 
-        duplicate = _capture_or_bind_companion_match(
+        duplicate = _capture_or_bind_match(
             db, board, second, capture_source="COMPANION_AUTO"
         )
         assert duplicate == "CAPTURED"

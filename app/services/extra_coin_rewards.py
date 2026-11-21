@@ -8,7 +8,7 @@ from __future__ import annotations
 from datetime import datetime, time, timedelta, timezone
 from uuid import NAMESPACE_URL, uuid5
 
-from sqlalchemy import exists, select
+from sqlalchemy import exists, func, select
 
 from ..coin_models import CoinEntitlement, CoinQuota
 from ..economy_models import EconomyActivity, EconomyRewardContext
@@ -92,7 +92,8 @@ def confirmed_contract_records(db, user_id):
         .join(MatchParticipant, (MatchParticipant.match_id == Match.id) & (MatchParticipant.account_id == user.account_id))
         .where(ContractBoard.user_id == user_id, BoardOption.selected.is_(True), BoardOption.status == "COMPLETED",
             BoardOption.settled_at.is_not(None), Evaluation.assignment_id == BoardOption.id,
-            Evaluation.status == "COMPLETED", Match.is_final.is_(True), Match.scoring_status == "SCORED",
+            Evaluation.status == "COMPLETED", Match.is_final.is_(True),
+            func.coalesce(MatchParticipant.scoring_status, Match.scoring_status) == "SCORED",
             trusted_xp | signed_right)).all()
     result = []
     for option, board, evaluation, match in rows:

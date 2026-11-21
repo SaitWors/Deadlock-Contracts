@@ -293,8 +293,11 @@ def _has_trusted_finality(match: Match) -> bool:
     if not getattr(match, "is_final", False):
         return False
 
-    # Companion-first trust tier: not independent-provider verified,
-    # but explicitly accepted by product policy for internal XP.
+    provider = str(getattr(match, "provider", "") or "").lower()
+    if settings.provider == "deadlock_api":
+        return provider == "deadlock_api"
+
+    # The mock environment supports replaying the historical GEP workflow.
     if (
         str(
             getattr(
@@ -315,11 +318,8 @@ def _has_trusted_finality(match: Match) -> bool:
         ).upper()
         == GEP_INTEGRITY_CLIENT_ATTESTED
     ):
-        return bool(
-            settings.gep_settlement_enabled
-        )
+        return settings.client_match_settlement_enabled
 
-    provider = str(getattr(match, "provider", "") or "").lower()
     # Legacy rows may contain a client-only GEP fallback that earlier releases
     # marked SCORED/final.  A local Companion is not an attested data source;
     # never allow those rows to settle or re-settle a reward.
@@ -346,8 +346,9 @@ def _result(option: BoardOption, match: Match, participant: MatchParticipant | N
         return _unverifiable(option, "Не удалось надёжно определить режим матча.")
     if match.game_match_mode != option.required_game_match_mode:
         return _unverifiable(option, f"MODE_MISMATCH: ожидался {option.required_game_match_mode}, получен {match.game_match_mode}.")
-    if match.scoring_status != "SCORED":
-        return _unverifiable(option, f"Матч имеет статус {match.scoring_status}; требуется внутреннее решение.")
+    scoring_status = getattr(participant, "scoring_status", None) or match.scoring_status
+    if scoring_status != "SCORED":
+        return _unverifiable(option, f"Матч имеет статус {scoring_status}; требуется внутреннее решение.")
 
     conditions = _condition_rows(option)
     required = set(option.required_capabilities or [])
@@ -695,7 +696,7 @@ def evaluate_board(
             enqueue_job(
                 db,
                 "discover_match",
-                {"board_id": board.id},
+                {"board_id": board.id, "attempt_no": attempt_no + 1},
                 f"discover:{board.id}:attempt:{attempt_no + 1}",
                 max_attempts=settings.max_discovery_attempts,
                 commit=False,

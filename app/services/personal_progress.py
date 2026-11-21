@@ -5,7 +5,7 @@ from datetime import timezone
 from statistics import median
 from typing import Any, Literal
 
-from sqlalchemy import case, select
+from sqlalchemy import case, func, select
 from sqlalchemy.orm import Session, joinedload
 
 from ..models import (
@@ -299,7 +299,7 @@ def build_personal_progress(
             .where(
                 MatchParticipant.account_id == user.account_id,
                 Match.game_match_mode == mode, Match.is_final.is_(True),
-                Match.scoring_status == "SCORED",
+                func.coalesce(MatchParticipant.scoring_status, Match.scoring_status) == "SCORED",
             )
             .order_by(Match.started_at.desc().nullslast(), Match.created_at.desc(), Match.id.desc())
             .limit(RECENT_MATCH_LIMIT + 1)

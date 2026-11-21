@@ -9,7 +9,9 @@ import urllib.request
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
-from sqlalchemy import and_, or_, select
+from sqlalchemy import and_, func, or_, select, update
+from sqlalchemy.dialects.postgresql import insert as postgresql_insert
+from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -33,6 +35,7 @@ from .models import (
 )
 from .services.boards import expire_stale_boards
 from .services.evaluator import (
+    _has_trusted_finality,
     ActiveReviewClaim,
     capability_available,
     evaluate_board,
@@ -82,7 +85,9 @@ _STEAM_METADATA_FALLBACK_COOLDOWN_SECONDS = 20 * 60
 
 
 class NoMatchYet(RuntimeError):
-    pass
+    def __init__(self, message: str, *, retry_after: int | None = None) -> None:
+        super().__init__(message)
+        self.retry_after = retry_after
 
 
 class CompanionMatchNotReady(RuntimeError):
@@ -268,6 +273,29 @@ def reconcile_active_contracts(db: Session) -> dict[str, int]:
         reopened_jobs += 1
 
     for board in boards:
+        if (
+            settings.provider == "deadlock_api"
+            and board.locked_at is not None
+            and board.baseline_match_id is not None
+        ):
+            baseline = db.scalar(select(Match).where(Match.external_match_id == board.baseline_match_id))
+            if baseline is not None and not _has_trusted_finality(baseline):
+                evaluated_matches = (
+                    select(Evaluation.match_id)
+                    .join(BoardOption, BoardOption.id == Evaluation.assignment_id)
+                    .where(BoardOption.board_id == board.id)
+                )
+                board.baseline_match_id = db.scalar(
+                    select(func.max(Match.external_match_id))
+                    .join(MatchParticipant, MatchParticipant.match_id == Match.id)
+                    .where(
+                        MatchParticipant.account_id == board.user.account_id,
+                        Match.provider == "deadlock_api",
+                        Match.is_final.is_(True),
+                        or_(Match.started_at <= board.locked_at, Match.id.in_(evaluated_matches)),
+                    )
+                )
+
         selected = list(
             db.scalars(
                 select(BoardOption).where(
@@ -336,27 +364,25 @@ def reconcile_active_contracts(db: Session) -> dict[str, int]:
         if (
             locked
             and not verifying
-            and not _active_companion_candidate(db, board.id)
+            and board.attempts_used < board.max_attempts
             and not gep_settlement_managed_user(db, board.user)
         ):
+            attempt = int(board.attempts_used or 0) + 1
             candidates = [
                 job
                 for job in jobs
                 if job.type == "discover_match"
                 and job.board_id == board.id
+                and (job.payload or {}).get("attempt_no", attempt) == attempt
             ]
             if not any(job.status in {"PENDING", "RUNNING"} for job in candidates):
                 if candidates:
                     reopen(candidates[0], settings.max_discovery_attempts)
                 else:
-                    attempt = min(
-                        int(board.attempts_used or 0) + 1,
-                        int(board.max_attempts or settings.case_max_attempts),
-                    )
                     enqueue_job(
                         db,
                         "discover_match",
-                        {"board_id": board.id, "lifecycle_repair": True},
+                        {"board_id": board.id, "attempt_no": attempt, "lifecycle_repair": True},
                         f"discover-reconcile-v1:{board.id}:attempt:{attempt}",
                         max_attempts=settings.max_discovery_attempts,
                         commit=False,
@@ -642,10 +668,29 @@ def store_normalized_match(db: Session, data: dict) -> Match:
     incoming_provider = str(data.get("provider") or "unknown")
     incoming_classifier = str(data.get("mode_classifier_version") or "unknown-v1")
 
-    match = db.scalar(
-        select(Match).where(Match.external_match_id == external_match_id)
+    lookup = (
+        select(Match)
+        .where(Match.external_match_id == external_match_id)
+        .with_for_update()
+        .execution_options(populate_existing=True)
     )
-    existing_provider = str(match.provider or "unknown") if match else "unknown"
+    match = db.scalar(lookup)
+    if match is None:
+        insert = {"postgresql": postgresql_insert, "sqlite": sqlite_insert}[db.get_bind().dialect.name]
+        db.execute(
+            insert(Match)
+            .values(
+                external_match_id=external_match_id,
+                provider=incoming_provider,
+                mode_classifier_version=incoming_classifier,
+                scoring_status="UNVERIFIABLE",
+                is_final=False,
+            )
+            .on_conflict_do_nothing(index_elements=[Match.external_match_id])
+        )
+        match = db.scalars(lookup).one()
+
+    existing_provider = str(match.provider or "unknown")
     existing_has_client = provider_has_client_source(existing_provider)
     existing_has_independent = provider_has_independent_source(existing_provider)
     incoming_has_independent = provider_has_independent_source(incoming_provider)
@@ -656,19 +701,6 @@ def store_normalized_match(db: Session, data: dict) -> Match:
     ignore_incoming_facts = bool(
         existing_is_independent and not incoming_is_independent
     )
-
-    if not match:
-        match = Match(
-            external_match_id=external_match_id,
-            provider=incoming_provider,
-            mode_classifier_version=incoming_classifier,
-            game_match_mode="UNKNOWN",
-            scoring_status="UNVERIFIABLE",
-            is_final=False,
-            capabilities=[],
-        )
-        db.add(match)
-        db.flush()
 
     source_repair: dict[str, Any] | None = None
     if replace_tainted_facts:
@@ -714,6 +746,7 @@ def store_normalized_match(db: Session, data: dict) -> Match:
                 "healing",
             ):
                 setattr(stale_participant, field, None)
+            stale_participant.scoring_status = "UNVERIFIABLE"
 
     if replace_tainted_facts:
         providers = independent_provider_parts(incoming_provider)
@@ -733,7 +766,6 @@ def store_normalized_match(db: Session, data: dict) -> Match:
             "ended_at",
             "duration_s",
             "provider_mode_raw",
-            "scoring_status",
             "game_version",
             "settlement_source",
             "integrity_status",
@@ -743,6 +775,28 @@ def store_normalized_match(db: Session, data: dict) -> Match:
             value = data.get(field)
             if value is not None and (not isinstance(value, str) or value.strip()):
                 setattr(match, field, value)
+
+    scoring_status = data.get("scoring_status")
+    if (
+        not ignore_incoming_facts
+        and scoring_status
+        and match.scoring_status != scoring_status
+        and (not incoming_is_independent or match.scoring_status != "SCORED")
+    ):
+        # Preserve the status older participants inherited before this update.
+        db.execute(
+            update(MatchParticipant)
+            .where(MatchParticipant.match_id == match.id, MatchParticipant.scoring_status.is_(None))
+            .values(scoring_status=match.scoring_status)
+        )
+        match.scoring_status = scoring_status
+
+    if incoming_provider == "deadlock_api" and data.get("is_final"):
+        match.provider = "deadlock_api"
+        match.settlement_source = "DEADLOCK_API"
+        match.integrity_status = "SERVER_VERIFIED"
+        match.audit_status = "NOT_REQUESTED"
+        match.audited_at = None
 
     if not ignore_incoming_facts and "is_final" in data:
         match.is_final = bool(match.is_final) or bool(data.get("is_final"))
@@ -818,6 +872,9 @@ def store_normalized_match(db: Session, data: dict) -> Match:
             account_id=int(account_id),
         )
         db.add(participant)
+
+    if scoring_status:
+        participant.scoring_status = scoring_status
 
     if not ignore_incoming_facts:
         for field in (
@@ -1325,154 +1382,9 @@ def _normalized_from_companion_evidence(
 ) -> dict | None:
     """Never manufacture a scoring match from client-controlled evidence.
 
-    Kept as an explicit fail-closed seam for legacy/manual review paths.
-    Automatic exact-match resolution may create a separate non-scoring
-    provisional row through _provisional_match_from_companion_evidence(), but
-    this helper itself intentionally contributes no match facts.
+    Legacy review jobs can still encounter old Companion-only snapshots.
     """
     return None
-
-
-def _provisional_match_from_companion_evidence(
-    db: Session,
-    user: User,
-    job: Job,
-    external_match_id: int,
-) -> dict | None:
-    """Create a non-scoring provisional Match from strong Companion terminal evidence.
-
-    This path restores local exact-match binding without restoring client
-    authority over rewards. The row is intentionally marked as a client/GEP
-    provider and carries no scoring capabilities. A later independent provider
-    response replaces these provisional facts through store_normalized_match().
-    """
-
-    if user.account_id is None:
-        return None
-
-    evidence = _companion_evidence_for(
-        db,
-        user,
-        external_match_id,
-    )
-    if evidence is None:
-        return None
-
-    finalization = _companion_finalization_from_events(
-        db,
-        user,
-        external_match_id,
-    )
-    if finalization is None:
-        return None
-
-    started_at = finalization.get("started_at")
-    if isinstance(started_at, str):
-        started_at = _parse_companion_datetime(started_at)
-
-    ended_at = finalization.get("ended_at")
-    if isinstance(ended_at, str):
-        ended_at = _parse_companion_datetime(ended_at)
-
-    # Exact attempt binding requires a real session start. Do not substitute
-    # detected_at here because that timestamp is only diagnostic.
-    if not isinstance(started_at, datetime):
-        return None
-
-    if not isinstance(ended_at, datetime):
-        return None
-
-    mode = str(
-        evidence.game_match_mode
-        or job.game_match_mode
-        or (job.payload or {}).get("game_match_mode")
-        or ""
-    ).upper()
-
-    if mode not in {
-        "STANDARD",
-        "RANKED",
-        "STREET_BRAWL",
-    }:
-        return None
-
-    raw_summary = {
-        "provisional_binding": {
-            "source": "overwolf_gep",
-            "trust_class": "T0_UNTRUSTED",
-            "scoring_contribution": False,
-            "independent_provider_pending": True,
-            "external_match_id": int(external_match_id),
-        },
-        "companion_finalization": {
-            **{
-                key: value
-                for key, value in finalization.items()
-                if key not in {
-                    "started_at",
-                    "ended_at",
-                }
-            },
-            "started_at": started_at.isoformat(),
-            "ended_at": ended_at.isoformat(),
-            "trusted_for_scoring": False,
-            "trust_class": "T0_UNTRUSTED",
-        },
-    }
-
-    return {
-        "external_match_id": int(external_match_id),
-        "provider": "gep_fallback",
-        "provider_payload_hash": None,
-        "started_at": started_at,
-        "ended_at": ended_at,
-
-        # GEP match_clock stays diagnostic. Do not manufacture authoritative
-        # scored duration from it.
-        "duration_s": None,
-
-        "game_match_mode": mode,
-        "provider_mode_raw": f"companion:{mode}",
-        "mode_classifier_version": "companion-provisional-v1",
-        "mode_confidence": "MEDIUM",
-
-        # Lifecycle final means the exact local session ended. It still does
-        # not mean provider-authoritative scoring finality.
-        "is_final": True,
-        "scoring_status": "UNVERIFIABLE",
-
-        # Critical: no client observation becomes a server scoring capability.
-        "capabilities": [],
-
-        "raw_summary": raw_summary,
-
-        "participant": {
-            "account_id": int(user.account_id),
-            "steam_id64": (
-                int(evidence.steam_id64)
-                if evidence.steam_id64 is not None
-                else (
-                    int(user.steam_id64)
-                    if user.steam_id64 is not None
-                    else None
-                )
-            ),
-            "hero_id": evidence.hero_id,
-
-            # These values are stored for provisional UI/diagnostics only.
-            # Empty capabilities + client provider prevent reward settlement.
-            "kills": evidence.kills,
-            "deaths": evidence.deaths,
-            "assists": evidence.assists,
-            "net_worth": evidence.souls,
-            "hero_damage": evidence.hero_damage,
-            "object_damage": evidence.object_damage,
-            "healing": evidence.healing,
-
-            # Never derive win from client-only outcome.
-            "won": None,
-        },
-    }
 
 
 def _finish_discovery_jobs_for_board(db: Session, board_id: str) -> None:
@@ -1501,12 +1413,14 @@ def _resolve_exact_companion_payload(
     user: User,
     job: Job,
     external_match_id: int,
+    *,
+    required_capabilities: set[str] | None = None,
 ) -> dict:
     normalized = None
 
     payload = dict(job.payload or {})
 
-    def remember_provider_wait(exc: Exception) -> None:
+    def handle_provider_fetch_error(exc: ProviderError) -> None:
         nonlocal payload
         payload["_provider_last_error"] = str(exc)[:500]
         payload["_provider_last_error_at"] = utcnow().isoformat()
@@ -1514,10 +1428,13 @@ def _resolve_exact_companion_payload(
             payload["_provider_retry_after"] = int(exc.retry_after)
         job.payload = payload
         db.commit()
+        if isinstance(exc, ProviderRateLimited):
+            raise CompanionMatchNotReady(
+                f"Матч #{external_match_id}: поставщик ограничил запросы",
+                delay_seconds=exc.retry_after,
+            ) from exc
 
-    # Fast cache/S3 path. A provider outage must not suppress strong local GEP
-    # finalization: we can bind the exact match from Companion, then let the
-    # evaluation job wait for contract-grade provider-only facts.
+    # Try cheap exact metadata before using the provider's history or Steam paths.
     try:
         with DeadlockApiProvider() as provider:
             normalized = provider.fetch_match_by_id(
@@ -1527,7 +1444,7 @@ def _resolve_exact_companion_payload(
                 consult_history=False,
             )
     except (ProviderRateLimited, ProviderError) as exc:
-        remember_provider_wait(exc)
+        handle_provider_fetch_error(exc)
         normalized = None
 
     evidence = _companion_evidence_for(db, user, external_match_id)
@@ -1544,7 +1461,10 @@ def _resolve_exact_companion_payload(
         )
     )
 
-    if normalized is None and allow_history_retry:
+    missing_capabilities = (required_capabilities or set()) - set(
+        (normalized or {}).get("capabilities") or []
+    )
+    if (normalized is None or missing_capabilities) and allow_history_retry:
         payload["_history_fallback_attempts"] = (
             history_attempts + 1
         )
@@ -1557,19 +1477,21 @@ def _resolve_exact_companion_payload(
 
         try:
             with DeadlockApiProvider() as provider:
-                normalized = provider.fetch_match_by_id(
+                supplemented = provider.fetch_match_by_id(
                     user.account_id,
                     external_match_id,
                     disable_steam=True,
                     consult_history=True,
+                    required_capabilities=required_capabilities,
                 )
+                if supplemented is not None:
+                    normalized = supplemented
 
         except (
             ProviderRateLimited,
             ProviderError,
         ) as exc:
-            remember_provider_wait(exc)
-            normalized = None
+            handle_provider_fetch_error(exc)
 
     # A verified exact Match ID may use the Steam-backed metadata path at most
     # twice per job. A process-wide cooldown additionally prevents concurrent
@@ -1637,7 +1559,7 @@ def _resolve_exact_companion_payload(
             ProviderRateLimited,
             ProviderError,
         ) as exc:
-            remember_provider_wait(exc)
+            handle_provider_fetch_error(exc)
             normalized = None
 
     if normalized is not None:
@@ -1647,19 +1569,12 @@ def _resolve_exact_companion_payload(
         job.payload = payload
         db.commit()
 
-    # Do not wait forever for external metadata if the Companion already has
-    # a verified end-of-match snapshot.
-    if normalized is None:
-        normalized = _provisional_match_from_companion_evidence(
-            db, user, job, external_match_id
-        )
-
     if normalized is None:
         raise CompanionMatchNotReady(
-            f"Матч #{external_match_id} обнаружен Companion и "
-            "финальный локальный снимок сохранён, но независимый "
-            "провайдер пока не опубликовал матч",
-            delay_seconds=10 * 60,
+            f"Матч #{external_match_id} обнаружен Companion; ждём итоговые данные",
+            delay_seconds=_provisional_provider_retry_delay(
+                int(job.attempts or 1), int(payload.get("_provider_retry_after") or 0)
+            ),
         )
 
     normalized = merge_companion_evidence(
@@ -1692,41 +1607,6 @@ def _board_has_bound_match(db: Session, board_id: str) -> bool:
             if option.status == "VERIFYING"
         )
     )
-
-
-def _active_companion_candidate(db: Session, board_id: str) -> Job | None:
-    board = db.get(ContractBoard, board_id)
-    if not board:
-        return None
-    jobs = list(
-        db.scalars(
-            select(Job)
-            .where(
-                Job.type.in_(("resolve_companion_match", "resolve_companion_match_auto")),
-                Job.status.in_(("PENDING", "RUNNING")),
-                or_(
-                    Job.board_id == board_id,
-                    and_(
-                        Job.type == "resolve_companion_match_auto",
-                        Job.user_id == board.user_id,
-                        Job.game_match_mode == board.game_match_mode,
-                    ),
-                ),
-            )
-            .order_by(Job.created_at.asc())
-        ).all()
-    )
-    for job in jobs:
-        if job.board_id == board_id:
-            return job
-        if (
-            job.type == "resolve_companion_match_auto"
-            and job.user_id == board.user_id
-            and job.game_match_mode == board.game_match_mode
-        ):
-            return job
-    return None
-
 
 
 def _verification_retry_delay(attempt: int) -> int:
@@ -1801,7 +1681,7 @@ def _missing_contract_facts_by_option(
         if option.bound_match_id != match.id:
             continue
         missing: set[str] = set()
-        if participant is None:
+        if participant is None or participant.scoring_status == "UNVERIFIABLE":
             missing.add("participant")
         option_required = {
             str(item) for item in (option.required_capabilities or []) if item
@@ -1911,47 +1791,6 @@ def _mark_board_verifying_for_facts(
     db.commit()
 
 
-def _scrub_legacy_weak_outcome_fact(
-    db: Session,
-    match: Match,
-    account_id: int,
-) -> bool:
-    """Remove rc3/rc4 outcome-only result facts before final-v3 repair.
-
-    Only GEP fallback matches with companion_finalization.signal=match_outcome
-    are affected. Provider-backed results are never scrubbed.
-    """
-    raw = match.raw_summary if isinstance(match.raw_summary, dict) else {}
-    finalization = raw.get("companion_finalization")
-    if not (
-        isinstance(finalization, dict)
-        and str(finalization.get("signal") or "").lower() == "match_outcome"
-        and "gep_fallback" in str(match.provider or "").lower()
-    ):
-        return False
-
-    capabilities = set(match.capabilities or [])
-    capabilities.discard("summary.result")
-    match.capabilities = sorted(capabilities)
-    participant = db.scalar(
-        select(MatchParticipant).where(
-            MatchParticipant.match_id == match.id,
-            MatchParticipant.account_id == int(account_id),
-        )
-    )
-    if participant is not None:
-        participant.won = None
-    new_raw = dict(raw)
-    new_raw.pop("companion_result", None)
-    new_raw["legacy_weak_finality_scrubbed"] = True
-    if isinstance(new_raw.get("companion_finalization"), dict):
-        weak = dict(new_raw["companion_finalization"])
-        weak["trusted"] = False
-        new_raw["companion_finalization"] = weak
-    match.raw_summary = new_raw
-    db.commit()
-    return True
-
 def _is_provisional_companion_match(match: Match | None) -> bool:
     if match is None:
         return False
@@ -2058,6 +1897,21 @@ def _queue_repair_evaluation(
         int(evaluation_max_attempts),
     )
     db.commit()
+
+
+def _resume_bound_match_verification(db: Session, board: ContractBoard, match: Match) -> bool:
+    existing = db.scalar(
+        select(BoardOption.id).where(
+            BoardOption.board_id == board.id,
+            BoardOption.selected.is_(True),
+            BoardOption.bound_match_id == match.id,
+            BoardOption.status.in_(("VERIFYING", "REVIEW_REQUIRED")),
+        ).limit(1)
+    )
+    if existing is None:
+        return False
+    _queue_repair_evaluation(db, board, match)
+    return True
 
 
 def bind_match(
@@ -2212,7 +2066,7 @@ def _earliest_captured_board_match_candidate(
     db: Session,
     board_id: str,
 ) -> BoardMatchCandidate | None:
-    return db.scalar(
+    stmt = (
         select(BoardMatchCandidate)
         .join(Match, Match.id == BoardMatchCandidate.match_id)
         .where(
@@ -2226,6 +2080,9 @@ def _earliest_captured_board_match_candidate(
         )
         .limit(1)
     )
+    if settings.provider == "deadlock_api":
+        stmt = stmt.where(Match.provider == "deadlock_api", Match.is_final.is_(True))
+    return db.scalar(stmt)
 
 
 def _wake_board_match_candidate(
@@ -2289,21 +2146,27 @@ def _ignore_board_match_candidate(
     candidate.bound_at = None
 
 
-def _capture_or_bind_companion_match(
+def _capture_or_bind_match(
     db: Session,
     board: ContractBoard,
     match: Match,
     *,
     capture_source: str,
+    expected_attempt: int | None = None,
 ) -> str:
     locked_board = db.scalar(
         select(ContractBoard)
         .where(ContractBoard.id == board.id)
         .with_for_update()
+        .execution_options(populate_existing=True)
     )
     if not locked_board:
         raise ValueError("Доска контрактов не найдена")
     board = locked_board
+
+    if expected_attempt is not None and expected_attempt != int(board.attempts_used or 0) + 1:
+        db.rollback()
+        return "STALE"
 
     candidate = db.scalar(
         select(BoardMatchCandidate)
@@ -2312,6 +2175,7 @@ def _capture_or_bind_companion_match(
             BoardMatchCandidate.match_id == match.id,
         )
         .with_for_update()
+        .execution_options(populate_existing=True)
     )
     if candidate is None:
         candidate = BoardMatchCandidate(
@@ -2362,8 +2226,10 @@ def _capture_or_bind_companion_match(
         db.commit()
         return "IGNORED"
 
-    if board.status == "SETTLED":
-        _ignore_board_match_candidate(candidate, "BOARD_SETTLED")
+    if board.status in {"SETTLED", "EXPIRED"} or (
+        settings.provider == "deadlock_api" and aware(board.expires_at) <= utcnow()
+    ):
+        _ignore_board_match_candidate(candidate, "BOARD_CLOSED")
         db.commit()
         return "IGNORED"
 
@@ -2371,6 +2237,10 @@ def _capture_or_bind_companion_match(
     locked_at = aware(board.locked_at)
     if started_at is None or locked_at is None or started_at <= locked_at:
         _ignore_board_match_candidate(candidate, "MATCH_BEFORE_BOARD_LOCK")
+        db.commit()
+        return "IGNORED"
+    if settings.provider == "deadlock_api" and started_at > aware(board.expires_at):
+        _ignore_board_match_candidate(candidate, "MATCH_AFTER_BOARD_EXPIRY")
         db.commit()
         return "IGNORED"
     if match.game_match_mode != board.game_match_mode:
@@ -2385,9 +2255,31 @@ def _capture_or_bind_companion_match(
         db.commit()
         return "IGNORED"
 
+    if settings.provider == "deadlock_api":
+        participant = db.scalar(
+            select(MatchParticipant).where(
+                MatchParticipant.match_id == match.id,
+                MatchParticipant.account_id == board.user.account_id,
+            )
+        )
+        if (
+            participant is None
+            or (participant.scoring_status or match.scoring_status) != "SCORED"
+        ):
+            _ignore_board_match_candidate(candidate, "PLAYER_RESULT_NOT_SCORABLE")
+            db.commit()
+            return "IGNORED"
+
+    if board.attempts_used >= board.max_attempts:
+        _ignore_board_match_candidate(candidate, "ATTEMPTS_EXHAUSTED")
+        db.commit()
+        return "IGNORED"
+
+    earliest = _earliest_captured_board_match_candidate(db, board.id)
     locked_options = [item for item in selected if item.status == "LOCKED"]
     if (
-        _board_has_bound_match(db, board.id)
+        (earliest is not None and earliest.id != candidate.id)
+        or _board_has_bound_match(db, board.id)
         or board.status == "REVIEW_REQUIRED"
         or not locked_options
     ):
@@ -2422,109 +2314,51 @@ def handle_promote_board_match_candidate(db: Session, job: Job) -> None:
     if not candidate_id:
         raise ValueError("promote_board_match_candidate: отсутствует candidate_id")
 
-    candidate = db.scalar(
-        select(BoardMatchCandidate)
-        .where(BoardMatchCandidate.id == candidate_id)
-        .with_for_update()
-    )
+    candidate = db.get(BoardMatchCandidate, candidate_id)
     if candidate is None or candidate.status != "CAPTURED":
         return
-
-    board = db.scalar(
-        select(ContractBoard)
-        .where(ContractBoard.id == candidate.board_id)
-        .with_for_update()
-    )
+    board = db.get(ContractBoard, candidate.board_id)
     match = db.get(Match, candidate.match_id)
     if board is None or match is None:
-        if candidate is not None:
-            _ignore_board_match_candidate(candidate, "MISSING_BOARD_OR_MATCH")
-            db.commit()
+        _ignore_board_match_candidate(candidate, "MISSING_BOARD_OR_MATCH")
+        db.commit()
         return
 
-    earliest = _earliest_captured_board_match_candidate(db, board.id)
-    if earliest is not None and earliest.id != candidate.id:
-        _wake_board_match_candidate(db, board, commit=False)
-        db.commit()
-        raise CompanionMatchNotReady(
-            "Более ранний сохранённый матч должен быть обработан первым",
-            delay_seconds=15,
+    if settings.provider == "deadlock_api" and not _has_trusted_finality(match):
+        # A candidate persisted before the rollout still gives us its exact ID.
+        enqueue_job(
+            db,
+            "resolve_companion_match",
+            {"board_id": board.id, "external_match_id": match.external_match_id},
+            f"verify-legacy-candidate:{candidate.id}",
+            max_attempts=settings.post_match_verification_max_attempts,
         )
-
-    if board.status == "SETTLED":
-        _ignore_board_match_candidate(candidate, "BOARD_SETTLED")
-        db.commit()
-        _wake_board_match_candidate(db, board)
         return
 
-    if _board_has_bound_match(db, board.id):
-        raise CompanionMatchNotReady(
-            f"Матч #{match.external_match_id} сохранён; ждём предыдущий verdict",
-            delay_seconds=60,
-        )
-
-    selected = list(
-        db.scalars(
-            select(BoardOption)
-            .where(
-                BoardOption.board_id == board.id,
-                BoardOption.selected.is_(True),
-            )
-            .with_for_update()
-        ).all()
+    state = _capture_or_bind_match(
+        db, board, match, capture_source=candidate.capture_source
     )
-    if board.status == "REVIEW_REQUIRED" or not any(
-        item.status == "LOCKED" for item in selected
-    ):
+    if state == "CAPTURED":
         raise CompanionMatchNotReady(
             f"Матч #{match.external_match_id} сохранён; ждём освобождения попытки",
             delay_seconds=60,
         )
-
-    if board.attempts_used >= board.max_attempts:
-        _ignore_board_match_candidate(candidate, "ATTEMPTS_EXHAUSTED")
-        db.commit()
-        _wake_board_match_candidate(db, board)
-        return
-
-    if (
-        board.baseline_match_id is not None
-        and int(match.external_match_id) <= int(board.baseline_match_id)
-    ):
-        _ignore_board_match_candidate(candidate, "NOT_NEWER_THAN_BASELINE")
-        db.commit()
-        _wake_board_match_candidate(db, board)
-        return
-
-    before_attempts = int(board.attempts_used or 0)
-    bind_match(db, board, match, commit=False)
-    if int(board.attempts_used or 0) != before_attempts + 1:
-        _ignore_board_match_candidate(candidate, "MATCH_NOT_BINDABLE")
-        db.commit()
-        _wake_board_match_candidate(db, board)
-        return
-
-    candidate.status = "BOUND"
-    candidate.attempt_no = int(board.attempts_used)
-    candidate.bound_at = utcnow()
-    candidate.ignored_reason = None
-    db.commit()
+    _wake_board_match_candidate(db, board)
 
 
 def handle_discover(db: Session, job: Job) -> None:
     board = db.get(ContractBoard, job.board_id or job.payload["board_id"])
     if not board:
         raise ValueError("Доска контрактов не найдена")
-    if board.status == "SETTLED":
+    if board.status != "LOCKED" or aware(board.expires_at) <= utcnow():
+        return
+    attempt = int(board.attempts_used or 0) + 1
+    if (job.payload or {}).get("attempt_no", attempt) != attempt:
         return
     if _wake_board_match_candidate(db, board):
         return
     if _board_has_bound_match(db, board.id):
         return
-    direct_candidate = _active_companion_candidate(db, board.id)
-    if direct_candidate:
-        external_id = (direct_candidate.payload or {}).get("external_match_id")
-        raise NoMatchYet(f"Companion обнаружил матч #{external_id}; получаем итоговые данные именно этого матча")
     if not board.locked_at or board.user.account_id is None:
         raise ValueError("Данные доски или Steam-профиля неполны")
     if settings.provider == "mock":
@@ -2580,11 +2414,15 @@ def handle_discover(db: Session, job: Job) -> None:
             if result.latest_match_id and result.latest_start_time:
                 latest_dt = datetime.fromtimestamp(result.latest_start_time, tz=timezone.utc)
                 latest = f"; latest visible match={result.latest_match_id} started={latest_dt.isoformat()}"
-            raise NoMatchYet(result.reason + latest)
+            raise NoMatchYet(result.reason + latest, retry_after=result.retry_after)
         match = store_normalized_match(db, result.match)
     else:
         raise ValueError(f"Неизвестный MATCH_PROVIDER={settings.provider}")
-    bind_match(db, board, match)
+    state = _capture_or_bind_match(
+        db, board, match, capture_source="PROVIDER_HISTORY", expected_attempt=attempt
+    )
+    if state == "IGNORED":
+        raise NoMatchYet("Найденный матч не подходит для текущего дела")
 
 
 def _apply_companion_time_fallback(
@@ -2632,8 +2470,7 @@ def handle_resolve_companion_match(db: Session, job: Job) -> None:
     if not board:
         raise ValueError("Доска контрактов не найдена")
 
-    if board.status == "SETTLED":
-        _finish_discovery_jobs_for_board(db, board.id)
+    if board.status in {"SETTLED", "EXPIRED"} or aware(board.expires_at) <= utcnow():
         return
     if not board.locked_at or board.user.account_id is None:
         raise ValueError("Данные доски или Steam-профиля неполны")
@@ -2693,18 +2530,22 @@ def handle_resolve_companion_match(db: Session, job: Job) -> None:
                 "но время начала не определено"
             )
 
-        # duration_s is not a prerequisite for binding.
         match = store_normalized_match(db, normalized)
+        if normalized["scoring_status"] != "SCORED":
+            return
     else:
         raise ValueError(f"Неизвестный MATCH_PROVIDER={settings.provider}")
 
-    _capture_or_bind_companion_match(
+    if _resume_bound_match_verification(db, board, match):
+        return
+    _capture_or_bind_match(
         db,
         board,
         match,
         capture_source="COMPANION_DIRECT",
     )
-    _finish_discovery_jobs_for_board(db, board.id)
+    if settings.provider == "mock":
+        _finish_discovery_jobs_for_board(db, board.id)
 
 
 
@@ -2717,8 +2558,7 @@ def handle_resolve_companion_match_auto(db: Session, job: Job) -> None:
     if external_match_id <= 0:
         raise ValueError("Companion не передал корректный Match ID")
 
-    # Old queued jobs can survive after the new GEP settlement already stored
-    # this exact match. Do not call Deadlock API again for that legacy path.
+    # A mock replay may already have settled this exact GEP match.
     settled_gep_match = db.scalar(
         select(Match)
         .where(
@@ -2728,7 +2568,7 @@ def handle_resolve_companion_match_auto(db: Session, job: Job) -> None:
         )
         .order_by(Match.created_at.desc())
         .limit(1)
-    )
+    ) if settings.provider == "mock" else None
     if settled_gep_match is not None:
         log.info(
             "Skipping legacy Companion resolver for GEP-settled match %s",
@@ -2765,14 +2605,9 @@ def handle_resolve_companion_match_auto(db: Session, job: Job) -> None:
                 f"Матч #{external_match_id} найден, "
                 "но время начала не определено"
             )
-        existing_match = db.scalar(
-            select(Match).where(Match.external_match_id == external_match_id)
-        )
-        if existing_match is not None:
-            _scrub_legacy_weak_outcome_fact(
-                db, existing_match, int(user.account_id)
-            )
         match = store_normalized_match(db, normalized)
+        if normalized["scoring_status"] != "SCORED":
+            return
     else:
         raise ValueError(f"Неизвестный MATCH_PROVIDER={settings.provider}")
 
@@ -2794,21 +2629,7 @@ def handle_resolve_companion_match_auto(db: Session, job: Job) -> None:
         # another attempt and do not call evaluator synchronously. Queue a new
         # final-v3 evaluation job so missing provider facts can remain VERIFYING
         # and retry automatically instead of jumping straight to human review.
-        selected = list(
-            db.scalars(
-                select(BoardOption).where(
-                    BoardOption.board_id == board.id,
-                    BoardOption.selected.is_(True),
-                )
-            ).all()
-        )
-        if any(
-            option.bound_match_id == match.id
-            and option.status not in {"COMPLETED", "FAILED", "EXPIRED", "VOID"}
-            for option in selected
-        ):
-            _queue_repair_evaluation(db, board, match)
-            _finish_discovery_jobs_for_board(db, board.id)
+        if _resume_bound_match_verification(db, board, match):
             return
 
         locked_at = aware(board.locked_at)
@@ -2823,13 +2644,12 @@ def handle_resolve_companion_match_auto(db: Session, job: Job) -> None:
             and external_match_id <= int(board.baseline_match_id)
         ):
             continue
-        _capture_or_bind_companion_match(
+        _capture_or_bind_match(
             db,
             board,
             match,
             capture_source="COMPANION_AUTO",
         )
-        _finish_discovery_jobs_for_board(db, board.id)
         return
 
     return
@@ -2910,6 +2730,17 @@ def handle_settle_gep_match(
             "lease/evidence integrity mismatch"
         )
 
+    if settings.provider == "deadlock_api":
+        board = db.get(ContractBoard, lease.board_id) if lease.board_id else None
+        if board is None:
+            return
+        if board.user_id != user.id or (job.board_id or payload.get("board_id")) != board.id:
+            raise ValueError("settle_gep_match: board owner mismatch")
+        if int(payload.get("external_match_id") or 0) != evidence.external_match_id:
+            raise ValueError("settle_gep_match: match id mismatch")
+        handle_resolve_companion_match(db, job)
+        return
+
     normalized = (
         normalized_gep_match_from_evidence(
             lease=lease,
@@ -2950,7 +2781,7 @@ def handle_settle_gep_match(
             "mode mismatch"
         )
 
-    _capture_or_bind_companion_match(
+    _capture_or_bind_match(
         db,
         board,
         match,
@@ -3082,36 +2913,26 @@ def handle_evaluate(db: Session, job: Job) -> None:
         # particular, never evaluate the whole board when an old job replays.
         return
     missing = sorted({fact for facts in missing_by_option.values() for fact in facts})
-    provisional_companion_match = _is_provisional_companion_match(match)
+    waiting_for_provider = _is_provisional_companion_match(match) or _is_client_attested_gep_match(match)
 
-    if (
-        settings.provider == "deadlock_api"
-        and not _is_client_attested_gep_match(match)
-        and (missing or provisional_companion_match)
-    ):
+    if settings.provider == "deadlock_api" and (missing or not _has_trusted_finality(match)):
         # Re-read the exact Match ID before escalating. This path is idempotent,
         # uses the provider cache first, and permits only a bounded expensive
         # Steam fallback through _resolve_exact_companion_payload.
         try:
             normalized = _resolve_exact_companion_payload(
-                db, board.user, job, int(match.external_match_id)
+                db, board.user, job, int(match.external_match_id),
+                required_capabilities=set(missing),
             )
         except CompanionMatchNotReady:
             normalized = None
 
         if normalized is not None and normalized.get("is_final"):
-            existing = db.get(Match, match.id)
-            if existing is not None:
-                _scrub_legacy_weak_outcome_fact(
-                    db, existing, int(board.user.account_id)
-                )
             match = store_normalized_match(db, normalized)
             missing_by_option = _missing_contract_facts_by_option(db, board, match)
             missing = sorted({fact for facts in missing_by_option.values() for fact in facts})
 
-        provisional_companion_match = _is_provisional_companion_match(match)
-
-        if provisional_companion_match:
+        if waiting_for_provider and not _has_trusted_finality(match):
             max_wait_attempts = max(
                 1,
                 int(
@@ -3200,7 +3021,6 @@ def handle_evaluate(db: Session, job: Job) -> None:
     if (
         missing
         and settings.provider == "deadlock_api"
-        and not _is_client_attested_gep_match(match)
         and int(job.attempts or 0) < max_wait_attempts
     ):
         _mark_board_verifying_for_facts(
@@ -3642,7 +3462,11 @@ def run() -> None:
                         exc.delay_seconds,
                     )
                 except NoMatchYet as exc:
-                    retry_job(db, job, exc, settings.discovery_retry_seconds, owner=owner)
+                    retry_job(
+                        db, job, exc,
+                        max(settings.discovery_retry_seconds, exc.retry_after or 0),
+                        owner=owner,
+                    )
                     log.info("No match yet for job %s", job.id)
                 except Exception as exc:
                     _recover_unexpected_job_error(

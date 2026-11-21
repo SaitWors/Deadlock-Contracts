@@ -727,26 +727,14 @@ def lock_board(
     board.attempts_used = 0
     board.max_attempts = settings.case_max_attempts
 
-    board.baseline_match_id = (
-        db.scalar(
-            select(
-                func.max(
-                    Match.external_match_id
-                )
-            )
-            .join(
-                MatchParticipant,
-                MatchParticipant.match_id
-                == Match.id,
-            )
-            .where(
-                MatchParticipant.account_id
-                == user.account_id
-            )
-        )
-        if user.account_id is not None
-        else None
+    baseline = (
+        select(func.max(Match.external_match_id))
+        .join(MatchParticipant, MatchParticipant.match_id == Match.id)
+        .where(MatchParticipant.account_id == user.account_id)
     )
+    if settings.provider == "deadlock_api":
+        baseline = baseline.where(Match.provider == "deadlock_api", Match.is_final.is_(True))
+    board.baseline_match_id = db.scalar(baseline) if user.account_id is not None else None
 
     for option in board.options:
 
@@ -784,7 +772,7 @@ def lock_board(
         enqueue_job(
             db,
             "discover_match",
-            {"board_id": board.id},
+            {"board_id": board.id, "attempt_no": 1},
             f"discover:{board.id}:attempt:1",
             max_attempts=settings.max_discovery_attempts,
             commit=False,

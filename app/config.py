@@ -223,6 +223,10 @@ class Settings:
     companion_download_url: str = os.getenv("COMPANION_DOWNLOAD_URL", "").strip()
 
     @property
+    def client_match_settlement_enabled(self) -> bool:
+        return self.provider == "mock" and self.gep_settlement_enabled
+
+    @property
     def is_production(self) -> bool:
         return self.app_env == "production"
 

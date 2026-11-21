@@ -37,8 +37,6 @@ from app.worker import (
     FinalFactsPending,
     _evaluation_max_attempts_for_match,
     _is_provisional_companion_match,
-    _normalized_from_companion_evidence,
-    _provisional_match_from_companion_evidence,
     bind_match,
     handle_evaluate,
     settings,
@@ -211,90 +209,6 @@ def _provisional_data(
 
 
 class ProvisionalBindingRegressionTests(unittest.TestCase):
-    def test_strong_terminal_evidence_creates_non_scoring_provisional_payload(self) -> None:
-        evidence = SimpleNamespace(
-            steam_id64=STEAM_ID64,
-            game_match_mode="STREET_BRAWL",
-            hero_id=64,
-            kills=4,
-            deaths=3,
-            assists=8,
-            souls=34000,
-            hero_damage=26876,
-            object_damage=7979,
-            healing=4478,
-        )
-        finalization = {
-            "signal": "match_end",
-            "event_type": "match_ended",
-            "phase": "PostGame",
-            "end_reason": "match_end",
-            "session_id": "session-test",
-            "started_at": NOW - timedelta(seconds=778),
-            "ended_at": NOW,
-            "match_clock_s": 778,
-            "trusted": False,
-            "trusted_for_scoring": False,
-            "trust_class": "T0_UNTRUSTED",
-        }
-        user = SimpleNamespace(
-            id="user-test",
-            account_id=ACCOUNT_ID,
-            steam_id64=STEAM_ID64,
-        )
-        job = SimpleNamespace(
-            game_match_mode="STREET_BRAWL",
-            payload={"game_match_mode": "STREET_BRAWL"},
-        )
-
-        with (
-            patch(
-                "app.worker._companion_evidence_for",
-                return_value=evidence,
-            ),
-            patch(
-                "app.worker._companion_finalization_from_events",
-                return_value=finalization,
-            ),
-        ):
-            data = _provisional_match_from_companion_evidence(
-                unittest.mock.MagicMock(),
-                user,
-                job,
-                102442126,
-            )
-
-        self.assertIsNotNone(data)
-        assert data is not None
-        self.assertEqual(data["external_match_id"], 102442126)
-        self.assertEqual(data["provider"], "gep_fallback")
-        self.assertTrue(data["is_final"])
-        self.assertEqual(data["scoring_status"], "UNVERIFIABLE")
-        self.assertEqual(data["capabilities"], [])
-        self.assertIsNone(data["participant"]["won"])
-        self.assertEqual(data["participant"]["assists"], 8)
-        self.assertEqual(data["participant"]["healing"], 4478)
-        self.assertTrue(
-            data["raw_summary"]["provisional_binding"][
-                "independent_provider_pending"
-            ]
-        )
-        self.assertFalse(
-            data["raw_summary"]["provisional_binding"][
-                "scoring_contribution"
-            ]
-        )
-
-        # The legacy/manual review seam stays fail-closed.
-        self.assertIsNone(
-            _normalized_from_companion_evidence(
-                unittest.mock.MagicMock(),
-                user,
-                job,
-                102442126,
-            )
-        )
-
     def test_only_explicit_provisional_rows_receive_144_attempt_budget(self) -> None:
         provisional = SimpleNamespace(
             provider="gep_fallback",

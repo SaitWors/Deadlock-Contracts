@@ -376,11 +376,11 @@ class MatchFinalityRegressionTests(unittest.TestCase):
         self.assertEqual(result.status, "UNVERIFIABLE")
         self.assertIn("сигнал завершения", result.explanation)
 
-    def test_weak_outcome_scrub_removes_stale_result_before_repair(self) -> None:
+    def test_independent_update_removes_legacy_outcome_only_facts(self) -> None:
         from sqlalchemy import create_engine
         from app.db import Base
         from app.models import Match, MatchParticipant
-        from app.worker import _scrub_legacy_weak_outcome_fact
+        from app.worker import store_normalized_match
 
         engine = create_engine("sqlite+pysqlite:///:memory:")
         Base.metadata.create_all(engine)
@@ -398,12 +398,19 @@ class MatchFinalityRegressionTests(unittest.TestCase):
             db.add(match); db.flush()
             participant = MatchParticipant(match_id=match.id, account_id=user.account_id, won=True, assists=0)
             db.add(participant); db.commit()
-            self.assertTrue(_scrub_legacy_weak_outcome_fact(db, match, int(user.account_id)))
-            db.refresh(match); db.refresh(participant)
+            updated = store_normalized_match(db, {
+                "external_match_id": match.external_match_id,
+                "provider": "deadlock_api",
+                "game_match_mode": "STREET_BRAWL",
+                "is_final": True,
+                "scoring_status": "SCORED",
+                "participant": {"account_id": user.account_id, "assists": 8},
+            })
+            self.assertEqual(updated.id, match.id)
             self.assertNotIn("summary.result", match.capabilities)
             self.assertIsNone(participant.won)
             self.assertNotIn("companion_result", match.raw_summary)
-            self.assertFalse(match.raw_summary["companion_finalization"]["trusted"])
+            self.assertEqual(participant.assists, 8)
 
     def test_missing_final_fact_stays_verifying_before_review_budget_exhausted(self) -> None:
         from sqlalchemy import create_engine
@@ -622,6 +629,7 @@ class MatchFinalityRegressionTests(unittest.TestCase):
             {
                 "disable_steam": True,
                 "consult_history": True,
+                "required_capabilities": None,
             },
         )
 
