@@ -306,7 +306,7 @@ def test_forwarded_host_cannot_poison_public_canonical_links(client):
     assert "attacker.invalid" not in response.text
 
 
-def test_crawlable_pages_share_the_ritual_document_shell_without_obsolete_brand_art():
+def test_crawlable_pages_share_the_ritual_document_shell_and_current_brand():
     from app.seo import render_public_page, render_not_found
     shell = '<!doctype html><html><head></head><body><div id="root"></div></body></html>'
     source = render_public_page("cards", "en", "https://example.invalid", shell)
@@ -314,10 +314,29 @@ def test_crawlable_pages_share_the_ritual_document_shell_without_obsolete_brand_
     assert doc.elements("link", href="/static/nightshift-documents.css")
     assert doc.elements("script", src="/static/document-appearance.js")
     assert doc.elements("div", **{"class": "city-public bureau-public min-h-screen"})
-    assert not doc.elements("img", src="/static/assets/logo-horizontal.svg")
+    assert doc.elements("img", src="/static/brand/wordmark.png", alt="Deadlock Contracts")
     assert "DEADLOCK CONTRACTS · YOUR MATCH. YOUR TERMS." in " ".join(doc.text)
     assert "CITY NEVER SLEEPS" not in " ".join(doc.text)
     missing = Document(render_not_found("https://example.invalid", "en"))
     assert missing.elements("div", **{"class": "city-public"})
     assert missing.elements("main", **{"class": "public-document city-not-found"})
     assert missing.elements("link", href="/static/nightshift-documents.css")
+
+
+def test_website_logo_and_favicon_are_linked_and_served(client):
+    wordmark = "/static/brand/wordmark.png"
+    favicon = "/static/brand/favicon.ico"
+    for path in ("/", "/en/cards", "/ru/privacy", "/en/terms", "/pair"):
+        doc = Document(client.get(path).text)
+        assert doc.elements("img", src=wordmark, alt="Deadlock Contracts")
+        assert doc.elements("link", href=favicon, rel="icon")
+
+    for path, signature in ((wordmark, b"\x89PNG\r\n\x1a\n"), (favicon, b"\x00\x00\x01\x00")):
+        response = client.get(path)
+        assert response.status_code == 200
+        assert response.headers["content-type"].startswith("image/")
+        assert response.content.startswith(signature)
+        assert client.head(path).status_code == 200
+
+    assert client.get("/static/brand/missing.png").status_code == 404
+    assert client.get("/favicon.ico").content == client.get(favicon).content

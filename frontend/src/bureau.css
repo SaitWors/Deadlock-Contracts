@@ -3,7 +3,7 @@
 .bureau-header{position:fixed;inset:0 0 auto;z-index:60;background:rgba(8,12,11,.97);border-bottom:1px solid var(--color-border);color:var(--color-cream)}
 .bureau-header-inner{max-width:1440px;min-height:72px;padding:0 clamp(16px,3vw,40px);margin:auto;display:flex;align-items:center;gap:24px}
 .bureau-brand{display:flex;align-items:center;flex-shrink:0;min-height:48px;border:0;background:none;padding:0;cursor:pointer}
-.bureau-brand img{width:144px;height:44px;object-fit:contain}
+.bureau-brand img{display:block;width:152px;height:auto;border-radius:4px}
 .bureau-nav{display:flex;align-items:center;justify-content:center;gap:22px;flex:1}
 .bureau-nav :is(button,a),.bureau-mobile-nav :is(button,a){position:relative;display:flex;align-items:center;text-decoration:none;border:0;background:none;color:var(--color-cream-dim);font:600 .875rem var(--font-display);letter-spacing:.055em;min-height:44px;cursor:pointer;transition:color .18s}
 .bureau-nav :is(button,a):hover,.bureau-mobile-nav :is(button,a):hover{color:var(--color-cream)}
@@ -59,7 +59,7 @@
 
 /* The document is the one deliberately warm, tactile surface in the signing flow. */
 @media(max-width:1199px){.bureau-nav{display:none}.bureau-menu-toggle{display:grid;place-items:center}.bureau-mobile-nav{display:grid;gap:4px}.bureau-mobile-nav :is(button,a){text-align:left;padding:8px 12px;border-radius:4px}.bureau-mobile-nav :is(button,a)[aria-current]{background:var(--color-elevated)}}
-@media(max-width:600px){.bureau-header-inner{min-height:64px;gap:8px;padding-inline:12px}.bureau-brand img{width:105px;height:36px}.bureau-account{gap:8px}.bureau-account .dc-companion-chip{display:none!important}.bureau-account .btn-primary{padding:10px;font-size:.75rem}.bureau-account .dc-language-switch{display:none}.bureau-mobile-preferences{padding:12px}.bureau-mobile-nav{max-height:calc(100svh - 64px)}}
+@media(max-width:600px){.bureau-header-inner{min-height:64px;gap:8px;padding-inline:12px}.bureau-brand img{width:112px}.bureau-account{gap:8px}.bureau-account .dc-companion-chip{display:none!important}.bureau-account .btn-primary{padding:10px;font-size:.75rem}.bureau-account .dc-language-switch{display:none}.bureau-mobile-preferences{padding:12px}.bureau-mobile-nav{max-height:calc(100svh - 64px)}}
 @media(prefers-reduced-motion:reduce){.bureau-public *,.bureau-public *::before,.bureau-public *::after,.bureau-app *,.bureau-app *::before,.bureau-app *::after{animation:none!important;transition:none!important;scroll-behavior:auto!important}.bureau-public .reveal-section,.bureau-public .stagger-children>*{opacity:1!important;transform:none!important}.bureau-public .contract-card,.bureau-app .dc-motion-contract-card{transform:none!important}}
 
 .bureau-mobile-preferences{display:flex;align-items:center;justify-content:space-between;gap:16px;border-top:1px solid var(--color-border);padding-top:12px}

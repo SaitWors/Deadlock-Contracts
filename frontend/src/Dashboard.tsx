@@ -2,7 +2,6 @@ import BureauAtmosphere from "./BureauAtmosphere"
 import { useAdminCopy } from "./admin/admin-copy"
 import SvgIcon, { type IconName } from "./icons/Icon"
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react"
-import markImage from "@/imports/mark.svg"
 import { NightshiftNav } from "./nightshift-layout"
 import ProfileStudio from "./ProfileStudio"
 import BureauHeader from "./BureauHeader"
@@ -45,6 +44,7 @@ import {
 const ArchivePage = lazy(() => import("./archive/ArchivePage"))
 const CardReviewDesk = lazy(() => import("./admin/CardReviewDesk"))
 const OwnerArchiveDesk = lazy(() => import("./admin/OwnerArchiveDesk"))
+const OwnerRewards = lazy(() => import("./admin/OwnerRewards"))
 const HeroVotesPage = lazy(() => import("./hero-votes/HeroVotesPage"))
 const HeroVotesDesk = lazy(() => import("./admin/HeroVotesDesk"))
 
@@ -243,6 +243,7 @@ type AdminAuthStatus = {
   expires_at: string | null
   ttl_minutes: number
   can_manage_roles: boolean
+  can_grant_rewards: boolean
   is_staff: boolean
   permissions: string[]
   admin: {
@@ -2287,7 +2288,7 @@ export default function Dashboard({ initialSession }: { initialSession: SessionP
                 </section>
               ) : (
                 <section className="dc-active-empty">
-                  <img src={markImage} alt="" />
+                  <img src="/static/brand/favicon.ico" alt="" />
                   <h2>{language === "ru" ? "Активного дела пока нет" : "No active case yet"}</h2>
                   <p>
                     {language === "ru"
@@ -2349,7 +2350,7 @@ export default function Dashboard({ initialSession }: { initialSession: SessionP
               <div className="dc-case-archive">
                 {caseGroups.length === 0 && (
                   <article className="dc-case-file empty">
-                    <img src={markImage} alt="" />
+                    <img src="/static/brand/favicon.ico" alt="" />
                     <h2>{t(language, "Архив пока пуст")}</h2>
                     <p>{t(language, "Зафиксируйте дело и сыграйте соответствующий матч.")}</p>
                   </article>
@@ -3197,37 +3198,6 @@ function AdminConsole({
     }
   }
 
-  const adjustXp = async (item: AdminUserSummary) => {
-    if (!auth?.can_manage_roles) return
-    const raw = prompt(
-      copy("Изменение XP для {0}. Допустимо от -100000 до 100000:", { 0: item.display_name }),
-      "100",
-    )?.trim()
-    if (!raw) return
-    const delta = Number(raw)
-    if (!Number.isInteger(delta) || delta === 0) {
-      setError(copy("Введите ненулевое целое изменение XP."))
-      return
-    }
-    const reason = prompt(
-      copy("Причина корректировки XP:"),
-      copy("Ручная корректировка владельцем"),
-    )?.trim()
-    if (!reason) return
-    try {
-      await api(`/api/admin/users/${item.id}/xp-adjust`, csrf, {
-        method: "POST",
-        body: JSON.stringify({ delta, reason }),
-      })
-      setNotice(copy("XP скорректирован с записью в ledger и audit."))
-      await openUser(item.id)
-      await loadSection("users")
-      await reloadAll()
-    } catch (reasonValue) {
-      setError((reasonValue as Error).message)
-    }
-  }
-
   const retryJob = async (job: AdminJob) => {
     const reason = prompt(
       copy("Причина повторного запуска задачи:"),
@@ -3806,13 +3776,35 @@ function AdminConsole({
                             : copy("Активировать")}
                         </button>
                       )}
-                      {auth.can_manage_roles && (
-                        <button className="dc-ghost" onClick={() => void adjustXp(detail.user)}>
-                          {copy("Корректировать XP")}
-                        </button>
-                      )}
                     </div>
                   </header>
+                  {auth.can_grant_rewards && (
+                    <Suspense fallback={<p role="status">{copy("Загрузка…")}</p>}>
+                      <OwnerRewards
+                        key={`${auth.admin.id}:${detail.user.id}`}
+                        actorId={auth.admin.id}
+                        recipient={detail.user}
+                        csrf={csrf}
+                        onGranted={(balance) => {
+                          setNotice(
+                            language === "ru"
+                              ? "Награда выдана. Запись добавлена в аудит."
+                              : "Reward granted and recorded in the audit log.",
+                          )
+                          if (balance !== undefined) {
+                            const userId = detail.user.id
+                            setDetail((current) =>
+                              current?.user.id === userId
+                                ? { ...current, user: { ...current.user, xp: balance } }
+                                : current,
+                            )
+                            void loadSection("users")
+                            void reloadAll()
+                          }
+                        }}
+                      />
+                    </Suspense>
+                  )}
                   {auth.can_manage_roles && (
                     <section className="dc-admin-identity-editor">
                       <div className="dc-admin-identity-title">

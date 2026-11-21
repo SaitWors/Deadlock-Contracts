@@ -101,12 +101,6 @@
   background: var(--ns-surface);
   color: var(--ns-text);
 }
-:root[data-theme] :is(.bureau-public.ritual-public, .bureau-app.ritual-workspace) .ns-brand-wordmark {
-  font-family: var(--font-display);
-  font-weight: 600;
-  letter-spacing: .02em;
-}
-
 :root[data-theme] :is(.ritual-selection strong, .ritual-selection-xp, .ritual-contract-bottom > b, .ritual-step-number, .ritual-scroll-ink b, .dc-kpi-grid strong, .dc-motion-card-meta b, .archive-collection-count strong, .progress-goal-stat strong) {
   font-family: var(--font-number);
   font-weight: 600;
@@ -126,9 +120,6 @@
     background-position: calc(50% + 110px) 100px;
     background-size: 700px;
     opacity: .18;
-  }
-  :root[data-theme] .ritual-public .ns-brand-wordmark {
-    font-size: 18px;
   }
 }
 

@@ -1,4 +1,4 @@
-"""Paid-card guarantee progress is shared by v2 packs and isolated by scope."""
+"""Paid-card guarantee progress and gifted pack entitlements."""
 from datetime import datetime
 
 from sqlalchemy import CheckConstraint, DateTime, ForeignKey, Integer, String, UniqueConstraint
@@ -26,3 +26,15 @@ class PackGuaranteeState(Base):
     without_sss: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
     revision: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
+
+
+class ArchivePackGift(Base):
+    __tablename__ = "archive_pack_gifts"
+    __table_args__ = (
+        CheckConstraint("remaining BETWEEN 0 AND 10", name="ck_archive_pack_gift_remaining"),
+    )
+
+    grant_id: Mapped[str] = mapped_column(
+        ForeignKey("archive_operations.id", ondelete="CASCADE"), primary_key=True
+    )
+    remaining: Mapped[int] = mapped_column(Integer)

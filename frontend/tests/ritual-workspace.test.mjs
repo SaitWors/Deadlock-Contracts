@@ -302,6 +302,51 @@ function deadlineTimers(w) {
   }
 }
 
+test("gift packs refresh on return and retry a timed-out opening without browser storage", async () => {
+  let timers
+  let awarded = false
+  let attempts = 0
+  const giftPath = "/api/archive/gift-packs/recipient-gift/open"
+  const env = await mount({
+    setup(w) {
+      timers = deadlineTimers(w)
+      const setItem = w.Storage.prototype.setItem
+      w.Storage.prototype.setItem = function (key, value) {
+        if (this === w.sessionStorage) throw new Error("Session storage disabled")
+        return setItem.call(this, key, value)
+      }
+    },
+    fetcher(url) {
+      if (url === giftPath) {
+        attempts++
+        if (attempts === 1) return new Promise(() => {})
+        awarded = false
+        return response({ ...receipt, kind: "GIFT_PACK_OPEN" })
+      }
+      if (url === "/api/archive/gift-packs")
+        return response({
+          items: awarded
+            ? [{ id: "recipient-gift", title: "Stream gift", remaining: 2, draws: 3, active: true }]
+            : [],
+        })
+    },
+  })
+  assert.equal(button(env.doc, "Open gift"), undefined)
+  awarded = true
+  await env.api.act(async () => env.w.dispatchEvent(new env.w.Event("focus")))
+  await env.api.act(async () => button(env.doc, "Open gift").click())
+  const first = env.calls.find(({ url }) => url === giftPath)
+  assert.equal(JSON.parse(first.init.body).remaining, 2)
+  await env.api.act(async () => timers.expire())
+  assert.equal(first.init.signal.aborted, true)
+  await env.api.act(async () => button(env.doc, "Retry request").click())
+  const requests = env.calls.filter(({ url }) => url === giftPath)
+  assert.equal(requests[0].init.body, requests[1].init.body)
+  assert.ok(button(env.doc, "Claim daily pack"))
+  assert.ok(button(env.doc, "Reveal cards"))
+  assert.doesNotMatch(env.doc.body.textContent, /Balance after transaction/)
+})
+
 test("a hanging daily claim times out, releases its action and retries with the saved key", async () => {
   let timers,
     firstSignal,

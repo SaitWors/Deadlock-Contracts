@@ -1,4 +1,5 @@
 import Icon, { type IconName } from "./icons/Icon"
+import BrandLogo from "./BrandLogo"
 import { useLanguage } from "./i18n"
 import { publicUrl } from "./publicRoutes"
 import daybreak from "./imports/city/uptown_02.webp"
@@ -75,12 +76,7 @@ export function NightshiftNav({
         onClick={() => onNavigate("home")}
         aria-label={ru ? "Deadlock Contracts — главная" : "Deadlock Contracts — home"}
       >
-        <span className="ns-brand-icon">
-          <Icon name="eye" size={25} />
-        </span>
-        <span className="ns-brand-wordmark">
-          DEADLOCK<small>CONTRACTS</small>
-        </span>
+        <BrandLogo />
       </button>
       <nav aria-label={ru ? "Разделы кабинета" : "Dashboard sections"}>
         {groups.map((group) => (

@@ -1,6 +1,7 @@
 import Icon from "./icons/Icon"
 import { useEffect, useId, useRef, useState, type ReactNode } from "react"
 import { AppearanceButton } from "./Appearance"
+import BrandLogo from "./BrandLogo"
 import { LanguageSwitch, useLanguage } from "./i18n"
 import { usePublicNavigation } from "./public-navigation"
 import NavigationIcon, { type NavigationIconName } from "./icons/NavigationIcon"
@@ -92,12 +93,7 @@ export default function BureauHeader({
               language === "ru" ? "Deadlock Contracts — главная" : "Deadlock Contracts — home"
             }
           >
-            <span className="ns-brand-icon">
-              <Icon name="eye" size={23} />
-            </span>
-            <span className="ns-brand-wordmark">
-              DEADLOCK<small>CONTRACTS</small>
-            </span>
+            <BrandLogo />
           </a>
         ) : (
           <button
@@ -107,12 +103,7 @@ export default function BureauHeader({
               language === "ru" ? "Deadlock Contracts — главная" : "Deadlock Contracts — home"
             }
           >
-            <span className="ns-brand-icon">
-              <Icon name="eye" size={23} />
-            </span>
-            <span className="ns-brand-wordmark">
-              DEADLOCK<small>CONTRACTS</small>
-            </span>
+            <BrandLogo />
           </button>
         )}
         {breadcrumb && (

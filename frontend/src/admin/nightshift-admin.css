@@ -335,6 +335,11 @@
 
 /* Permissions, drafts and adaptive detail retain their existing controls. */
 .dc-v3 .dc-admin-shell .dc-admin-identity-editor { margin: 22px 0; padding: 20px; border: 1px solid var(--ns-line); border-radius: var(--ns-small); background: var(--ns-bg); box-shadow: none; }
+.dc-v3 .dc-admin-shell .dc-admin-rewards summary { cursor: pointer; color: var(--ns-text); }
+.dc-v3 .dc-admin-shell .dc-admin-rewards fieldset { display: grid; gap: 14px; min-width: 0; margin: 0; padding: 0; border: 0; }
+.dc-v3 .dc-admin-shell .dc-admin-rewards fieldset > button { justify-self: start; }
+.dc-v3 .dc-admin-shell .dc-admin-reward-catalog { display: grid; gap: 8px; }
+.dc-v3 .dc-admin-shell .dc-admin-rewards .archive-actions { display: flex; align-items: end; flex-wrap: wrap; gap: 8px; }
 .dc-v3 .dc-admin-shell .dc-admin-identity-title { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; margin-bottom: 18px; }
 .dc-v3 .dc-admin-shell .dc-admin-identity-title span { color: var(--ns-text); font: 650 14px/1.5 var(--font-body, "Jost", sans-serif); letter-spacing: 0; }
 .dc-v3 .dc-admin-shell .dc-admin-identity-title p { margin: 6px 0 0; color: var(--ns-muted); font-size: 12px; }

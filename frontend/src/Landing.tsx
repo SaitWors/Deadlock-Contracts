@@ -1,6 +1,7 @@
 import BureauAtmosphere from "./BureauAtmosphere"
 import { lazy, Suspense, useEffect, useRef, useState } from "react"
 import BureauHeader from "./BureauHeader"
+import BrandLogo from "./BrandLogo"
 import Icon, { type IconName } from "./icons/Icon"
 import CollectionPreview from "./CollectionPreview"
 import matchCity from "./imports/city/uptown_02.webp"
@@ -620,11 +621,12 @@ export default function Landing() {
         )}
       </main>
       <footer className="ritual-footer ritual-container">
-        <a className="ritual-footer-brand" href={publicUrl("home", language)}>
-          <Icon name="eye" size={27} />
-          <strong>
-            DEADLOCK <span>CONTRACTS</span>
-          </strong>
+        <a
+          className="ritual-footer-brand"
+          href={publicUrl("home", language)}
+          aria-label={ru ? "Deadlock Contracts — главная" : "Deadlock Contracts — home"}
+        >
+          <BrandLogo />
         </a>
         <p>
           {ru
