@@ -46,6 +46,7 @@ class DiscoveryResult:
     called_steam: bool
     latest_match_id: int | None
     latest_start_time: int | None
+    retry_after: int | None = None
 
 
 class DeadlockApiProvider:
@@ -127,7 +128,9 @@ class DeadlockApiProvider:
         try:
             payload = json.loads(raw) if raw else None
         except (ValueError, TypeError) as exc:
-            raise ProviderError("Deadlock API вернул некорректный JSON") from exc
+            if status_code != 429:
+                raise ProviderError("Deadlock API вернул некорректный JSON") from exc
+            payload = None
         return ProviderResponse(payload, status_code, headers)
 
     def history(self, account_id: int, *, force_refetch: bool = False) -> HistoryResult:
@@ -153,7 +156,10 @@ class DeadlockApiProvider:
                     items = [item for item in value[:250] if isinstance(item, dict)]
                     break
             else:
-                raise ProviderError("Неожиданный формат истории матчей")
+                if response.status_code != 429:
+                    raise ProviderError("Неожиданный формат истории матчей")
+        elif response.status_code == 429:
+            items = []
         else:
             raise ProviderError("Неожиданный формат истории матчей")
 
@@ -250,118 +256,51 @@ class DeadlockApiProvider:
         *,
         disable_steam: bool = False,
         consult_history: bool = True,
+        required_capabilities: set[str] | None = None,
     ) -> dict[str, Any] | None:
-        """Fetch one exact match identified by the local Companion.
-
-        The Match ID is authoritative for candidate selection. Metadata is the
-        primary post-match source; the player's stored history is consulted only
-        when needed to prove membership or fill basic time/summary fields.
-        """
+        """Confirm one exact match using a player outcome or the player's history."""
         if not 0 <= account_id <= 2**32 - 1:
             raise ProviderError("Некорректный account_id")
         if match_id <= 0:
             raise ProviderError("Некорректный match_id")
-        metadata = self.metadata(
-            match_id,
-            disable_steam=disable_steam,
-        )
 
-        history_entry: dict[str, Any] = {
-            "match_id": match_id,
-        }
-        history_found = False
+        metadata = self.metadata(match_id, disable_steam=disable_steam)
+        exact = None
+        if metadata is not None and _find_player(metadata, account_id) is not None:
+            normalized = normalize_deadlock_match(account_id, {"match_id": match_id}, metadata)
+            if (
+                normalized["is_final"]
+                and normalized["player_outcome_confirmed"]
+                and normalized["started_at"] is not None
+                and normalized["game_match_mode"] in {"STANDARD", "RANKED", "STREET_BRAWL"}
+            ):
+                exact = normalized
+                if (
+                    normalized["duration_s"] is not None
+                    and (required_capabilities or set()).issubset(normalized["capabilities"])
+                ):
+                    return exact
 
-        # Metadata and player match-history are two separate provider paths.
-        #
-        # If exact metadata has not reached S3/cache yet, the exact Match ID may
-        # already exist in the player's provider-backed history. In that case we may
-        # safely normalize that provider entry without trusting Companion statistics.
-        if metadata is None:
-            if not consult_history:
-                return None
+        if not consult_history:
+            return exact
 
-            history_result = self.history(
-                account_id,
-                force_refetch=False,
-            )
+        history = self.history(account_id, force_refetch=False)
+        for entry in history.matches:
+            try:
+                external_id = int(entry.get("match_id") or entry.get("matchId") or 0)
+                owner = int(entry.get("account_id", account_id))
+            except (TypeError, ValueError):
+                continue
+            if external_id != match_id or owner != account_id:
+                continue
+            confirmed = normalize_deadlock_match(account_id, entry, metadata)
+            if confirmed["is_final"]:
+                return confirmed
+            return normalize_deadlock_match(account_id, entry, None)
 
-            for entry in history_result.matches:
-                try:
-                    candidate = int(
-                        entry.get("match_id")
-                        or entry.get("matchId")
-                        or 0
-                    )
-                except (TypeError, ValueError):
-                    continue
-
-                if candidate != match_id:
-                    continue
-
-                history_entry = entry
-                history_found = True
-                break
-
-            if not history_found:
-                return None
-
-            return normalize_deadlock_match(
-                account_id,
-                history_entry,
-                None,
-            )
-
-        metadata_player = _find_player(
-            metadata,
-            account_id,
-        )
-
-        normalized = normalize_deadlock_match(
-            account_id,
-            history_entry,
-            metadata,
-        )
-
-        # Newer Deadlock metadata exposes the authoritative match duration
-        # directly as match_info.duration_s. The old normalizer mainly relied
-        # on player match-history for this value, but exact Companion matches
-        # must not be blocked by stale history.
-        if normalized.get("duration_s") is None:
-            match_info = metadata.get("match_info")
-
-            if isinstance(match_info, dict):
-                raw_duration = match_info.get("duration_s")
-
-                try:
-                    duration_s = int(raw_duration)
-                except (TypeError, ValueError):
-                    duration_s = 0
-
-                if 0 < duration_s <= 10000:
-                    normalized["duration_s"] = duration_s
-
-        need_history = (
-            metadata_player is None
-            or normalized.get("started_at") is None
-            or normalized.get("duration_s") is None
-        )
-        if need_history and consult_history:
-            history_result = self.history(account_id, force_refetch=False)
-            for entry in history_result.matches:
-                try:
-                    candidate = int(entry.get("match_id") or entry.get("matchId") or 0)
-                except (TypeError, ValueError):
-                    continue
-                if candidate == match_id:
-                    history_entry = entry
-                    history_found = True
-                    normalized = normalize_deadlock_match(account_id, history_entry, metadata)
-                    break
-        # Do not bind an arbitrary Match ID unless either metadata contains the
-        # player or the player's own history confirms this exact match.
-        if metadata_player is None and not history_found:
-            return None
-        return normalized
+        if exact is None and history.retry_after:
+            raise ProviderRateLimited(history.retry_after)
+        return exact
 
     def discover_after(
         self,
@@ -446,7 +385,7 @@ class DeadlockApiProvider:
                     if normalized.get("game_match_mode") != required_mode:
                         continue
                     missing = required - set(normalized.get("capabilities") or [])
-            if not normalized["is_final"]:
+            if not normalized["is_final"] or normalized["scoring_status"] != "SCORED":
                 continue
             reason = "eligible_match_found" if not missing else "eligible_match_found_with_missing_data:" + ",".join(sorted(missing))
             return DiscoveryResult(normalized, reason, history_result.called_steam, latest_match_id, latest_start)
@@ -460,4 +399,7 @@ class DeadlockApiProvider:
             reason = "Поставщик вернул сохранённую историю; новых подходящих матчей после фиксации пока нет"
         else:
             reason = f"Поставщик пока не видит завершённый матч {required_mode} после фиксации контрактов"
-        return DiscoveryResult(None, reason, history_result.called_steam, latest_match_id, latest_start)
+        return DiscoveryResult(
+            None, reason, history_result.called_steam, latest_match_id, latest_start,
+            retry_after=history_result.retry_after,
+        )

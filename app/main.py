@@ -10,7 +10,7 @@ from contextlib import asynccontextmanager
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Literal
-from uuid import UUID
+from uuid import NAMESPACE_URL, UUID, uuid5
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from fastapi import Depends, FastAPI, HTTPException, Request, Response
@@ -311,6 +311,7 @@ class AdminUserStatusRequest(StrictModel):
 class AdminXpAdjustRequest(StrictModel):
     delta: int = Field(ge=-100000, le=100000)
     reason: str = Field(min_length=3, max_length=300)
+    request_key: UUID
 
 
 class AdminMissionUpdateRequest(StrictModel):
@@ -1213,6 +1214,7 @@ def _provider_status(db: Session, board_id: str) -> dict | None:
                         Job.type == "resolve_companion_match_auto",
                         Job.user_id == board.user_id,
                         Job.game_match_mode == board.game_match_mode,
+                        Job.created_at >= (board.locked_at or board.created_at),
                     ),
                 ),
             )
@@ -1227,9 +1229,8 @@ def _provider_status(db: Session, board_id: str) -> dict | None:
             for item in direct_jobs
             if item.board_id == board_id
             or (
-                item.type == "resolve_companion_match_auto"
-                and item.user_id == board.user_id
-                and item.game_match_mode == board.game_match_mode
+                str((item.payload or {}).get("external_match_id") or "").isdigit()
+                and int(item.payload["external_match_id"]) > int(board.baseline_match_id or 0)
             )
         ),
         None,
@@ -1374,6 +1375,26 @@ def _require_permission(permission: str):
     return dependency
 
 
+def _require_owner(admin: User = Depends(_require_admin)) -> User:
+    if _effective_access_role(admin) != "OWNER":
+        raise HTTPException(403, "Требуется доступ владельца проекта")
+    return admin
+
+
+def _can_grant_rewards(user: User) -> bool:
+    owners = set(settings.admin_steam_ids)
+    reward_owner = settings.reward_owner_steam_id
+    if not reward_owner and len(owners) == 1:
+        reward_owner = next(iter(owners))
+    return reward_owner in owners and str(user.steam_id64) == reward_owner
+
+
+def _require_reward_owner(owner: User = Depends(_require_owner)) -> User:
+    if not _can_grant_rewards(owner):
+        raise HTTPException(403, "Ручная выдача наград доступна только назначенному владельцу")
+    return owner
+
+
 from .community_operations import build_router as build_community_operations_router
 
 app.include_router(build_community_operations_router(_require_permission))
@@ -1388,19 +1409,13 @@ from .archive_packs import build_router as build_archive_packs_router
 from .coin_rewards import build_router as build_coin_rewards_router
 
 # Specific acquisition routes precede the existing card author-action route.
-app.include_router(build_archive_packs_router(_require_permission, _effective_access_role))
+app.include_router(build_archive_packs_router(_require_permission, _effective_access_role, _require_reward_owner))
 app.include_router(build_archive_router(_require_permission, _effective_access_role))
 app.include_router(build_coin_rewards_router(_require_permission))
 from .card_battle import build_router as build_card_battle_router
 from .arena_metrics import build_router as build_arena_metrics_router
 app.include_router(build_card_battle_router(_require_permission, _effective_access_role))
 app.include_router(build_arena_metrics_router(_require_permission))
-
-def _require_owner(admin: User = Depends(_require_admin)) -> User:
-    if _effective_access_role(admin) != "OWNER":
-        raise HTTPException(403, "Требуется доступ владельца проекта")
-    return admin
-
 
 def _companion_from_request(
     request: Request,
@@ -2652,6 +2667,7 @@ def _admin_status_payload(request: Request, db: Session, user: User) -> dict:
         "expires_at": expires_at.isoformat() if elevated and expires_at else None,
         "ttl_minutes": settings.admin_session_ttl_minutes,
         "can_manage_roles": role == "OWNER",
+        "can_grant_rewards": _can_grant_rewards(user),
         "is_staff": role_has_permission(role, "admin.access"),
         "permissions": permissions_for_role(role),
         "admin": {
@@ -3556,19 +3572,32 @@ def admin_update_user_status(user_id: UUID, payload: AdminUserStatusRequest, own
 
 
 @app.post("/api/admin/users/{user_id}/xp-adjust", dependencies=[Depends(require_csrf)])
-def admin_adjust_user_xp(user_id: UUID, payload: AdminXpAdjustRequest, owner: User = Depends(_require_owner), db: Session = Depends(get_db)) -> dict:
+def admin_adjust_user_xp(user_id: UUID, payload: AdminXpAdjustRequest, owner: User = Depends(_require_reward_owner), db: Session = Depends(get_db)) -> dict:
     if payload.delta == 0:
         raise HTTPException(422, "Изменение XP не может быть нулевым")
-    target = db.scalar(select(User).where(User.id == str(user_id)).with_for_update())
+    target = db.scalar(select(User).where(User.id == str(user_id)).with_for_update().execution_options(populate_existing=True))
     if not target:
         raise HTTPException(404, "Пользователь не найден")
+    request_key = payload.request_key
+    source_id = f"admin:{uuid5(NAMESPACE_URL, f'{owner.id}:{target.id}:{request_key}')}"
+    prior = db.scalar(select(RewardLedgerEntry).where(
+        RewardLedgerEntry.source_type == "ADMIN_ADJUSTMENT", RewardLedgerEntry.source_id == source_id,
+    ))
+    if prior:
+        event = db.get(AuditLog, prior.id)
+        if not event or prior.delta != payload.delta or event.data.get("reason") != payload.reason:
+            raise HTTPException(409, "Ключ запроса уже использован для другой корректировки")
+        return {"ok": True, "balance": prior.balance_after}
     new_balance = target.xp + payload.delta
     if new_balance < 0:
         raise HTTPException(409, "XP не может стать отрицательным")
+    if new_balance > 2_147_483_647:
+        raise HTTPException(409, "Достигнут предел XP")
     target.xp = new_balance
-    source_id = f"admin:{owner.id}:{target.id}:{secrets.token_hex(8)}"
-    db.add(RewardLedgerEntry(user_id=target.id, source_type="ADMIN_ADJUSTMENT", source_id=source_id, delta=payload.delta, balance_after=new_balance, policy_version="admin-1"))
-    db.add(AuditLog(user_id=owner.id, action="admin.xp_adjusted", entity_type="user", entity_id=target.id, data={"delta": payload.delta, "balance_after": new_balance, "reason": payload.reason}))
+    entry = RewardLedgerEntry(user_id=target.id, source_type="ADMIN_ADJUSTMENT", source_id=source_id, delta=payload.delta, balance_after=new_balance, policy_version="admin-1")
+    db.add(entry)
+    db.flush()
+    db.add(AuditLog(id=entry.id, user_id=owner.id, action="admin.xp_adjusted", entity_type="user", entity_id=target.id, data={"delta": payload.delta, "balance_after": new_balance, "reason": payload.reason, "request_key": str(request_key)}))
     db.commit()
     return {"ok": True, "balance": new_balance}
 
@@ -4941,7 +4970,15 @@ def disabled_redoc() -> None:
     raise HTTPException(404, "Документация API отключена")
 
 
+source_brand = STATIC.parent.parent / "frontend" / "public" / "brand"
+if source_brand.is_dir():
+    app.mount("/static/brand", StaticFiles(directory=source_brand), name="brand")
 app.mount("/static", StaticFiles(directory=STATIC), name="static")
+
+
+@app.api_route("/favicon.ico", methods=["GET", "HEAD"], include_in_schema=False)
+def favicon() -> RedirectResponse:
+    return RedirectResponse("/static/brand/favicon.ico")
 
 
 @app.api_route("/robots.txt", methods=["GET", "HEAD"], include_in_schema=False)

@@ -82,6 +82,56 @@ const list = {
   feature_flags: { enabled: true, site: true, companion: true, telegram_mirror: false },
 }
 
+test("the owner reward form binds the selected pack and keeps the same request after a lost response", async () => {
+  const submissions = []
+  const { w, doc, api } = runtime(async (url, init) => {
+    if (init.method === "POST") {
+      submissions.push({ url, body: JSON.parse(init.body) })
+      if (submissions.length === 1) throw new Error("Connection lost")
+      return response({ id: "grant" })
+    }
+    assert.equal(url, "/api/owner/archive/packs?offset=0")
+    return response({
+      items: [{ id: "broadcast", revision: 3, title: "Broadcast pack", active: true, ready: true }],
+      total: 1,
+    })
+  })
+  let confirmation
+  let grants = 0
+  w.confirm = (message) => {
+    confirmation = message
+    return true
+  }
+  let root
+  await api.act(async () => {
+    root = api.mount(doc.getElementById("mount"), "rewards", {
+      actorId: "owner",
+      recipient: { id: "streamer", display_name: "Streamer", status: "ACTIVE" },
+      csrf: "csrf",
+      onGranted: () => grants++,
+    })
+  })
+  await api.act(async () => {
+    doc.querySelector("summary").click()
+    input(w, field(doc, "Награда"), "packs")
+  })
+  await api.act(async () => {
+    input(w, field(doc, "Конверт"), "broadcast")
+    input(w, field(doc, "Количество"), "3")
+    input(w, field(doc, "Причина выдачи"), "Турнир стримеров")
+  })
+  await api.act(async () => button(doc, "Подтвердить выдачу").click())
+  assert.match(confirmation, /Streamer.*Broadcast pack × 3/)
+  assert.equal(submissions[0].url, "/api/admin/users/streamer/rewards/packs/broadcast")
+  assert.equal(submissions[0].body.revision, 3)
+  assert.equal(submissions[0].body.quantity, 3)
+  await api.act(async () => button(doc, "Повторить сохранённую выдачу").click())
+  assert.deepEqual(submissions[1], submissions[0])
+  assert.equal(grants, 1)
+  assert.equal(w.sessionStorage.getItem("dc-owner-reward:owner:streamer"), null)
+  await api.act(async () => root.unmount())
+})
+
 test("announcement language changes preserve the draft and submit untranslated API values", async () => {
   let submitted
   const { w, doc, api } = runtime(async (url, init) => {

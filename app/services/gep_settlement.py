@@ -130,9 +130,9 @@ def gep_settlement_managed_user(
     db: Session,
     user: User,
 ) -> bool:
-    """Whether new attempts for this account belong to the GEP pipeline."""
+    """Whether new attempts for this account belong to the simulated GEP pipeline."""
 
-    if not _account_rollout_allowed(user):
+    if not settings.client_match_settlement_enabled or not _account_rollout_allowed(user):
         return False
 
     devices = list(
@@ -468,6 +468,9 @@ def start_gep_attempt_lease(
             422,
             "Некорректный Match ID",
         )
+
+    if not settings.client_match_settlement_enabled:
+        return _disabled_payload("FEATURE_DISABLED")
 
     allowed, rollout_reason = (
         _rollout_allowed(

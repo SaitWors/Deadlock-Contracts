@@ -4,6 +4,7 @@ import { LanguageProvider, useLanguage } from "../src/i18n"
 import AnnouncementCenter from "../src/admin/AnnouncementCenter"
 import BureauModerationDesk from "../src/admin/BureauModerationDesk"
 import ReviewDesk from "../src/admin/ReviewDesk"
+import OwnerRewards from "../src/admin/OwnerRewards"
 import { AdminConsole } from "../src/Dashboard"
 
 export { act }
@@ -23,6 +24,7 @@ export function mount(element: HTMLElement, page: string, props: Record<string, 
     bureau: BureauModerationDesk,
     reviews: ReviewDesk,
     console: AdminConsole,
+    rewards: OwnerRewards,
   }[page] as React.ComponentType<Record<string, unknown>>
   const root = createRoot(element)
   root.render(

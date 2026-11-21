@@ -645,6 +645,27 @@ def public_daily_preview_image(db, card_id):
     return next((card for card in daily_preview_cards(_daily_pool(db, metadata_only=True)) if str(card.id) == str(card_id)), None)
 
 
+def finish_free_pack(db, operation, version, cards, *, extra=None):
+    config = version.config
+    operation.pack_version_id = version.id
+    if config.get("rule_version") == pack_rules.RULE_VERSION:
+        # Free packs use existing slot draws without advancing paid guarantees.
+        counters = {key: 0 for key in pack_rules.THRESHOLDS}
+        selected, draws = [], []
+        for slot in config["slots"]:
+            draw, counters = pack_rules.draw_slot(slot, counters, secrets.randbelow)
+            selected.append(cards[pack_rules.choose_artwork(config["entries"], draw["rank"], secrets.randbelow)])
+            draws.append(draw)
+        items = [{**item, **draw} for item, draw in zip(issue(db, operation, selected), draws)]
+        odds = pack_rules.slot_odds("ORDINARY")
+    else:
+        items = issue(db, operation, [cards[cid] for cid in choose(config["entries"], config["draws"])])
+        odds = rank_odds(config["entries"])
+    return finish(db, operation, items=items, extra={**(extra or {}), "pack": {
+        "id": version.pack_id, "title": config["title"], "revision": version.revision,
+        "price": 0, "draws": config["draws"], "odds": odds,
+    }})
+
 
 def _daily_replay(db, claimed, request_key):
     """Durably bind every replay key to its original receipt, without a grant."""
@@ -687,31 +708,14 @@ def claim_daily_pack(db, user_id, request_key, scope="REAL"):
     pool = _daily_pool(db, lock=True)
     if pool is None:
         raise HTTPException(409, "Ежедневный конверт пока недоступен / Daily pack unavailable")
-    pack, version, cards = pool
-    config = version.config
+    _, version, cards = pool
     try:
         operation, replay = begin(db, user_id, "DAILY_PACK", request_key, {"day": day.isoformat()}, scope=scope)
         if replay:
             return receipt_payload(operation)
         operation.benefit_key = benefit_key
-        operation.pack_version_id = version.id
         db.flush()  # Claim the unique day before issuing inventory.
-        if config.get("rule_version") == pack_rules.RULE_VERSION:
-            # Free packs use existing slot draws without advancing paid guarantees.
-            counters = {key: 0 for key in pack_rules.THRESHOLDS}
-            selected, draws = [], []
-            for slot in config["slots"]:
-                draw, counters = pack_rules.draw_slot(slot, counters, secrets.randbelow)
-                selected.append(cards[pack_rules.choose_artwork(config["entries"], draw["rank"], secrets.randbelow)])
-                draws.append(draw)
-            items = [{**item, **draw} for item, draw in zip(issue(db, operation, selected), draws)]
-            odds = pack_rules.slot_odds("ORDINARY")
-        else:
-            items = issue(db, operation, [cards[cid] for cid in choose(config["entries"], config["draws"])])
-            odds = rank_odds(config["entries"])
-        return finish(db, operation, items=items, extra={"claim_day": day.isoformat(), "next_reset_at": reset,
-            "pack": {"id": pack.id, "title": config["title"], "revision": pack.revision,
-                     "price": 0, "draws": config["draws"], "odds": odds}})
+        return finish_free_pack(db, operation, version, cards, extra={"claim_day": day.isoformat(), "next_reset_at": reset})
     except IntegrityError:
         db.rollback()
         # A competing successful transaction owns this day's immutable result.

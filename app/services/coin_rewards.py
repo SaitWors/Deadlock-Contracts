@@ -125,7 +125,7 @@ def _eligibility(db, user, option, board, snapshot, evaluation, match):
         return "OUTSIDE_ATTEMPT_WINDOW"
     parts = provider_parts(match.provider)
     if (not parts or any(part not in INDEPENDENT_PROVIDERS for part in parts)
-            or not match.is_final or match.scoring_status != "SCORED"
+            or not match.is_final
             or match.integrity_status == "CLIENT_ATTESTED_GEP"
             or str(match.game_version or "").startswith("local-fixture")
             or match.game_match_mode != snapshot.mode
@@ -138,7 +138,7 @@ def _eligibility(db, user, option, board, snapshot, evaluation, match):
         return "UNTRUSTED_RESULT"
     participant = db.scalar(select(MatchParticipant).where(
         MatchParticipant.match_id == match.id, MatchParticipant.account_id == user.account_id))
-    if participant is None:
+    if participant is None or (participant.scoring_status or match.scoring_status) != "SCORED":
         return "UNTRUSTED_RESULT"
     # Independently finalized server facts remain mandatory for manual outcomes;
     # the evaluation and its moderation audit retain the reason and authority.

@@ -56,6 +56,7 @@ def frontend_shell() -> str:
                 return source
     return ('<!doctype html><html lang="ru"><head><meta charset="utf-8">'
             '<meta name="viewport" content="width=device-width, initial-scale=1">'
+            '<link rel="icon" href="/static/brand/favicon.ico">'
             '<link rel="stylesheet" href="/static/nightshift-documents.css"></head>'
             '<body><div id="root"></div></body></html>')
 
@@ -142,7 +143,7 @@ def render_public_page(page: str, language: str, base: str, shell: str | None = 
     sign_in = "Войти через Steam" if language == "ru" else "Sign in through Steam"
     edition = "DEADLOCK CONTRACTS · ТВОЙ МАТЧ. ТВОИ УСЛОВИЯ." if language == "ru" else "DEADLOCK CONTRACTS · YOUR MATCH. YOUR TERMS."
     body = (f'<div class="city-public bureau-public min-h-screen"><header class="bureau-header"><div class="bureau-header-inner">'
-            f'<a class="bureau-brand" href="/{language}/" aria-label="Deadlock Contracts">DEADLOCK<small>CONTRACTS</small></a><nav class="bureau-nav">{links}</nav>'
+            f'<a class="bureau-brand" href="/{language}/"><img src="/static/brand/wordmark.png" alt="Deadlock Contracts" width="704" height="176"></a><nav class="bureau-nav">{links}</nav>'
             f'<div class="bureau-account">{languages}</div></div></header>'
             f'<main class="public-document"><p class="city-document-edition">{edition}</p><h1>{escape(data["heading"])}</h1><p>{escape(data["intro"])}</p>'
             f'{sections}<p><a class="btn-primary" href="/auth/steam">{sign_in}</a></p>'

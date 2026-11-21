@@ -517,6 +517,7 @@ def normalize_deadlock_match(
         "mode_classifier_version": settings.mode_classifier_version,
         "mode_confidence": confidence,
         "scoring_status": scoring_status,
+        "player_outcome_confirmed": outcome in {0, 1, 2, 3, 4, 5},
         "game_version": (str(_pick(root, "game_version", "build_id", "version") or "")[:64] or None),
         "is_final": bool(is_final),
         "capabilities": capabilities,

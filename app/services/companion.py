@@ -77,7 +77,7 @@ def _gep_managed_direct_settlement(
     device: CompanionDevice,
     user: User,
 ) -> bool:
-    if not settings.gep_settlement_enabled:
+    if not settings.client_match_settlement_enabled:
         return False
     if not companion_version_supported(
         device.version,
@@ -1081,12 +1081,8 @@ def record_snapshot(
             user.id,
             mode,
         )
-        if (
-            match_id
-            and (
-                event_type == "match_started"
-                or final_snapshot
-            )
+        if settings.provider == "mock" and match_id and (
+            event_type == "match_started" or final_snapshot
         )
         else []
     )

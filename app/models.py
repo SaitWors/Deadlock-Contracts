@@ -862,6 +862,7 @@ class MatchParticipant(Base):
     hero_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
     team: Mapped[int | None] = mapped_column(Integer, nullable=True)
     won: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
+    scoring_status: Mapped[str | None] = mapped_column(String(32), nullable=True)
     kills: Mapped[int | None] = mapped_column(Integer, nullable=True)
     deaths: Mapped[int | None] = mapped_column(Integer, nullable=True)
     assists: Mapped[int | None] = mapped_column(Integer, nullable=True)

@@ -3,7 +3,7 @@ from __future__ import annotations
 from statistics import median
 from typing import Any
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from ..models import Match, MatchParticipant, User
@@ -79,7 +79,7 @@ def build_adaptive_profile(
                 MatchParticipant.account_id == int(user.account_id),
                 Match.game_match_mode == mode,
                 Match.is_final.is_(True),
-                Match.scoring_status == "SCORED",
+                func.coalesce(MatchParticipant.scoring_status, Match.scoring_status) == "SCORED",
             )
             .order_by(Match.started_at.desc().nullslast(), Match.created_at.desc())
             .limit(max(1, min(50, int(limit))))

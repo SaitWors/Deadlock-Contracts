@@ -9,8 +9,7 @@ html:has(.ns-static){background:var(--ns-bg)}
 .ns-static *{box-sizing:border-box}.ns-static:before{display:none}.ns-static .hidden{display:none!important}
 .ns-static :is(a,button,input,select):focus-visible{outline:2px solid var(--ns-accent);outline-offset:4px}
 .ns-static .brand{display:inline-flex;align-items:center;gap:13px;flex-shrink:0;color:var(--ns-text);text-decoration:none}
-.document-brand-icon{display:grid;place-items:center;color:var(--ns-accent)}
-.document-wordmark{font:800 22px/.95 var(--font-display);letter-spacing:-.04em}.document-wordmark small{display:block;font-size:9px;letter-spacing:.25em;color:var(--ns-accent);margin-top:7px}
+.ns-static .brand img,.city-public .bureau-brand img{display:block;width:152px;height:auto;border-radius:4px}
 .document-controls{display:flex;align-items:center;gap:9px;flex-wrap:wrap}.document-theme{display:flex;align-items:center;gap:8px;margin:0;color:var(--ns-muted);font:500 12px/1.5 var(--font-body);letter-spacing:0}
 .document-theme select{font:500 13px/1.5 var(--font-body);color:var(--ns-text);background:var(--ns-surface);border:1px solid var(--ns-line);border-radius:var(--ns-small);padding:10px 9px;min-height:44px;max-width:150px;cursor:pointer}
 .ns-documents .shell{width:min(calc(100% - 48px),1240px);margin-inline:auto}
@@ -50,7 +49,7 @@ body:has(.city-public){margin:0;background:var(--ns-bg)}
 .city-public *{box-sizing:border-box}.city-public a{color:var(--ns-accent);text-underline-offset:4px}.city-public a:focus-visible{outline:2px solid var(--ns-accent);outline-offset:4px}
 .city-public .bureau-header{border-bottom:1px solid var(--ns-line);background:var(--ns-surface)}
 .city-public .bureau-header-inner{width:min(1280px,calc(100% - 48px));margin:auto;min-height:86px;display:flex;gap:28px;align-items:center;flex-wrap:wrap;padding:18px 0}
-.city-public .bureau-brand{color:var(--ns-text);text-decoration:none;flex:none;font:800 22px/.95 var(--font-display);letter-spacing:-.04em}.city-public .bureau-brand small{display:block;color:var(--ns-accent);font-size:9px;letter-spacing:.25em;margin-top:7px}
+.city-public .bureau-brand{display:block;flex:none}
 .city-public .bureau-nav{display:flex;gap:16px;flex:1;flex-wrap:wrap;font-size:13px}.city-public .bureau-nav a{color:var(--ns-muted);text-decoration:none}.city-public .bureau-nav a[aria-current]{color:var(--ns-accent);text-decoration:underline}.city-public .bureau-account{display:flex;gap:12px;font-size:13px}
 .city-public .public-document{width:min(1080px,calc(100% - 48px));margin:42px auto;padding:clamp(26px,5vw,58px);border:1px solid var(--ns-line);border-radius:calc(var(--ns-radius) * .5);background:var(--ns-surface);box-shadow:none}
 .city-public .city-document-edition{display:inline-block;padding:4px 9px;margin:0 0 20px;background:var(--ns-stamp);color:var(--ns-on-accent);border-radius:var(--ns-small);font-size:11px;font-weight:800;letter-spacing:.08em}

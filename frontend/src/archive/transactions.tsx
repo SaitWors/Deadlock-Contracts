@@ -10,9 +10,17 @@ import type { Receipt } from "./types"
 type Pending = { url: string; body: Record<string, unknown> & { request_key: string } }
 const EVENT = "dc-archive-pending"
 
-export function useTransaction(csrf: string, accountKey: string, onChanged: () => void) {
+export function useTransaction(
+  csrf: string,
+  accountKey: string,
+  onChanged: () => void,
+  { allowWithoutStorage = false } = {},
+) {
+  const { language } = useLanguage()
   const storageKey = `dc-archive-request:${accountKey}`
+  const memory = useRef<{ account: string; value: Pending | null } | null>(null)
   const read = (): Pending | null => {
+    if (memory.current?.account === accountKey) return memory.current.value
     try {
       return JSON.parse(sessionStorage.getItem(storageKey) || "null")
     } catch {
@@ -42,8 +50,14 @@ export function useTransaction(csrf: string, accountKey: string, onChanged: () =
     }
   }, [storageKey])
   const save = (value: Pending | null) => {
-    if (value) sessionStorage.setItem(storageKey, JSON.stringify(value))
-    else sessionStorage.removeItem(storageKey)
+    try {
+      if (value) sessionStorage.setItem(storageKey, JSON.stringify(value))
+      else sessionStorage.removeItem(storageKey)
+      memory.current = null
+    } catch (reason) {
+      if (!allowWithoutStorage) throw reason
+      memory.current = { account: accountKey, value }
+    }
     setPending(value)
     window.dispatchEvent(new Event(EVENT))
   }
@@ -64,6 +78,18 @@ export function useTransaction(csrf: string, accountKey: string, onChanged: () =
     const controller = new AbortController()
     inFlight.current = controller
     const active = () => !controller.signal.aborted && currentAccount.current === accountKey
+    const deadline = window.setTimeout(() => {
+      if (inFlight.current !== controller || !active()) return
+      inFlight.current = null
+      controller.abort()
+      setBusy(false)
+      setError(
+        language === "ru"
+          ? "Сервер не ответил вовремя. Повтори сохранённый запрос."
+          : "The request timed out. Retry the saved request.",
+      )
+    }, 15000)
+    controller.signal.addEventListener("abort", () => window.clearTimeout(deadline), { once: true })
     setBusy(true)
     setError("")
     if (!recover) setReceipt(null)
@@ -92,6 +118,7 @@ export function useTransaction(csrf: string, accountKey: string, onChanged: () =
         save(null)
       setError((reason as Error).message)
     } finally {
+      window.clearTimeout(deadline)
       if (inFlight.current === controller) {
         inFlight.current = null
         if (active()) setBusy(false)
@@ -191,7 +218,8 @@ export function ReceiptView({
 }) {
   const { language, locale } = useLanguage()
   const ru = language === "ru"
-  const useCinematic = cinematic && ["PACK_OPEN", "STARTER_PACK"].includes(receipt.kind)
+  const gift = receipt.kind === "GIFT_PACK_OPEN"
+  const useCinematic = cinematic && (gift || ["PACK_OPEN", "STARTER_PACK"].includes(receipt.kind))
   const result = useRef<HTMLElement>(null)
   useEffect(() => {
     if (!cinematic) return
@@ -209,25 +237,29 @@ export function ReceiptView({
         <h2>{receipt.pack?.title || (ru ? "Запись архива" : "Archive receipt")}</h2>
         {onClose && <button onClick={onClose}>{ru ? "Закрыть результат" : "Close result"}</button>}
       </header>
-      <p>
-        {receipt.scope === "SANDBOX"
-          ? ru
-            ? "Тестовый счёт · "
-            : "Sandbox · "
-          : ru
-            ? "Основной счёт · "
-            : "Real economy · "}
-        {new Date(receipt.created_at).toLocaleString(locale)} · {receipt.delta > 0 ? "+" : ""}
-        {receipt.delta} <Icon name="coins" size={18} /> ·{" "}
-        {ru ? "Баланс после операции" : "Balance after transaction"}: {receipt.balance_after}{" "}
-        <Icon name="coins" size={18} />
-        {!!receipt.debt && (
-          <>
-            {" "}
-            · {ru ? "Долг" : "Debt"}: {receipt.debt}
-          </>
-        )}
-      </p>
+      {gift ? (
+        <p>{ru ? "Карточки сохранены в коллекции." : "Cards saved to your collection."}</p>
+      ) : (
+        <p>
+          {receipt.scope === "SANDBOX"
+            ? ru
+              ? "Тестовый счёт · "
+              : "Sandbox · "
+            : ru
+              ? "Основной счёт · "
+              : "Real economy · "}
+          {new Date(receipt.created_at).toLocaleString(locale)} · {receipt.delta > 0 ? "+" : ""}
+          {receipt.delta} <Icon name="coins" size={18} /> ·{" "}
+          {ru ? "Баланс после операции" : "Balance after transaction"}: {receipt.balance_after}{" "}
+          <Icon name="coins" size={18} />
+          {!!receipt.debt && (
+            <>
+              {" "}
+              · {ru ? "Долг" : "Debt"}: {receipt.debt}
+            </>
+          )}
+        </p>
+      )}
       {useCinematic ? (
         <PackReveal key={receipt.id} receipt={receipt} favorites={favorites} />
       ) : (

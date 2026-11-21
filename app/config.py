@@ -102,6 +102,7 @@ class Settings:
     evidence_max_file_bytes: int = int(os.getenv("EVIDENCE_MAX_FILE_BYTES", str(3 * 1024 * 1024)))
     evidence_retention_days: int = int(os.getenv("EVIDENCE_RETENTION_DAYS", "30"))
     admin_steam_ids: tuple[str, ...] = _csv("ADMIN_STEAM_IDS", "")
+    reward_owner_steam_id: str = os.getenv("REWARD_OWNER_STEAM_ID", "").strip()
     admin_totp_secret: str = _secret("ADMIN_TOTP_SECRET", "")
     admin_session_ttl_minutes: int = int(os.getenv("ADMIN_SESSION_TTL_MINUTES", "30"))
 
@@ -223,6 +224,10 @@ class Settings:
     companion_download_url: str = os.getenv("COMPANION_DOWNLOAD_URL", "").strip()
 
     @property
+    def client_match_settlement_enabled(self) -> bool:
+        return self.provider == "mock" and self.gep_settlement_enabled
+
+    @property
     def is_production(self) -> bool:
         return self.app_env == "production"
 
@@ -270,6 +275,8 @@ class Settings:
         for steam_id in self.admin_steam_ids:
             if not re.fullmatch(r"\d{17,20}", steam_id):
                 raise RuntimeError("ADMIN_STEAM_IDS contains an invalid SteamID64")
+        if self.reward_owner_steam_id and self.reward_owner_steam_id not in self.admin_steam_ids:
+            raise RuntimeError("REWARD_OWNER_STEAM_ID must be listed in ADMIN_STEAM_IDS")
         if not 5 <= self.admin_session_ttl_minutes <= 120:
             raise RuntimeError("ADMIN_SESSION_TTL_MINUTES must be between 5 and 120")
 

@@ -22,6 +22,7 @@ from .models import (
     utcnow,
 )
 from .services import archive_packs as service
+from .services import owner_rewards
 from .services.archive import lock_user
 from .services.auth import require_csrf, require_user
 from .services.retired_economy import retired_player_feature
@@ -62,6 +63,22 @@ class RequestKey(Strict):
 class DailyPackClaim(Strict):
     idempotency_key: UUID
     scope: Literal["REAL"] = "REAL"
+
+
+class OwnerCardGrant(Strict):
+    request_key: UUID
+    revision: int = Field(ge=1, strict=True)
+    quantity: int = Field(ge=1, le=100, strict=True)
+    reason: str = Field(min_length=3, max_length=300)
+
+
+class OwnerPackGrant(OwnerCardGrant):
+    quantity: int = Field(ge=1, le=10, strict=True)
+
+
+class OpenGift(Strict):
+    request_key: UUID
+    remaining: int = Field(ge=1, le=10, strict=True)
 
 
 class OpenPack(RequestKey):
@@ -125,7 +142,7 @@ class Favorite(Strict):
     scope: EconomyScope = "REAL"
 
 
-def build_router(require_permission, effective_role):
+def build_router(require_permission, effective_role, require_reward_owner):
     router = APIRouter(prefix="/api", tags=["Archive packs"])
 
     @router.get("/public/archive/preview")
@@ -161,6 +178,17 @@ def build_router(require_permission, effective_role):
                          user: User = Depends(require_user), db: Session = Depends(get_db)):
         no_store(response)
         return service.claim_daily_pack(db, user.id, payload.idempotency_key, payload.scope)
+
+    @router.get("/archive/gift-packs")
+    def gift_packs(response: Response, user: User = Depends(require_user), db: Session = Depends(get_db)):
+        no_store(response)
+        return owner_rewards.list_gifts(db, user.id)
+
+    @router.post("/archive/gift-packs/{gift_id}/open", dependencies=[Depends(require_csrf)])
+    def open_gift_pack(gift_id: UUID, payload: OpenGift, response: Response,
+                       user: User = Depends(require_user), db: Session = Depends(get_db)):
+        no_store(response)
+        return owner_rewards.open_gift(db, user.id, str(gift_id), payload)
 
     @router.get("/archive/packs")
     def catalog(response: Response, offset: int = Query(default=0, ge=0, le=100000),
@@ -355,6 +383,20 @@ def build_router(require_permission, effective_role):
 
     @router.post("/owner/archive/cards/{card_id}/grant", dependencies=[Depends(require_csrf)])
     def grant_card(card_id: UUID, payload: GrantCard, owner: User = Depends(require_permission("archive.grant_self")), db: Session = Depends(get_db)):
+        if payload.scope == "REAL":
+            require_reward_owner(owner)
         return service.acquire(db, owner.id, str(card_id), payload, owner=True)
+
+    @router.post("/admin/users/{user_id}/rewards/cards/{card_id}", dependencies=[Depends(require_csrf)])
+    def grant_player_card(user_id: UUID, card_id: UUID, payload: OwnerCardGrant, response: Response,
+                          owner: User = Depends(require_reward_owner), db: Session = Depends(get_db)):
+        no_store(response)
+        return owner_rewards.grant_card(db, owner.id, str(user_id), str(card_id), payload)
+
+    @router.post("/admin/users/{user_id}/rewards/packs/{pack_id}", dependencies=[Depends(require_csrf)])
+    def grant_player_pack(user_id: UUID, pack_id: UUID, payload: OwnerPackGrant, response: Response,
+                          owner: User = Depends(require_reward_owner), db: Session = Depends(get_db)):
+        no_store(response)
+        return owner_rewards.grant_pack(db, owner.id, str(user_id), str(pack_id), payload)
 
     return router

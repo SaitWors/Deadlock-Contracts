@@ -3,6 +3,7 @@ import { useResource } from "../community/api"
 import { useLanguage } from "../i18n"
 import CollectionPage from "./CollectionPage"
 import DailyPack from "./DailyPack"
+import GiftPacks from "./GiftPacks"
 import { useFavorites } from "./favorites"
 import type { Meta } from "./types"
 import "./archive.css"
@@ -50,8 +51,8 @@ export default function ArchivePage({
           </h1>
           <p>
             {ru
-              ? "Карточки героев из ежедневных конвертов. Собирай и выбирай любимые."
-              : "Hero cards from your daily packs. Collect them and keep your favorites."}
+              ? "Собирай карточки героев и выбирай любимые."
+              : "Collect hero cards and keep your favorites."}
           </p>
         </div>
       </header>
@@ -70,13 +71,24 @@ export default function ArchivePage({
         </button>
       </nav>
       {view === "packs" && (
-        <DailyPack
-          key={account}
-          accountKey={account}
-          csrf={csrf}
-          favorites={favorites}
-          onClaimed={changed}
-        />
+        <>
+          <DailyPack
+            key={account}
+            accountKey={account}
+            csrf={csrf}
+            favorites={favorites}
+            onClaimed={changed}
+          />
+          {account && (
+            <GiftPacks
+              key={`gifts:${account}`}
+              accountKey={account}
+              csrf={csrf}
+              favorites={favorites}
+              onOpened={changed}
+            />
+          )}
+        </>
       )}
       {view === "collection" && !meta.data && (
         <p role={meta.error ? "alert" : "status"}>
