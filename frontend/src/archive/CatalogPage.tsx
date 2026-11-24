@@ -98,7 +98,7 @@ export default function CatalogPage({ meta }: { meta: Meta }) {
                   <span className="archive-status" data-status={status}>{label}</span>
                 </article>
               )
-            })
+            })}
           </div>
           <Pager offset={offset} total={catalog.data.total} size={18} setOffset={setOffset} />
         </>
