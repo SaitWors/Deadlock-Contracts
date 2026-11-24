@@ -97,12 +97,6 @@ jobs:
             package.json \
             index.html
 
-      - name: Show formatter diff on failure
-        if: failure()
-        run: |
-          pnpm exec oxfmt --write src/archive/CatalogPage.tsx
-          git diff -- src/archive/CatalogPage.tsx
-
       - name: Test contract signing and shared header
         run: pnpm test
 

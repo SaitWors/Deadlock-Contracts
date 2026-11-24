@@ -70,8 +70,7 @@ export default function CatalogPage({ meta }: { meta: Meta }) {
       </form>
       {catalog.error && (
         <p role="alert">
-          {catalog.error}{" "}
-          <button onClick={catalog.reload}>{ru ? "Повторить" : "Retry"}</button>
+          {catalog.error} <button onClick={catalog.reload}>{ru ? "Повторить" : "Retry"}</button>
         </p>
       )}
       {catalog.loading && <p role="status">{ru ? "Загружаем…" : "Loading…"}</p>}
@@ -95,7 +94,9 @@ export default function CatalogPage({ meta }: { meta: Meta }) {
                 <article key={card.id} className="archive-catalog-item" data-owned={owned}>
                   <CardSurface card={card} />
                   <h3 className="archive-item-title">{card.title}</h3>
-                  <span className="archive-status" data-status={status}>{label}</span>
+                  <span className="archive-status" data-status={status}>
+                    {label}
+                  </span>
                 </article>
               )
             })}
