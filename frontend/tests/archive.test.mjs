@@ -1556,6 +1556,8 @@ test("players can open the studio and submit or withdraw their own designs", asy
   const fetcher = async (url, init = {}) => {
     calls.push({ url, init })
     if (url.includes("/meta")) return response(meta)
+    if (url === "/api/archive/showcase")
+      return response({ card_ids: [], revision: 0, is_public: false, profile_public: false })
     if (url.includes("/archive/cards?")) return response({ items: [design], total: 1 })
     if (url === "/api/archive/cards/draft-1/submit") {
       design = { ...design, status: "PENDING", revision: 8 }
@@ -1603,7 +1605,15 @@ test("players can open the studio and submit or withdraw their own designs", asy
     ["/api/archive/cards/draft-1/submit", { revision: 7 }, "author-csrf"],
     ["/api/archive/cards/draft-1/withdraw", { revision: 8 }, "author-csrf"],
   ])
-  const isRetiredOrAdmin = ({ url }) => /\/admin\/|mine=false|\/wallet|\/coverage/.test(url)
-  assert.equal(calls.some(isRetiredOrAdmin), false)
+  const retiredOrAdmin = calls.filter(({ url }) => {
+    const { pathname, searchParams } = new URL(url, "https://qa.invalid")
+    return (
+      pathname.startsWith("/api/admin/") ||
+      ["/api/archive/wallet", "/api/archive/coverage"].includes(pathname) ||
+      searchParams.get("mine") === "false"
+    )
+  })
+  assert.deepEqual(retiredOrAdmin, [])
+  assert.ok(calls.some(({ url }) => url.startsWith("/api/archive/inventory/coverage?")))
   await api.act(() => root.unmount())
 })
