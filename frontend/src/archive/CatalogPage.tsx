@@ -18,6 +18,7 @@ export default function CatalogPage({ meta }: { meta: Meta }) {
   const params = new URLSearchParams({ offset: String(offset), hero, q: search })
   if (rank) params.set("rank", rank)
   const catalog = useResource<Catalog>(`/api/archive/catalog?${params}`)
+  const foundLabel = ru ? "Найдено карточек" : "Cards found"
 
   return (
     <section className="archive-collection archive-catalog">
@@ -69,15 +70,14 @@ export default function CatalogPage({ meta }: { meta: Meta }) {
       </form>
       {catalog.error && (
         <p role="alert">
-          {catalog.error} <button onClick={catalog.reload}>{ru ? "Повторить" : "Retry"}</button>
+          {catalog.error}{" "}
+          <button onClick={catalog.reload}>{ru ? "Повторить" : "Retry"}</button>
         </p>
       )}
       {catalog.loading && <p role="status">{ru ? "Загружаем…" : "Loading…"}</p>}
       {!catalog.loading && catalog.data && (
         <>
-          <p>
-            {ru ? "Найдено карточек" : "Cards found"}: {catalog.data.total}
-          </p>
+          <p>{`${foundLabel}: ${catalog.data.total}`}</p>
           {catalog.data.total === 0 && (
             <div className="archive-empty">
               <h3>{ru ? "Нет подходящих карточек" : "No matching cards"}</h3>
@@ -85,20 +85,22 @@ export default function CatalogPage({ meta }: { meta: Meta }) {
             </div>
           )}
           <div className="archive-grid">
-            {catalog.data.items.map(({ card, quantity }) => (
-              <article key={card.id} className="archive-catalog-item" data-owned={quantity > 0}>
-                <CardSurface card={card} />
-                <h3 className="archive-item-title">{card.title}</h3>
-                <span
-                  className="archive-status"
-                  data-status={quantity > 0 ? "PUBLISHED" : undefined}
-                >
-                  {quantity > 0
-                    ? `${ru ? "В коллекции" : "Owned"} · ${quantity}`
-                    : ru ? "Не получена" : "Not owned"}
-                </span>
-              </article>
-            ))}
+            {catalog.data.items.map(({ card, quantity }) => {
+              const owned = quantity > 0
+              const ownedLabel = ru ? "В коллекции" : "Owned"
+              const missingLabel = ru ? "Не получена" : "Not owned"
+              const label = owned ? `${ownedLabel} · ${quantity}` : missingLabel
+              const status = owned ? "PUBLISHED" : undefined
+              return (
+                <article key={card.id} className="archive-catalog-item" data-owned={owned}>
+                  <CardSurface card={card} />
+                  <h3 className="archive-item-title">{card.title}</h3>
+                  <span className="archive-status" data-status={status}>
+                    {label}
+                  </span>
+                </article>
+              )
+            })
           </div>
           <Pager offset={offset} total={catalog.data.total} size={18} setOffset={setOffset} />
         </>
