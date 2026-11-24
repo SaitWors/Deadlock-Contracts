@@ -26,7 +26,9 @@ export default function ArchivePage({
 }) {
   const { language } = useLanguage()
   const ru = language === "ru"
-  const [view, setView] = useState(mode === "packs" ? "packs" : mode === "studio" ? "studio" : "collection")
+  const [view, setView] = useState(
+    mode === "packs" ? "packs" : mode === "studio" ? "studio" : "collection",
+  )
   const [revision, setRevision] = useState(0)
   const meta = useResource<Meta>("/api/archive/meta")
   const account = accountKey || meta.data?.account_key || ""
@@ -146,9 +148,7 @@ function PlayerCardStudio({ csrf, meta }: { csrf: string; meta: Meta }) {
   if (hero) params.set("hero", hero)
   if (rank) params.set("rank", rank)
   if (search) params.set("q", search)
-  const cards = useResource<{ items: Card[]; total: number }>(
-    `/api/archive/cards?${params}`,
-  )
+  const cards = useResource<{ items: Card[]; total: number }>(`/api/archive/cards?${params}`)
   const openEditor = (card: Card | "new") => {
     setError("")
     setNotice("")
@@ -314,10 +314,7 @@ function PlayerCardStudio({ csrf, meta }: { csrf: string; meta: Meta }) {
                         <button disabled={busy} onClick={() => openEditor(card)}>
                           {ru ? "Редактировать" : "Edit"}
                         </button>
-                        <button
-                          disabled={busy}
-                          onClick={() => void authorAction(card, "submit")}
-                        >
+                        <button disabled={busy} onClick={() => void authorAction(card, "submit")}>
                           {ru ? "На проверку" : "Submit"}
                         </button>
                         <button
