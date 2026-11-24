@@ -1549,3 +1549,56 @@ test("staff studio respects can_publish and withholds draft creation for other r
   assert.match(doc.body.textContent, /administrator|owner/i)
   await api.act(async () => root.unmount())
 })
+
+test("players can open the restored studio and submit or withdraw only their own designs", async () => {
+  const calls = []
+  let design = { ...card }
+  const { api, doc } = runtime(async (url, init = {}) => {
+    calls.push({ url, init })
+    if (url.includes("/meta")) return response(meta)
+    if (url.includes("/archive/cards?")) return response({ items: [design], total: 1 })
+    if (url === "/api/archive/cards/draft-1/submit") {
+      design = { ...design, status: "PENDING", revision: 8 }
+      return response({ card: design })
+    }
+    if (url === "/api/archive/cards/draft-1/withdraw") {
+      design = { ...design, status: "DRAFT", revision: 9 }
+      return response({ card: design })
+    }
+    return response({ items: [], total: 0, card_ids: [], revision: 0 })
+  }, "en")
+  let root
+  await api.act(async () => {
+    root = api.mount(doc.getElementById("mount"), "archive", {
+      csrf: "author-csrf",
+      mode: "collection",
+    })
+  })
+  assert.equal(calls.some(({ url }) => url.includes("/archive/cards?")), false)
+  await api.act(async () => button(doc, "Card studio").click())
+  assert.ok(button(doc, "Create card"))
+  assert.ok(button(doc, "Edit"))
+  assert.equal(doc.querySelector("script"), null)
+  assert.ok(calls.some(({ url }) => url.startsWith("/api/archive/cards?mine=true")))
+  await api.act(async () => button(doc, "Create card").click())
+  assert.ok(button(doc, "Save draft"))
+  await api.act(async () => button(doc, "Back").click())
+  await api.act(async () => {
+    button(doc, "Submit").click()
+    button(doc, "Submit").click()
+  })
+  assert.equal(button(doc, "Edit"), undefined)
+  assert.ok(button(doc, "Withdraw"))
+  await api.act(async () => button(doc, "Withdraw").click())
+  assert.ok(button(doc, "Edit"))
+  const writes = calls.filter(({ init }) => init.method === "POST")
+  assert.deepEqual(
+    writes.map(({ url, init }) => [url, JSON.parse(init.body), init.headers.get("X-CSRF-Token")]),
+    [
+      ["/api/archive/cards/draft-1/submit", { revision: 7 }, "author-csrf"],
+      ["/api/archive/cards/draft-1/withdraw", { revision: 8 }, "author-csrf"],
+    ],
+  )
+  assert.equal(calls.some(({ url }) => /\/admin\/|mine=false|\/wallet|\/coverage/.test(url)), false)
+  await api.act(() => root.unmount())
+})
