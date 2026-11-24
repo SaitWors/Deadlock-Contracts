@@ -72,12 +72,12 @@ export default function CatalogPage({ meta }: { meta: Meta }) {
           {catalog.error} <button onClick={catalog.reload}>{ru ? "Повторить" : "Retry"}</button>
         </p>
       )}
-      {catalog.loading && (
-        <p role="status">{ru ? "Загружаем карточки…" : "Loading cards…"}</p>
-      )}
+      {catalog.loading && <p role="status">{ru ? "Загружаем…" : "Loading…"}</p>}
       {!catalog.loading && catalog.data && (
         <>
-          <p>{ru ? "Найдено карточек" : "Cards found"}: {catalog.data.total}</p>
+          <p>
+            {ru ? "Найдено карточек" : "Cards found"}: {catalog.data.total}
+          </p>
           {catalog.data.total === 0 && (
             <div className="archive-empty">
               <h3>{ru ? "Нет подходящих карточек" : "No matching cards"}</h3>
@@ -89,7 +89,10 @@ export default function CatalogPage({ meta }: { meta: Meta }) {
               <article key={card.id} className="archive-catalog-item" data-owned={quantity > 0}>
                 <CardSurface card={card} />
                 <h3 className="archive-item-title">{card.title}</h3>
-                <span className="archive-status" data-status={quantity > 0 ? "PUBLISHED" : undefined}>
+                <span
+                  className="archive-status"
+                  data-status={quantity > 0 ? "PUBLISHED" : undefined}
+                >
                   {quantity > 0
                     ? `${ru ? "В коллекции" : "Owned"} · ${quantity}`
                     : ru ? "Не получена" : "Not owned"}

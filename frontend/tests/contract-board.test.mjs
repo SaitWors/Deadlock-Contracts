@@ -447,14 +447,14 @@ for (const route of ["archive", "wallet", "cipher", "catalog", "studio", "arena"
     )
   })
 
-
 test("all collection has its own deep link and sidebar navigation", async () => {
   const { w, doc, api } = await mount({ hash: "all-collection", language: "en" })
   const catalog = doc.querySelector('.ns-sidebar [data-nav="all-collection"]')
   assert.ok(catalog)
   assert.equal(catalog.getAttribute("aria-current"), "page")
   assert.equal(w.location.hash, "#all-collection")
-  await api.act(async () => doc.querySelector('.ns-sidebar [data-nav="collection"]').click())
+  const own = doc.querySelector('.ns-sidebar [data-nav="collection"]')
+  await api.act(async () => own.click())
   assert.equal(w.location.hash, "#collection")
   await api.act(async () => catalog.click())
   assert.equal(w.location.hash, "#all-collection")

@@ -458,11 +458,18 @@ test("daily deadlines are cleared when an account changes or the page unmounts",
   assert.equal(timers.size, 0)
 })
 
-
-test("all collection shows owned and missing published cards without acquisition actions", async () => {
+test("all collection shows owned and missing cards without acquisition actions", async () => {
   const makeCard = (id, title) => ({
-    id, title, hero: "abrams", hero_name: "Abrams", rank: "F",
-    status: "PUBLISHED", image_url: null, crop_x: 50, crop_y: 50, zoom: 1,
+    id,
+    title,
+    hero: "abrams",
+    hero_name: "Abrams",
+    rank: "F",
+    status: "PUBLISHED",
+    image_url: null,
+    crop_x: 50,
+    crop_y: 50,
+    zoom: 1,
   })
   const env = await mount({
     mode: "all-collection",
@@ -483,8 +490,10 @@ test("all collection shows owned and missing published cards without acquisition
   assert.match(items[0].textContent, /Owned · 2/)
   assert.match(items[1].textContent, /Not owned/)
   assert.equal(items[1].querySelector("button"), null)
-  assert.equal(env.calls.some(({ url }) => url.includes("/api/archive/inventory?")), false)
-  assert.equal(env.calls.some(({ init }) => init.method === "POST"), false)
+  const isInventory = ({ url }) => url.includes("/api/archive/inventory?")
+  const isWrite = ({ init }) => init.method === "POST"
+  assert.equal(env.calls.some(isInventory), false)
+  assert.equal(env.calls.some(isWrite), false)
   await env.api.act(async () => button(env.doc, "My collection").click())
   assert.match(env.doc.body.textContent, /Your owned cards/)
 })

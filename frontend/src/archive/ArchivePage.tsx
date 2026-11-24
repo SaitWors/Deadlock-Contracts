@@ -129,7 +129,7 @@ export default function ArchivePage({
           )}
         </>
       )}
-      {(view === "collection" || view === "studio" || view === "all-collection") && !meta.data && (
+      {view !== "packs" && !meta.data && (
         <p role={meta.error ? "alert" : "status"}>
           {meta.error || (ru ? "Загрузка коллекции…" : "Loading collection…")}
           {meta.error && <button onClick={meta.reload}>{ru ? "Повторить" : "Retry"}</button>}
@@ -138,9 +138,7 @@ export default function ArchivePage({
       {view === "studio" && meta.data && (
         <PlayerCardStudio key={account} csrf={csrf} meta={meta.data} />
       )}
-      {view === "all-collection" && meta.data && (
-        <CatalogPage key={account} meta={meta.data} />
-      )}
+      {view === "all-collection" && meta.data && <CatalogPage key={account} meta={meta.data} />}
       {view === "collection" && meta.data && (
         <CollectionPage
           key={account}
