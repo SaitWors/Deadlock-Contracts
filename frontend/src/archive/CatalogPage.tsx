@@ -95,9 +95,7 @@ export default function CatalogPage({ meta }: { meta: Meta }) {
                 <article key={card.id} className="archive-catalog-item" data-owned={owned}>
                   <CardSurface card={card} />
                   <h3 className="archive-item-title">{card.title}</h3>
-                  <span className="archive-status" data-status={status}>
-                    {label}
-                  </span>
+                  <span className="archive-status" data-status={status}>{label}</span>
                 </article>
               )
             })
