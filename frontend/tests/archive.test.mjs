@@ -1550,10 +1550,10 @@ test("staff studio respects can_publish and withholds draft creation for other r
   await api.act(async () => root.unmount())
 })
 
-test("players can open the restored studio and submit or withdraw only their own designs", async () => {
+test("players can open the studio and submit or withdraw their own designs", async () => {
   const calls = []
   let design = { ...card }
-  const { api, doc } = runtime(async (url, init = {}) => {
+  const fetcher = async (url, init = {}) => {
     calls.push({ url, init })
     if (url.includes("/meta")) return response(meta)
     if (url.includes("/archive/cards?")) return response({ items: [design], total: 1 })
@@ -1566,7 +1566,8 @@ test("players can open the restored studio and submit or withdraw only their own
       return response({ card: design })
     }
     return response({ items: [], total: 0, card_ids: [], revision: 0 })
-  }, "en")
+  }
+  const { api, doc } = runtime(fetcher, "en")
   let root
   await api.act(async () => {
     root = api.mount(doc.getElementById("mount"), "archive", {
@@ -1574,7 +1575,8 @@ test("players can open the restored studio and submit or withdraw only their own
       mode: "collection",
     })
   })
-  assert.equal(calls.some(({ url }) => url.includes("/archive/cards?")), false)
+  const isAuthorList = ({ url }) => url.includes("/archive/cards?")
+  assert.equal(calls.some(isAuthorList), false)
   await api.act(async () => button(doc, "Card studio").click())
   assert.ok(button(doc, "Create card"))
   assert.ok(button(doc, "Edit"))
@@ -1592,13 +1594,16 @@ test("players can open the restored studio and submit or withdraw only their own
   await api.act(async () => button(doc, "Withdraw").click())
   assert.ok(button(doc, "Edit"))
   const writes = calls.filter(({ init }) => init.method === "POST")
-  assert.deepEqual(
-    writes.map(({ url, init }) => [url, JSON.parse(init.body), init.headers.get("X-CSRF-Token")]),
-    [
-      ["/api/archive/cards/draft-1/submit", { revision: 7 }, "author-csrf"],
-      ["/api/archive/cards/draft-1/withdraw", { revision: 8 }, "author-csrf"],
-    ],
-  )
-  assert.equal(calls.some(({ url }) => /\/admin\/|mine=false|\/wallet|\/coverage/.test(url)), false)
+  const payloads = writes.map(({ url, init }) => [
+    url,
+    JSON.parse(init.body),
+    init.headers.get("X-CSRF-Token"),
+  ])
+  assert.deepEqual(payloads, [
+    ["/api/archive/cards/draft-1/submit", { revision: 7 }, "author-csrf"],
+    ["/api/archive/cards/draft-1/withdraw", { revision: 8 }, "author-csrf"],
+  ])
+  const isRetiredOrAdmin = ({ url }) => /\/admin\/|mine=false|\/wallet|\/coverage/.test(url)
+  assert.equal(calls.some(isRetiredOrAdmin), false)
   await api.act(() => root.unmount())
 })
