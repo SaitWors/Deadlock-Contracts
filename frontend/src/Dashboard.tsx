@@ -710,6 +710,7 @@ type Tab =
   | "bureaus"
   | "packs"
   | "collection"
+  | "all-collection"
 type QuestFilter = "ALL" | "COMBAT" | "SUPPORT" | "ECONOMY" | "SURVIVAL"
 
 class ApiError extends Error {
@@ -1037,6 +1038,7 @@ export default function Dashboard({ initialSession }: { initialSession: SessionP
         "hero-votes",
         "packs",
         "collection",
+        "all-collection",
         "admin",
       ].includes(hash)
     )
@@ -1508,6 +1510,7 @@ export default function Dashboard({ initialSession }: { initialSession: SessionP
           active: "Активное дело",
           history: "История дел",
           collection: "Моя коллекция",
+          "all-collection": "Вся коллекция",
           packs: "Ежедневный конверт",
           bureaus: "Сообщества",
           achievements: "Достижения",
@@ -1522,6 +1525,7 @@ export default function Dashboard({ initialSession }: { initialSession: SessionP
           active: "Active case",
           history: "Case history",
           collection: "My collection",
+          "all-collection": "All collection",
           packs: "Daily pack",
           bureaus: "Communities",
           achievements: "Achievements",
@@ -1537,6 +1541,7 @@ export default function Dashboard({ initialSession }: { initialSession: SessionP
     ["history", language === "ru" ? "ИСТОРИЯ ДЕЛ" : "CASE HISTORY", "case"],
     ["collection", language === "ru" ? "КОЛЛЕКЦИЯ" : "COLLECTION", "case"],
     ["packs", language === "ru" ? "ЕЖЕДНЕВНЫЙ КОНВЕРТ" : "DAILY PACK", "case"],
+    ["all-collection", language === "ru" ? "ВСЯ КОЛЛЕКЦИЯ" : "ALL COLLECTION", "case"],
     ["achievements", language === "ru" ? "ДОСТИЖЕНИЯ" : "ACHIEVEMENTS", "case"],
     ["bureaus", language === "ru" ? "СООБЩЕСТВА" : "COMMUNITIES", "hq"],
     ["leaderboard", language === "ru" ? "РЕЙТИНГ" : "LEADERBOARD", "case"],
@@ -2516,7 +2521,7 @@ export default function Dashboard({ initialSession }: { initialSession: SessionP
             </>
           )}
 
-          {["packs", "collection"].includes(tab) && (
+          {["packs", "collection", "all-collection"].includes(tab) && (
             <Suspense
               fallback={
                 <p role="status">
@@ -2528,7 +2533,8 @@ export default function Dashboard({ initialSession }: { initialSession: SessionP
                 key={`${user.id}:${tab}`}
                 accountKey={user.id}
                 csrf={csrf}
-                mode={tab as "packs" | "collection"}
+                mode={tab as "packs" | "collection" | "all-collection"}
+                onNavigate={setTab}
                 onCollectionChange={() => setArchiveRevision((value) => value + 1)}
               />
             </Suspense>

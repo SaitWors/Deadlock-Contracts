@@ -195,3 +195,54 @@ def test_every_rank_is_accepted_for_designs(community, rank):
     _, player = community
     _, client = player()
     assert create(client, rank=rank)["rank"] == rank
+
+
+def test_read_only_catalog_shows_all_published_cards_and_real_ownership(community):
+    from uuid import uuid4
+    from app.models import ArchiveItem, ArchiveOperation
+    from fastapi.testclient import TestClient
+    from app.main import app
+
+    factory, player = community
+    uid, client = player()
+    other_id, other = player()
+    with factory() as db:
+        owned = ArchiveCard(hero="abrams", rank="F", title="Catalogue owned", status="PUBLISHED")
+        missing = ArchiveCard(hero="abrams", rank="SSS", title="Catalogue missing", status="PUBLISHED")
+        db.add_all([owned, missing])
+        db.add_all(ArchiveCard(hero="abrams", rank="F", title="Catalogue hidden " + status, status=status)
+                   for status in ("DRAFT", "PENDING", "REJECTED", "ARCHIVED", "REMOVED"))
+        db.add_all(ArchiveCard(hero="ivy", rank="F", title=f"Catalogue page {i:02}", status="PUBLISHED")
+                   for i in range(19))
+        db.flush()
+        owned_id, missing_id = owned.id, missing.id
+        for owner, scope, card_id, state in (
+            (uid, "REAL", owned_id, "OWNED"),
+            (uid, "REAL", owned_id, "OWNED"),
+            (uid, "SANDBOX", missing_id, "OWNED"),
+            (uid, "REAL", missing_id, "RECYCLED"),
+            (other_id, "REAL", missing_id, "OWNED"),
+        ):
+            operation = ArchiveOperation(user_id=owner, request_key=str(uuid4()), signature="fixture",
+                                         kind="OWNER_CARD", scope=scope, result={})
+            db.add(operation)
+            db.flush()
+            db.add(ArchiveItem(user_id=owner, card_id=card_id, operation_id=operation.id, scope=scope, state=state))
+        db.commit()
+
+    response = client.get("/api/archive/catalog?hero=abrams&q=Catalogue")
+    assert response.status_code == 200, response.text
+    assert response.headers["cache-control"] == "private, no-store"
+    result = response.json()
+    assert result["total"] == 2
+    assert {item["card"]["id"]: item["quantity"] for item in result["items"]} == {owned_id: 2, missing_id: 0}
+    assert all("review_note" not in item["card"] for item in result["items"])
+    assert other.get("/api/archive/catalog?hero=abrams&rank=SSS&q=Catalogue").json()["items"][0]["quantity"] == 1
+    first = client.get("/api/archive/catalog?hero=ivy&q=Catalogue").json()
+    second = client.get("/api/archive/catalog?hero=ivy&q=Catalogue&offset=18").json()
+    assert first["total"] == second["total"] == 19
+    assert len(first["items"]) == 18 and len(second["items"]) == 1
+    assert not {item["card"]["id"] for item in first["items"]} & {item["card"]["id"] for item in second["items"]}
+    assert client.get("/api/archive/cards").status_code == 410
+    with TestClient(app) as anonymous:
+        assert anonymous.get("/api/archive/catalog").status_code == 401

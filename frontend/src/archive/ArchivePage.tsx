@@ -4,6 +4,7 @@ import { useLanguage } from "../i18n"
 import CardPreview from "./CardPreview"
 import CardStudio, { CardStatus } from "./CardStudio"
 import CollectionPage from "./CollectionPage"
+import CatalogPage from "./CatalogPage"
 import DailyPack from "./DailyPack"
 import GiftPacks from "./GiftPacks"
 import { useFavorites } from "./favorites"
@@ -17,18 +18,24 @@ export default function ArchivePage({
   accountKey = "",
   onCollectionChange,
   onWalletChange,
+  onNavigate,
 }: {
   csrf: string
-  mode?: "archive" | "studio" | "wallet" | "packs" | "collection"
+  mode?: "archive" | "studio" | "wallet" | "packs" | "collection" | "all-collection"
   accountKey?: string
   onCollectionChange?: () => void
   onWalletChange?: () => void
+  onNavigate?: (view: "collection" | "packs" | "all-collection") => void
 }) {
   const { language } = useLanguage()
   const ru = language === "ru"
   const [view, setView] = useState(
-    mode === "packs" ? "packs" : mode === "studio" ? "studio" : "collection",
+    mode === "packs" || mode === "studio" || mode === "all-collection" ? mode : "collection",
   )
+  const navigate = (next: "collection" | "packs" | "all-collection") => {
+    if (onNavigate) onNavigate(next)
+    setView(next)
+  }
   const [revision, setRevision] = useState(0)
   const meta = useResource<Meta>("/api/archive/meta")
   const account = accountKey || meta.data?.account_key || ""
@@ -53,33 +60,47 @@ export default function ArchivePage({
                 ? ru
                   ? "Мастерская карточек"
                   : "Card studio"
-                : ru
-                  ? "Твоя коллекция"
-                  : "Your collection"}
+                : view === "all-collection"
+                  ? ru
+                    ? "Вся коллекция"
+                    : "All collection"
+                  : ru
+                    ? "Твоя коллекция"
+                    : "Your collection"}
           </h1>
           <p>
             {view === "studio"
               ? ru
                 ? "Создавай карточки героев и отправляй их на проверку."
                 : "Design hero cards and submit them for review."
-              : ru
-                ? "Собирай карточки героев и выбирай любимые."
-                : "Collect hero cards and keep your favorites."}
+              : view === "all-collection"
+                ? ru
+                  ? "Все опубликованные карточки, включая ещё не полученные."
+                  : "All published cards, including those you have not collected yet."
+                : ru
+                  ? "Собирай карточки героев и выбирай любимые."
+                  : "Collect hero cards and keep your favorites."}
           </p>
         </div>
       </header>
       <nav className="archive-tabs" aria-label={ru ? "Коллекция" : "Collection"}>
         <button
           aria-current={view === "collection" ? "page" : undefined}
-          onClick={() => setView("collection")}
+          onClick={() => navigate("collection")}
         >
           {ru ? "Моя коллекция" : "My collection"}
         </button>
         <button
           aria-current={view === "packs" ? "page" : undefined}
-          onClick={() => setView("packs")}
+          onClick={() => navigate("packs")}
         >
           {ru ? "Ежедневный конверт" : "Daily pack"}
+        </button>
+        <button
+          aria-current={view === "all-collection" ? "page" : undefined}
+          onClick={() => navigate("all-collection")}
+        >
+          {ru ? "Вся коллекция" : "All collection"}
         </button>
         <button
           aria-current={view === "studio" ? "page" : undefined}
@@ -108,7 +129,7 @@ export default function ArchivePage({
           )}
         </>
       )}
-      {(view === "collection" || view === "studio") && !meta.data && (
+      {(view === "collection" || view === "studio" || view === "all-collection") && !meta.data && (
         <p role={meta.error ? "alert" : "status"}>
           {meta.error || (ru ? "Загрузка коллекции…" : "Loading collection…")}
           {meta.error && <button onClick={meta.reload}>{ru ? "Повторить" : "Retry"}</button>}
@@ -116,6 +137,9 @@ export default function ArchivePage({
       )}
       {view === "studio" && meta.data && (
         <PlayerCardStudio key={account} csrf={csrf} meta={meta.data} />
+      )}
+      {view === "all-collection" && meta.data && (
+        <CatalogPage key={account} meta={meta.data} />
       )}
       {view === "collection" && meta.data && (
         <CollectionPage
