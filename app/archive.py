@@ -14,7 +14,7 @@ from sqlalchemy.orm import Session
 
 from .community import Strict, no_store
 from .db import get_db
-from .models import ArchiveCard, ArchiveCipher, User, utcnow
+from .models import ArchiveCard, ArchiveCipher, ArchiveItem, User, utcnow
 from .services import archive as service
 from .services import archive_packs as packs
 from .services.archive_seed import release_artwork_path
@@ -155,6 +155,32 @@ def build_router(require_permission, effective_role):
                     item["ex_access"] = ex_access(db, user_id, card, scope)
         return {"items": items, "total": total}
 
+    def filter_cards(statement, hero, rank, q):
+        if hero:
+            statement = statement.where(ArchiveCard.hero == hero)
+        if rank:
+            statement = statement.where(ArchiveCard.rank == rank)
+        if q:
+            escaped = q.replace("\\", "\\\\").replace("%", r"\%").replace("_", r"\_")
+            statement = statement.where(or_(ArchiveCard.title.ilike(f"%{escaped}%", escape="\\"), ArchiveCard.artist.ilike(f"%{escaped}%", escape="\\")))
+        return statement
+
+    @router.get("/archive/catalog")
+    def read_only_catalog(response: Response, hero: str = Query(default="", max_length=40), rank: Rank | None = None,
+                          q: str = Query(default="", max_length=80), offset: int = Query(default=0, ge=0, le=100000),
+                          user: User = Depends(require_user), db: Session = Depends(get_db)):
+        no_store(response)
+        statement = filter_cards(select(ArchiveCard).where(ArchiveCard.status == "PUBLISHED"), hero, rank, q)
+        total = db.scalar(select(func.count()).select_from(statement.subquery()))
+        cards = db.scalars(statement.order_by(ArchiveCard.hero, ArchiveCard.rank, ArchiveCard.title, ArchiveCard.id)
+                           .offset(offset).limit(18)).all()
+        quantities = dict(db.execute(select(ArchiveItem.card_id, func.count(ArchiveItem.id))
+                                     .where(ArchiveItem.user_id == user.id, ArchiveItem.scope == "REAL",
+                                            ArchiveItem.state == "OWNED", ArchiveItem.card_id.in_([card.id for card in cards]))
+                                     .group_by(ArchiveItem.card_id)).all()) if cards else {}
+        return {"total": total, "items": [{"card": service.card_payload(card), "quantity": quantities.get(card.id, 0)}
+                                          for card in cards]}
+
     @router.get("/archive/cards")
     def catalog(response: Response, mine: bool = False, hero: str = Query(default="", max_length=40), rank: Rank | None = None,
                 q: str = Query(default="", max_length=80), offset: int = Query(default=0, ge=0, le=100000),
@@ -165,14 +191,7 @@ def build_router(require_permission, effective_role):
         no_store(response)
         statement = select(ArchiveCard)
         statement = statement.where(ArchiveCard.creator_id == user.id, ArchiveCard.status != "REMOVED") if mine else statement.where(ArchiveCard.status == "PUBLISHED")
-        if hero:
-            statement = statement.where(ArchiveCard.hero == hero)
-        if rank:
-            statement = statement.where(ArchiveCard.rank == rank)
-        if q:
-            escaped = q.replace("\\", "\\\\").replace("%", r"\%").replace("_", r"\_")
-            statement = statement.where(or_(ArchiveCard.title.ilike(f"%{escaped}%", escape="\\"), ArchiveCard.artist.ilike(f"%{escaped}%", escape="\\")))
-        return listing(db, statement, offset, private=mine, user_id=user.id, scope=scope)
+        return listing(db, filter_cards(statement, hero, rank, q), offset, private=mine, user_id=user.id, scope=scope)
 
     @router.get("/archive/coverage")
     def coverage(response: Response, user: User = Depends(require_user), db: Session = Depends(get_db)):

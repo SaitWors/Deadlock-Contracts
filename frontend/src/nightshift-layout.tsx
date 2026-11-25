@@ -38,6 +38,7 @@ export function NightshiftNav({
       links: [
         ["collection", ru ? "Моя коллекция" : "My collection", "layers"],
         ["packs", ru ? "Ежедневный конверт" : "Daily pack", "mail"],
+        ["all-collection", ru ? "Вся коллекция" : "All collection", "images"],
       ],
     },
     {

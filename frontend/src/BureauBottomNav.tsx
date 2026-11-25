@@ -16,6 +16,7 @@ export default function BureauBottomNav({
   onNavigate: (tab: string) => void
 }) {
   const { language } = useLanguage()
+  const section = active === "all-collection" ? "collection" : active
   return (
     <nav
       className="dc-mobile-bottom-nav"
@@ -25,8 +26,8 @@ export default function BureauBottomNav({
         <button
           key={id}
           type="button"
-          aria-current={active === id ? "page" : undefined}
-          className={active === id ? "active" : ""}
+          aria-current={section === id ? "page" : undefined}
+          className={section === id ? "active" : ""}
           onClick={() => onNavigate(id)}
         >
           <Icon name={path} className="dc-icon" />
