@@ -41,3 +41,19 @@ html[data-theme] .ritual-public .public-explainer-content h2 {
   color: var(--ns-muted);
   font: 400 .875rem/1.75 var(--font-body);
 }
+
+.public-document a.public-document-link {
+  display: inline-flex;
+  align-items: center;
+  gap: .5rem;
+  min-height: 2.75rem;
+  margin-top: .5rem;
+  color: var(--ns-accent);
+  font: 600 .875rem/1.5 var(--font-body);
+  text-decoration: underline;
+}
+
+.public-document-link:focus-visible {
+  outline: 2px solid var(--ns-accent);
+  outline-offset: 4px;
+}
