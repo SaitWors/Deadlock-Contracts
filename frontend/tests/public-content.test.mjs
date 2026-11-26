@@ -1,5 +1,6 @@
 import { after, before, test } from "node:test"
 import assert from "node:assert/strict"
+import { readFileSync } from "node:fs"
 import path from "node:path"
 import { build } from "vite"
 import { JSDOM } from "jsdom"
@@ -46,6 +47,9 @@ function runtime(fetch, language = "en") {
   return { w, api: w.PublicContentTest, doc: w.document }
 }
 const response = (data) => ({ ok: true, json: async () => data })
+const publicPages = JSON.parse(
+  readFileSync(new URL("../../shared/public-pages.json", import.meta.url)),
+)
 const preview = {
   available: true,
   next_reset_at: "2026-11-14T00:00:00+00:00",
@@ -89,6 +93,45 @@ test("public explanations are native closed disclosures after useful content and
   assert.equal(details.open, true)
   assert.match(details.textContent, /They are saved before the reveal/)
   await api.act(async () => root.unmount())
+})
+
+test("the Relay profile survives client rendering with a localized Steam link", async () => {
+  for (const [language, label] of [
+    ["ru", "Открыть профиль в Steam"],
+    ["en", "Open Steam profile"],
+  ]) {
+    const { api, doc } = runtime(() => {
+      throw new Error("No network needed")
+    }, language)
+    const payload = doc.createElement("script")
+    payload.id = "dc-public-page"
+    payload.type = "application/json"
+    payload.textContent = JSON.stringify({
+      page: "how",
+      language,
+      content: publicPages.how[language],
+    })
+    doc.head.append(payload)
+
+    let root
+    await api.act(async () => {
+      root = api.mount(
+        doc.getElementById("mount"),
+        "document",
+        language,
+        api.readPublicCopy({ page: "how", language }),
+      )
+    })
+    const relayLink = doc.querySelector(
+      'a[href="https://steamcommunity.com/id/deadlock-contracts-relay/"]',
+    )
+    assert.equal(relayLink?.textContent, label)
+    assert.equal(
+      relayLink.closest("section").querySelector("h2").textContent,
+      "Deadlock Contracts — Relay",
+    )
+    await api.act(async () => root.unmount())
+  }
 })
 
 test("collection uses only current server preview cards, preserves reset timestamp, and retries a failed read", async () => {

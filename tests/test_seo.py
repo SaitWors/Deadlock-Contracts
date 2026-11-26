@@ -80,6 +80,15 @@ def test_public_documents_do_not_depend_on_session_or_database(client):
         main.app.dependency_overrides.pop(get_db, None)
 
 
+@pytest.mark.parametrize("language,label", [("ru", "Открыть профиль в Steam"), ("en", "Open Steam profile")])
+def test_how_it_works_links_to_relay_before_javascript(client, language, label):
+    response = client.get(f"/{language}/how-it-works")
+    assert response.status_code == 200
+    doc = Document(response.text)
+    assert len(doc.elements("a", href="https://steamcommunity.com/id/deadlock-contracts-relay/")) == 1
+    assert label in doc.text
+
+
 @pytest.mark.parametrize("path,target", [
     ("/contracts", "/ru/contracts"), ("/cards/", "/ru/cards"),
     ("/how", "/ru/how-it-works"), ("/leaderboards", "/ru/leaderboard"),

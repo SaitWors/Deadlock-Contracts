@@ -1,10 +1,13 @@
 import type { PublicRoute } from "./publicRoutes"
+import Icon from "./icons/Icon"
 import "./public-content.css"
+
+type PublicSection = { heading: string; text: string; link?: { href: string; label: string } }
 
 export type PublicCopy = {
   heading: string
   intro: string
-  sections: { heading: string; text: string }[]
+  sections: PublicSection[]
 }
 
 export function readPublicCopy(route: PublicRoute): PublicCopy | null {
@@ -18,8 +21,14 @@ export function readPublicCopy(route: PublicRoute): PublicCopy | null {
       typeof copy.intro !== "string" ||
       !Array.isArray(copy.sections) ||
       !copy.sections.every(
-        (section: PublicCopy["sections"][number]) =>
-          section && typeof section.heading === "string" && typeof section.text === "string",
+        (section: PublicSection) =>
+          section &&
+          typeof section.heading === "string" &&
+          typeof section.text === "string" &&
+          (section.link === undefined ||
+            (typeof section.link?.href === "string" &&
+              section.link.href.startsWith("https://") &&
+              typeof section.link.label === "string")),
       )
     )
       return null
@@ -50,6 +59,12 @@ export default function PublicContent({
       )}
       <h2>{section.heading}</h2>
       <p>{section.text}</p>
+      {section.link && (
+        <a className="public-document-link" href={section.link.href}>
+          {section.link.label}
+          <Icon name="arrow-up-right" size={16} />
+        </a>
+      )}
     </section>
   ))
   return (

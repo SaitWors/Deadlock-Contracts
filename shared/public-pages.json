@@ -114,6 +114,14 @@
           "text": "Результат проверяется по доступным данным матча и поддерживаемым сигналам компаньона. При задержке источника статус покажет ожидание; неподтверждённые условия не дают автоматической награды."
         },
         {
+          "heading": "Deadlock Contracts — Relay",
+          "text": "Это служебный аккаунт проекта в Steam. В эксперименте мы проверяем, помогает ли список друзей Relay быстрее находить завершённые матчи через Deadlock API. Добавление в друзья добровольное. Срок проверки контракта зависит от доступности данных матча.",
+          "link": {
+            "href": "https://steamcommunity.com/id/deadlock-contracts-relay/",
+            "label": "Открыть профиль в Steam"
+          }
+        },
+        {
           "heading": "Коллекция между матчами",
           "text": "Забирай бесплатный ежедневный пак. Выдача обновляется в 00:00 UTC — это 03:00 по Москве. Открытые карточки сохраняются в коллекции на сайте."
         },
@@ -141,6 +149,14 @@
         {
           "heading": "03. Wait for verification",
           "text": "Results use available match data and supported companion signals. If a provider is delayed, the status shows that the case is waiting. Unconfirmed conditions do not receive automatic rewards."
+        },
+        {
+          "heading": "Deadlock Contracts — Relay",
+          "text": "This is the project’s Steam service account. We’re testing whether Relay’s friends list helps us find completed matches sooner through the Deadlock API. Adding Relay as a friend is optional. Contract verification depends on when match data becomes available.",
+          "link": {
+            "href": "https://steamcommunity.com/id/deadlock-contracts-relay/",
+            "label": "Open Steam profile"
+          }
         },
         {
           "heading": "Collect between matches",

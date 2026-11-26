@@ -136,8 +136,13 @@ def render_public_page(page: str, language: str, base: str, shell: str | None = 
                     for key, value in PAGES.items())
     languages = " ".join(f'<a href="{public_path(page, lang)}" lang="{lang}" hreflang="{lang}">{lang.upper()}</a>'
                          for lang in LANGUAGES)
-    sections = "".join(f'<section><h2>{escape(section["heading"])}</h2><p>{escape(section["text"])}</p></section>'
-                       for section in data["sections"])
+    sections = []
+    for section in data["sections"]:
+        link = section.get("link")
+        link_html = ""
+        if link and link["href"].startswith("https://"):
+            link_html = f'<p><a href="{escape(link["href"])}">{escape(link["label"])}</a></p>'
+        sections.append(f'<section><h2>{escape(section["heading"])}</h2><p>{escape(section["text"])}</p>{link_html}</section>')
     footer = " · ".join(f'<a href="/{language}/{slug}">{escape(labels[1 if language == "ru" else 2])}</a>'
                         for slug, labels in LEGAL.items())
     sign_in = "Войти через Steam" if language == "ru" else "Sign in through Steam"
@@ -146,7 +151,7 @@ def render_public_page(page: str, language: str, base: str, shell: str | None = 
             f'<a class="bureau-brand" href="/{language}/"><img src="/static/brand/wordmark.png" alt="Deadlock Contracts" width="704" height="176"></a><nav class="bureau-nav">{links}</nav>'
             f'<div class="bureau-account">{languages}</div></div></header>'
             f'<main class="public-document"><p class="city-document-edition">{edition}</p><h1>{escape(data["heading"])}</h1><p>{escape(data["intro"])}</p>'
-            f'{sections}<p><a class="btn-primary" href="/auth/steam">{sign_in}</a></p>'
+            f'{"".join(sections)}<p><a class="btn-primary" href="/auth/steam">{sign_in}</a></p>'
             f'<nav class="public-document-links">{links}</nav></main><footer class="public-document">{footer}</footer></div>')
     payload = json.dumps({"page": page, "language": language, "content": data}, ensure_ascii=False).replace("<", "\\u003c").replace(">", "\\u003e").replace("&", "\\u0026")
     source = frontend_shell() if shell is None else shell

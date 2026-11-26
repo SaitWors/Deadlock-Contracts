@@ -2,9 +2,9 @@ import React, { act } from "react"
 import { createRoot } from "react-dom/client"
 import { LanguageProvider } from "../src/i18n"
 import DailyCollectionPreview from "../src/DailyCollectionPreview"
-import PublicContent, { type PublicCopy } from "../src/PublicContent"
+import PublicContent, { readPublicCopy, type PublicCopy } from "../src/PublicContent"
 
-export { act }
+export { act, readPublicCopy }
 export function mount(
   element: HTMLElement,
   page: string,
