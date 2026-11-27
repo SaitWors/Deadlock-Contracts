@@ -2,6 +2,7 @@
 
 import base64
 import json
+import logging
 import re
 import secrets
 import ssl
@@ -17,8 +18,9 @@ from .protocol import NoRedirect, RequestFailed, read_limited, retry_after_secon
 
 
 URL = "https://api.steampowered.com/ISteamUser/GetFriendList/v1/"
-SESSION_FRIENDS_URL = "https://api.steampowered.com/IFriendsListService/GetFriendsList/v1/"
 COMMUNITY = "https://steamcommunity.com"
+SESSION_FRIENDS_URL = COMMUNITY + "/textfilter/ajaxgetfriendslist"
+LOGGER = logging.getLogger(__name__)
 STEAM_ID64_BASE = 76561197960265728
 MAX_RESPONSE = 1024 * 1024
 REQUEST_RECIPIENT = 2
@@ -123,33 +125,34 @@ class SteamSession:
         return f"sessionid={self.session_id}; steamLoginSecure={secure}"
 
     def relationships(self) -> SteamRelationships:
-        token, usable_for_web_api = self._community_credential()
-        if not usable_for_web_api:
-            # A browser's domain-scoped cookie stays on Community. Its Web API token stays in memory.
-            reply = _json(self.opener, Request(COMMUNITY + "/chat/clientjstoken", headers={
-                "Accept": "application/json", "Cache-Control": "no-cache", "Cookie": self._cookie(token),
-            }))
-            token = reply.get("token")
-            if reply.get("logged_in") is not True or reply.get("steamid") != self.account:
-                raise RequestFailed(401)
-            if not isinstance(token, str) or not JWT.fullmatch(token):
-                raise RequestFailed()
-        request = Request(SESSION_FRIENDS_URL + "?" + urlencode({"access_token": token}), headers={
-            "Accept": "application/json", "Cache-Control": "no-cache",
+        try:
+            token, _ = self._community_credential()
+        except RequestFailed:
+            LOGGER.warning("Relay Steam: community credential rejected locally")
+            raise
+        # The Community endpoint uses the existing browser session directly.
+        # /chat/clientjstoken returns a client logon nonce, not a Web API access token.
+        request = Request(SESSION_FRIENDS_URL, headers={
+            "Accept": "application/json", "Cache-Control": "no-cache", "Cookie": self._cookie(token),
         })
         try:
-            document = _json(self.opener, request)["response"]["friendslist"]
+            reply = _json(self.opener, request)
+        except RequestFailed:
+            LOGGER.warning("Relay Steam: community relationship request failed")
+            raise
+        try:
+            success = reply.get("success")
+            if type(success) not in (int, str) or success not in (1, "1"):
+                LOGGER.warning("Relay Steam: community relationship request was not successful")
+                raise RequestFailed()
+            document = reply["friendslist"]
             if document.get("bincremental", False) is not False:
                 raise ValueError("expected a complete Steam relationship snapshot")
             limit_hit = document.get("friends_limit_hit", False)
             if type(limit_hit) is not bool:
                 raise ValueError("invalid Steam friendship limit")
             rows = document.get("friends")
-            # Protobuf JSON can omit an empty repeated field.
-            if rows is None:
-                max_friends = document.get("max_friend_count")
-                if type(max_friends) is int and max_friends > 0 and document.get("active_friend_count", 0) == 0:
-                    rows = []
+            # Require an explicit list: missing fields must not disconnect participants.
             if not isinstance(rows, list):
                 raise ValueError("invalid Steam relationship snapshot")
             incoming, friends, seen = set(), set(), set()
@@ -171,6 +174,7 @@ class SteamSession:
                     friends.add(account)
             return SteamRelationships(frozenset(friends), frozenset(incoming), limit_hit)
         except (AttributeError, KeyError, TypeError, ValueError):
+            LOGGER.warning("Relay Steam: invalid community relationship snapshot")
             raise RequestFailed() from None
 
     def accept_incoming(self, account: str) -> None:
