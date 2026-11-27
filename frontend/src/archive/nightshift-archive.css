@@ -165,25 +165,12 @@ html[data-theme] .archive-cipher-board .archive-actions button { flex: 1; paddin
 html[data-theme] .card-surface-back { color: var(--ns-ink); border: 1px solid var(--ns-paper-line); border-radius: calc(var(--ns-radius) * .5); background: repeating-linear-gradient(135deg,transparent 0 12px,#2e332911 12px 13px),var(--ns-paper); box-shadow: inset 0 0 0 7px var(--ns-paper),inset 0 0 0 8px var(--ns-paper-line); font: 700 12px/1.4 var(--font-body); letter-spacing: .12em; }
 html[data-theme] .card-surface-back > svg { width: 26%; height: auto; padding: 16px; box-sizing: content-box; border: 1px solid var(--ns-on-accent); border-radius: 50%; color: var(--ns-on-accent); background: var(--ns-stamp); transform: rotate(-9deg); }
 html[data-theme] .card-surface-front { border-radius: calc(var(--ns-radius) * .5); overflow: hidden; }
-html[data-theme] .pack-reveal[data-theme=archive] { --paper: var(--ns-text); --ink: var(--ns-on-accent); --mint: var(--ns-fill); border: 1px solid var(--ns-paper-line); background: var(--ns-surface); color: var(--ns-text); border-radius: calc(var(--ns-radius) * .5); box-shadow: 12px 12px 0 #0006; }
-html[data-theme] .pack-reveal[data-theme=archive]::backdrop { background: #100f0ee8; }
-html[data-theme] .pack-reveal[data-theme=archive] header { padding-bottom: 20px; border-bottom: 1px dashed var(--ns-line); }
-html[data-theme] .pack-reveal[data-theme=archive] header small { font: 650 9px var(--font-body); color: var(--ns-muted); letter-spacing: .12em; }
-html[data-theme] .pack-reveal[data-theme=archive] h2 { font: 400 clamp(30px,3.4vw,44px)/1.1 var(--font-poster); letter-spacing: -.025em; margin: 10px 0 0; color: var(--ns-text); }
-html[data-theme] .pack-reveal[data-theme=archive] button { border-radius: var(--ns-small); font: 600 12px/1.4 var(--font-body); border: 1px solid var(--ns-line); background: var(--ns-elevated); color: var(--ns-text); }
-html[data-theme] .pack-reveal[data-theme=archive] .archive-primary { border-color: transparent; background: var(--ns-fill); color: var(--ns-on-accent); }
-html[data-theme] .pack-reveal[data-theme=archive] button:hover:not(:disabled) { border-color: var(--ns-accent); }
-html[data-theme] .pack-reveal[data-theme=archive] :is(p,small) { font-family: var(--font-body); color: var(--ns-muted); font-size: 12px; }
-html[data-theme] .pack-reveal[data-theme=archive] footer { padding-top: 18px; border-top: 1px solid var(--ns-line); }
-html[data-theme] .pack-stack-back { border-color: var(--ns-paper-line); background: var(--ns-paper); }
 html[data-theme] .pack-envelope-art { color: var(--ns-ink); }
 html[data-theme] .pack-envelope-body { padding: 20px; gap: 16px; background: repeating-linear-gradient(95deg,#2e33290b 0 1px,transparent 1px 5px),var(--ns-paper); border: 1px solid var(--ns-paper-line); box-shadow: 9px 12px 0 #0004; border-radius: 0 0 4px 4px; color: var(--ns-ink); }
 html[data-theme] .pack-envelope-body > svg { padding: 16px; box-sizing: content-box; border: 1px solid currentColor; border-radius: 50%; width: 44px; height: 44px; }
 html[data-theme] .pack-envelope-body > span { font: 750 27px/1.03 var(--font-display); letter-spacing: -.02em; text-transform: uppercase; max-width: 100%; overflow-wrap: anywhere; }
 html[data-theme] .pack-envelope-body > small { color: var(--ns-paper-muted); font-size: 9px; letter-spacing: .11em; }
 html[data-theme] .pack-tear-strip b { background: var(--ns-stamp); color: var(--ns-on-accent); border-top-color: var(--ns-on-accent); border-bottom-color: var(--ns-on-accent); }
-html[data-theme] .pack-fan-back { background: repeating-linear-gradient(135deg,transparent 0 12px,#2e332911 12px 13px),var(--ns-paper); color: var(--ns-ink); border-color: var(--ns-paper-line); box-shadow: inset 0 0 0 6px var(--ns-paper),inset 0 0 0 7px var(--ns-paper-line),6px 8px 0 #0004; }
-html[data-theme] .pack-fan-back > svg { width: 32%; height: auto; }
 html[data-theme] .guest-cipher { background: var(--ns-bg); color: var(--ns-text); font-family: var(--font-body); }
 html[data-theme] .guest-cipher-header { color: var(--ns-muted); font: 650 10px/1.5 var(--font-body); letter-spacing: .08em; }
 html[data-theme] .guest-cipher :is(.guest-cipher-board,.guest-cipher-record) { border: 1px solid var(--ns-line); border-radius: calc(var(--ns-radius) * .5); background: var(--ns-surface); padding: clamp(20px,3.5vw,34px); box-shadow: 5px 5px 0 var(--ns-deep); }

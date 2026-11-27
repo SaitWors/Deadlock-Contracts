@@ -432,13 +432,45 @@ function pointer(w, element, type, x, y = 100) {
   element.dispatchEvent(event)
 }
 
-function animationEnd(doc, element, name = "pack-scene") {
+function animationEnd(doc, element, name = "pack-burst") {
   const event = new doc.defaultView.Event("animationend", { bubbles: true })
   Object.defineProperty(event, "animationName", { value: name })
   element.dispatchEvent(event)
 }
 
-test("opening waits for the complete tear and fan sequence, ignores child animations and can skip", async () => {
+const packControl = (doc, name) => doc.querySelector(`dialog button[aria-label="${name}"]`)
+const packStage = (doc) => doc.querySelector(".pack-reveal-shell").dataset.stage
+const closePack = (doc) => doc.querySelector("dialog").close()
+
+async function dealPack(api, doc) {
+  await api.act(async () => button(doc, "Reveal cards").click())
+  await api.act(async () => packControl(doc, "Break the seal").click())
+  await api.act(async () => animationEnd(doc, doc.querySelector(".pack-opening-scene")))
+}
+
+function endFlight(doc, phase) {
+  const motion = doc.querySelector(`.pack-card-motion[data-flight="${phase}"]`)
+  assert.ok(motion, `expected a card in the ${phase} phase`)
+  const event = new doc.defaultView.Event("transitionend", { bubbles: true })
+  Object.defineProperty(event, "propertyName", { value: "transform" })
+  motion.dispatchEvent(event)
+}
+
+async function inspectCard(api, doc, card = packControl(doc, "Reveal card")) {
+  await api.act(async () => card.click())
+  await api.act(async () => endFlight(doc, "lifting"))
+}
+
+async function finishReturn(api, doc) {
+  await api.act(async () => endFlight(doc, "returning"))
+}
+
+async function returnCard(api, doc) {
+  await api.act(async () => packControl(doc, "Return card to pack").click())
+  await finishReturn(api, doc)
+}
+
+test("the opening scene deals the whole pack and contains only the pack and cards", async () => {
   const { api, doc } = runtime(async () => {
     throw new Error("reveal must not buy again")
   }, "en")
@@ -450,16 +482,22 @@ test("opening waits for the complete tear and fan sequence, ignores child animat
     })
   })
   await api.act(async () => button(doc, "Reveal cards").click())
-  await api.act(async () => button(doc, "Break the seal").click())
-  await api.act(async () => await new Promise((resolve) => setTimeout(resolve, 650)))
-  assert.equal(doc.querySelector(".pack-reveal-shell").dataset.stage, "opening")
-  assert.equal(doc.querySelectorAll(".pack-fan-back").length, 2)
-  await api.act(async () => animationEnd(doc, doc.querySelector(".pack-tear-strip"), "pack-rip"))
-  assert.equal(doc.querySelector(".pack-reveal-shell").dataset.stage, "opening")
-  await api.act(async () => animationEnd(doc, doc.querySelector(".pack-opening-scene")))
-  assert.ok(doc.querySelector("button[aria-label='Reveal card']"))
-  await api.act(async () => button(doc, "Skip to results").click())
-  assert.equal(doc.querySelectorAll("dialog .archive-card").length, 2)
+  const dialog = doc.querySelector("dialog")
+  assert.ok(dialog.getAttribute("aria-label"))
+  assert.equal(dialog.querySelector("header, footer"), null)
+  assert.equal(dialog.querySelectorAll("button:not([inert] *)").length, 1)
+  const pack = packControl(doc, "Break the seal")
+  await api.act(async () => pack.click())
+  assert.equal(packStage(doc), "opening")
+  const scene = dialog.querySelector(".pack-opening-scene")
+  await api.act(async () => animationEnd(doc, scene.firstElementChild))
+  assert.equal(packStage(doc), "opening", "an animation bubbling from a child must be ignored")
+  await api.act(async () => animationEnd(doc, scene))
+  assert.equal(packStage(doc), "cards")
+  assert.equal(dialog.querySelectorAll(".pack-card-seat").length, 2)
+  assert.equal(dialog.querySelectorAll("button[aria-label='Reveal card']").length, 2)
+  assert.equal(dialog.querySelectorAll(".card-surface-front[aria-hidden='true']").length, 2)
+  assert.equal(dialog.querySelectorAll("button").length, 2)
   await api.act(async () => root.unmount())
 })
 
@@ -472,10 +510,8 @@ test("a revealed card responds to touch with a moving highlight and resets it on
       cinematic: true,
     })
   })
-  await api.act(async () => button(doc, "Reveal cards").click())
-  await api.act(async () => button(doc, "Break the seal").click())
-  await api.act(async () => animationEnd(doc, doc.querySelector(".pack-opening-scene")))
-  await api.act(async () => doc.querySelector(".card-surface-control").click())
+  await dealPack(api, doc)
+  await inspectCard(api, doc)
   const surface = doc.querySelector(".card-surface")
   surface.getBoundingClientRect = () => ({ left: 0, top: 0, width: 200, height: 300 })
   const control = doc.querySelector(".card-surface-control")
@@ -487,10 +523,10 @@ test("a revealed card responds to touch with a moving highlight and resets it on
   assert.ok(surface.querySelector(".card-surface-glare"))
   await api.act(async () => pointer(w, control, "pointercancel", 150, 100))
   assert.equal(surface.style.getPropertyValue("--shine-x"), "")
-  await api.act(async () => button(doc, "Skip to results").click())
+  await returnCard(api, doc)
   const resultSurface = doc.querySelector(".pack-reveal-results .card-surface")
   resultSurface.getBoundingClientRect = () => ({ left: 0, top: 0, width: 200, height: 300 })
-  assert.equal(resultSurface.querySelector("button"), null)
+  assert.equal(resultSurface.querySelector("button").getAttribute("aria-label"), "Inspect card")
   await api.act(async () => {
     pointer(w, resultSurface, "pointerdown", 100, 100)
     pointer(w, resultSurface, "pointermove", 150, 100)
@@ -499,7 +535,7 @@ test("a revealed card responds to touch with a moving highlight and resets it on
   await api.act(async () => root.unmount())
 })
 
-test("stacked cards require a flip and only a horizontal revealed swipe advances", async () => {
+test("cards can be flipped out of order and only a horizontal revealed swipe returns the selected card", async () => {
   const calls = []
   const { api, doc, w } = runtime(async (...args) => {
     calls.push(args)
@@ -515,42 +551,52 @@ test("stacked cards require a flip and only a horizontal revealed swipe advances
       cinematic: true,
     })
   })
-  await api.act(async () => button(doc, "Reveal cards").click())
-  await api.act(async () => button(doc, "Break the seal").click())
-  await api.act(async () => animationEnd(doc, doc.querySelector(".pack-opening-scene")))
-  const flip = () => doc.querySelector("button[aria-label='Reveal card']")
-  assert.ok(flip(), "a face-down card must offer a named flip control")
-  assert.equal(doc.querySelector(".card-surface-front").getAttribute("aria-hidden"), "true")
+  await dealPack(api, doc)
+  const [first, second] = doc.querySelectorAll(".pack-card-seat")
+  const flip = second.querySelector(".card-surface-control")
   await api.act(async () => {
-    pointer(w, flip(), "pointerdown", 120)
-    pointer(w, flip(), "pointermove", 240)
-    pointer(w, flip(), "pointerup", 240)
+    pointer(w, flip, "pointerdown", 120)
+    pointer(w, flip, "pointermove", 240)
+    pointer(w, flip, "pointerup", 240)
+    flip.dispatchEvent(new w.MouseEvent("click", { bubbles: true, detail: 1 }))
   })
-  assert.match(doc.querySelector(".pack-reveal-card").textContent, /1 \/ 2/)
-  await api.act(async () => flip().click())
-  assert.equal(doc.querySelector(".card-surface-front").getAttribute("aria-hidden"), "false")
-  const control = () => doc.querySelector(".card-surface-control")
+  assert.equal(second.querySelector(".card-surface-front").getAttribute("aria-hidden"), "true")
+  await inspectCard(api, doc, flip)
+  const control = () => packControl(doc, "Return card to pack")
+  assert.ok(control())
+  assert.equal(first.querySelector(".card-surface-front").getAttribute("aria-hidden"), "true")
+  assert.equal(second.querySelector(".card-surface-front").getAttribute("aria-hidden"), "false")
   await api.act(async () => {
     pointer(w, control(), "pointerdown", 120, 100)
     pointer(w, control(), "pointermove", 145, 230)
     pointer(w, control(), "pointerup", 145, 230)
   })
-  assert.match(doc.querySelector(".pack-reveal-card").textContent, /1 \/ 2/)
+  assert.ok(control(), "vertical gestures leave the selected card in place")
   await api.act(async () => {
     pointer(w, control(), "pointerdown", 120)
     pointer(w, control(), "pointermove", 250)
     pointer(w, control(), "pointercancel", 250)
   })
-  assert.match(doc.querySelector(".pack-reveal-card").textContent, /1 \/ 2/)
+  assert.ok(control(), "cancelling a gesture leaves the selected card in place")
   await api.act(async () => {
-    pointer(w, control(), "pointerdown", 120)
-    pointer(w, control(), "pointermove", 250)
-    pointer(w, control(), "pointerup", 250)
-    control().dispatchEvent(new w.MouseEvent("click", { bubbles: true, detail: 1 }))
+    const selected = control()
+    pointer(w, selected, "pointerdown", 120)
+    pointer(w, selected, "pointermove", 250)
+    pointer(w, selected, "pointerup", 250)
+    selected.dispatchEvent(new w.MouseEvent("click", { bubbles: true, detail: 1 }))
   })
-  await api.act(async () => await new Promise((resolve) => setTimeout(resolve, 300)))
-  assert.match(doc.querySelector(".pack-reveal-card").textContent, /2 \/ 2/)
-  assert.ok(flip(), "the next card remains face down after a swipe-generated click")
+  await finishReturn(api, doc)
+  assert.equal(packStage(doc), "cards")
+  assert.equal(first.querySelector(".card-surface-front").getAttribute("aria-hidden"), "true")
+  assert.equal(second.querySelector(".card-surface-front").getAttribute("aria-hidden"), "false")
+  await inspectCard(api, doc, first.querySelector(".card-surface-control"))
+  const backdrop = doc.querySelector(".pack-reveal-shell")
+  await api.act(async () => backdrop.click())
+  await finishReturn(api, doc)
+  assert.equal(packStage(doc), "results")
+  assert.equal(doc.querySelector("dialog").open, true)
+  await api.act(async () => backdrop.click())
+  assert.equal(doc.querySelector("dialog").open, false)
   assert.equal(calls.length, 0)
   await api.act(async () => root.unmount())
 })
@@ -656,18 +702,25 @@ test("receipt favorite changes refresh a mounted favorites-only collection", asy
   await api.act(async () => button(doc, "Reveal cards").click())
   const dialog = doc.querySelector("dialog")
   assert.equal(dialog.querySelectorAll(".archive-card").length, 1)
-  await api.act(async () => button(dialog, "Remove from favorites").click())
+  await api.act(async () => closePack(doc))
+  await api.act(async () =>
+    button(doc.querySelector(".pack-reveal-inline"), "Remove from favorites").click(),
+  )
   assert.ok(inventoryReads > inventoryReadsBefore, "the filtered inventory must be invalidated")
   assert.match(inventoryUrls.at(-1), /offset=0.*favorites_only=true/)
   assert.ok(
     doc.querySelector("h3.archive-item-title") === null,
     "the unfavorited collection row must disappear",
   )
-  assert.equal(dialog.querySelectorAll(".archive-card").length, 1, "the receipt remains immutable")
+  assert.equal(
+    doc.querySelectorAll(".pack-reveal-inline .archive-card").length,
+    1,
+    "the receipt remains immutable",
+  )
   await api.act(async () => root.unmount())
 })
 
-test("a pending favorite swipe cannot advance after skipping and never buys again", async () => {
+test("a pending favorite swipe cannot affect replay and never buys again", async () => {
   const writes = []
   let finish
   const { api, doc, w } = runtime(async (url, init = {}) => {
@@ -687,12 +740,10 @@ test("a pending favorite swipe cannot advance after skipping and never buys agai
       accountKey: "account-one",
     })
   })
-  await api.act(async () => button(doc, "Reveal cards").click())
-  await api.act(async () => button(doc, "Break the seal").click())
-  await api.act(async () => animationEnd(doc, doc.querySelector(".pack-opening-scene")))
-  await api.act(async () => doc.querySelector("button[aria-label='Reveal card']").click())
+  await dealPack(api, doc)
+  await inspectCard(api, doc)
   await api.act(async () => {
-    const control = doc.querySelector(".card-surface-control")
+    const control = packControl(doc, "Return card to pack")
     pointer(w, control, "pointerdown", 240)
     pointer(w, control, "pointermove", 100)
     pointer(w, control, "pointerup", 100)
@@ -702,13 +753,13 @@ test("a pending favorite swipe cannot advance after skipping and never buys agai
     url: "/api/archive/favorites/card-one",
     body: { favorite: true, scope: "REAL" },
   })
-  assert.ok(button(doc, "Saving…").disabled)
-  await api.act(async () => button(doc, "Skip to results").click())
+  await api.act(async () => closePack(doc))
+  await api.act(async () => button(doc, "Replay reveal").click())
   await api.act(async () => finish(response({ card_id: "card-one", favorite: true })))
-  await api.act(async () => await new Promise((resolve) => setTimeout(resolve, 300)))
-  assert.equal(doc.querySelector(".pack-reveal-shell").dataset.stage, "results")
-  assert.equal(doc.querySelectorAll("dialog .archive-card").length, 2)
-  assert.ok(button(doc, "Remove from favorites"))
+  assert.equal(packStage(doc), "sealed")
+  await api.act(async () => closePack(doc))
+  assert.equal(doc.querySelectorAll(".pack-reveal-inline .archive-card").length, 2)
+  assert.ok(button(doc.querySelector(".pack-reveal-inline"), "Remove from favorites"))
   assert.equal(writes.length, 1)
   await api.act(async () => root.unmount())
 })
@@ -735,7 +786,7 @@ test("favorite writes are single-flight and stale account responses are ignored"
     })
   })
   await api.act(async () => button(doc, "Reveal cards").click())
-  await api.act(async () => button(doc, "Skip to results").click())
+  await api.act(async () => closePack(doc))
   await api.act(async () => {
     button(doc, "Add to favorites").click()
     button(doc, "Add to favorites").click()
@@ -745,7 +796,7 @@ test("favorite writes are single-flight and stale account responses are ignored"
   assert.equal(writes[0].signal.aborted, true)
   await api.act(async () => finish(response({ card_id: "card-one", favorite: true })))
   await api.act(async () => button(doc, "Reveal cards").click())
-  await api.act(async () => button(doc, "Skip to results").click())
+  await api.act(async () => closePack(doc))
   assert.equal(button(doc, "Remove from favorites"), undefined)
   assert.equal(button(doc, "Add to favorites").getAttribute("aria-pressed"), "false")
   await api.act(async () => root.unmount())
@@ -768,7 +819,7 @@ test("favorite errors remain visible in inline results after closing the reveal"
     })
   })
   await api.act(async () => button(doc, "Reveal cards").click())
-  await api.act(async () => button(doc, "Close reveal").click())
+  await api.act(async () => closePack(doc))
   await api.act(async () =>
     button(doc.querySelector(".pack-reveal-inline"), "Add to favorites").click(),
   )
@@ -791,9 +842,10 @@ test("empty receipt shows complete results without an inert opening sequence", a
     })
   })
   await api.act(async () => button(doc, "Раскрыть карточки").click())
-  assert.match(doc.querySelector("dialog").textContent, /Получено: 0/)
+  assert.equal(packStage(doc), "results")
+  assert.equal(doc.querySelector("dialog button"), null)
   assert.equal(doc.querySelector(".card-surface-control"), null)
-  await api.act(async () => button(doc, "Закрыть показ").click())
+  await api.act(async () => closePack(doc))
   assert.equal(doc.querySelector("dialog").open, false)
   await api.act(async () => root.unmount())
 })
@@ -821,18 +873,17 @@ test("cinematic pack reveal uses receipt order and replay has no network or wall
   assert.ok(button(doc, "Reveal cards"))
   await api.act(async () => button(doc, "Reveal cards").click())
   assert.equal(doc.querySelector("dialog").hasAttribute("open"), true)
-  await api.act(async () => button(doc, "Skip to results").click())
-  const titles = [...doc.querySelectorAll("dialog .archive-card strong")].map(
+  await api.act(async () => closePack(doc))
+  const titles = [...doc.querySelectorAll(".pack-reveal-inline .archive-card strong")].map(
     (node) => node.textContent,
   )
   assert.deepEqual(titles, ["First file", "Second file"])
-  assert.match(doc.querySelector("dialog").textContent, /Duplicate/)
-  assert.match(doc.querySelector("dialog").textContent, /Sandbox copy/)
-  await api.act(async () => button(doc, "Close reveal").click())
+  assert.match(doc.querySelector(".pack-reveal-inline").textContent, /Duplicate/)
+  assert.match(doc.querySelector(".pack-reveal-inline").textContent, /Sandbox copy/)
   assert.equal(closed, 0)
   assert.ok(button(doc, "Replay reveal"))
   await api.act(async () => button(doc, "Replay reveal").click())
-  await api.act(async () => button(doc, "Close reveal").click())
+  await api.act(async () => closePack(doc))
   assert.equal(calls.length, 0)
   assert.match(doc.querySelector(".archive-receipt").textContent, /Night mail/)
   await api.act(async () => root.unmount())
@@ -869,7 +920,7 @@ test("reduced motion opens a pack reveal directly at complete results", async ()
   })
   await api.act(async () => button(doc, "Reveal cards").click())
   assert.match(doc.querySelector("dialog").textContent, /Quiet card/)
-  assert.equal(button(doc, "Break the seal"), undefined)
+  assert.equal(packControl(doc, "Break the seal"), null)
   await api.act(async () => root.unmount())
 })
 
@@ -906,7 +957,7 @@ test("manual motion change during opening cancels the animation wait", async () 
     })
   })
   await api.act(async () => button(doc, "Reveal cards").click())
-  await api.act(async () => button(doc, "Break the seal").click())
+  await api.act(async () => packControl(doc, "Break the seal").click())
   assert.equal(doc.querySelector(".pack-reveal-shell").dataset.stage, "opening")
   await api.act(async () => {
     w.localStorage.setItem("dc.ui.appearance", JSON.stringify({ motion: false }))
@@ -927,8 +978,7 @@ test("receipt identity resets reveal state while the same identity preserves it"
     })
   })
   await api.act(async () => button(doc, "Reveal cards").click())
-  await api.act(async () => button(doc, "Skip to results").click())
-  await api.act(async () => button(doc, "Close reveal").click())
+  await api.act(async () => closePack(doc))
   assert.ok(button(doc, "Replay reveal"))
   await api.act(async () => {
     root.rerender({
@@ -957,7 +1007,7 @@ test("a reduced-motion change during opening skips directly to results", async (
     })
   })
   await api.act(async () => button(doc, "Reveal cards").click())
-  await api.act(async () => button(doc, "Break the seal").click())
+  await api.act(async () => packControl(doc, "Break the seal").click())
   await api.act(async () => setReducedMotion(true))
   assert.match(doc.querySelector("dialog").textContent, /Motion-safe result/)
   assert.equal(button(doc, "Skip to results"), undefined)
@@ -980,7 +1030,8 @@ test("TransactionStatus offers the cinematic reveal for a saved starter pack rec
   })
   await api.act(async () => button(doc, "Open test pack").click())
   assert.ok(button(doc, "Reveal cards"))
-  assert.equal(doc.querySelector(".archive-receipt .archive-card"), null)
+  assert.equal(doc.querySelector(".pack-reveal").open, false)
+  assert.equal(doc.querySelectorAll(".archive-receipt .archive-card").length, 0)
   await api.act(async () => root.unmount())
 })
 
@@ -993,23 +1044,25 @@ test("opening stages move focus to the available keyboard action", async () => {
       cinematic: true,
     })
   })
-  await api.act(async () => button(doc, "Reveal cards")?.click())
-  await api.act(async () => button(doc, "Break the seal").click())
+  const trigger = button(doc, "Reveal cards")
+  await api.act(async () => trigger.click())
+  assert.equal(doc.activeElement, packControl(doc, "Break the seal"))
+  await api.act(async () => packControl(doc, "Break the seal").click())
   await api.act(async () => animationEnd(doc, doc.querySelector(".pack-opening-scene")))
   const flip = doc.querySelector("button[aria-label='Reveal card']")
   assert.equal(doc.activeElement, flip)
-  await api.act(async () => flip.click())
-  assert.equal(doc.activeElement, button(doc, "Results"))
+  await inspectCard(api, doc, flip)
+  assert.equal(doc.activeElement, packControl(doc, "Return card to pack"))
   await api.act(async () =>
     doc.activeElement.dispatchEvent(
       new doc.defaultView.KeyboardEvent("keydown", { key: "ArrowRight", bubbles: true }),
     ),
   )
-  await api.act(async () => await new Promise((resolve) => setTimeout(resolve, 300)))
-  assert.ok(
-    doc.activeElement === button(doc, "Close reveal"),
-    "ArrowRight reaches results and focuses Close",
-  )
+  await finishReturn(api, doc)
+  assert.equal(packStage(doc), "results")
+  assert.equal(doc.activeElement, packControl(doc, "Inspect card"))
+  await api.act(async () => closePack(doc))
+  assert.equal(doc.activeElement, trigger)
   await api.act(async () => root.unmount())
 })
 
@@ -1021,7 +1074,7 @@ test("close, cancel and unmount each clear the pending opening timer", async () 
   const clearedOpeningTimers = new Set()
   w.setTimeout = (callback, delay, ...args) => {
     const timer = nativeSetTimeout(callback, delay, ...args)
-    if (delay === 3600) openingTimers.push(timer)
+    if (delay === 1330) openingTimers.push(timer)
     return timer
   }
   w.clearTimeout = (timer) => {
@@ -1038,22 +1091,23 @@ test("close, cancel and unmount each clear the pending opening timer", async () 
   const trigger = button(doc, "Reveal cards")
   trigger.focus()
   await api.act(async () => trigger.click())
-  await api.act(async () => button(doc, "Break the seal").click())
-  await api.act(async () => button(doc, "Close reveal").click())
+  await api.act(async () => packControl(doc, "Break the seal").click())
+  await api.act(async () => closePack(doc))
   assert.ok(clearedOpeningTimers.has(openingTimers[0]))
   assert.equal(doc.activeElement, trigger)
   assert.match(doc.querySelector(".pack-reveal-inline").textContent, /Focus card/)
 
   await api.act(async () => trigger.click())
-  await api.act(async () => button(doc, "Break the seal").click())
-  await api.act(async () =>
-    doc.querySelector("dialog").dispatchEvent(new w.Event("cancel", { cancelable: true })),
-  )
+  await api.act(async () => packControl(doc, "Break the seal").click())
+  await api.act(async () => {
+    const dialog = doc.querySelector("dialog")
+    // jsdom has no default close action for the native dialog cancel event.
+    if (dialog.dispatchEvent(new w.Event("cancel", { cancelable: true }))) dialog.close()
+  })
   assert.ok(clearedOpeningTimers.has(openingTimers[1]))
 
-  await api.act(async () => button(doc, "Close reveal").click())
   await api.act(async () => trigger.click())
-  await api.act(async () => button(doc, "Break the seal").click())
+  await api.act(async () => packControl(doc, "Break the seal").click())
   await api.act(async () => root.unmount())
   assert.ok(clearedOpeningTimers.has(openingTimers[2]))
 })

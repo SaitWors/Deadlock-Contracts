@@ -143,5 +143,3 @@ html[data-theme] .bureau-app.ritual-workspace .archive-collection-overview .arch
 html[data-theme] .bureau-app.ritual-workspace .bureau-guide { border-radius:var(--ns-radius); border-color:var(--ns-line); background:var(--ns-surface); }
 html[data-theme] .bureau-app.ritual-workspace .bureau-guide-note { background:var(--ns-soft); border:1px solid var(--ns-line); border-radius:var(--ns-small); }
 html[data-theme] .bureau-app.ritual-workspace .bureau-guide-footer { background:var(--ns-surface); border-top:1px solid var(--ns-line); }
-html[data-theme] .bureau-app.ritual-workspace .pack-reveal[data-theme=archive] { background:var(--ns-surface); border:1px solid var(--ns-line); border-radius:var(--ns-radius); color:var(--ns-text); box-shadow:0 25px 70px #0009; }
-html[data-theme] .bureau-app.ritual-workspace .pack-reveal[data-theme=archive] button { border-radius:var(--ns-small); }
