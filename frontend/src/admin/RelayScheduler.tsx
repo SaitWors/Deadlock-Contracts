@@ -88,15 +88,13 @@ function StreamerBadge() {
   )
 }
 
-export function PriorityCohorts({
-  cohorts,
-  copy,
-  latency,
-}: {
+type CohortProps = {
   cohorts: PriorityCohort[]
   copy: (ru: string, en: string) => string
   latency: (summary: Latency) => ReactNode
-}) {
+}
+
+function PriorityCohorts({ cohorts, copy, latency }: CohortProps) {
   const title = copy("Результаты по значку", "Outcomes by badge")
   const headings = [
     copy("Группа", "Cohort"),
@@ -150,15 +148,13 @@ export function PriorityCohorts({
   )
 }
 
-export default function RelayScheduler({
-  observation,
-  stale,
-  language,
-}: {
+type SchedulerProps = {
   observation: SchedulerObservation
   stale: boolean
   language: Language
-}) {
+}
+
+function SchedulerPanel({ observation, stale, language }: SchedulerProps) {
   const copy = (ru: string, en: string) => (language === "ru" ? ru : en)
   const unknown = copy("Неизвестно", "Unknown")
   const numbers = new Intl.NumberFormat(language)
@@ -375,4 +371,8 @@ export default function RelayScheduler({
       )}
     </section>
   )
+}
+
+export default function RelayScheduler(props: SchedulerProps | CohortProps) {
+  return "observation" in props ? <SchedulerPanel {...props} /> : <PriorityCohorts {...props} />
 }

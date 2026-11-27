@@ -8,9 +8,6 @@ import "./contract-relay-admin.css"
 const endpoint = "/api/admin/contract-relay"
 const isAdminAccessDenied = (status: number | null) => status === 401 || status === 403
 const RelayScheduler = lazy(() => import("./RelayScheduler"))
-const PriorityCohorts = lazy(() =>
-  import("./RelayScheduler").then((m) => ({ default: m.PriorityCohorts })),
-)
 
 type NodeAction = "enable" | "disable" | "revoke"
 
@@ -168,13 +165,8 @@ function NodePanel({
     unavailable: copy("Недоступно", "Unavailable"),
     recent: copy("Свежие", "Recent"),
     paused: copy("Приостановлен", "Paused"),
-    online: copy("На связи", "Online"),
-    fresh: copy("Свежие", "Fresh"),
     stale: copy("Устарели", "Stale"),
     active: copy("Активна", "Active"),
-    inactive: copy("Неактивна", "Inactive"),
-    connected: copy("Подключена", "Connected"),
-    disconnected: copy("Отключена", "Disconnected"),
     unknown,
   }
   const state = (value?: string | null) => (value && states[value.toLowerCase()]) || unknown
@@ -185,11 +177,8 @@ function NodePanel({
     friendship_sync_failed: copy("Ошибка отправки статусов дружбы", "Friendship sync failed"),
     steam_enrollment_failed: copy("Сбой автоподключения через Steam", "Steam enrollment failed"),
     scheduler_sync_failed: copy("Очередь планировщика недоступна", "Scheduler queue unavailable"),
-    docker_inspect_failed: copy(
-      "Не удалось прочитать состояние Docker",
-      "Could not inspect Docker state",
-    ),
-    docker_logs_failed: copy("Не удалось прочитать журнал Docker", "Could not read the Docker log"),
+    docker_inspect_failed: copy("Состояние Docker недоступно", "Docker state unavailable"),
+    docker_logs_failed: copy("Журнал Docker недоступен", "Docker log unavailable"),
   }
   const ingest = node.ingest
   const metrics = ingest?.metrics
@@ -386,6 +375,17 @@ function Effectiveness({
     baseline: copy("Без активного участия", "No active opt-in"),
     unknown: copy("Статус Relay неизвестен", "Relay status unknown"),
   }
+  const columns = [
+    copy("Группа · режим", "Cohort · mode"),
+    "Companion",
+    copy("Попытки", "Attempts"),
+    copy("Без метаданных", "Metadata unobserved"),
+    copy("Без итога", "Unresolved"),
+    copy("Доля подтверждённых", "Confirmed share"),
+    copy("До метаданных", "To metadata"),
+    copy("До итога", "To decision"),
+    copy("Метаданные → итог", "Metadata → decision"),
+  ]
   return (
     <>
       <p>
@@ -409,7 +409,7 @@ function Effectiveness({
       )}
       {!!data.priority_cohorts?.length && (
         <Suspense>
-          <PriorityCohorts cohorts={data.priority_cohorts} copy={copy} latency={latency} />
+          <RelayScheduler cohorts={data.priority_cohorts} copy={copy} latency={latency} />
         </Suspense>
       )}
       {data.sample_size === 0 || !data.cohorts.length ? (
@@ -423,8 +423,8 @@ function Effectiveness({
         <>
           <p>
             {copy(
-              "Задержка от конца матча до получения метаданных и итога проверки. Медиана / 90-й перцентиль, n — число наблюдений. В выборку входят попытки с найденным матчем.",
-              "Latency from match end to metadata and to a verification decision. Median / 90th percentile, n is the number of observations. The sample includes attempts with a detected match.",
+              "Задержка от конца найденного матча. Медиана / P90, n — число наблюдений.",
+              "Latency from the end of a detected match. Median / P90, n is sample size.",
             )}
           </p>
           <div
@@ -436,15 +436,11 @@ function Effectiveness({
             <table className="dc-relay-table">
               <thead>
                 <tr>
-                  <th scope="col">{copy("Группа · режим", "Cohort · mode")}</th>
-                  <th scope="col">Companion</th>
-                  <th scope="col">{copy("Попытки", "Attempts")}</th>
-                  <th scope="col">{copy("Без метаданных", "Metadata unobserved")}</th>
-                  <th scope="col">{copy("Без итога", "Unresolved")}</th>
-                  <th scope="col">{copy("Доля подтверждённых", "Confirmed share")}</th>
-                  <th scope="col">{copy("До метаданных", "To metadata")}</th>
-                  <th scope="col">{copy("До итога", "To decision")}</th>
-                  <th scope="col">{copy("Метаданные → итог", "Metadata → decision")}</th>
+                  {columns.map((label) => (
+                    <th scope="col" key={label}>
+                      {label}
+                    </th>
+                  ))}
                 </tr>
               </thead>
               <tbody>
@@ -509,17 +505,14 @@ export default function AdminContractRelay({
   async function update(node: RelayNode, action: NodeAction) {
     if (busy || !canManage) return
     const questions = {
-      enable: copy(
-        `Разрешить узлу ${node.id} снова обмениваться данными с сайтом?`,
-        `Allow node ${node.id} to exchange data with the site again?`,
-      ),
+      enable: copy(`Возобновить обмен с узлом ${node.id}?`, `Resume exchange with ${node.id}?`),
       disable: copy(
-        `Отключить обмен данными сайта с узлом ${node.id}? Существующий ключ можно снова включить.`,
-        `Stop site traffic for node ${node.id}? The existing key can be enabled again.`,
+        `Остановить обмен с ${node.id}? Этот ключ можно снова включить.`,
+        `Pause ${node.id}? You can re-enable its key.`,
       ),
       revoke: copy(
-        `Отозвать ключ узла ${node.id}? Обмен данными остановится. Для возобновления нужен новый ключ.`,
-        `Revoke the key for node ${node.id}? Traffic will stop. A new key is required to restore it.`,
+        `Отозвать ключ ${node.id}? Для возобновления нужен новый ключ.`,
+        `Revoke the ${node.id} key? Resuming requires a new key.`,
       ),
     }
     if (!window.confirm(questions[action])) return
