@@ -26,10 +26,6 @@ html[data-theme] .archive-heading > div:first-child { min-width: 0; }
 html[data-theme] .archive-heading > div:first-child > small { display: inline-block; padding: 6px 9px; background: var(--ns-stamp); color: var(--ns-on-accent); transform: rotate(-1.5deg); }
 html[data-theme] .archive-heading small { font-size: 10px; font-weight: 700; letter-spacing: .1em; }
 html[data-theme] .archive-heading p { margin: 0; }
-html[data-theme] .archive-balance { min-width: 160px; padding: 18px 22px; border: 1px solid var(--ns-paper-line); border-radius: calc(var(--ns-radius) * .5); background: var(--ns-paper); color: var(--ns-ink); flex-shrink: 0; box-shadow: 5px 5px 0 color-mix(in srgb,var(--ns-deep) 65%,transparent); transform: rotate(2deg); }
-html[data-theme] .archive-balance small { font-size: 10px; letter-spacing: .04em; color: var(--ns-paper-muted); }
-html[data-theme] .archive-balance strong { display: flex; align-items: center; gap: 9px; margin-top: 9px; font: 650 29px/1.2 var(--font-body); color: var(--ns-ink); font-variant-numeric: tabular-nums; }
-html[data-theme] .archive-balance svg { color: var(--ns-ink); }
 html[data-theme] .archive-tabs { padding: 8px 0; gap: 6px; border: 0; border-bottom: 1px solid var(--ns-line); border-radius: 0; background: transparent; margin: 16px 0 32px; }
 html[data-theme] .archive-tabs button { border-color: transparent; background: transparent; color: var(--ns-muted); min-height: 44px; padding: 10px 14px; flex: 1 1 auto; border-radius: var(--ns-small); }
 html[data-theme] .archive-tabs button[aria-current=page] { color: var(--ns-on-accent); border-color: var(--ns-fill); background: var(--ns-fill); box-shadow: 2px 2px 0 var(--ns-deep); }
@@ -198,9 +194,6 @@ html[data-theme] .guest-actions .bureau-action-secondary { border-color: var(--n
 @media(max-width:760px) {
   html[data-theme] .archive-heading { align-items: flex-start; padding: 12px 0 20px; gap: 14px; }
   html[data-theme] .archive-heading p { font-size: 12px; }
-  html[data-theme] .archive-balance { min-width: 112px; padding: 12px; }
-  html[data-theme] .archive-balance small { font-size: 8px; letter-spacing: 0; }
-  html[data-theme] .archive-balance strong { font-size: 22px; }
   html[data-theme] .archive-tabs { margin: 18px 0 24px; }
   html[data-theme] .archive-tabs button { flex: 1 1 30%; font-size: 11px; padding-inline: 10px; }
   html[data-theme] .archive-filters { grid-template-columns: repeat(2,minmax(0,1fr)); padding: 14px; gap: 12px; }
@@ -230,9 +223,6 @@ html[data-theme] .guest-actions .bureau-action-secondary { border-color: var(--n
 @media(max-width:480px) {
   html[data-theme] .archive-heading { flex-wrap: wrap; }
   html[data-theme] .archive-heading > div:first-child { flex: 1 1 100%; }
-  html[data-theme] .archive-balance { display: flex; align-items: center; gap: 18px; width: 100%; justify-content: space-between; padding: 11px 15px; transform: none; }
-  html[data-theme] .archive-balance strong { margin: 0; font-size: 19px; }
-  html[data-theme] .archive-balance small { font-size: 10px; }
   html[data-theme] .archive-tabs button { flex-basis: 40%; }
   html[data-theme] .archive-collection-count { gap: 16px; }
   html[data-theme] .archive-rarity-summary { margin-left: 0; flex: 1 1 100%; justify-content: space-between; padding-top: 16px; border-top: 1px dashed var(--ns-paper-line); }
