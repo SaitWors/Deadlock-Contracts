@@ -704,6 +704,30 @@ test("Relay automatic enrollment hides technical details and keeps the opt-out",
   await api.act(async () => root.unmount())
 })
 
+test("an existing Steam friend can explicitly opt in without sending another invitation", async () => {
+  const mutations = []
+  const { doc, api } = runtime(async (url, init) => {
+    assert.equal(url, "/api/profile/contract-relay")
+    const optIn = init.method === "PUT"
+    if (optIn) mutations.push([init.method, init.headers.get("X-CSRF-Token")])
+    return response({
+      connection: optIn ? { id: "connection-id", status: "pending" } : null,
+      auto_enrollment: { blocked: false },
+    })
+  })
+  let root
+  await api.act(async () => {
+    root = api.mount(doc.getElementById("mount"), "relayProfile", { csrf: "relay-csrf" })
+  })
+  assert.deepEqual(mutations, [])
+  assert.ok(doc.querySelector('a[href="https://steamcommunity.com/id/deadlock-contracts-relay/"]'))
+  await api.act(async () => button(doc, "Я уже в друзьях, согласен участвовать").click())
+  assert.deepEqual(mutations, [["PUT", "relay-csrf"]])
+  assert.equal(doc.querySelector('[role="status"]').textContent, "Ожидает проверки")
+  assert.equal(button(doc, "Я уже в друзьях, согласен участвовать"), undefined)
+  await api.act(async () => root.unmount())
+})
+
 test("the Relay profile refreshes after the player returns from Steam", async () => {
   let connected = false
   const { w, doc, api } = runtime(async (url) => {
