@@ -659,7 +659,6 @@ test("Relay exposes the current consent ID on the admin player detail only", asy
   await api.act(async () => root.unmount())
 })
 
-
 test("Relay automatic enrollment shows one Steam link without a separate opt-in", async () => {
   const calls = []
   const { doc, api } = runtime(async (url, init) => {
