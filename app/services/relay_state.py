@@ -10,6 +10,9 @@ from ..models import ContractRelayConnection, utcnow
 from ..relay_models import RelayFriendship, RelayNode
 
 
+FRESHNESS = timedelta(minutes=5)
+
+
 def utc(value: datetime) -> datetime:
     return value.replace(tzinfo=timezone.utc) if value.tzinfo is None else value.astimezone(timezone.utc)
 

@@ -66,6 +66,9 @@ class Settings:
     trusted_proxy_networks: tuple[str, ...] = _csv("TRUSTED_PROXY_NETWORKS", "127.0.0.1/32,::1/128")
     rate_limit_redis_url: str = os.getenv("RATE_LIMIT_REDIS_URL", "").strip()
     relay_enabled: bool = _bool("CONTRACT_RELAY_ENABLED")
+    relay_notifications_enabled: bool = _bool("CONTRACT_RELAY_NOTIFICATIONS_ENABLED")
+    relay_n8n_webhook_url: str = os.getenv("CONTRACT_RELAY_N8N_WEBHOOK_URL", "").strip()
+    relay_n8n_webhook_secret: str = _secret("CONTRACT_RELAY_N8N_WEBHOOK_SECRET")
     docs_enabled: bool = _bool("DOCS_ENABLED", True)
 
     allow_demo_auth: bool = _bool("ALLOW_DEMO_AUTH", False)
@@ -242,6 +245,21 @@ class Settings:
         parsed = urlparse(self.app_base_url)
         if parsed.scheme not in {"http", "https"} or not parsed.hostname or parsed.path not in {"", "/"}:
             raise RuntimeError("APP_BASE_URL must be an origin such as https://example.com")
+
+        if self.relay_enabled and self.relay_notifications_enabled and self.service_role == "worker":
+            try:
+                webhook = urlparse(self.relay_n8n_webhook_url)
+                if (
+                    webhook.scheme != "https" or not webhook.hostname or webhook.path in ("", "/")
+                    or webhook.username is not None or webhook.password is not None
+                    or webhook.params or webhook.query or webhook.fragment or webhook.port == 0
+                    or any(char.isspace() or char == "\\" for char in self.relay_n8n_webhook_url)
+                ):
+                    raise ValueError("Expected an HTTPS webhook path")
+            except ValueError as exc:
+                raise RuntimeError("CONTRACT_RELAY_N8N_WEBHOOK_URL must be an HTTPS webhook URL") from exc
+            if not re.fullmatch(r"[A-Za-z0-9_-]{32,256}", self.relay_n8n_webhook_secret):
+                raise RuntimeError("CONTRACT_RELAY_N8N_WEBHOOK_SECRET must contain 32-256 safe ASCII characters")
 
         if self.indexnow_key and not re.fullmatch(r"[A-Za-z0-9-]{8,128}", self.indexnow_key):
             raise RuntimeError("INDEXNOW_KEY must contain 8–128 ASCII letters, digits or hyphens")

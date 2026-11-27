@@ -33,6 +33,7 @@ from .models import (
     RewardLedgerEntry,
     User,
 )
+from .services import relay_notifications
 from .services.boards import expire_stale_boards
 from .services.evaluator import (
     _has_trusted_finality,
@@ -3188,6 +3189,9 @@ def dispatch_outbox(db: Session) -> bool:
             )
         )
 
+    if not relay_notifications.enabled():
+        filters.append(OutboxEvent.event_type != relay_notifications.EVENT_TYPE)
+
     event = db.scalar(
         select(OutboxEvent)
         .where(*filters)
@@ -3266,6 +3270,8 @@ def dispatch_outbox(db: Session) -> bool:
             )
             payload["telegram_delivery"] = result.to_dict()
             event.payload = payload
+        elif event.event_type == relay_notifications.EVENT_TYPE:
+            relay_notifications.send(event)
         elif event.event_type == "auto_review.requested" and settings.discord_review_webhook_url:
             payload = event.payload
             body = json.dumps({
@@ -3403,6 +3409,13 @@ def run() -> None:
                 hero_vote_maintenance(SessionLocal)
             except Exception:
                 log.exception("Community hero poll refresh failed")
+            if relay_notifications.enabled():
+                try:
+                    with SessionLocal() as db:
+                        relay_notifications.collect(db, utcnow())
+                        db.commit()
+                except Exception:
+                    log.exception("Contract Relay notification collection failed")
             next_maintenance_at = time.monotonic() + 60
         with SessionLocal() as db:
             if dispatch_outbox(db):

@@ -15,6 +15,7 @@ from .db import get_db
 from .models import AuditLog, ContractRelayConnection, User, utcnow
 from .relay_models import RelayFriendship
 from .services.auth import require_csrf, require_user
+from .services.relay_notifications import queue_application
 from .services.relay_state import connection_status, iso, utc
 
 
@@ -131,8 +132,10 @@ def opt_in(response: Response, user: User = Depends(require_user), db: Session =
         count = db.scalar(select(func.count()).select_from(ContractRelayConnection))
         if count >= PILOT_CAPACITY:
             raise HTTPException(409, "В пилоте Relay заняты все 30 мест. Попробуйте позже.")
-        connection = ContractRelayConnection(user_id=user.id)
+        now = utcnow()
+        connection = ContractRelayConnection(user_id=user.id, consented_at=now)
         db.add(connection)
+        queue_application(db, user_id=user.id, now=now)
         db.commit()
     return _payload(response, db, connection, player=True)
 

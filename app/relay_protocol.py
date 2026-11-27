@@ -23,14 +23,13 @@ from .relay_models import RelayFriendship, RelayHeartbeat, RelayNode
 from .security import rate_limit_allow
 from .services.auth import require_csrf
 from .services.relay_effectiveness import summary as effectiveness_summary
-from .services.relay_state import friendship_query, iso, observation_allowed, summarize_connection, utc
+from .services.relay_state import FRESHNESS, friendship_query, iso, observation_allowed, summarize_connection, utc
 
 
 PREFIX = "/api/internal/relay/v1"
 ADMIN = "/api/admin/contract-relay"
 MAX_AGE = timedelta(hours=24)
 CLOCK_SKEW = timedelta(minutes=2)
-FRESHNESS = timedelta(minutes=5)
 PAGE_SIZE = 200
 HISTORY_SIZE = 100
 TOKEN = re.compile(rf"(?i:Bearer) (({NODE_PATTERN})\.[A-Za-z0-9_-]{{43}})")
