@@ -1,0 +1,30 @@
+[Unit]
+Description=Deadlock Contracts Relay outbound manager
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+DynamicUser=yes
+StateDirectory=contract-relay-manager
+StateDirectoryMode=0700
+WorkingDirectory=/opt/contract-relay-manager/current
+EnvironmentFile=/etc/contract-relay-manager/config
+LoadCredential=relay-token:/etc/contract-relay-manager/token
+LoadCredential=friend-observations:/etc/contract-relay-manager/friend-observations.json
+ExecStart=/usr/bin/python3 -E -s -B -m relay.manager --api-base-url ${RELAY_API_ORIGIN} --token-file %d/relay-token --state-directory /var/lib/contract-relay-manager --host-snapshot /run/contract-relay-observation/status.json --friend-observations %d/friend-observations $RELAY_MANAGER_FLAGS
+Restart=on-failure
+RestartSec=15s
+UMask=0077
+NoNewPrivileges=yes
+PrivateDevices=yes
+PrivateTmp=yes
+ProtectSystem=strict
+ProtectHome=yes
+ProtectKernelModules=yes
+ProtectKernelTunables=yes
+ProtectControlGroups=yes
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+InaccessiblePaths=-/run/docker.sock -/run/user
+
+[Install]
+WantedBy=multi-user.target
