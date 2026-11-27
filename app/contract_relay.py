@@ -11,6 +11,7 @@ from sqlalchemy import func, select, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, undefer
 
+from .config import settings
 from .db import get_db
 from .models import AuditLog, ContractRelayConnection, User, utcnow
 from .relay_models import RelayFriendship
@@ -97,9 +98,16 @@ def _payload(response: Response, db: Session, connection: ContractRelayConnectio
     return {"connection": payload}
 
 
+def _player_payload(response: Response, db: Session, user: User, connection: ContractRelayConnection | None) -> dict:
+    payload = _payload(response, db, connection, player=True)
+    if settings.relay_enabled and settings.relay_auto_enrollment_enabled:
+        payload["auto_enrollment"] = {"blocked": user.relay_auto_enrollment_blocked}
+    return payload
+
+
 @player_router.get(PROFILE_PATH)
 def get_connection(response: Response, user: User = Depends(require_user), db: Session = Depends(get_db)) -> dict:
-    return _payload(response, db, _connection(db, user.id), player=True)
+    return _player_payload(response, db, user, _connection(db, user.id))
 
 
 @player_router.post(PROFILE_PATH + QUICK_INVITE_PATH, dependencies=[Depends(require_csrf)])
@@ -138,7 +146,7 @@ def opt_in(response: Response, user: User = Depends(require_user), db: Session =
         queue_application(db, user_id=user.id, now=now)
     user.relay_auto_enrollment_blocked = False
     db.commit()
-    return _payload(response, db, connection, player=True)
+    return _player_payload(response, db, user, connection)
 
 
 @player_router.delete(PROFILE_PATH, dependencies=[Depends(require_csrf)])
@@ -149,7 +157,7 @@ def opt_out(response: Response, user: User = Depends(require_user), db: Session 
     if connection is not None:
         db.delete(connection)
     db.commit()
-    return _payload(response, db, None)
+    return _player_payload(response, db, user, None)
 
 
 def build_admin_router(require_admin) -> APIRouter:
