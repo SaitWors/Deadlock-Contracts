@@ -13,7 +13,10 @@ type RelayConnection = {
   quick_invite_expires_at?: string | null
 }
 
-type RelayResponse = { connection: RelayConnection | null; auto_enrollment?: { blocked: boolean } }
+type RelayResponse = {
+  connection: RelayConnection | null
+  auto_enrollment?: { blocked: boolean }
+}
 type ReviewAction = "confirm" | "clear" | "disconnect"
 
 export default function ContractRelay({
@@ -166,14 +169,24 @@ export default function ContractRelay({
             : "Relay helps discover matches. Sending a friend request to the service account opts you into the pilot (30 places); its friend list is public."}
         </p>
         {autoEnrollment.blocked ? (
-          <button type="button" className="dc-ghost" disabled={busy} onClick={() => void update("join")}>
+          <button
+            type="button"
+            className="dc-ghost"
+            disabled={busy}
+            onClick={() => void update("join")}
+          >
             {ru ? "Разрешить повторное подключение" : "Allow reconnection"}
           </button>
         ) : (
           <div className="dc-admin-user-actions">
             {!connected &&
               (inviteExpires ? (
-                <button type="button" className="dc-ghost" disabled={busy} onClick={() => void openInvite()}>
+                <button
+                  type="button"
+                  className="dc-ghost"
+                  disabled={busy}
+                  onClick={() => void openInvite()}
+                >
                   {ru ? "Добавить в друзья Steam" : "Add on Steam"}
                 </button>
               ) : (
