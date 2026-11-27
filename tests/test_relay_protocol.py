@@ -254,3 +254,80 @@ def test_credential_cli_database_errors_are_sanitized(monkeypatch, capsys):
     assert error.value.code == 2
     stderr = capsys.readouterr().err
     assert "Could not store Relay credential" in stderr and digest_value not in stderr
+
+
+def admission(account_id):
+    return {"protocol_version": 1, "steam_id64": str(76561197960265728 + account_id)}
+
+
+def test_incoming_request_admission_is_disabled_by_default_and_machine_only(relay, monkeypatch):
+    factory, player = relay
+    _, user = steam_player(factory, player, "Applicant", 23456)
+    endpoint = API + "/admissions"
+    assert user.post(endpoint, headers=auth(), json=admission(23456)).status_code == 403
+    monkeypatch.setattr(relay_protocol, "settings",
+                        replace(relay_protocol.settings, relay_auto_enrollment_enabled=True))
+    assert user.post(endpoint, json=admission(23456)).status_code == 401
+    assert user.post(endpoint, headers=auth(OTHER), json=admission(23456)).status_code == 403
+    assert user.post(endpoint, headers=auth(), json=admission(23456) | {"steam_id64": 23456}).status_code == 422
+    assert user.get(PROFILE).json()["connection"] is None
+
+
+def test_incoming_request_reserves_place_but_never_confirms_friendship(relay, monkeypatch):
+    factory, player = relay
+    user_id, user = steam_player(factory, player, "Applicant", 23456)
+    monkeypatch.setattr(relay_protocol, "settings",
+                        replace(relay_protocol.settings, relay_auto_enrollment_enabled=True))
+    endpoint = API + "/admissions"
+    unknown = user.post(endpoint, headers=auth(), json=admission(99999))
+    assert unknown.json()["decision"] == "ineligible"
+    assert unknown.json()["connection_id"] is None
+    response = user.post(endpoint, headers=auth(), json=admission(23456))
+    assert response.status_code == 200, response.text
+    result = response.json()
+    assert result["decision"] == "allowed"
+    assert user.post(endpoint, headers=auth(), json=admission(23456)).json() == result
+    connection = user.get(PROFILE).json()["connection"]
+    assert connection["id"] == result["connection_id"]
+    assert connection["status"] == "pending"
+    assert connection["friendship_confirmed_at"] is None
+    with factory() as db:
+        db.get(User, user_id).status = "SUSPENDED"
+        db.commit()
+    assert user.post(endpoint, headers=auth(), json=admission(23456)).json()["decision"] == "ineligible"
+
+
+def test_incoming_request_respects_capacity_and_explicit_opt_out(relay, monkeypatch):
+    from test_relay_pilot_capacity import seed_participants
+
+    factory, player = relay
+    seed_participants(factory, 29)
+    _, user = steam_player(factory, player, "Applicant", 23456)
+    _, other = steam_player(factory, player, "Other", 34567)
+    monkeypatch.setattr(relay_protocol, "settings",
+                        replace(relay_protocol.settings, relay_auto_enrollment_enabled=True))
+    endpoint = API + "/admissions"
+    first = user.post(endpoint, headers=auth(), json=admission(23456)).json()
+    assert first["decision"] == "allowed"
+    assert other.post(endpoint, headers=auth(), json=admission(34567)).json()["decision"] == "full"
+    assert user.delete(PROFILE).status_code == 200
+    assert user.post(endpoint, headers=auth(), json=admission(23456)).json()["decision"] == "ineligible"
+    assert other.post(endpoint, headers=auth(), json=admission(34567)).json()["decision"] == "allowed"
+    assert other.delete(PROFILE).status_code == 200
+    second = user.put(PROFILE).json()["connection"]
+    assert second["id"] != first["connection_id"]
+    assert user.post(endpoint, headers=auth(), json=admission(23456)).json()["connection_id"] == second["id"]
+
+
+def test_admin_disconnect_blocks_replayed_admission(relay, monkeypatch):
+    factory, player = relay
+    user_id, user = steam_player(factory, player, "Applicant", 23456)
+    admin_id, admin = player("Admin")
+    elevate(factory, admin_id, admin, role="ADMIN")
+    monkeypatch.setattr(relay_protocol, "settings",
+                        replace(relay_protocol.settings, relay_auto_enrollment_enabled=True))
+    endpoint = API + "/admissions"
+    connection = user.post(endpoint, headers=auth(), json=admission(23456)).json()["connection_id"]
+    assert admin.patch(f"/api/admin/users/{user_id}/contract-relay/{connection}",
+                       json={"action": "disconnect"}).status_code == 200
+    assert user.post(endpoint, headers=auth(), json=admission(23456)).json()["decision"] == "ineligible"
