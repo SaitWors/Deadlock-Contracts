@@ -658,3 +658,47 @@ test("Relay exposes the current consent ID on the admin player detail only", asy
   assert.equal(doc.querySelector(".dc-relay-consent-id").textContent, consentId)
   await api.act(async () => root.unmount())
 })
+
+
+test("Relay automatic enrollment shows one Steam link without a separate opt-in", async () => {
+  const calls = []
+  const { doc, api } = runtime(async (url, init) => {
+    calls.push([url, init.method])
+    return response({ connection: null, auto_enrollment: { blocked: false } })
+  })
+  let root
+  await api.act(async () => {
+    root = api.mount(doc.getElementById("mount"), "relayProfile", { csrf: "relay-csrf" })
+  })
+  assert.match(doc.querySelector('[role="status"]').textContent, /Не подключён/)
+  const link = doc.querySelector('a[href="https://steamcommunity.com/id/deadlock-contracts-relay/"]')
+  assert.match(link.textContent, /Добавить в друзья/)
+  assert.equal(button(doc, "Согласен участвовать"), undefined)
+  assert.equal(calls.length, 1)
+  await api.act(async () => root.unmount())
+})
+
+test("Relay automatic enrollment hides technical details and keeps the opt-out", async () => {
+  const { doc, api } = runtime(async () =>
+    response({
+      auto_enrollment: { blocked: false },
+      connection: {
+        id: "connection-id",
+        consented_at: relayObservedAt,
+        friendship_confirmed_at: null,
+        friendship_observed_at: relayObservedAt,
+        status: "connected",
+        friendship_source: "steam_web_api",
+      },
+    }),
+  )
+  let root
+  await api.act(async () => {
+    root = api.mount(doc.getElementById("mount"), "relayProfile", { csrf: "relay-csrf" })
+  })
+  assert.match(doc.querySelector('[role="status"]').textContent, /Подключён/)
+  assert.equal(doc.querySelector("time"), null)
+  assert.equal(doc.querySelector(".dc-relay-consent-id"), null)
+  assert.ok(button(doc, "Отключить участие"))
+  await api.act(async () => root.unmount())
+})
