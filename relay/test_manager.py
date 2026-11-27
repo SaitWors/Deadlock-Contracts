@@ -244,5 +244,44 @@ class RelayTest(unittest.TestCase):
         request.assert_not_called()
 
 
+
+    def test_community_session_reads_relationships_without_exchanging_login_nonce(self):
+        steam = steam_friends.SteamSession("76561198000000444", self.root / "unused")
+        document = {"success": 1, "friendslist": {"bincremental": False, "friends": [
+            {"ulfriendid": "76561198000000555", "efriendrelationship": 2},
+            {"ulfriendid": "76561198000000666", "efriendrelationship": 3},
+            {"ulfriendid": "76561198000000777", "efriendrelationship": 4},
+        ]}}
+        with patch.object(steam, "_community_credential", return_value=("fake.test.token", False)):
+            with patch.object(steam_friends, "_json", return_value=document) as request:
+                relationships = steam.relationships()
+        self.assertEqual(relationships.incoming, {"76561198000000555"})
+        self.assertEqual(relationships.friends, {"76561198000000666"})
+        request.assert_called_once()
+        http_request = request.call_args.args[1]
+        self.assertEqual(http_request.full_url, "https://steamcommunity.com/textfilter/ajaxgetfriendslist")
+        self.assertIn("steamLoginSecure=", http_request.get_header("Cookie"))
+
+    def test_community_session_rejects_unsuccessful_or_incomplete_snapshots(self):
+        steam = steam_friends.SteamSession("76561198000000444", self.root / "unused")
+        for document in (
+            {"success": 15, "friendslist": {"friends": []}},
+            {"success": 1},
+            {"success": 1, "friendslist": {"bincremental": True, "friends": []}},
+            {"success": 1, "friendslist": {}},
+        ):
+            with self.subTest(document=document):
+                with patch.object(steam, "_community_credential", return_value=("fake.test.token", False)):
+                    with patch.object(steam_friends, "_json", return_value=document):
+                        with self.assertRaises(protocol.RequestFailed):
+                            steam.relationships()
+
+    def test_community_session_accepts_explicit_empty_snapshot(self):
+        steam = steam_friends.SteamSession("76561198000000444", self.root / "unused")
+        with patch.object(steam, "_community_credential", return_value=("fake.test.token", False)):
+            with patch.object(steam_friends, "_json", return_value={"success": 1, "friendslist": {"friends": []}}):
+                self.assertEqual(steam.relationships(), steam_friends.SteamRelationships(frozenset(), frozenset()))
+
+
 if __name__ == "__main__":
     unittest.main()
