@@ -8,7 +8,7 @@
 
 ## Подготовка без запуска
 
-Нужны Linux, systemd с поддержкой `LoadCredential`, `/usr/bin/python3` версии 3.11 или новее, Git, Docker CLI и локальный Docker Engine на `/var/run/docker.sock`. Системное время должно быть синхронизировано. С MCG server нужен доступ к домену сайта по HTTPS. Входящий порт и правила переадресации для Relay не нужны. [Документация systemd](https://www.freedesktop.org/software/systemd/man/latest/systemd.exec.html)
+Нужны Linux, systemd 247 или новее, `/usr/bin/python3` версии 3.11 или новее, Git, Docker Compose v2 и локальный Docker Engine на `/var/run/docker.sock`. Системное время должно быть синхронизировано. С MCG server нужен доступ к домену сайта по HTTPS. Входящий порт и правила переадресации для Relay не нужны. [Документация systemd](https://www.freedesktop.org/software/systemd/man/latest/systemd.exec.html)
 
 Оператор фиксирует **полный хеш проверенного коммита** с этой реализацией. Из корня его Git-репозитория он подготавливает релиз. Эта команда устанавливает файлы по пути с хешем и не запускает службы.
 
@@ -48,7 +48,7 @@ sudo sh -c 'set -C; umask 077; printf "%s\n" "{\"observations\":[]}" > /etc/cont
 
 ## Запуск и проверка
 
-После регистрации узла и включения API оператор активирует проверенный релиз. Сохраните прежний хеш из `readlink /opt/contract-relay-manager/current`, если это обновление. Запуск затрагивает только службы Relay.
+После регистрации узла и включения API оператор активирует проверенный релиз. Сохраните прежний хеш из `readlink /opt/contract-relay-manager/current`, если это обновление. Перед запуском скрипт проверяет существующие `/opt/contract-relay/compose.yaml` и `/opt/contract-relay/compose.production.yaml` командой `docker compose config --quiet`, без подстановки переменных из файлов секретов и без вывода конфигурации. Запуск затрагивает только службы Relay. Скрипт проверяет их состояние и свежесть локальной сводки. При временной недоступности Timeweb менеджер продолжает попытки доставки. [Документация Docker Compose](https://docs.docker.com/reference/cli/docker/compose/config/)
 
 ```bash
 sudo bash relay/deploy.sh activate "$release_sha"
