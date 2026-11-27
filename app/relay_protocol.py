@@ -16,19 +16,22 @@ from sqlalchemy import delete, select
 from sqlalchemy.orm import Session
 
 from .config import settings
+from .contract_relay import PILOT_CAPACITY, _lock_pilot_admission, _pilot_places_used, _reservation_expired
 from .db import get_db
 from .models import AuditLog, ContractRelayConnection, User, utcnow
 from .relay_credentials import NODE_PATTERN
 from .relay_models import RelayFriendship, RelayHeartbeat, RelayNode
 from .security import rate_limit_allow
-from .services.auth import require_csrf
+from .services.auth import STEAM_ID64_BASE, require_csrf
 from .services.relay_effectiveness import summary as effectiveness_summary
+from .services.relay_notifications import queue_application
 from .services.relay_state import FRESHNESS, friendship_query, iso, observation_allowed, summarize_connection, utc
 
 
 PREFIX = "/api/internal/relay/v1"
 ADMIN = "/api/admin/contract-relay"
 MAX_AGE = timedelta(hours=24)
+RESERVATION_LIFETIME = timedelta(minutes=30)
 CLOCK_SKEW = timedelta(minutes=2)
 PAGE_SIZE = 200
 HISTORY_SIZE = 100
@@ -36,7 +39,10 @@ TOKEN = re.compile(rf"(?i:Bearer) (({NODE_PATTERN})\.[A-Za-z0-9_-]{{43}})")
 VERSION = Annotated[str, Field(pattern=r"^[0-9][A-Za-z0-9.+-]{0,31}$")]
 Count = Annotated[int, Field(strict=True, ge=0, le=2**31 - 1)]
 ContainerStatus = Literal["running", "exited", "dead", "created", "restarting", "paused", "removing", "missing", "unknown"]
-EventCode = Literal["host_snapshot_invalid", "host_snapshot_unavailable", "participant_sync_failed", "friendship_sync_failed"]
+EventCode = Literal[
+    "host_snapshot_invalid", "host_snapshot_unavailable", "participant_sync_failed", "friendship_sync_failed",
+    "steam_enrollment_failed",
+]
 log = logging.getLogger(__name__)
 router = APIRouter(prefix=PREFIX)
 
@@ -96,12 +102,23 @@ class Friendship(Strict):
     connection_id: UUID
     observed_at: AwareDatetime
     state: Literal["connected", "disconnected", "unknown", "error"]
-    source: Literal["manual", "steam_web_api"]
+    source: Literal["manual", "steam_web_api", "steam_session"]
 
 
 class FriendshipBatch(Strict):
     protocol_version: ProtocolVersion
     observations: Annotated[list[Friendship], Field(min_length=1, max_length=100)]
+
+
+class Admission(Strict):
+    protocol_version: ProtocolVersion
+    steam_id64: Annotated[str, Field(strict=True, pattern=r"^[0-9]{17}$")]
+
+
+class AdmissionResult(Strict):
+    protocol_version: ProtocolVersion = 1
+    decision: Literal["allowed", "ineligible", "full"]
+    connection_id: UUID | None = None
 
 
 class NodeAction(Strict):
@@ -149,8 +166,23 @@ def _check_time(observed_at: datetime, now: datetime) -> None:
         raise HTTPException(422, "Relay observation is outside the allowed time window")
 
 
+def _require_auto_enrollment() -> None:
+    if not settings.relay_auto_enrollment_enabled:
+        raise HTTPException(403, "Relay automatic enrollment is not enabled")
+
+
+def _eligible_steam_account():
+    return (
+        User.status == "ACTIVE", User.relay_auto_enrollment_blocked.is_(False),
+        User.account_id.between(1, 2**32 - 1), User.steam_id64 == STEAM_ID64_BASE + User.account_id,
+    )
+
+
 @router.get("/participants")
-def participants(request: Request, response: Response, after: UUID | None = None, db: Session = Depends(get_db)) -> dict:
+def participants(
+    request: Request, response: Response, after: UUID | None = None, automatic: bool = False,
+    db: Session = Depends(get_db),
+) -> dict:
     node = _authenticate(request, response, db)
     if not node.friendship_writes:
         raise HTTPException(403, "Relay credential may not read participant data")
@@ -161,6 +193,11 @@ def participants(request: Request, response: Response, after: UUID | None = None
         .order_by(ContractRelayConnection.id)
         .limit(PAGE_SIZE + 1)
     )
+    if automatic:
+        _require_auto_enrollment()
+        query = query.where(*_eligible_steam_account())
+    else:
+        query = query.where(ContractRelayConnection.auto_enrollment_expires_at.is_(None))
     if after is not None:
         query = query.where(ContractRelayConnection.id > str(after))
     rows = db.execute(query).all()
@@ -169,6 +206,37 @@ def participants(request: Request, response: Response, after: UUID | None = None
         "participants": [{"connection_id": key, "steam_id64": str(steam_id)} for key, steam_id in rows[:PAGE_SIZE]],
         "next_cursor": rows[PAGE_SIZE - 1][0] if len(rows) > PAGE_SIZE else None,
     }
+
+
+@router.post("/admissions", response_model=AdmissionResult)
+def admit_incoming_request(
+    payload: Admission, request: Request, response: Response, db: Session = Depends(get_db),
+) -> AdmissionResult:
+    """Reserve a pilot place for an observed incoming Steam friend request, not a confirmed friendship."""
+    node = _authenticate(request, response, db, write=True)
+    if not node.friendship_writes:
+        raise HTTPException(403, "Relay credential may not admit participants")
+    _require_auto_enrollment()
+    steam_id = int(payload.steam_id64)
+    if not STEAM_ID64_BASE < steam_id < STEAM_ID64_BASE + 2**32:
+        raise HTTPException(422, "Invalid individual Steam account")
+
+    # Use the same admission lock as the player-facing opt-in, then lock the user.
+    _lock_pilot_admission(db)
+    user = db.scalar(select(User).where(User.steam_id64 == steam_id, *_eligible_steam_account()).with_for_update())
+    if user is None:
+        return AdmissionResult(decision="ineligible")
+    connection = db.scalar(select(ContractRelayConnection).where(ContractRelayConnection.user_id == user.id))
+    now = utcnow()
+    if connection is None or _reservation_expired(connection, now):
+        if _pilot_places_used(db, now) >= PILOT_CAPACITY:
+            return AdmissionResult(decision="full")
+        if connection is None:
+            connection = ContractRelayConnection(user_id=user.id, consented_at=now)
+            db.add(connection)
+        connection.auto_enrollment_expires_at = now + RESERVATION_LIFETIME
+        db.commit()
+    return AdmissionResult(decision="allowed", connection_id=connection.id)
 
 
 @router.post("/heartbeat")
@@ -215,21 +283,37 @@ def friendship_status(payload: FriendshipBatch, request: Request, response: Resp
     if not node.friendship_writes:
         raise HTTPException(403, "Relay credential may not submit friendship observations")
     now = utcnow()
+    automatic = any(item.source == "steam_session" for item in payload.observations)
+    if automatic:
+        _require_auto_enrollment()
     for item in payload.observations:
         _check_time(item.observed_at, now)
         if item.source == "steam_web_api" and item.state not in ("connected", "disconnected"):
             raise HTTPException(422, "Steam friendship observations require a definitive result")
+        if automatic and (
+            item.source != "steam_session" or item.state == "error" or item.observed_at < now - FRESHNESS
+        ):
+            raise HTTPException(422, "Expected a fresh Steam session snapshot")
+
+    # Finalizing an expired reservation consumes a place, just like a new admission.
+    places_left = 0
+    if automatic:
+        _lock_pilot_admission(db)
+        now = utcnow()
+        places_left = PILOT_CAPACITY - _pilot_places_used(db, now)
 
     # Lock the consent row while deciding whether the observation is still authorized.
     ids = {str(item.connection_id) for item in payload.observations}
-    rows = db.scalars(
+    query = (
         select(ContractRelayConnection)
         .join(User, User.id == ContractRelayConnection.user_id)
         .where(ContractRelayConnection.id.in_(ids), User.status == "ACTIVE", User.steam_id64 > 0)
         .order_by(ContractRelayConnection.id)
         .with_for_update(of=ContractRelayConnection)
     )
-    current = {row.id: row for row in rows}
+    if automatic:
+        query = query.where(*_eligible_steam_account())
+    current = {row.id: row for row in db.scalars(query)}
     latest: dict[str, Friendship] = {}
     for item in payload.observations:
         key = str(item.connection_id)
@@ -240,25 +324,46 @@ def friendship_status(payload: FriendshipBatch, request: Request, response: Resp
             raise HTTPException(422, "Conflicting Relay observations")
 
     applied = 0
+    collector_connections = []
     for key, item in latest.items():
         connection = current.get(key)
         if not connection or not observation_allowed(connection, item.observed_at):
             continue
         observation = db.get(RelayFriendship, (key, node.id))
+        if observation is not None and item.observed_at <= utc(observation.observed_at):
+            if (
+                automatic and connection.auto_enrollment_expires_at is None
+                and item.state == observation.state == "connected" and observation.source == "steam_session"
+                and item.observed_at == utc(observation.observed_at)
+            ):
+                collector_connections.append(key)
+            continue
+        if connection.auto_enrollment_expires_at is not None:
+            if not automatic or item.state != "connected":
+                continue
+            if _reservation_expired(connection, now):
+                if places_left <= 0:
+                    continue
+                places_left -= 1
+            connection.auto_enrollment_expires_at = None
+            queue_application(db, user_id=connection.user_id, now=now)
         if observation is None:
             observation = RelayFriendship(connection_id=key, node_id=node.id)
             db.add(observation)
-        elif item.observed_at <= utc(observation.observed_at):
-            continue
         observation.state = item.state
         observation.observed_at = item.observed_at
         observation.source = item.source
         applied += 1
+        if automatic and item.state == "connected":
+            collector_connections.append(key)
 
     if applied:
         db.commit()
         log.info("Relay friendship observations applied node=%s count=%s", node.id, applied)
-    return _accepted(applied)
+    result = _accepted(applied)
+    if automatic:
+        result["collector_connections"] = sorted(collector_connections)
+    return result
 
 
 def _serialize_node(node: RelayNode, history: list[RelayHeartbeat], now: datetime) -> dict:

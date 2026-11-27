@@ -150,14 +150,21 @@ class RelayClient:
         self.token_file = token_file
         self.opener = build_opener(ProxyHandler({}), NoRedirect(), HTTPSHandler(context=ssl.create_default_context()))
 
-    def request(self, path: str, payload: dict | None = None, after: str | None = None) -> dict:
+    def request(
+        self, path: str, payload: dict | None = None, after: str | None = None, *, automatic: bool = False,
+    ) -> dict:
         try:
             token = read_limited(self.token_file, 256).decode("ascii").strip()
             if not re.fullmatch(r"[a-z0-9][a-z0-9_-]{0,63}\.[A-Za-z0-9_-]{43}", token):
                 raise ValueError("invalid node token")
             url = self.origin + API_PREFIX + path
+            query = {}
             if after:
-                url += "?" + urlencode({"after": identifier(after)})
+                query["after"] = identifier(after)
+            if automatic:
+                query["automatic"] = "true"
+            if query:
+                url += "?" + urlencode(query)
             headers = {"Authorization": f"Bearer {token}", "Accept": "application/json"}
             body = None
             if payload is not None:
@@ -171,7 +178,13 @@ class RelayClient:
             result = json.loads(data)
             if not isinstance(result, dict) or type(result.get("protocol_version")) is not int or result["protocol_version"] != PROTOCOL:
                 raise ValueError("invalid Relay response")
-            if payload is not None and (type(result.get("applied")) is not int or result["applied"] < 0):
+            if path == "/admissions":
+                decision = result.get("decision")
+                if decision == "allowed":
+                    identifier(result.get("connection_id"))
+                elif decision not in ("ineligible", "full") or result.get("connection_id") is not None:
+                    raise ValueError("invalid Relay admission decision")
+            elif payload is not None and (type(result.get("applied")) is not int or result["applied"] < 0):
                 raise ValueError("invalid Relay acknowledgement")
             return result
         except HTTPError as error:

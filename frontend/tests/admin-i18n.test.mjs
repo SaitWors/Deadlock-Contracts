@@ -658,3 +658,72 @@ test("Relay exposes the current consent ID on the admin player detail only", asy
   assert.equal(doc.querySelector(".dc-relay-consent-id").textContent, consentId)
   await api.act(async () => root.unmount())
 })
+
+test("Relay automatic enrollment shows one Steam link without a separate opt-in", async () => {
+  const calls = []
+  const { doc, api } = runtime(async (url, init) => {
+    calls.push([url, init.method])
+    return response({ connection: null, auto_enrollment: { blocked: false } })
+  })
+  let root
+  await api.act(async () => {
+    root = api.mount(doc.getElementById("mount"), "relayProfile", { csrf: "relay-csrf" })
+  })
+  assert.match(doc.querySelector('[role="status"]').textContent, /Не подключён/)
+  const link = doc.querySelector(
+    'a[href="https://steamcommunity.com/id/deadlock-contracts-relay/"]',
+  )
+  assert.match(link.textContent, /Добавить в друзья/)
+  assert.equal(button(doc, "Согласен участвовать"), undefined)
+  assert.equal(calls.length, 1)
+  await api.act(async () => root.unmount())
+})
+
+test("Relay automatic enrollment hides technical details and keeps the opt-out", async () => {
+  const { doc, api } = runtime(async () =>
+    response({
+      auto_enrollment: { blocked: false },
+      connection: {
+        id: "connection-id",
+        consented_at: relayObservedAt,
+        friendship_confirmed_at: null,
+        friendship_observed_at: relayObservedAt,
+        status: "connected",
+        friendship_source: "steam_web_api",
+      },
+    }),
+  )
+  let root
+  await api.act(async () => {
+    root = api.mount(doc.getElementById("mount"), "relayProfile", { csrf: "relay-csrf" })
+  })
+  assert.match(doc.querySelector('[role="status"]').textContent, /Подключён/)
+  assert.equal(doc.querySelector("time"), null)
+  assert.equal(doc.querySelector(".dc-relay-consent-id"), null)
+  assert.ok(button(doc, "Отключить участие"))
+  await api.act(async () => root.unmount())
+})
+
+test("the Relay profile refreshes after the player returns from Steam", async () => {
+  let connected = false
+  const { w, doc, api } = runtime(async (url) => {
+    assert.equal(url, "/api/profile/contract-relay")
+    return response({
+      auto_enrollment: { blocked: false },
+      connection: connected
+        ? { id: "connection-id", status: "connected", friendship_source: "steam_session" }
+        : null,
+    })
+  })
+  Object.defineProperty(doc, "visibilityState", { value: "visible" })
+  let root
+  await api.act(async () => {
+    root = api.mount(doc.getElementById("mount"), "relayProfile", { csrf: "relay-csrf" })
+  })
+  assert.equal(doc.querySelector('[role="status"]').textContent, "Не подключён")
+  connected = true
+  await api.act(async () => doc.dispatchEvent(new w.Event("visibilitychange")))
+  assert.equal(doc.querySelector('[role="status"]').textContent, "Подключён")
+  assert.ok(button(doc, "Отключить участие"))
+  await api.act(async () => root.unmount())
+})

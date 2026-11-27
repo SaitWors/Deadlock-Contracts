@@ -201,3 +201,17 @@ def test_quick_invite_rejects_non_steam_or_non_tokenized_urls_without_echoing(co
     assert response.status_code == 422
     assert invalid not in response.text
     assert "quick_invite_expires_at" not in client.get(PROFILE).json()["connection"]
+
+
+def test_auto_enrollment_profile_exposes_mode_and_persistent_opt_out(community, monkeypatch):
+    from dataclasses import replace
+    from app import contract_relay
+
+    factory, player = community
+    _, user = steam_player(factory, player, "Applicant", 12345)
+    monkeypatch.setattr(contract_relay, "settings",
+                        replace(contract_relay.settings, relay_enabled=True, relay_auto_enrollment_enabled=True))
+    assert user.get(PROFILE).json() == {"connection": None, "auto_enrollment": {"blocked": False}}
+    assert user.delete(PROFILE).json() == {"connection": None, "auto_enrollment": {"blocked": True}}
+    assert user.get(PROFILE).json()["auto_enrollment"] == {"blocked": True}
+    assert user.put(PROFILE).json()["auto_enrollment"] == {"blocked": False}

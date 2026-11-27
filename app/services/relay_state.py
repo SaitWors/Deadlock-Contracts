@@ -37,12 +37,19 @@ def observation_allowed(connection: ContractRelayConnection, observed_at: dateti
 
 
 def summarize_connection(connection: ContractRelayConnection, observations: list[RelayFriendship], now: datetime) -> dict:
+    expires_at = connection.auto_enrollment_expires_at
+    if expires_at is not None:
+        return {
+            "status": "pending" if utc(expires_at) > now else "disconnected",
+            "friendship_source": None,
+            "friendship_observed_at": None,
+        }
     cutoff = now - timedelta(hours=24)
     latest = []
     if connection.friendship_confirmed_at:
         latest.append((utc(connection.friendship_confirmed_at), "connected", "manual"))
     latest.extend(
-        (utc(row.observed_at), row.state, "steam_web_api" if row.source == "steam_web_api" else "relay_manual")
+        (utc(row.observed_at), row.state, row.source if row.source in ("steam_web_api", "steam_session") else "relay_manual")
         for row in observations
         if utc(row.observed_at) >= cutoff and observation_allowed(connection, row.observed_at)
     )

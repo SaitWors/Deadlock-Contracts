@@ -29,6 +29,7 @@ class User(Base):
     locale: Mapped[str] = mapped_column(String(16), default="ru")
     timezone: Mapped[str] = mapped_column(String(64), default="UTC")
     status: Mapped[str] = mapped_column(String(32), default="ACTIVE")
+    relay_auto_enrollment_blocked: Mapped[bool] = mapped_column(Boolean, default=False, server_default=text("false"))
     xp: Mapped[int] = mapped_column(Integer, default=0)
     # Authorization role and presentation-only public badges. OWNER is never stored here.
     access_role: Mapped[str] = mapped_column(String(24), default="PLAYER", index=True)
@@ -44,6 +45,7 @@ class ContractRelayConnection(Base):
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uuid4)
     user_id: Mapped[str] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), unique=True)
     consented_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    auto_enrollment_expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     friendship_confirmed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     friendship_cleared_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     quick_invite_url: Mapped[str | None] = mapped_column(String(128), deferred=True)

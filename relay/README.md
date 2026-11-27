@@ -2,9 +2,9 @@
 
 Издатель `contract-relay-publisher` раз в минуту читает состояние и последние строки журнала локального Ingest через Docker. При работающем контейнере он добавляет CPU и приблизительное использование памяти из `docker stats`. Он атомарно записывает сводку в `/run/contract-relay-observation/status.json`. В сводке есть только статусы, подтверждённые журналом отметки времени и счётчики. Системная служба издателя работает без сетевого доступа. [Локальная диагностика](../docs/development/contract-relay-monitoring.md)
 
-`contract-relay-manager` выполняет исходящие запросы к API Timeweb по HTTPS с проверкой сертификата, имени сервера и без перенаправлений. У службы нет доступа к Docker и учётным данным Steam-клиента. Менеджер посылает heartbeat примерно раз в минуту. При сбое он хранит один недоставленный heartbeat в `/var/lib/contract-relay-manager/delivery.json` и повторяет отправку с увеличивающейся задержкой и случайным разбросом. Указанный сервером `Retry-After` соблюдается. После 23 часов отчёт заменяется новым. Steam ID из списка участников остаются в памяти на время запроса.
+`contract-relay-manager` выполняет исходящие запросы к API Timeweb по HTTPS с проверкой сертификата и имени сервера. У службы нет доступа к Docker и файлам Steam-клиента. Менеджер посылает heartbeat примерно раз в минуту. При сбое он хранит один недоставленный heartbeat в `/var/lib/contract-relay-manager/delivery.json` и повторяет отправку с увеличивающейся задержкой и случайным разбросом. Указанный сервером `Retry-After` соблюдается. После 23 часов отчёт заменяется новым.
 
-Сигнал об исчерпании квоты относится к наблюдаемой записи журнала. Остаток квоты, срок её восстановления, состояние Steam-сессии и время проверки контракта требуют отдельных наблюдений. Исходный журнал, loginusers, cookies, пароли, токены Steam и соли повтора менеджеру не передаются.
+Сигнал об исчерпании квоты относится к наблюдаемой записи журнала. Остаток квоты, срок её восстановления, состояние Steam-сессии и время проверки контракта требуют отдельных наблюдений. Publisher передаёт только сводку. Веб-сессия Steam для автоподключения настраивается отдельно и остаётся на MCG.
 
 ## Подготовка без запуска
 
@@ -93,9 +93,60 @@ sudo journalctl -u contract-relay-manager.service -u contract-relay-publisher.se
 
 Менеджер выполняет максимум одну сверку в час и соблюдает более долгий `Retry-After`. Он отправляет Timeweb только состояние, время, источник и идентификатор текущего согласия. При 401, ограничении частоты, ошибке сети или неполном ответе в heartbeat попадает код `friendship_sync_failed`. Действующие наблюдения не заменяются ошибкой и стареют по обычным правилам. Чтобы отключить сверку, достаточно убрать флаг и перезапустить только менеджер. Web API не занимает GC-сессию и использует свой ключ, который остаётся на MCG.
 
+## Автоподключение и сбор матчей участников
+
+Для этого режима нужны проверенный Timeweb с миграцией `0035`, узел с правом записи дружбы и выделенный Steam-аккаунт Relay. Менеджер читает входящие заявки через `IFriendsListService/GetFriendsList` и принимает только одобренные заявки через Steam Community. Это веб-сессия без второго входа в Steam Client или Game Coordinator. До эксплуатации нужно согласовать использование автоматизации с Valve и проверить эти интерфейсы на выделенном тестовом аккаунте. [Условия Steam, раздел 4](https://store.steampowered.com/subscriber_agreement/#4) · [Формат списка Steam](https://github.com/SteamDatabase/Protobufs/blob/master/webui/service_friendslist.proto)
+
+1. Подготовьте образ Ingest из зафиксированной версии исходного проекта. Патч применяется с проверкой к ревизии `d8d51587253c25e09368010d959e7618e0f7a345`. Хранилище Steam и журнал квот Ingest при обновлении остаются на прежних томах.
+
+   ```bash
+   relay_source="$PWD"
+   upstream_revision=d8d51587253c25e09368010d959e7618e0f7a345
+   git clone --no-checkout https://github.com/deadlock-api/deadlock-api-ingest.git relay-ingest-build
+   git -C relay-ingest-build checkout --detach "$upstream_revision"
+   git -C relay-ingest-build apply --check "$relay_source/relay/ingest/participants.patch"
+   git -C relay-ingest-build apply "$relay_source/relay/ingest/participants.patch"
+   docker build -t contract-relay-ingest:"$upstream_revision" relay-ingest-build
+   ```
+
+   [Исходный код Ingest и лицензия MIT](https://github.com/deadlock-api/deadlock-api-ingest/tree/d8d51587253c25e09368010d959e7618e0f7a345)
+
+2. На MCG создайте системную группу `contract-relay-collector`. В файл `/etc/contract-relay-manager/steam-login-secure` с правами `0600` и владельцем `root` поместите значение `steamLoginSecure` из веб-сессии выделенного аккаунта на `steamcommunity.com`. Менеджер получает отдельный токен для чтения списка через `/chat/clientjstoken` и хранит его в памяти. При истечении браузерной сессии обновите файл и перезапустите менеджер. Дополнение systemd для `contract-relay-manager.service`:
+
+   ```ini
+   [Service]
+   Group=contract-relay-collector
+   RuntimeDirectory=contract-relay-collector
+   RuntimeDirectoryMode=0750
+   RuntimeDirectoryPreserve=yes
+   LoadCredential=steam-login-secure:/etc/contract-relay-manager/steam-login-secure
+   ```
+
+   Добавьте к `RELAY_MANAGER_FLAGS` параметры `--steam-auto-enrollment --steam-id64 <SteamID64 Relay> --collector-allowlist /run/contract-relay-collector/participants.json`. Этот режим использует веб-сессию вместо отдельной почасовой сверки по ключу Web API.
+
+3. После согласованного обновления сайта и менеджера укажите новый образ в имеющемся Compose MCG. Пример для сервиса с именем `ingest`:
+
+   ```yaml
+   services:
+     ingest:
+       image: contract-relay-ingest:d8d51587253c25e09368010d959e7618e0f7a345
+       environment:
+         RELAY_COLLECTOR_ALLOWLIST: /run/contract-relay-collector/participants.json
+       volumes:
+         - /run/contract-relay-collector:/run/contract-relay-collector:ro
+   ```
+
+   Если контейнер работает от непривилегированного пользователя, добавьте в `group_add` числовой GID группы. Монтируйте каталог целиком, чтобы Ingest видел атомарную замену файла.
+
+4. Для проверки включите `CONTRACT_RELAY_AUTO_ENROLLMENT_ENABLED` на Timeweb. Проверьте один зарегистрированный аккаунт, один незарегистрированный и отключение через профиль. У зарегистрированного дождитесь реальной дружбы, источника `steam_session` в админке и обработки его матча после очередного цикла Ingest. Проверьте, что незарегистрированная заявка осталась входящей, а отключённый игрок исчез из списка сбора. Для теста недоступности остановите менеджер в тестовой среде и убедитесь, что по истечении двух минут Ingest приостанавливает сбор через GC.
+
+Менеджер запускает цикл примерно раз в минуту. За цикл он проверяет до 10 заявок и делает до трёх попыток приёма. Недоступность Steam или Timeweb приостанавливает сбор и отражается в админке. Ingest проверяет список перед запросами истории и метаданных. В этом режиме общая очередь отключена, а расписание поиска, действующие квоты Ingest и фоновая проверка сайта продолжают работать по своим правилам.
+
 ## Откат и остановка
 
 Для отката укажите полный хеш предыдущего подготовленного релиза. Путь к состоянию доставки и файлы конфигурации остаются прежними. После отката проверьте heartbeat в админке.
+
+При откате автоподключения выключите флаг на Timeweb и уберите параметры `--steam-auto-enrollment` и `--collector-allowlist` перед запуском прежнего менеджера. Ingest с включённым фильтром приостановит сбор через GC после истечения срока последнего списка.
 
 ```bash
 sudo bash relay/deploy.sh rollback '<полный хеш предыдущего подготовленного релиза>'

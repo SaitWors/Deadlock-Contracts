@@ -66,6 +66,7 @@ class Settings:
     trusted_proxy_networks: tuple[str, ...] = _csv("TRUSTED_PROXY_NETWORKS", "127.0.0.1/32,::1/128")
     rate_limit_redis_url: str = os.getenv("RATE_LIMIT_REDIS_URL", "").strip()
     relay_enabled: bool = _bool("CONTRACT_RELAY_ENABLED")
+    relay_auto_enrollment_enabled: bool = _bool("CONTRACT_RELAY_AUTO_ENROLLMENT_ENABLED")
     relay_notifications_enabled: bool = _bool("CONTRACT_RELAY_NOTIFICATIONS_ENABLED")
     relay_n8n_webhook_url: str = os.getenv("CONTRACT_RELAY_N8N_WEBHOOK_URL", "").strip()
     relay_n8n_webhook_secret: str = _secret("CONTRACT_RELAY_N8N_WEBHOOK_SECRET")
