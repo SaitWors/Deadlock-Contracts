@@ -803,7 +803,7 @@ index ecb4928..1c62648 100644
  #[cfg(test)]
 diff --git a/src/gc/scheduler.rs b/src/gc/scheduler.rs
 new file mode 100644
-index 0000000..c5c8464
+index 0000000..d4e71ce
 --- /dev/null
 +++ b/src/gc/scheduler.rs
 @@ -0,0 +1,977 @@
@@ -1413,7 +1413,7 @@ index 0000000..c5c8464
 +    ) -> Self {
 +        let mut budget = Self::new(hits, limit, kind, state, now);
 +        budget.reserve = 0;
-+        budget.next_request_at = budget.rate_limited_until.or_else(|| {
++        budget.next_request_at = budget.rate_limited_until.or({
 +            if budget.remaining == 0 && limit > 0 {
 +                budget.next_release_at
 +            } else {
