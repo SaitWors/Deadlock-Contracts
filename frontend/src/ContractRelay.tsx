@@ -13,7 +13,7 @@ type RelayConnection = {
   quick_invite_expires_at?: string | null
 }
 
-type RelayResponse = { connection: RelayConnection | null }
+type RelayResponse = { connection: RelayConnection | null; auto_enrollment?: { blocked: boolean } }
 type ReviewAction = "confirm" | "clear" | "disconnect"
 
 export default function ContractRelay({
@@ -135,6 +135,71 @@ export default function ContractRelay({
     : ru
       ? "Участие выключено."
       : "Opted out."
+
+  const autoEnrollment = !userId && resource.data?.auto_enrollment
+  if (autoEnrollment) {
+    const connected = friendshipStatus === "connected" && !autoEnrollment.blocked
+    const compactStatus = autoEnrollment.blocked
+      ? ru
+        ? "Участие выключено."
+        : "Participation disabled."
+      : connected
+        ? ru
+          ? "Подключён"
+          : "Connected"
+        : connection && friendshipStatus === "pending"
+          ? ru
+            ? "Ожидает проверки"
+            : "Awaiting verification"
+          : ru
+            ? "Не подключён"
+            : "Not connected"
+
+    return (
+      <section className="dc-panel">
+        <h3>Contract Relay</h3>
+        {error && <p role="alert">{error}</p>}
+        <p role="status">{compactStatus}</p>
+        <p>
+          {ru
+            ? "Relay помогает обнаруживать матчи. Отправка заявки в друзья служебному аккаунту означает добровольное участие в пилоте (30 мест); список друзей аккаунта открыт."
+            : "Relay helps discover matches. Sending a friend request to the service account opts you into the pilot (30 places); its friend list is public."}
+        </p>
+        {autoEnrollment.blocked ? (
+          <button type="button" className="dc-ghost" disabled={busy} onClick={() => void update("join")}>
+            {ru ? "Разрешить повторное подключение" : "Allow reconnection"}
+          </button>
+        ) : (
+          <div className="dc-admin-user-actions">
+            {!connected &&
+              (inviteExpires ? (
+                <button type="button" className="dc-ghost" disabled={busy} onClick={() => void openInvite()}>
+                  {ru ? "Добавить в друзья Steam" : "Add on Steam"}
+                </button>
+              ) : (
+                <a
+                  href="https://steamcommunity.com/id/deadlock-contracts-relay/"
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  {ru ? "Добавить в друзья Steam" : "Add on Steam"}
+                </a>
+              ))}
+            {connection && (
+              <button
+                type="button"
+                className="dc-ghost"
+                disabled={busy}
+                onClick={() => void update("disconnect")}
+              >
+                {ru ? "Отключить участие" : "Disconnect"}
+              </button>
+            )}
+          </div>
+        )}
+      </section>
+    )
+  }
 
   return (
     <section className="dc-panel">
