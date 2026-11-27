@@ -23,6 +23,7 @@ STEAM_ID64_BASE = 76561197960265728
 MAX_RESPONSE = 1024 * 1024
 REQUEST_RECIPIENT = 2
 FRIEND = 3
+JWT = re.compile(r"[\w-]+\.[\w-]+\.[\w-]+", re.ASCII)
 
 
 def steam_id64(value: object) -> str:
@@ -98,25 +99,41 @@ class SteamSession:
         self.session_id = secrets.token_hex(12)
         self.opener = _opener()
 
-    def _access_token(self) -> str:
+    def _community_credential(self) -> tuple[str, bool]:
         try:
             cookie = unquote(read_limited(self.cookie_file, 8192).decode("ascii").strip())
             account, separator, token = cookie.partition("||")
-            if account != self.account or not separator or not re.fullmatch(r"[\w-]+\.[\w-]+\.[\w-]+", token, re.ASCII):
+            if account != self.account or not separator or not JWT.fullmatch(token):
                 raise ValueError("invalid Steam session credential")
             payload = token.split(".")[1]
             claims = json.loads(base64.urlsafe_b64decode(payload + "=" * (-len(payload) % 4)))
             audiences = claims["aud"]
-            if claims["sub"] != account or not isinstance(audiences, list) or "web" not in audiences:
+            if claims["sub"] != account or not isinstance(audiences, list) or (
+                "web" not in audiences and "web:community" not in audiences
+            ):
                 raise ValueError("expected web access for the Relay account")
             if type(claims["exp"]) is not int or claims["exp"] <= time.time():
                 raise RequestFailed(401)
-            return token
+            return token, "web" in audiences
         except (KeyError, OSError, TypeError, ValueError, AttributeError, RecursionError):
             raise RequestFailed(401) from None
 
+    def _cookie(self, token: str) -> str:
+        secure = quote(f"{self.account}||{token}", safe="")
+        return f"sessionid={self.session_id}; steamLoginSecure={secure}"
+
     def relationships(self) -> SteamRelationships:
-        token = self._access_token()
+        token, usable_for_web_api = self._community_credential()
+        if not usable_for_web_api:
+            # A browser's domain-scoped cookie stays on Community. Its Web API token stays in memory.
+            reply = _json(self.opener, Request(COMMUNITY + "/chat/clientjstoken", headers={
+                "Accept": "application/json", "Cache-Control": "no-cache", "Cookie": self._cookie(token),
+            }))
+            token = reply.get("token")
+            if reply.get("logged_in") is not True or reply.get("steamid") != self.account:
+                raise RequestFailed(401)
+            if not isinstance(token, str) or not JWT.fullmatch(token):
+                raise RequestFailed()
         request = Request(SESSION_FRIENDS_URL + "?" + urlencode({"access_token": token}), headers={
             "Accept": "application/json", "Cache-Control": "no-cache",
         })
@@ -160,7 +177,7 @@ class SteamSession:
         account = steam_id64(account)
         if account == self.account:
             raise ValueError("a Steam account cannot invite itself")
-        cookie = quote(f"{self.account}||{self._access_token()}", safe="")
+        token, _ = self._community_credential()
         path = f"{COMMUNITY}/profiles/{self.account}/friends"
         body = urlencode({
             "sessionid": self.session_id, "steamid": self.account, "ajax": "1",
@@ -168,7 +185,7 @@ class SteamSession:
         }).encode("ascii")
         request = Request(f"{path}/action", data=body, headers={
             "Accept": "application/json", "Origin": COMMUNITY, "Referer": f"{path}/pending",
-            "Cookie": f"sessionid={self.session_id}; steamLoginSecure={cookie}",
+            "Cookie": self._cookie(token),
             "Content-Type": "application/x-www-form-urlencoded", "X-Requested-With": "XMLHttpRequest",
         })
         # The action only handles inbound requests. Its response never proves that friendship exists.

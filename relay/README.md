@@ -111,7 +111,7 @@ sudo journalctl -u contract-relay-manager.service -u contract-relay-publisher.se
 
    [Исходный код Ingest и лицензия MIT](https://github.com/deadlock-api/deadlock-api-ingest/tree/d8d51587253c25e09368010d959e7618e0f7a345)
 
-2. На MCG создайте системную группу `contract-relay-collector`. В файл `/etc/contract-relay-manager/steam-login-secure` с правами `0600` и владельцем `root` поместите только значение `steamLoginSecure` из собственной веб-сессии выделенного аккаунта. Обновляйте это значение при истечении сессии. Дополнение systemd для `contract-relay-manager.service`:
+2. На MCG создайте системную группу `contract-relay-collector`. В файл `/etc/contract-relay-manager/steam-login-secure` с правами `0600` и владельцем `root` поместите значение `steamLoginSecure` из веб-сессии выделенного аккаунта на `steamcommunity.com`. Менеджер получает отдельный токен для чтения списка через `/chat/clientjstoken` и хранит его в памяти. При истечении браузерной сессии обновите файл и перезапустите менеджер. Дополнение systemd для `contract-relay-manager.service`:
 
    ```ini
    [Service]

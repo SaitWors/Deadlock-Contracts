@@ -393,7 +393,7 @@ def test_manager_accepts_only_eligible_incoming_and_recovers_a_lost_steam_reply(
     factory, player = relay
     _, user = steam_player(factory, player, "Registered", 23456)
     suspended_id, _ = steam_player(factory, player, "Suspended", 34567)
-    _, _ = steam_player(factory, player, "Existing friend with no consent", 45678)
+    steam_player(factory, player, "Existing friend with no consent", 45678)
     with factory.begin() as db:
         db.get(User, suspended_id).status = "SUSPENDED"
     monkeypatch.setattr(relay_protocol, "settings",
@@ -406,7 +406,7 @@ def test_manager_accepts_only_eligible_incoming_and_recovers_a_lost_steam_reply(
     accepted = []
     relations = {steam_id: 2, suspended: 2, unknown: 2, old_friend: 3, outgoing: 4}
     cookie = tmp_path / "steam-login-secure"
-    claims = {"sub": bot, "aud": ["web"], "exp": int(now.timestamp()) + 3600}
+    claims = {"sub": bot, "aud": ["web:community"], "exp": int(now.timestamp()) + 3600}
     part = base64.urlsafe_b64encode(json.dumps(claims).encode()).decode().rstrip("=")
     cookie.write_text(f"{bot}%7C%7Ctest.{part}.test")
     token = tmp_path / "relay-token"
@@ -417,8 +417,15 @@ def test_manager_accepts_only_eligible_incoming_and_recovers_a_lost_steam_reply(
     def steam_response(request, timeout):
         address = urlsplit(request.full_url)
         if request.get_method() == "GET":
+            if address.path == "/chat/clientjstoken":
+                assert address.hostname == "steamcommunity.com"
+                assert request.get_header("Cookie").endswith(cookie.read_text())
+                assert not address.query
+                return BytesIO(json.dumps({"logged_in": True, "steamid": bot, "token": "web.api.token"}).encode())
             assert address.hostname == "api.steampowered.com"
             assert address.path == "/IFriendsListService/GetFriendsList/v1/"
+            assert parse_qs(address.query) == {"access_token": ["web.api.token"]}
+            assert request.get_header("Cookie") is None
             body = {"response": {"friendslist": {"friends": [
                 {"ulfriendid": account, "efriendrelationship": relation}
                 for account, relation in relations.items()
