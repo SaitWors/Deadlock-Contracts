@@ -181,6 +181,7 @@ function NodePanel({
     host_snapshot_unavailable: copy("Отчёт хоста недоступен", "Host report unavailable"),
     participant_sync_failed: copy("Ошибка получения участников", "Participant sync failed"),
     friendship_sync_failed: copy("Ошибка отправки статусов дружбы", "Friendship sync failed"),
+    steam_enrollment_failed: copy("Сбой автоподключения через Steam", "Steam enrollment failed"),
     docker_inspect_failed: copy(
       "Не удалось прочитать состояние Docker",
       "Could not inspect Docker state",

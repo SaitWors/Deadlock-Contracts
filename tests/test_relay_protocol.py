@@ -1,8 +1,12 @@
+import base64
+import json
 from dataclasses import replace
 from datetime import timedelta
 from hashlib import sha256
-from io import StringIO
+from io import BytesIO, StringIO
 import sys
+from urllib.error import HTTPError
+from urllib.parse import parse_qs, urlsplit
 from uuid import uuid4
 
 import pytest
@@ -10,10 +14,11 @@ from sqlalchemy import func, select
 from sqlalchemy.exc import SQLAlchemyError
 
 from app import relay_credentials, relay_protocol
-from app.models import AuditLog, User, utcnow
+from app.models import AuditLog, ContractRelayConnection, User, utcnow
 from app.relay_credentials import install_credential
 from app.relay_models import RelayFriendship, RelayHeartbeat, RelayNode
 from app.services import relay_state
+from relay import manager, protocol, steam_friends
 from test_archive_packs import owner
 from test_bureau_operations import elevate
 from test_contract_relay import steam_player
@@ -331,3 +336,138 @@ def test_admin_disconnect_blocks_replayed_admission(relay, monkeypatch):
     assert admin.patch(f"/api/admin/users/{user_id}/contract-relay/{connection}",
                        json={"action": "disconnect"}).status_code == 200
     assert user.post(endpoint, headers=auth(), json=admission(23456)).json()["decision"] == "ineligible"
+
+
+def test_expired_reservation_releases_place_and_needs_capacity_for_late_confirmation(relay, monkeypatch):
+    from test_relay_pilot_capacity import seed_participants
+
+    factory, player = relay
+    seed_participants(factory, 29)
+    _, original = steam_player(factory, player, "Waiting for Steam", 23456)
+    _, other = steam_player(factory, player, "Ready now", 34567)
+    monkeypatch.setattr(relay_protocol, "settings",
+                        replace(relay_protocol.settings, relay_auto_enrollment_enabled=True))
+    endpoint = API + "/admissions"
+    observations = API + "/friendship-status"
+    key = original.post(endpoint, headers=auth(), json=admission(23456)).json()["connection_id"]
+    manual = original.post(observations, headers=auth(), json=friendship(key, source="steam_web_api"))
+    assert manual.json()["applied"] == 0
+    assert original.get(PROFILE).json()["connection"]["status"] == "pending"
+    with factory.begin() as db:
+        db.get(ContractRelayConnection, key).auto_enrollment_expires_at = utcnow() - timedelta(seconds=1)
+
+    assert original.get(PROFILE).json()["connection"]["status"] == "disconnected"
+    assert other.put(PROFILE).status_code == 200
+    assert original.post(endpoint, headers=auth(), json=admission(23456)).json()["decision"] == "full"
+    late = friendship(key, source="steam_session")
+    late_response = original.post(observations, headers=auth(), json=late)
+    assert late_response.json() == {"protocol_version": 1, "applied": 0, "collector_connections": []}
+    assert other.delete(PROFILE).status_code == 200
+    assert original.post(observations, headers=auth(), json=late).json()["collector_connections"] == [key]
+    replay = original.post(observations, headers=auth(), json=late)
+    assert replay.json() == {"protocol_version": 1, "applied": 0, "collector_connections": [key]}
+    assert original.get(PROFILE).json()["connection"]["status"] == "connected"
+    assert other.put(PROFILE).status_code == 409
+    assert original.delete(PROFILE).status_code == 200
+    assert original.post(observations, headers=auth(), json=late).json()["collector_connections"] == []
+
+
+def test_automatic_roster_and_observations_require_enabled_node_and_fresh_data(relay, monkeypatch):
+    _, player = relay
+    _, user = player()
+    roster = API + "/participants?automatic=true"
+    endpoint = API + "/friendship-status"
+    assert user.get(roster, headers=auth()).status_code == 403
+    assert user.post(endpoint, headers=auth(), json=friendship(uuid4(), source="steam_session")).status_code == 403
+    monkeypatch.setattr(relay_protocol, "settings",
+                        replace(relay_protocol.settings, relay_auto_enrollment_enabled=True))
+    assert user.get(roster, headers=auth(OTHER)).status_code == 403
+    args = friendship(uuid4(), when=utcnow() - timedelta(minutes=6), source="steam_session")
+    assert user.post(endpoint, headers=auth(), json=args).status_code == 422
+    args = friendship(uuid4(), source="steam_session")
+    args["observations"] += friendship(uuid4())["observations"]
+    assert user.post(endpoint, headers=auth(), json=args).status_code == 422
+
+
+def test_manager_accepts_only_eligible_incoming_and_recovers_a_lost_steam_reply(relay, monkeypatch, tmp_path):
+    factory, player = relay
+    _, user = steam_player(factory, player, "Registered", 23456)
+    suspended_id, _ = steam_player(factory, player, "Suspended", 34567)
+    _, _ = steam_player(factory, player, "Existing friend with no consent", 45678)
+    with factory.begin() as db:
+        db.get(User, suspended_id).status = "SUSPENDED"
+    monkeypatch.setattr(relay_protocol, "settings",
+                        replace(relay_protocol.settings, relay_auto_enrollment_enabled=True))
+    now = utcnow()
+    bot = admission(12345)["steam_id64"]
+    steam_id, suspended, old_friend, unknown, outgoing = (
+        admission(value)["steam_id64"] for value in (23456, 34567, 45678, 56789, 67890)
+    )
+    accepted = []
+    relations = {steam_id: 2, suspended: 2, unknown: 2, old_friend: 3, outgoing: 4}
+    cookie = tmp_path / "steam-login-secure"
+    claims = {"sub": bot, "aud": ["web"], "exp": int(now.timestamp()) + 3600}
+    part = base64.urlsafe_b64encode(json.dumps(claims).encode()).decode().rstrip("=")
+    cookie.write_text(f"{bot}%7C%7Ctest.{part}.test")
+    token = tmp_path / "relay-token"
+    token.write_text(TOKEN)
+    steam = steam_friends.SteamSession(bot, cookie)
+    client = protocol.RelayClient("https://relay.test", token)
+
+    def steam_response(request, timeout):
+        address = urlsplit(request.full_url)
+        if request.get_method() == "GET":
+            assert address.hostname == "api.steampowered.com"
+            assert address.path == "/IFriendsListService/GetFriendsList/v1/"
+            body = {"response": {"friendslist": {"friends": [
+                {"ulfriendid": account, "efriendrelationship": relation}
+                for account, relation in relations.items()
+            ]}}}
+            return BytesIO(json.dumps(body).encode())
+        assert address.netloc == "steamcommunity.com"
+        assert address.path == f"/profiles/{bot}/friends/action"
+        assert user.get(PROFILE).json()["connection"]["status"] == "pending"
+        data = parse_qs(request.data.decode())
+        assert data["action"] == ["accept"] and data["steamid"] == [bot]
+        assert f'sessionid={data["sessionid"][0]}' in request.get_header("Cookie")
+        accepted.extend(data["steamids[]"])
+        relations[steam_id] = 3
+        raise TimeoutError("Steam accepted before its response was lost")
+
+    def site_response(request, timeout):
+        address = urlsplit(request.full_url)
+        assert address.hostname == "relay.test"
+        reply = user.request(request.get_method(), address.path + ("?" + address.query if address.query else ""),
+                             headers=dict(request.header_items()), content=request.data)
+        if reply.is_error:
+            raise HTTPError(request.full_url, reply.status_code, "", reply.headers, BytesIO(reply.content))
+        return BytesIO(reply.content)
+
+    monkeypatch.setattr(steam.opener, "open", steam_response)
+    monkeypatch.setattr(client.opener, "open", site_response)
+    collector = tmp_path / "collector.json"
+    state = tmp_path / "delivery.json"
+
+    def new_manager():
+        return manager.Manager(
+            client, state, tmp_path / "host.json", None, steam_session=steam, collector=collector,
+        )
+
+    first = new_manager()
+    assert first.sync_enrollment(now, [], steam, collector) is not None
+    assert accepted == [steam_id]
+    assert not collector.exists()
+    assert user.get(PROFILE).json()["connection"]["status"] == "pending"
+
+    second = new_manager()
+    assert second.sync_enrollment(now + timedelta(minutes=1), [], steam, collector) is None
+    assert accepted == [steam_id]
+    assert user.get(PROFILE).json()["connection"]["friendship_source"] == "steam_session"
+    assert protocol.read_json(collector)["accounts"] == [23456]
+    assert protocol.read_json(collector)["steam_id64"] == bot
+    assert str(steam_id) not in state.read_text()
+    assert collector.stat().st_mode & 0o777 == 0o640
+
+    assert user.delete(PROFILE).status_code == 200
+    assert second.sync_enrollment(now + timedelta(minutes=2), [], steam, collector) is None
+    assert protocol.read_json(collector)["accounts"] == []

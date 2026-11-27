@@ -1,0 +1,347 @@
+diff --git a/src/gc/mod.rs b/src/gc/mod.rs
+index e5f3a75..1f179a4 100644
+--- a/src/gc/mod.rs
++++ b/src/gc/mod.rs
+@@ -23,10 +23,12 @@ mod client;
+ mod error;
+ mod friends;
+ mod quota;
++mod relay;
+ mod store;
+
+ use core::time::Duration;
+-use std::collections::HashSet;
++use std::collections::{HashMap, HashSet};
++use std::path::{Path, PathBuf};
+
+ use tokio::time::Instant;
+ use tracing::{info, warn};
+@@ -117,6 +119,7 @@ async fn post(salts: Salts, source: Source) -> bool {
+ /// Tokio runtime so the rest of the crate stays synchronous. Safe to call repeatedly;
+ /// the persisted per-account quota gates it to 40/24h regardless of pass frequency.
+ pub(crate) fn run_pass_blocking() {
++    let collector = std::env::var_os("RELAY_COLLECTOR_ALLOWLIST").map(PathBuf::from);
+     let mut sys = crate::game_process::new_system();
+     if game_running(&mut sys) {
+         info!("gc: Deadlock is running, skipping GC pass");
+@@ -138,10 +141,15 @@ pub(crate) fn run_pass_blocking() {
+         }
+     };
+     let Some(runtime) = runtime() else { return };
+-    runtime.block_on(run_pass(&contexts, &store, &mut sys));
++    runtime.block_on(run_pass(&contexts, &store, &mut sys, collector.as_deref()));
+ }
+
+-async fn run_pass(contexts: &[AuthContext], store: &GcStore, sys: &mut sysinfo::System) {
++async fn run_pass(
++    contexts: &[AuthContext],
++    store: &GcStore,
++    sys: &mut sysinfo::System,
++    collector: Option<&Path>,
++) {
+     // Shared across accounts so the same match isn't fetched twice in one pass (the
+     // to-fetch list is global and the server drops matches only after some lag).
+     let mut processed: HashSet<u64> = HashSet::new();
+@@ -152,13 +160,24 @@ async fn run_pass(contexts: &[AuthContext], store: &GcStore, sys: &mut sysinfo::
+             info!("gc: Deadlock launched mid-pass, stopping");
+             break;
+         }
+-        if let Err(e) = run_account(ctx, store, &mut processed, &mut last_request, sys).await {
++        if let Err(e) = run_account(
++            ctx,
++            store,
++            &mut processed,
++            &mut last_request,
++            sys,
++            collector,
++        )
++        .await
++        {
+             warn!("gc: account {} pass failed: {e}", ctx.account_id());
+         }
+     }
+     // Each to-fetch call released the list before it; the last one's unfetched matches
+     // would otherwise stay hidden from other workers until the claim expires.
+-    if let Err(e) = tokio::task::spawn_blocking(api::release_to_fetch).await {
++    if collector.is_none()
++        && let Err(e) = tokio::task::spawn_blocking(api::release_to_fetch).await
++    {
+         warn!("gc: to-fetch release task panicked: {e}");
+     }
+ }
+@@ -178,9 +197,13 @@ async fn run_account(
+     processed: &mut HashSet<u64>,
+     last_request: &mut Option<Instant>,
+     sys: &mut sysinfo::System,
++    collector: Option<&Path>,
+ ) -> Result<(), GcError> {
+     let account = ctx.account_id();
+     let now = now_secs();
++    if collector.is_some_and(|path| relay::participants(path, ctx.steam_id64, now).is_empty()) {
++        return Ok(());
++    }
+
+     let backoff = store.load_backoff(ctx.steam_id64)?;
+     if backoff.is_some_and(|until| now < until) {
+@@ -196,10 +219,14 @@ async fn run_account(
+     let history_quota = store.load_history_quota(ctx.steam_id64)?;
+
+     // A failed to-fetch read only empties that phase; friends' matches can still be fetched.
+-    let to_fetch = blocking(api::to_fetch)
+-        .await
+-        .inspect_err(|e| warn!("gc: {e}"))
+-        .unwrap_or_default();
++    let to_fetch = if collector.is_none() {
++        blocking(api::to_fetch)
++            .await
++            .inspect_err(|e| warn!("gc: {e}"))
++            .unwrap_or_default()
++    } else {
++        Vec::new()
++    };
+     if to_fetch.iter().all(|id| processed.contains(id)) && history_budget(&history_quota, now) == 0
+     {
+         info!("gc: nothing to fetch for account {account}");
+@@ -236,6 +263,7 @@ async fn run_account(
+         processed,
+         last_request,
+         sys,
++        collector,
+     };
+     let fetched = match run.fetch(to_fetch).await {
+         Ok(fetched) => fetched,
+@@ -272,15 +300,21 @@ struct AccountRun<'a> {
+     processed: &'a mut HashSet<u64>,
+     last_request: &'a mut Option<Instant>,
+     sys: &'a mut sysinfo::System,
++    collector: Option<&'a Path>,
+ }
+
+ impl AccountRun<'_> {
++    fn participants(&self) -> Option<HashSet<u32>> {
++        self.collector
++            .map(|path| relay::participants(path, self.ctx.steam_id64, now_secs()))
++    }
++
+     /// Friends' fresh matches first, then `to_fetch` with whatever quota is left. Returns
+     /// how many salts were posted, or `GcHandshakeFailed` if the GC stopped answering.
+     async fn fetch(&mut self, to_fetch: Vec<u64>) -> Result<u32, GcError> {
+-        let mut match_ids = self.friend_matches().await?;
++        let (mut match_ids, players) = self.friend_matches().await?;
+         match_ids.extend(fresh_newest_first(to_fetch, self.processed, usize::MAX));
+-        self.fetch_salts(match_ids).await
++        self.fetch_salts(match_ids, &players).await
+     }
+
+     /// Record one salt fetch (or, if `exhaust`, Steam's rate limit) and persist it.
+@@ -308,7 +342,11 @@ impl AccountRun<'_> {
+     /// pass, until the salt quota is spent or the run must stop (rate limit, game
+     /// launched). Returns how many were posted, or `GcHandshakeFailed` if the GC stopped
+     /// answering.
+-    async fn fetch_salts(&mut self, match_ids: Vec<u64>) -> Result<u32, GcError> {
++    async fn fetch_salts(
++        &mut self,
++        match_ids: Vec<u64>,
++        players: &HashMap<u64, HashSet<u32>>,
++    ) -> Result<u32, GcError> {
+         let account = self.ctx.account_id();
+         let given_up = self
+             .store
+@@ -328,6 +366,13 @@ impl AccountRun<'_> {
+                 info!("gc: Deadlock launched mid-pass, stopping account {account}");
+                 break;
+             }
++            if self.participants().is_some_and(|allowed| {
++                !players
++                    .get(&match_id)
++                    .is_some_and(|ids| !ids.is_disjoint(&allowed))
++            }) {
++                continue;
++            }
+
+             let salts = match self.session.fetch_match_salts(match_id).await {
+                 Ok(s) => s,
+@@ -375,11 +420,11 @@ impl AccountRun<'_> {
+     /// Matches deadlock-api is missing salts for, newest first, from the histories of
+     /// friends who most likely played since the API last saw them. Best-effort: any
+     /// failure just yields fewer (or no) matches, except `GcHandshakeFailed`.
+-    async fn friend_matches(&mut self) -> Result<Vec<u64>, GcError> {
++    async fn friend_matches(&mut self) -> Result<(Vec<u64>, HashMap<u64, HashSet<u32>>), GcError> {
+         let now = now_secs();
+         let budget = history_budget(&self.history_quota, now).min(self.quota.remaining(now));
+         if budget == 0 || self.session.friends.is_empty() {
+-            return Ok(Vec::new());
++            return Ok((Vec::new(), HashMap::new()));
+         }
+         let picks = match self.pick_friends(budget).await {
+             Ok(p) => p,
+@@ -388,14 +433,15 @@ impl AccountRun<'_> {
+                     "gc: friend lookup failed for account {}: {e}",
+                     self.ctx.account_id()
+                 );
+-                return Ok(Vec::new());
++                return Ok((Vec::new(), HashMap::new()));
+             }
+         };
+
+         let found = self.lookup_histories(picks).await?;
+-        let mut new_ids = fresh_newest_first(found, self.processed, usize::MAX);
++        let mut new_ids =
++            fresh_newest_first(found.keys().copied().collect(), self.processed, usize::MAX);
+         if new_ids.is_empty() {
+-            return Ok(new_ids);
++            return Ok((new_ids, found));
+         }
+         let ids = new_ids.clone();
+         match blocking(move || api::known_match_ids(&ids)).await {
+@@ -412,7 +458,7 @@ impl AccountRun<'_> {
+             self.ctx.account_id(),
+             new_ids.len()
+         );
+-        Ok(new_ids)
++        Ok((new_ids, found))
+     }
+
+     /// Up to `budget` friends worth a history lookup, most likely first, each with the
+@@ -420,13 +466,18 @@ impl AccountRun<'_> {
+     async fn pick_friends(&self, budget: usize) -> Result<Vec<(u32, u64)>, GcError> {
+         let now = now_secs();
+         let cooldowns = self.store.friend_cooldowns()?;
++        let allowed = self.participants();
+         let due: Vec<u32> = self
+             .session
+             .friends
+             .iter()
+             .copied()
++            .filter(|id| allowed.as_ref().is_none_or(|ids| ids.contains(id)))
+             .filter(|id| cooldowns.get(id).is_none_or(|&until| until <= now))
+             .collect();
++        if self.collector.is_some() && due.is_empty() {
++            return Ok(Vec::new());
++        }
+         // Steam's persona replies and the deadlock-api reads don't depend on each other.
+         let (candidates, personas) = {
+             let due_api = due.clone();
+@@ -459,13 +510,22 @@ impl AccountRun<'_> {
+     /// Fetch each friend's newest history page and return the match ids newer than what
+     /// deadlock-api has stored for them. Spends the history quota and sets cooldowns, except
+     /// when the GC never answered: that is `GcHandshakeFailed`, and no request was made.
+-    async fn lookup_histories(&mut self, picks: Vec<(u32, u64)>) -> Result<Vec<u64>, GcError> {
+-        let mut new_ids = Vec::new();
++    async fn lookup_histories(
++        &mut self,
++        picks: Vec<(u32, u64)>,
++    ) -> Result<HashMap<u64, HashSet<u32>>, GcError> {
++        let mut new_ids: HashMap<u64, HashSet<u32>> = HashMap::new();
+         for (friend, latest_stored) in picks {
+             throttle(self.last_request, GC_MIN_INTERVAL).await;
+             if game_running(self.sys) {
+                 break;
+             }
++            if self
++                .participants()
++                .is_some_and(|allowed| !allowed.contains(&friend))
++            {
++                continue;
++            }
+             let result = self.session.fetch_recent_matches(friend).await;
+             match result {
+                 Err(GcError::AccountInUse) => break,
+@@ -481,7 +541,9 @@ impl AccountRun<'_> {
+
+             let cooldown = match result {
+                 Ok(history) => {
+-                    new_ids.extend(history.into_iter().filter(|&id| id > latest_stored));
++                    for id in history.into_iter().filter(|&id| id > latest_stored) {
++                        new_ids.entry(id).or_default().insert(friend);
++                    }
+                     FRIEND_COOLDOWN_SECS
+                 }
+                 Err(GcError::GcRateLimited) => {
+diff --git a/src/gc/relay.rs b/src/gc/relay.rs
+new file mode 100644
+index 0000000..ecb4928
+--- /dev/null
++++ b/src/gc/relay.rs
+@@ -0,0 +1,81 @@
++//! Read the roster published by the local Contract Relay Manager.
++
++use std::collections::HashSet;
++use std::fs::File;
++use std::io::Read as _;
++use std::path::Path;
++
++use serde::Deserialize;
++
++const MAX_BYTES: u64 = 128 * 1024;
++const MAX_TTL: i64 = 120;
++
++#[derive(Deserialize)]
++#[serde(deny_unknown_fields)]
++struct Roster {
++    schema_version: u8,
++    steam_id64: String,
++    valid_until: i64,
++    accounts: Vec<u32>,
++}
++
++fn parse(bytes: &[u8], steam_id64: u64, now: i64) -> Option<HashSet<u32>> {
++    if bytes.len() as u64 > MAX_BYTES {
++        return None;
++    }
++    let roster: Roster = serde_json::from_slice(bytes).ok()?;
++    if roster.schema_version != 1
++        || roster.steam_id64 != steam_id64.to_string()
++        || roster.valid_until <= now
++        || roster.valid_until > now.saturating_add(MAX_TTL)
++        || roster.accounts.contains(&0)
++    {
++        return None;
++    }
++    Some(roster.accounts.into_iter().collect())
++}
++
++pub(super) fn participants(path: &Path, steam_id64: u64, now: i64) -> HashSet<u32> {
++    let mut bytes = Vec::new();
++    if let Ok(file) = File::open(path)
++        && file.take(MAX_BYTES + 1).read_to_end(&mut bytes).is_ok()
++    {
++        return parse(&bytes, steam_id64, now).unwrap_or_default();
++    }
++    HashSet::new()
++}
++
++#[cfg(test)]
++mod tests {
++    use super::*;
++
++    const BOT: u64 = 76561197960265729;
++    const ROSTER: &[u8] =
++        br#"{"schema_version":1,"steam_id64":"76561197960265729","valid_until":220,"accounts":[2,42]}"#;
++
++    #[test]
++    fn only_current_roster_for_this_steam_account_is_usable() {
++        assert_eq!(parse(ROSTER, BOT, 100), Some(HashSet::from([2, 42])));
++        assert_eq!(parse(ROSTER, BOT + 1, 100), None);
++        assert_eq!(parse(ROSTER, BOT, 99), None);
++        assert_eq!(parse(ROSTER, BOT, 220), None);
++        assert_eq!(parse(b"{}", BOT, 100), None);
++        assert_eq!(parse(&ROSTER[..ROSTER.len() - 1], BOT, 100), None);
++        assert_eq!(
++            parse(
++                br#"{"schema_version":1,"steam_id64":"76561197960265729","valid_until":220,"accounts":[0]}"#,
++                BOT,
++                100
++            ),
++            None
++        );
++    }
++
++    #[test]
++    fn empty_roster_pauses_collection() {
++        let empty = br#"{"schema_version":1,"steam_id64":"76561197960265729","valid_until":220,"accounts":[]}"#;
++        assert_eq!(parse(empty, BOT, 100), Some(HashSet::new()));
++        let file = Path::new("/not-mounted/relay-participants.json");
++        assert!(participants(file, BOT, 100).is_empty());
++    }
++}

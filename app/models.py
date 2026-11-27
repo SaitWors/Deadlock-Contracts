@@ -45,6 +45,7 @@ class ContractRelayConnection(Base):
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uuid4)
     user_id: Mapped[str] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), unique=True)
     consented_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    auto_enrollment_expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     friendship_confirmed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     friendship_cleared_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     quick_invite_url: Mapped[str | None] = mapped_column(String(128), deferred=True)

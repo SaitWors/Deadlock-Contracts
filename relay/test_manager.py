@@ -217,6 +217,32 @@ class RelayTest(unittest.TestCase):
         self.assertEqual(request.full_url, "https://example.invalid/api/internal/relay/v1/heartbeat")
         self.assertEqual(request.get_header("Authorization"), "Bearer " + token_path.read_text())
 
+    def test_automatic_steam_rate_limit_removes_roster_and_survives_restart(self):
+        self.status()
+        collector = self.root / "collector.json"
+        collector.write_text("previous roster")
+        self.client.request.return_value = {"participants": [], "next_cursor": None}
+        steam = Mock()
+        steam.relationships.side_effect = protocol.RequestFailed(429, 180)
+
+        self.assertEqual(self.cycle(steam_session=steam, collector=collector).tick(NOW), 180)
+        self.assertFalse(collector.exists())
+        self.assertEqual(protocol.read_json(self.state)["pending"]["events"], ["steam_enrollment_failed"])
+        restarted = self.cycle(steam_session=steam, collector=collector)
+        self.assertEqual(restarted.tick(NOW + timedelta(seconds=179)), 1)
+        steam.relationships.assert_called_once()
+        steam.accept_incoming.assert_not_called()
+
+    def test_steam_session_rejects_credentials_for_a_different_account_before_request(self):
+        cookie = self.root / "steam-login-secure"
+        cookie.write_text("76561198000000444%7C%7Cinvalid.invalid.invalid")
+        steam = steam_friends.SteamSession("76561198000000555", cookie)
+        with patch.object(steam.opener, "open") as request:
+            with self.assertRaises(protocol.RequestFailed) as error:
+                steam.relationships()
+        self.assertEqual(error.exception.status, 401)
+        request.assert_not_called()
+
 
 if __name__ == "__main__":
     unittest.main()

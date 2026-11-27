@@ -1,13 +1,13 @@
 from __future__ import annotations
 
 import re
-from datetime import timedelta
+from datetime import datetime, timedelta
 from typing import Literal
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Response
 from pydantic import BaseModel, ConfigDict, Field, SecretStr
-from sqlalchemy import func, select, update
+from sqlalchemy import func, or_, select, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, undefer
 
@@ -66,6 +66,18 @@ def _lock_pilot_admission(db: Session) -> None:
     else:
         # SQLite takes its writer lock for this statement without modifying any records.
         db.execute(update(ContractRelayConnection).where(False).values(id=ContractRelayConnection.id))
+
+
+def _pilot_places_used(db: Session, now: datetime) -> int:
+    expiry = ContractRelayConnection.auto_enrollment_expires_at
+    return db.scalar(select(func.count()).select_from(ContractRelayConnection).where(
+        or_(expiry.is_(None), expiry > now),
+    ))
+
+
+def _reservation_expired(connection: ContractRelayConnection, now: datetime) -> bool:
+    expiry = connection.auto_enrollment_expires_at
+    return expiry is not None and utc(expiry) <= now
 
 
 def _current_connection(db: Session, user: User, connection_id: UUID) -> ContractRelayConnection:
@@ -136,13 +148,15 @@ def opt_in(response: Response, user: User = Depends(require_user), db: Session =
     if user.status != "ACTIVE" or not user.steam_id64 or not user.account_id:
         raise HTTPException(409, "Для участия требуется активный аккаунт Steam")
     connection = _connection(db, user.id)
+    now = utcnow()
+    if (connection is None or _reservation_expired(connection, now)) and _pilot_places_used(db, now) >= PILOT_CAPACITY:
+        raise HTTPException(409, "В пилоте Relay заняты все 30 мест. Попробуйте позже.")
     if connection is None:
-        count = db.scalar(select(func.count()).select_from(ContractRelayConnection))
-        if count >= PILOT_CAPACITY:
-            raise HTTPException(409, "В пилоте Relay заняты все 30 мест. Попробуйте позже.")
-        now = utcnow()
         connection = ContractRelayConnection(user_id=user.id, consented_at=now)
         db.add(connection)
+        queue_application(db, user_id=user.id, now=now)
+    elif connection.auto_enrollment_expires_at is not None:
+        connection.auto_enrollment_expires_at = None
         queue_application(db, user_id=user.id, now=now)
     user.relay_auto_enrollment_blocked = False
     db.commit()
@@ -178,8 +192,11 @@ def build_admin_router(require_admin) -> APIRouter:
     ) -> dict:
         user = _lock_user(db, str(user_id))
         connection = _current_connection(db, user, connection_id)
-        if review.action == "confirm" and user.status != "ACTIVE":
-            raise HTTPException(409, "Подтверждение доступно для активного игрока")
+        if review.action == "confirm":
+            if user.status != "ACTIVE":
+                raise HTTPException(409, "Подтверждение доступно для активного игрока")
+            if connection.auto_enrollment_expires_at is not None:
+                raise HTTPException(409, "Steam ещё не подтвердил дружбу")
 
         if review.action == "disconnect":
             user.relay_auto_enrollment_blocked = True

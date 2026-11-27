@@ -1,4 +1,4 @@
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { ApiError, request, useResource } from "./community/api"
 import { LoadState } from "./community/Shared"
 import { useLanguage } from "./i18n"
@@ -8,7 +8,7 @@ type RelayConnection = {
   consented_at: string
   friendship_confirmed_at: string | null
   status?: "pending" | "connected" | "disconnected" | "error" | "unknown"
-  friendship_source?: "manual" | "relay_manual" | "steam_web_api" | null
+  friendship_source?: "manual" | "relay_manual" | "steam_web_api" | "steam_session" | null
   friendship_observed_at?: string | null
   quick_invite_expires_at?: string | null
 }
@@ -36,6 +36,36 @@ export default function ContractRelay({
   const [error, setError] = useState("")
   const [inviteUrl, setInviteUrl] = useState("")
   const connection = resource.data?.connection
+  const autoEnrollment = !userId && resource.data?.auto_enrollment
+  const autoRefresh = Boolean(autoEnrollment) && !busy
+  const { setData } = resource
+
+  useEffect(() => {
+    if (!autoRefresh) return
+    let pending: AbortController | null = null
+    const refresh = () => {
+      if (pending || document.visibilityState === "hidden") return
+      const controller = new AbortController()
+      pending = controller
+      const timeout = window.setTimeout(() => controller.abort(), 12000)
+      void request<RelayResponse>(url, "", { signal: controller.signal })
+        .then((result) => {
+          if (!controller.signal.aborted) setData(result)
+        })
+        .catch(() => {})
+        .finally(() => {
+          window.clearTimeout(timeout)
+          pending = null
+        })
+    }
+    const timer = window.setInterval(refresh, 30000)
+    document.addEventListener("visibilitychange", refresh)
+    return () => {
+      pending?.abort()
+      window.clearInterval(timer)
+      document.removeEventListener("visibilitychange", refresh)
+    }
+  }, [autoRefresh, setData, url])
 
   async function update(action: ReviewAction | "join") {
     setBusy(true)
@@ -115,7 +145,8 @@ export default function ContractRelay({
   const inviteExpires = connection?.quick_invite_expires_at
   const statusLabels = {
     connected:
-      connection?.friendship_source === "steam_web_api"
+      connection?.friendship_source === "steam_web_api" ||
+      connection?.friendship_source === "steam_session"
         ? ru
           ? "Дружба подтверждена через Steam."
           : "Friendship confirmed through Steam."
@@ -139,7 +170,6 @@ export default function ContractRelay({
       ? "Участие выключено."
       : "Opted out."
 
-  const autoEnrollment = !userId && resource.data?.auto_enrollment
   if (autoEnrollment) {
     const connected = friendshipStatus === "connected" && !autoEnrollment.blocked
     const compactStatus = autoEnrollment.blocked
@@ -165,8 +195,8 @@ export default function ContractRelay({
         <p role="status">{compactStatus}</p>
         <p>
           {ru
-            ? "Relay помогает обнаруживать матчи. Отправка заявки в друзья служебному аккаунту означает добровольное участие в пилоте (30 мест); список друзей аккаунта открыт."
-            : "Relay helps discover matches. Sending a friend request to the service account opts you into the pilot (30 places); its friend list is public."}
+            ? "Отправьте Relay заявку в друзья с привязанного аккаунта Steam. Это согласие на автопоиск ваших матчей в пилоте на 30 мест. Список друзей Relay открыт."
+            : "Send Relay a friend request from your linked Steam account to opt in to automatic match discovery. The pilot has 30 places. Relay’s friends list is public."}
         </p>
         {autoEnrollment.blocked ? (
           <button

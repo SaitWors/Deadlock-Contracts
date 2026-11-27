@@ -1,34 +1,65 @@
-"""Read the Relay account's friend list from the official Steam Web API."""
+"""Read Steam relationships and accept incoming invitations for the Relay account."""
 
+import base64
 import json
 import re
+import secrets
 import ssl
+import time
+from dataclasses import dataclass
 from http.client import HTTPException
 from pathlib import Path
 from urllib.error import HTTPError
-from urllib.parse import urlencode
+from urllib.parse import quote, unquote, urlencode
 from urllib.request import HTTPSHandler, ProxyHandler, Request, build_opener
 
 from .protocol import NoRedirect, RequestFailed, read_limited, retry_after_seconds
 
 
 URL = "https://api.steampowered.com/ISteamUser/GetFriendList/v1/"
+SESSION_FRIENDS_URL = "https://api.steampowered.com/IFriendsListService/GetFriendsList/v1/"
+COMMUNITY = "https://steamcommunity.com"
+STEAM_ID64_BASE = 76561197960265728
 MAX_RESPONSE = 1024 * 1024
+REQUEST_RECIPIENT = 2
+FRIEND = 3
 
 
 def steam_id64(value: object) -> str:
     if not isinstance(value, str) or not re.fullmatch(r"[0-9]{17}", value):
         raise ValueError("invalid SteamID64")
-    if not 76561197960265728 < int(value) <= 76561202255233023:
+    if not STEAM_ID64_BASE < int(value) < STEAM_ID64_BASE + 2**32:
         raise ValueError("expected an individual Steam account")
     return value
+
+
+def _opener():
+    return build_opener(ProxyHandler({}), NoRedirect(), HTTPSHandler(context=ssl.create_default_context()))
+
+
+def _json(opener, request: Request) -> dict:
+    try:
+        with opener.open(request, timeout=10) as response:
+            data = response.read(MAX_RESPONSE + 1)
+        if len(data) > MAX_RESPONSE:
+            raise ValueError("Steam response exceeds size limit")
+        result = json.loads(data)
+        if not isinstance(result, dict):
+            raise ValueError("invalid Steam response")
+        return result
+    except HTTPError as error:
+        with error:
+            delay = retry_after_seconds(error.headers.get("Retry-After")) if error.headers else 0
+        raise RequestFailed(error.code, delay) from None
+    except (HTTPException, OSError, ValueError, RecursionError):
+        raise RequestFailed() from None
 
 
 class SteamFriends:
     def __init__(self, account: str, key_file: Path):
         self.account = steam_id64(account)
         self.key_file = key_file
-        self.opener = build_opener(ProxyHandler({}), NoRedirect(), HTTPSHandler(context=ssl.create_default_context()))
+        self.opener = _opener()
 
     def friend_ids(self) -> set[str]:
         """An unavailable or malformed list raises, including for private profiles."""
@@ -38,11 +69,7 @@ class SteamFriends:
                 raise ValueError("invalid Steam Web API key")
             query = urlencode({"steamid": self.account, "relationship": "friend"})
             request = Request(URL + "?" + query, headers={"X-WebAPI-Key": key, "Accept": "application/json"})
-            with self.opener.open(request, timeout=10) as response:
-                data = response.read(MAX_RESPONSE + 1)
-            if len(data) > MAX_RESPONSE:
-                raise ValueError("Steam friend list exceeds size limit")
-            rows = json.loads(data)["friendslist"]["friends"]
+            rows = _json(self.opener, request)["friendslist"]["friends"]
             if not isinstance(rows, list):
                 raise ValueError("invalid Steam friend list")
             friends = set()
@@ -51,9 +78,98 @@ class SteamFriends:
                     raise ValueError("unexpected Steam relationship")
                 friends.add(steam_id64(row["steamid"]))
             return friends
-        except HTTPError as error:
-            with error:
-                delay = retry_after_seconds(error.headers.get("Retry-After")) if error.headers else 0
-            raise RequestFailed(error.code, delay) from None
-        except (HTTPException, OSError, KeyError, TypeError, ValueError, RecursionError):
+        except (OSError, KeyError, TypeError, ValueError):
             raise RequestFailed() from None
+
+
+@dataclass(frozen=True)
+class SteamRelationships:
+    friends: frozenset[str]
+    incoming: frozenset[str]
+    limit_hit: bool = False
+
+
+class SteamSession:
+    """Use a Steam Community web session without opening a second client or GC login."""
+
+    def __init__(self, account: str, cookie_file: Path):
+        self.account = steam_id64(account)
+        self.cookie_file = cookie_file
+        self.session_id = secrets.token_hex(12)
+        self.opener = _opener()
+
+    def _access_token(self) -> str:
+        try:
+            cookie = unquote(read_limited(self.cookie_file, 8192).decode("ascii").strip())
+            account, separator, token = cookie.partition("||")
+            if account != self.account or not separator or not re.fullmatch(r"[\w-]+\.[\w-]+\.[\w-]+", token, re.ASCII):
+                raise ValueError("invalid Steam session credential")
+            payload = token.split(".")[1]
+            claims = json.loads(base64.urlsafe_b64decode(payload + "=" * (-len(payload) % 4)))
+            audiences = claims["aud"]
+            if claims["sub"] != account or not isinstance(audiences, list) or "web" not in audiences:
+                raise ValueError("expected web access for the Relay account")
+            if type(claims["exp"]) is not int or claims["exp"] <= time.time():
+                raise RequestFailed(401)
+            return token
+        except (KeyError, OSError, TypeError, ValueError, AttributeError, RecursionError):
+            raise RequestFailed(401) from None
+
+    def relationships(self) -> SteamRelationships:
+        token = self._access_token()
+        request = Request(SESSION_FRIENDS_URL + "?" + urlencode({"access_token": token}), headers={
+            "Accept": "application/json", "Cache-Control": "no-cache",
+        })
+        try:
+            document = _json(self.opener, request)["response"]["friendslist"]
+            if document.get("bincremental", False) is not False:
+                raise ValueError("expected a complete Steam relationship snapshot")
+            limit_hit = document.get("friends_limit_hit", False)
+            if type(limit_hit) is not bool:
+                raise ValueError("invalid Steam friendship limit")
+            rows = document.get("friends")
+            # Protobuf JSON can omit an empty repeated field.
+            if rows is None:
+                max_friends = document.get("max_friend_count")
+                if type(max_friends) is int and max_friends > 0 and document.get("active_friend_count", 0) == 0:
+                    rows = []
+            if not isinstance(rows, list):
+                raise ValueError("invalid Steam relationship snapshot")
+            incoming, friends, seen = set(), set(), set()
+            for row in rows:
+                account, relation = row["ulfriendid"], row["efriendrelationship"]
+                if (
+                    not isinstance(account, str) or not re.fullmatch(r"[1-9][0-9]{16,19}", account)
+                    or not 0 < int(account) < 2**64 or type(relation) is not int
+                ):
+                    raise ValueError("invalid Steam relationship")
+                if not STEAM_ID64_BASE < int(account) < STEAM_ID64_BASE + 2**32 or account == self.account:
+                    continue
+                if account in seen:
+                    raise ValueError("duplicate Steam relationship")
+                seen.add(account)
+                if relation == REQUEST_RECIPIENT:
+                    incoming.add(account)
+                elif relation == FRIEND:
+                    friends.add(account)
+            return SteamRelationships(frozenset(friends), frozenset(incoming), limit_hit)
+        except (AttributeError, KeyError, TypeError, ValueError):
+            raise RequestFailed() from None
+
+    def accept_incoming(self, account: str) -> None:
+        account = steam_id64(account)
+        if account == self.account:
+            raise ValueError("a Steam account cannot invite itself")
+        cookie = quote(f"{self.account}||{self._access_token()}", safe="")
+        path = f"{COMMUNITY}/profiles/{self.account}/friends"
+        body = urlencode({
+            "sessionid": self.session_id, "steamid": self.account, "ajax": "1",
+            "action": "accept", "steamids[]": account,
+        }).encode("ascii")
+        request = Request(f"{path}/action", data=body, headers={
+            "Accept": "application/json", "Origin": COMMUNITY, "Referer": f"{path}/pending",
+            "Cookie": f"sessionid={self.session_id}; steamLoginSecure={cookie}",
+            "Content-Type": "application/x-www-form-urlencoded", "X-Requested-With": "XMLHttpRequest",
+        })
+        # The action only handles inbound requests. Its response never proves that friendship exists.
+        _json(self.opener, request)

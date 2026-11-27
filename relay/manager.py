@@ -18,16 +18,22 @@ from .protocol import (
     DOCKER_ERRORS, FRIEND_STATES, PROTOCOL, RelayClient, RequestFailed, atomic_json,
     identifier, ingest_snapshot, read_json, utc,
 )
-from .steam_friends import SteamFriends, steam_id64
+from .steam_friends import STEAM_ID64_BASE, SteamFriends, SteamRelationships, SteamSession, steam_id64
 
-AGENT_VERSION = "1.1.0"
+AGENT_VERSION = "1.2.0"
 INTERVAL = 60
 STEAM_INTERVAL = 60 * 60
 MAX_RETRY = 15 * 60
 MAX_REPORT_AGE = timedelta(hours=23)
 MAX_MANUAL_AGE = timedelta(hours=23)
 MAX_PARTICIPANT_PAGES = 20
-EVENTS = {"host_snapshot_invalid", "host_snapshot_unavailable", "participant_sync_failed", "friendship_sync_failed"}
+COLLECTOR_TTL = 120
+MAX_ADMISSION_CHECKS = 10
+MAX_ACCEPTS = 3
+EVENTS = {
+    "host_snapshot_invalid", "host_snapshot_unavailable", "participant_sync_failed", "friendship_sync_failed",
+    "steam_enrollment_failed",
+}
 
 
 def encode_heartbeat(document: dict) -> dict:
@@ -91,12 +97,16 @@ def manual_observations(path: Path | None, now: datetime) -> list[dict]:
     return [observations[key] for key in sorted(observations)]
 
 
-def eligible_participants(client: RelayClient, wanted: set[str] | None) -> dict[str, str | None]:
+def eligible_participants(
+    client: RelayClient, wanted: set[str] | None, *, automatic: bool = False,
+) -> dict[str, str | None]:
     """Use current consent IDs. Steam IDs stay in memory and are only needed for automatic sync."""
     eligible = {}
     after = None
     for _ in range(MAX_PARTICIPANT_PAGES):
-        page = client.request("/participants", after=after)
+        page = client.request("/participants", after=after, automatic=True) if automatic else client.request(
+            "/participants", after=after,
+        )
         rows = page.get("participants")
         if not isinstance(rows, list) or len(rows) > 200:
             raise RequestFailed()
@@ -137,9 +147,10 @@ def load_state(path: Path) -> dict:
         digest = data.get("friendship_digest")
         if isinstance(digest, str) and re.fullmatch("[a-f0-9]{64}", digest):
             state["friendship_digest"] = digest
-        steam_next = data.get("steam_next_at")
-        if type(steam_next) in (int, float) and math.isfinite(steam_next) and steam_next >= 0:
-            state["steam_next_at"] = steam_next
+        for name in ("steam_next_at", "enrollment_next_at"):
+            value = data.get(name)
+            if type(value) in (int, float) and math.isfinite(value) and value >= 0:
+                state[name] = value
         return state
     except FileNotFoundError:
         return {}
@@ -163,13 +174,19 @@ def schedule(state: dict, now: datetime, failure: RequestFailed | None) -> float
 
 class Manager:
     def __init__(self, client: RelayClient, state_path: Path, snapshot: Path, observations: Path | None,
-                 heartbeat_only=False, steam: SteamFriends | None = None):
+                 heartbeat_only=False, steam: SteamFriends | None = None, *,
+                 steam_session: SteamSession | None = None, collector: Path | None = None):
         self.client = client
         self.state_path = state_path
         self.snapshot = snapshot
         self.observations = observations
         self.heartbeat_only = heartbeat_only
         self.steam = steam
+        if (steam_session is None) != (collector is None) or (steam_session and (steam or heartbeat_only)):
+            raise ValueError("automatic Relay requires a Steam session and collector path in its own mode")
+        self.steam_session = steam_session
+        self.collector = collector
+        self.admission_cursor = ""
         self.state = load_state(state_path)
 
     def tick(self, now: datetime) -> float:
@@ -202,13 +219,85 @@ class Manager:
     def prepare(self, now: datetime) -> tuple[dict, RequestFailed | None]:
         ingest, event = host_snapshot(self.snapshot, now)
         events = [event] if event else []
-        failure = self.sync_friendships(now, events) if not self.heartbeat_only else None
+        failure = None
+        if self.steam_session is not None and self.collector is not None:
+            failure = self.sync_enrollment(now, events, self.steam_session, self.collector)
+        elif not self.heartbeat_only:
+            failure = self.sync_friendships(now, events)
         report = {"observed_at": now.isoformat(), "ingest": ingest, "events": events}
         if not events:
             report["last_successful_cycle_at"] = now.isoformat()
         elif "last_success" in self.state:
             report["last_successful_cycle_at"] = self.state["last_success"]
         return encode_heartbeat(report), failure
+
+    def sync_enrollment(
+        self, now: datetime, events: list[str], steam: SteamSession, collector: Path,
+    ) -> RequestFailed | None:
+        if now.timestamp() < self.state.get("enrollment_next_at", 0):
+            return None
+        self.state["enrollment_next_at"] = now.timestamp() + INTERVAL
+        atomic_json(self.state_path, self.state)
+        try:
+            eligible = eligible_participants(self.client, None, automatic=True)
+            relationships = steam.relationships()
+            observed_at = datetime.now(timezone.utc)
+            attempted = set()
+            if not relationships.limit_hit:
+                # Rotate through denials as well, so unknown users cannot starve later requests.
+                ordered = sorted(relationships.incoming, key=lambda sid: (sid <= self.admission_cursor, sid))
+                for account in ordered[:MAX_ADMISSION_CHECKS]:
+                    self.admission_cursor = account
+                    result = self.client.request("/admissions", {"protocol_version": PROTOCOL, "steam_id64": account})
+                    if result["decision"] != "allowed":
+                        continue
+                    eligible[result["connection_id"]] = account
+                    attempted.add(account)
+                    try:
+                        steam.accept_incoming(account)
+                    except RequestFailed as error:
+                        # An invite can disappear between the snapshot and Steam's accept action.
+                        if error.status not in (400, 409):
+                            raise
+                    if len(attempted) >= MAX_ACCEPTS:
+                        break
+            if attempted:
+                relationships = steam.relationships()
+                observed_at = datetime.now(timezone.utc)
+            if (relationships.limit_hit and relationships.incoming) or attempted & relationships.incoming:
+                events.append("steam_enrollment_failed")
+            self.publish_enrollment(collector, steam.account, eligible, relationships, observed_at)
+        except RequestFailed as error:
+            collector.unlink(missing_ok=True)
+            events.append("steam_enrollment_failed")
+            self.state["enrollment_next_at"] = now.timestamp() + max(INTERVAL, error.retry_after)
+            return error
+        return None
+
+    def publish_enrollment(
+        self, collector: Path, relay_account: str, eligible: dict[str, str | None],
+        relationships: SteamRelationships, observed_at: datetime,
+    ) -> None:
+        entries = [
+            {"connection_id": connection_id, "observed_at": observed_at.isoformat(), "source": "steam_session",
+             "state": "connected" if account in relationships.friends else (
+                 "unknown" if account in relationships.incoming else "disconnected"
+             )}
+            for connection_id, account in eligible.items()
+        ]
+        accounts = set()
+        for start in range(0, len(entries), 100):
+            batch = entries[start:start + 100]
+            result = self.client.request("/friendship-status", {"protocol_version": PROTOCOL, "observations": batch})
+            approved = result.get("collector_connections")
+            connected = {entry["connection_id"] for entry in batch if entry["state"] == "connected"}
+            if not isinstance(approved, list) or any(not isinstance(key, str) or key not in connected for key in approved):
+                raise RequestFailed()
+            accounts.update(int(steam_id64(eligible[key])) - STEAM_ID64_BASE for key in approved)
+        atomic_json(collector, {
+            "schema_version": 1, "steam_id64": relay_account,
+            "valid_until": int(observed_at.timestamp()) + COLLECTOR_TTL, "accounts": sorted(accounts),
+        }, mode=0o640)
 
     def sync_friendships(self, now: datetime, events: list[str]) -> RequestFailed | None:
         steam_due = self.steam is not None and now.timestamp() >= self.state.get("steam_next_at", 0)
@@ -274,20 +363,31 @@ def main() -> int:
     parser.add_argument("--host-snapshot", required=True, type=Path)
     parser.add_argument("--friend-observations", type=Path)
     parser.add_argument("--steam-id64", help="enable GetFriendList for this Relay account")
+    parser.add_argument("--steam-auto-enrollment", action="store_true", help="use the Relay account's Steam web session")
+    parser.add_argument("--collector-allowlist", type=Path, help="write the current list of confirmed Ingest participants")
     parser.add_argument("--heartbeat-only", action="store_true")
     parser.add_argument("--once", action="store_true")
     args = parser.parse_args()
+    if args.steam_auto_enrollment and not (args.steam_id64 and args.collector_allowlist and not args.heartbeat_only):
+        parser.error("automatic enrollment requires --steam-id64 and --collector-allowlist in write mode")
+    if args.collector_allowlist and not args.steam_auto_enrollment:
+        parser.error("--collector-allowlist requires --steam-auto-enrollment")
     try:
         client = RelayClient(args.api_base_url, args.token_file)
         steam = None
+        steam_session = None
         if args.steam_id64 and not args.heartbeat_only:
             credentials = os.environ.get("CREDENTIALS_DIRECTORY")
             if not credentials:
                 raise ValueError("expected systemd credentials directory")
-            steam = SteamFriends(args.steam_id64, Path(credentials) / "steam-web-api-key")
+            if args.steam_auto_enrollment:
+                steam_session = SteamSession(args.steam_id64, Path(credentials) / "steam-login-secure")
+            else:
+                steam = SteamFriends(args.steam_id64, Path(credentials) / "steam-web-api-key")
         manager = Manager(
             client, args.state_directory / "delivery.json", args.host_snapshot,
             args.friend_observations, heartbeat_only=args.heartbeat_only, steam=steam,
+            steam_session=steam_session, collector=args.collector_allowlist,
         )
         while True:
             delay = manager.tick(datetime.now(timezone.utc))

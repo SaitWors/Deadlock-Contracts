@@ -25,3 +25,4 @@ ProtectControlGroups=yes
 RestrictAddressFamilies=AF_UNIX
 CapabilityBoundingSet=
 InaccessiblePaths=/etc/contract-relay-manager/token /etc/contract-relay-manager/friend-observations.json
+InaccessiblePaths=-/etc/contract-relay-manager/steam-login-secure -/run/contract-relay-collector

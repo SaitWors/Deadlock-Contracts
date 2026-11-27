@@ -1,0 +1,42 @@
+name: Relay Ingest
+
+on:
+  pull_request:
+    paths:
+      - "relay/ingest/**"
+      - ".github/workflows/relay-ingest.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  ingest:
+    name: Ingest / apply and test participant filter
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      CARGO_PROFILE_TEST_DEBUG: "0"
+      CARGO_NET_GIT_FETCH_WITH_CLI: "true"
+    steps:
+      - name: Check out Deadlock Contracts
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - name: Check out the pinned Ingest source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          repository: deadlock-api/deadlock-api-ingest
+          ref: d8d51587253c25e09368010d959e7618e0f7a345
+          path: .qa/relay-ingest
+          persist-credentials: false
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends cmake protobuf-compiler libprotobuf-dev libssl-dev
+          rustup toolchain install 1.98 --profile minimal
+      - name: Apply and test the participant filter
+        working-directory: .qa/relay-ingest
+        run: |
+          git apply --check "$GITHUB_WORKSPACE/relay/ingest/participants.patch"
+          git apply "$GITHUB_WORKSPACE/relay/ingest/participants.patch"
+          cargo test --locked --bin deadlock-api-ingest gc::
