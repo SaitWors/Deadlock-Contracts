@@ -8,12 +8,12 @@ index e5f3a75..1f179a4 100644
  mod quota;
 +mod relay;
  mod store;
-
+ 
  use core::time::Duration;
 -use std::collections::HashSet;
 +use std::collections::{HashMap, HashSet};
 +use std::path::{Path, PathBuf};
-
+ 
  use tokio::time::Instant;
  use tracing::{info, warn};
 @@ -117,6 +119,7 @@ async fn post(salts: Salts, source: Source) -> bool {
@@ -31,7 +31,7 @@ index e5f3a75..1f179a4 100644
 -    runtime.block_on(run_pass(&contexts, &store, &mut sys));
 +    runtime.block_on(run_pass(&contexts, &store, &mut sys, collector.as_deref()));
  }
-
+ 
 -async fn run_pass(contexts: &[AuthContext], store: &GcStore, sys: &mut sysinfo::System) {
 +async fn run_pass(
 +    contexts: &[AuthContext],
@@ -80,12 +80,12 @@ index e5f3a75..1f179a4 100644
 +    if collector.is_some_and(|path| relay::participants(path, ctx.steam_id64, now).is_empty()) {
 +        return Ok(());
 +    }
-
+ 
      let backoff = store.load_backoff(ctx.steam_id64)?;
      if backoff.is_some_and(|until| now < until) {
 @@ -196,10 +219,14 @@ async fn run_account(
      let history_quota = store.load_history_quota(ctx.steam_id64)?;
-
+ 
      // A failed to-fetch read only empties that phase; friends' matches can still be fetched.
 -    let to_fetch = blocking(api::to_fetch)
 -        .await
@@ -116,7 +116,7 @@ index e5f3a75..1f179a4 100644
      sys: &'a mut sysinfo::System,
 +    collector: Option<&'a Path>,
  }
-
+ 
  impl AccountRun<'_> {
 +    fn participants(&self) -> Option<HashSet<u32>> {
 +        self.collector
@@ -132,7 +132,7 @@ index e5f3a75..1f179a4 100644
 -        self.fetch_salts(match_ids).await
 +        self.fetch_salts(match_ids, &players).await
      }
-
+ 
      /// Record one salt fetch (or, if `exhaust`, Steam's rate limit) and persist it.
 @@ -308,7 +342,11 @@ impl AccountRun<'_> {
      /// pass, until the salt quota is spent or the run must stop (rate limit, game
@@ -158,7 +158,7 @@ index e5f3a75..1f179a4 100644
 +            }) {
 +                continue;
 +            }
-
+ 
              let salts = match self.session.fetch_match_salts(match_id).await {
                  Ok(s) => s,
 @@ -375,11 +420,11 @@ impl AccountRun<'_> {
@@ -183,7 +183,7 @@ index e5f3a75..1f179a4 100644
 +                return Ok((Vec::new(), HashMap::new()));
              }
          };
-
+ 
          let found = self.lookup_histories(picks).await?;
 -        let mut new_ids = fresh_newest_first(found, self.processed, usize::MAX);
 +        let mut new_ids =
@@ -201,7 +201,7 @@ index e5f3a75..1f179a4 100644
 -        Ok(new_ids)
 +        Ok((new_ids, found))
      }
-
+ 
      /// Up to `budget` friends worth a history lookup, most likely first, each with the
 @@ -420,13 +466,18 @@ impl AccountRun<'_> {
      async fn pick_friends(&self, budget: usize) -> Result<Vec<(u32, u64)>, GcError> {
@@ -248,7 +248,7 @@ index e5f3a75..1f179a4 100644
              match result {
                  Err(GcError::AccountInUse) => break,
 @@ -481,7 +541,9 @@ impl AccountRun<'_> {
-
+ 
              let cooldown = match result {
                  Ok(history) => {
 -                    new_ids.extend(history.into_iter().filter(|&id| id > latest_stored));

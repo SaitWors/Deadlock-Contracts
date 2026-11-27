@@ -147,6 +147,37 @@ def test_heartbeat_replay_staleness_version_and_observed_quota(relay, monkeypatc
     assert stale["last_heartbeat_at"] == first["last_heartbeat_at"]
 
 
+def test_scheduler_heartbeat_accepts_bounded_telemetry_and_tracks_independent_freshness(relay, monkeypatch):
+    factory, player = relay
+    _, caller = player()
+    admin_id, admin = player()
+    elevate(factory, admin_id, admin, role="ADMIN")
+    now = utcnow()
+    monkeypatch.setattr(relay_protocol, "utcnow", lambda: now)
+    scheduler = {
+        "mode": "shadow", "status": "ready", "observed_at": int((now - timedelta(minutes=6)).timestamp()),
+        "history": {"used": 0, "limit": 20, "remaining": 20, "reserve": 4},
+        "simulated": {"history": 1, "metadata": 0},
+        "decisions": [{"operation": "history", "streamer": True, "score": 140, "streamer_bonus": 40,
+                       "wait_seconds": 50, "reason": "selected"}],
+    }
+
+    def send(observation):
+        return caller.post(API + "/heartbeat", headers=auth(), json=payload(now, ingest={
+            "container_status": "running", "gc_logs": "recent", "observed_at": now.isoformat(),
+            "scheduler": observation,
+        }, events=["scheduler_sync_failed"]))
+
+    assert send(dict(scheduler, decisions=[dict(scheduler["decisions"][0], raw="secret")])).status_code == 422
+    assert send(dict(scheduler, decisions=scheduler["decisions"] * 31)).status_code == 422
+    assert send(dict(scheduler, observed_at=int((now + timedelta(minutes=3)).timestamp()))).status_code == 422
+    assert send(scheduler).json()["applied"] == 1
+    node = next(node for node in admin.get(ADMIN).json()["nodes"] if node["id"] == "mcg")
+    assert node["ingest_status"] == "fresh"
+    assert node["scheduler_freshness"] == "stale"
+    assert node["ingest"]["scheduler"] == scheduler
+
+
 def test_roster_and_friendship_replay_unknown_and_revoked_consent(relay, monkeypatch):
     factory, player = relay
     user_id, user = steam_player(factory, player, "Participant", 23456)

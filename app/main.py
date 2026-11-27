@@ -112,6 +112,7 @@ from .services.adaptive_profile import build_adaptive_profile
 from .services.leaderboard import TRUSTED_REWARD_SOURCES, public_leaderboard as build_public_leaderboard
 from .services.localization import error_metadata, request_language
 from .services.permissions import permissions_for_role, role_has_permission
+from .services.public_badges import PUBLIC_BADGES, stored_public_badges
 from .services.evaluator import capability_available
 from .services.moderation import (
     ModerationError,
@@ -782,7 +783,6 @@ def logout(response: Response, request: Request, user: User = Depends(require_us
 
 
 ACCESS_ROLES = {"PLAYER", "TESTER", "MODERATOR", "ADMIN"}
-PUBLIC_BADGES = {"DEVELOPER", "STREAMER", "EARLY_TESTER", "CONTRIBUTOR"}
 BADGE_ORDER = ("CREATOR", "ADMIN", "DEVELOPER", "STREAMER", "EARLY_TESTER", "TESTER", "CONTRIBUTOR", "PLAYER")
 
 
@@ -807,12 +807,7 @@ def _display_badges(user: User) -> list[str]:
         "TESTER": "TESTER",
         "PLAYER": "PLAYER",
     }[role]
-    stored = {
-        str(item).upper()
-        for item in (getattr(user, "public_badges", None) or [])
-        if str(item).upper() in PUBLIC_BADGES
-    }
-    badges = {automatic, *stored}
+    badges = {automatic, *stored_public_badges(user)}
     return [item for item in BADGE_ORDER if item in badges]
 
 
@@ -3492,7 +3487,7 @@ def admin_update_user_identity(user_id: UUID, payload: AdminIdentityUpdateReques
         raise HTTPException(409, "Роль владельца задаётся только серверным allowlist и не редактируется из браузера")
     new_badges = sorted({item for item in payload.badges if item in PUBLIC_BADGES})
     old_role = str(getattr(target, "access_role", "PLAYER") or "PLAYER").upper()
-    old_badges = sorted({str(item).upper() for item in (getattr(target, "public_badges", None) or []) if str(item).upper() in PUBLIC_BADGES})
+    old_badges = sorted(stored_public_badges(target))
     target.access_role = payload.access_role
     target.public_badges = new_badges
     if old_role in {"MODERATOR", "ADMIN"} and payload.access_role not in {

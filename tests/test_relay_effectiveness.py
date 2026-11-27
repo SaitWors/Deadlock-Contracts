@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import os
 from contextlib import contextmanager
+from dataclasses import replace
 from datetime import datetime, timedelta, timezone
 from uuid import uuid4
 
@@ -10,11 +11,14 @@ from sqlalchemy.orm import Session
 from sqlalchemy.schema import CreateSchema, DropSchema
 
 from app.db import Base
-
 from app.models import CompanionEvent, ContractRelayConnection, Evaluation, Match, User
 from app.relay_measurement_models import RelayMatchObservation
+from app.relay_models import RelayFriendship, RelayNode
+from app.services import relay_state
+from app.services.auth import STEAM_ID64_BASE
 from app.services.normalization import normalize_deadlock_match
 from app.services.relay_effectiveness import record_bound_attempt, summary
+from app.services.relay_tasks import task_snapshot
 from app.worker import store_normalized_match
 from tests.test_gep_settlement_backend import create_board, create_identity, fresh_db
 
@@ -100,6 +104,45 @@ def test_only_actual_metadata_observation_is_recorded_and_the_earliest_is_kept()
         store_normalized_match(db, client)
         stored = store_normalized_match(db, no_metadata).relay_provider_metadata_observed_at
         assert stored.replace(tzinfo=timezone.utc) == observed
+
+
+def test_priority_cohort_keeps_streamer_badge_at_binding_and_counts_confirmed_contracts(monkeypatch):
+    monkeypatch.setattr(relay_state, "settings", replace(relay_state.settings, relay_enabled=True))
+    bound = datetime.now(timezone.utc)
+    ended = bound - timedelta(seconds=110)
+    with _measurement_db() as db:
+        user, _ = create_identity(db)
+        user.steam_id64 = STEAM_ID64_BASE + user.account_id
+        user.public_badges = ["STREAMER"]
+        connection = ContractRelayConnection(user_id=user.id, consented_at=ended - timedelta(hours=2))
+        db.add_all([connection, RelayNode(id="mcg", enabled=True, friendship_writes=True, token_hash="a" * 64)])
+        db.flush()
+        db.add(RelayFriendship(
+            node_id="mcg", connection_id=connection.id, state="connected",
+            source="steam_session", observed_at=bound - timedelta(seconds=10),
+        ))
+        board, option = create_board(db, user)
+        queue = task_snapshot(db, "mcg", bound)
+        task, = queue["tasks"]
+        assert task["streamer"] is True and task["operation"] == "history"
+        match = _match(db, 701010)
+        match.started_at = ended - timedelta(minutes=31)
+        match.ended_at = ended
+        match.relay_provider_metadata_observed_at = ended + timedelta(seconds=72)
+        record_bound_attempt(db, board, match, bound)
+        _settle(db, option, match, 120)
+        option.settled_at = ended + timedelta(seconds=120)
+        db.commit()
+
+        user.public_badges = []
+        db.commit()
+        report = summary(db, ended - timedelta(hours=1), ended + timedelta(hours=1), now=ended + timedelta(minutes=3))
+
+    assert report["priority_cohorts"] == [{
+        "streamer": True, "sample_size": 1, "confirmed_contracts": 1,
+        "discovery": {"observed_count": 1, "median_seconds": 72, "p90_seconds": 72},
+        "verification": {"observed_count": 1, "median_seconds": 120, "p90_seconds": 120},
+    }]
 
 
 def test_report_uses_persisted_observations_and_rejects_pending_or_future_friendship():

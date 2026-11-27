@@ -20,7 +20,7 @@ from .protocol import (
 )
 from .steam_friends import STEAM_ID64_BASE, SteamFriends, SteamRelationships, SteamSession, steam_id64
 
-AGENT_VERSION = "1.2.0"
+AGENT_VERSION = "1.3.0"
 INTERVAL = 60
 STEAM_INTERVAL = 60 * 60
 MAX_RETRY = 15 * 60
@@ -30,9 +30,11 @@ MAX_PARTICIPANT_PAGES = 20
 COLLECTOR_TTL = 120
 MAX_ADMISSION_CHECKS = 10
 MAX_ACCEPTS = 3
+MAX_SCHEDULER_TASKS = 120
+SCHEDULER_CLOCK_SKEW = timedelta(seconds=5)
 EVENTS = {
     "host_snapshot_invalid", "host_snapshot_unavailable", "participant_sync_failed", "friendship_sync_failed",
-    "steam_enrollment_failed",
+    "steam_enrollment_failed", "scheduler_sync_failed",
 }
 
 
@@ -130,6 +132,56 @@ def eligible_participants(
     raise RequestFailed()
 
 
+def collector_tasks(document: dict, accounts: set[int], now: datetime) -> dict:
+    """Publish only live tasks for locally confirmed friends, using the server deadline."""
+    if any(type(document.get(key)) is not int or document[key] != 1 for key in ("protocol_version", "schema_version")):
+        raise ValueError("unsupported scheduler queue version")
+    generated = utc(document.get("generated_at"))
+    expires = utc(document.get("expires_at"))
+    if not (generated <= now + SCHEDULER_CLOCK_SKEW and generated < expires <= generated + timedelta(seconds=COLLECTOR_TTL)
+            and now < expires):
+        raise ValueError("inactive scheduler queue")
+    rows = document.get("tasks")
+    if not isinstance(rows, list) or len(rows) > MAX_SCHEDULER_TASKS:
+        raise ValueError("invalid scheduler queue size")
+    tasks = []
+    keys = set()
+    for row in rows:
+        if not isinstance(row, dict):
+            raise ValueError("invalid scheduler task")
+        account = steam_id64(row.get("steam_id64"))
+        operation = row.get("operation")
+        match_id = row.get("match_id")
+        baseline = row.get("baseline_match_id")
+        if any(value is not None and (type(value) is not int or not 0 < value < 2**63)
+               for value in (match_id, baseline)):
+            raise ValueError("invalid scheduler match")
+        if operation not in ("history", "metadata") or (operation == "metadata") != (match_id is not None):
+            raise ValueError("invalid scheduler operation")
+        waiting = utc(row.get("waiting_since"))
+        locked = utc(row.get("locked_at"))
+        streamer = row.get("streamer")
+        mode = row.get("game_mode")
+        evidence = row.get("evidence")
+        metadata_required = row.get("metadata_required")
+        if (not locked <= waiting <= generated or type(streamer) is not bool
+                or mode not in ("STANDARD", "RANKED", "STREET_BRAWL")
+                or evidence not in ("none", "stored_history") or type(metadata_required) is not bool
+                or (operation == "metadata" and (not metadata_required or evidence != "stored_history"))):
+            raise ValueError("invalid scheduler task evidence")
+        key = (account, operation, mode if operation == "history" else match_id)
+        if int(account) - STEAM_ID64_BASE not in accounts or key in keys:
+            continue
+        keys.add(key)
+        tasks.append({
+            "steam_id64": account, "operation": operation, "match_id": match_id, "streamer": streamer,
+            "waiting_since": waiting.isoformat(), "locked_at": locked.isoformat(), "baseline_match_id": baseline,
+            "game_mode": mode, "evidence": evidence, "metadata_required": metadata_required,
+        })
+    return {"protocol_version": PROTOCOL, "schema_version": 1, "generated_at": generated.isoformat(),
+            "expires_at": expires.isoformat(), "tasks": tasks}
+
+
 def load_state(path: Path) -> dict:
     try:
         data = read_json(path)
@@ -147,7 +199,7 @@ def load_state(path: Path) -> dict:
         digest = data.get("friendship_digest")
         if isinstance(digest, str) and re.fullmatch("[a-f0-9]{64}", digest):
             state["friendship_digest"] = digest
-        for name in ("steam_next_at", "enrollment_next_at"):
+        for name in ("steam_next_at", "enrollment_next_at", "scheduler_next_at"):
             value = data.get(name)
             if type(value) in (int, float) and math.isfinite(value) and value >= 0:
                 state[name] = value
@@ -175,7 +227,8 @@ def schedule(state: dict, now: datetime, failure: RequestFailed | None) -> float
 class Manager:
     def __init__(self, client: RelayClient, state_path: Path, snapshot: Path, observations: Path | None,
                  heartbeat_only=False, steam: SteamFriends | None = None, *,
-                 steam_session: SteamSession | None = None, collector: Path | None = None):
+                 steam_session: SteamSession | None = None, collector: Path | None = None,
+                 scheduler_queue: Path | None = None):
         self.client = client
         self.state_path = state_path
         self.snapshot = snapshot
@@ -184,8 +237,11 @@ class Manager:
         self.steam = steam
         if (steam_session is None) != (collector is None) or (steam_session and (steam or heartbeat_only)):
             raise ValueError("automatic Relay requires a Steam session and collector path in its own mode")
+        if scheduler_queue is not None and (collector is None or scheduler_queue.resolve() == collector.resolve()):
+            raise ValueError("scheduler tasks need a separate output path alongside automatic Relay")
         self.steam_session = steam_session
         self.collector = collector
+        self.scheduler_queue = scheduler_queue
         self.admission_cursor = ""
         self.state = load_state(state_path)
 
@@ -266,18 +322,43 @@ class Manager:
                 observed_at = datetime.now(timezone.utc)
             if (relationships.limit_hit and relationships.incoming) or attempted & relationships.incoming:
                 events.append("steam_enrollment_failed")
-            self.publish_enrollment(collector, steam.account, eligible, relationships, observed_at)
+            accounts = self.publish_enrollment(collector, steam.account, eligible, relationships, observed_at)
         except RequestFailed as error:
             collector.unlink(missing_ok=True)
+            if self.scheduler_queue is not None:
+                self.scheduler_queue.unlink(missing_ok=True)
             events.append("steam_enrollment_failed")
             self.state["enrollment_next_at"] = now.timestamp() + max(INTERVAL, error.retry_after)
             return error
+        if self.scheduler_queue is not None:
+            return self.sync_scheduler_queue(self.scheduler_queue, accounts, observed_at, events)
+        return None
+
+    def sync_scheduler_queue(
+        self, target: Path, accounts: set[int], now: datetime, events: list[str],
+    ) -> RequestFailed | None:
+        if now.timestamp() < self.state.get("scheduler_next_at", 0):
+            events.append("scheduler_sync_failed")
+            return None
+        try:
+            document = self.client.request("/tasks")
+            atomic_json(target, collector_tasks(document, accounts, datetime.now(timezone.utc)), mode=0o640)
+            self.state.pop("scheduler_next_at", None)
+        except (OSError, ValueError, TypeError, RequestFailed) as error:
+            target.unlink(missing_ok=True)
+            events.append("scheduler_sync_failed")
+            if isinstance(error, RequestFailed):
+                if error.retry_after > INTERVAL:
+                    self.state["scheduler_next_at"] = now.timestamp() + error.retry_after
+                # The node rate limit applies to the other Relay requests as well.
+                if error.status == 429:
+                    return error
         return None
 
     def publish_enrollment(
         self, collector: Path, relay_account: str, eligible: dict[str, str | None],
         relationships: SteamRelationships, observed_at: datetime,
-    ) -> None:
+    ) -> set[int]:
         entries = [
             {"connection_id": connection_id, "observed_at": observed_at.isoformat(), "source": "steam_session",
              "state": "connected" if account in relationships.friends else (
@@ -298,6 +379,7 @@ class Manager:
             "schema_version": 1, "steam_id64": relay_account,
             "valid_until": int(observed_at.timestamp()) + COLLECTOR_TTL, "accounts": sorted(accounts),
         }, mode=0o640)
+        return accounts
 
     def sync_friendships(self, now: datetime, events: list[str]) -> RequestFailed | None:
         steam_due = self.steam is not None and now.timestamp() >= self.state.get("steam_next_at", 0)
@@ -365,6 +447,7 @@ def main() -> int:
     parser.add_argument("--steam-id64", help="enable GetFriendList for this Relay account")
     parser.add_argument("--steam-auto-enrollment", action="store_true", help="use the Relay account's Steam web session")
     parser.add_argument("--collector-allowlist", type=Path, help="write the current list of confirmed Ingest participants")
+    parser.add_argument("--scheduler-queue", type=Path, help="write the current contract-aware Ingest tasks")
     parser.add_argument("--heartbeat-only", action="store_true")
     parser.add_argument("--once", action="store_true")
     args = parser.parse_args()
@@ -372,6 +455,8 @@ def main() -> int:
         parser.error("automatic enrollment requires --steam-id64 and --collector-allowlist in write mode")
     if args.collector_allowlist and not args.steam_auto_enrollment:
         parser.error("--collector-allowlist requires --steam-auto-enrollment")
+    if args.scheduler_queue and not args.steam_auto_enrollment:
+        parser.error("--scheduler-queue requires --steam-auto-enrollment")
     try:
         client = RelayClient(args.api_base_url, args.token_file)
         steam = None
@@ -387,7 +472,7 @@ def main() -> int:
         manager = Manager(
             client, args.state_directory / "delivery.json", args.host_snapshot,
             args.friend_observations, heartbeat_only=args.heartbeat_only, steam=steam,
-            steam_session=steam_session, collector=args.collector_allowlist,
+            steam_session=steam_session, collector=args.collector_allowlist, scheduler_queue=args.scheduler_queue,
         )
         while True:
             delay = manager.tick(datetime.now(timezone.utc))

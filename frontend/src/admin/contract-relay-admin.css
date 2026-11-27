@@ -66,6 +66,42 @@
   vertical-align: top;
 }
 
+.dc-relay-scheduler {
+  border-top: 1px solid var(--admin-line-soft, currentColor);
+  padding-block: 0.9rem;
+}
+
+.dc-relay-scheduler h4,
+.dc-relay-priority-cohorts h4 {
+  margin-block: 0 0.5rem;
+}
+
+.dc-relay-scheduler details {
+  margin-block-start: 0.65rem;
+}
+
+.dc-relay-quota-table {
+  min-width: 42rem;
+}
+
+.dc-relay-quota-table caption {
+  padding-block: 0.45rem;
+  text-align: start;
+}
+
+.dc-relay-priority-table {
+  min-width: 36rem;
+}
+
+.dc-relay-decisions {
+  margin-block: 0.65rem;
+  padding-inline-start: 1.25rem;
+}
+
+.dc-relay-decisions li + li {
+  margin-block-start: 0.45rem;
+}
+
 .dc-relay-consent-id {
   overflow-wrap: anywhere;
   user-select: text;

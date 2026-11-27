@@ -635,6 +635,79 @@ test("Relay cohort latency renders only observed values and exposes missing outc
   await api.act(async () => root.unmount())
 })
 
+test("Relay scheduler distinguishes observed quota from shadow requests and hides expired values", async () => {
+  const lifecycle = { observed_count: 1, median_seconds: 60, p90_seconds: 60 }
+  const scheduler = {
+    mode: "shadow",
+    status: "ready",
+    observed_at: Date.parse(relayObservedAt) / 1000,
+    queued_streamer: 1,
+    queued_regular: 2,
+    history: { used: 0, limit: 20, remaining: 20, reserve: 4 },
+    simulated: { history: 1, metadata: 2 },
+    decisions: [
+      {
+        operation: "history",
+        streamer: true,
+        score: 140,
+        streamer_bonus: 40,
+        wait_seconds: 0,
+        reason: "selected",
+      },
+    ],
+  }
+  const cohorts = [
+    {
+      streamer: true,
+      sample_size: 1,
+      confirmed_contracts: 2,
+      discovery: lifecycle,
+      verification: lifecycle,
+    },
+  ]
+  let freshness = "fresh"
+  const view = runtime(async (url) => {
+    if (url === "/api/admin/auth/status") return response(relayAuth("OWNER", ["*"]))
+    if (url === relayEndpoint)
+      return response({
+        ...relayOverview,
+        nodes: [
+          {
+            ...relayNode,
+            scheduler_freshness: freshness,
+            ingest: { ...relayNode.ingest, scheduler },
+          },
+        ],
+      })
+    if (url === `${relayEndpoint}/effectiveness`)
+      return response({ ...emptyEffectiveness, priority_cohorts: cohorts })
+    return response(list)
+  }, "/admin/reviews")
+  const { doc, api } = view
+  let root
+  await api.act(async () => {
+    root = mountRelayConsole(view)
+  })
+  await api.act(async () => button(doc, "Contract Relay").click())
+  const panel = doc.querySelector(".dc-relay-scheduler")
+  const quotaRows = panel.querySelectorAll("tbody tr")
+  assert.match(quotaRows[0].textContent, /0 \/ 20/)
+  assert.match(quotaRows[1].textContent, /Неизвестно/)
+  assert.match(panel.textContent, /Смоделированные запросы.*1.*2/)
+  assert.match(panel.querySelector(".dc-relay-decisions li").textContent, /Бонус \+40/)
+  assert.ok(panel.querySelector(".dc-role-badge.streamer"))
+  assert.match(doc.querySelector(".dc-relay-priority-table tbody").textContent, /STREAMER12/)
+  await api.act(async () => doc.getElementById("switch-language").click())
+  assert.match(panel.textContent, /Shadow mode/)
+  assert.match(panel.textContent, /Selected for request/)
+  freshness = "stale"
+  await api.act(async () => button(doc, "Refresh data").click())
+  const stalePanel = doc.querySelector(".dc-relay-scheduler")
+  assert.match(stalePanel.textContent, /Observation expired/)
+  assert.equal(stalePanel.querySelector(".dc-relay-quota-table"), null)
+  await api.act(async () => root.unmount())
+})
+
 test("Relay exposes the current consent ID on the admin player detail only", async () => {
   const consentId = "0f6b25d7-bac1-4f82-8979-b46996274f61"
   const { doc, api } = runtime(async (url) => {

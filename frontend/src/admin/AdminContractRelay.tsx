@@ -1,11 +1,13 @@
-import { useEffect, useState } from "react"
+import { lazy, Suspense, useEffect, useState } from "react"
 import { ApiError, request, useResource } from "../community/api"
 import { LoadState } from "../community/Shared"
 import { useLanguage, type Language } from "../i18n"
+import type { Latency, PriorityCohort, SchedulerObservation } from "./RelayScheduler"
 import "./contract-relay-admin.css"
 
 const endpoint = "/api/admin/contract-relay"
 const isAdminAccessDenied = (status: number | null) => status === 401 || status === 403
+const RelayScheduler = lazy(() => import("./RelayScheduler"))
 
 type NodeAction = "enable" | "disable" | "revoke"
 
@@ -28,6 +30,7 @@ type IngestObservation = {
     ram_bytes?: number | null
   } | null
   error?: string | null
+  scheduler?: SchedulerObservation
 }
 
 type RelayNode = {
@@ -41,6 +44,7 @@ type RelayNode = {
   agent_version: string | null
   last_successful_cycle_at: string | null
   ingest_status?: "fresh" | "stale" | "unknown"
+  scheduler_freshness?: "fresh" | "stale" | "unknown"
   ingest: IngestObservation | null
   history: Array<{
     observed_at: string
@@ -56,12 +60,6 @@ type RelayOverview = {
   participants: Record<"connected" | "pending" | "disconnected" | "error", number>
 }
 
-type Latency = {
-  observed_count: number
-  median_seconds: number | null
-  p90_seconds: number | null
-}
-
 type RelayEffectiveness = {
   window_start: string
   window_end: string
@@ -70,6 +68,7 @@ type RelayEffectiveness = {
   unknown_match_end_count?: number
   truncated: boolean
   quota_at_match_time: string
+  priority_cohorts?: PriorityCohort[]
   cohorts: Array<{
     relay: "eligible" | "baseline" | "unknown"
     companion: "observed" | "unobserved"
@@ -91,16 +90,6 @@ function makeCopy(language: Language) {
 
 type Copy = ReturnType<typeof makeCopy>
 
-function localTime(value: string | null | undefined, language: Language) {
-  if (!value) return null
-  const parsed = new Date(value)
-  if (Number.isNaN(parsed.getTime())) return null
-  return new Intl.DateTimeFormat(language, {
-    dateStyle: "medium",
-    timeStyle: "short",
-  }).format(parsed)
-}
-
 function ObservationTime({
   value,
   language,
@@ -110,17 +99,11 @@ function ObservationTime({
   language: Language
   unknown: string
 }) {
-  const text = localTime(value, language)
-  return text ? <time dateTime={value ?? undefined}>{text}</time> : unknown
-}
-
-function adminActionLabel(action: NodeAction, copy: Copy) {
-  const labels = {
-    enable: copy("Включить узел", "Enable node"),
-    disable: copy("Отключить узел", "Disable node"),
-    revoke: copy("Отозвать ключ", "Revoke key"),
-  }
-  return labels[action]
+  if (!value) return unknown
+  const parsed = new Date(value)
+  if (Number.isNaN(parsed.getTime())) return unknown
+  const format = new Intl.DateTimeFormat(language, { dateStyle: "medium", timeStyle: "short" })
+  return <time dateTime={value}>{format.format(parsed)}</time>
 }
 
 function NodePanel({
@@ -166,27 +149,20 @@ function NodePanel({
     unavailable: copy("Недоступно", "Unavailable"),
     recent: copy("Свежие", "Recent"),
     paused: copy("Приостановлен", "Paused"),
-    online: copy("На связи", "Online"),
-    fresh: copy("Свежие", "Fresh"),
     stale: copy("Устарели", "Stale"),
     active: copy("Активна", "Active"),
-    inactive: copy("Неактивна", "Inactive"),
-    connected: copy("Подключена", "Connected"),
-    disconnected: copy("Отключена", "Disconnected"),
     unknown,
   }
   const state = (value?: string | null) => (value && states[value.toLowerCase()]) || unknown
   const eventLabels: Record<string, string> = {
-    host_snapshot_invalid: copy("Некорректный отчёт хоста", "Invalid host report"),
+    host_snapshot_invalid: copy("Неверный отчёт хоста", "Invalid host report"),
     host_snapshot_unavailable: copy("Отчёт хоста недоступен", "Host report unavailable"),
-    participant_sync_failed: copy("Ошибка получения участников", "Participant sync failed"),
-    friendship_sync_failed: copy("Ошибка отправки статусов дружбы", "Friendship sync failed"),
-    steam_enrollment_failed: copy("Сбой автоподключения через Steam", "Steam enrollment failed"),
-    docker_inspect_failed: copy(
-      "Не удалось прочитать состояние Docker",
-      "Could not inspect Docker state",
-    ),
-    docker_logs_failed: copy("Не удалось прочитать журнал Docker", "Could not read the Docker log"),
+    participant_sync_failed: copy("Сбой загрузки участников", "Participant sync failed"),
+    friendship_sync_failed: copy("Сбой сверки дружбы", "Friendship sync failed"),
+    steam_enrollment_failed: copy("Сбой автоподключения Steam", "Steam enrollment failed"),
+    scheduler_sync_failed: copy("Очередь недоступна", "Scheduler queue unavailable"),
+    docker_inspect_failed: copy("Состояние Docker недоступно", "Docker state unavailable"),
+    docker_logs_failed: copy("Журнал Docker недоступен", "Docker log unavailable"),
   }
   const ingest = node.ingest
   const metrics = ingest?.metrics
@@ -204,48 +180,43 @@ function NodePanel({
       .join(" · ")
   }
   const rows = [
-    [copy("Последний сигнал узла", "Last heartbeat"), date(node.last_heartbeat_at)],
-    [copy("Последний успешный цикл", "Last successful cycle"), date(node.last_successful_cycle_at)],
-    [copy("Версия Relay Manager", "Relay Manager version"), node.agent_version ?? unknown],
+    [copy("Сигнал узла", "Last heartbeat"), date(node.last_heartbeat_at)],
+    [copy("Успешный цикл", "Last successful cycle"), date(node.last_successful_cycle_at)],
+    ["Relay Manager", node.agent_version ?? unknown],
     [
       copy("Ключ узла", "Node key"),
       node.has_token ? copy("Зарегистрирован", "Registered") : copy("Отсутствует", "Missing"),
     ],
     [
-      copy("Запись статуса дружбы", "Friendship status reports"),
+      copy("Отчёты о дружбе", "Friendship reports"),
       node.friendship_writes ? copy("Разрешена", "Enabled") : copy("Выключена", "Disabled"),
     ],
-    [
-      copy("Состояние отчёта Ingest", "Ingest report status"),
-      ingestStatuses[node.ingest_status ?? "unknown"],
-    ],
+    [copy("Отчёт Ingest", "Ingest report"), ingestStatuses[node.ingest_status ?? "unknown"]],
     [copy("Наблюдение Ingest", "Ingest observed at"), date(ingest?.observed_at)],
     [copy("Версия Ingest", "Ingest version"), ingest?.ingest_version ?? unknown],
     [copy("Контейнер", "Container"), state(ingest?.container_status)],
-    [copy("Журнал Game Coordinator", "Game Coordinator log"), state(ingest?.gc_logs)],
-    [
-      copy("Последнее событие Game Coordinator", "Last Game Coordinator event"),
-      date(ingest?.last_gc_event_at),
-    ],
+    [copy("Журнал GC", "GC log"), state(ingest?.gc_logs)],
+    [copy("Последнее событие GC", "Last GC event"), date(ingest?.last_gc_event_at)],
     [copy("Сессия Steam", "Steam session"), state(ingest?.steam_session)],
+    ...(!ingest?.scheduler || ingest.scheduler.mode === "legacy"
+      ? ([
+          [
+            copy("Квота метаданных", "Metadata quota"),
+            quota(metrics?.metadata_used, metrics?.metadata_available),
+          ],
+          [
+            copy("Квота истории матчей", "Match history quota"),
+            quota(metrics?.history_used, metrics?.history_available),
+          ],
+        ] as const)
+      : []),
     [
-      copy("Квота метаданных", "Metadata quota"),
-      quota(metrics?.metadata_used, metrics?.metadata_available),
-    ],
-    [
-      copy("Квота истории матчей", "Match history quota"),
-      quota(metrics?.history_used, metrics?.history_available),
-    ],
-    [
-      copy("Последний сигнал о квоте метаданных", "Last metadata quota signal"),
+      copy("Сигнал о квоте метаданных", "Metadata quota signal"),
       date(ingest?.last_metadata_quota_signal_at),
     ],
+    [copy("Лимит истории", "Last history rate limit"), date(ingest?.last_history_rate_limit_at)],
     [
-      copy("Последнее ограничение истории", "Last history rate limit"),
-      date(ingest?.last_history_rate_limit_at),
-    ],
-    [
-      copy("Последняя успешная отправка", "Last successful upload"),
+      copy("Успешная отправка", "Last successful upload"),
       ingest?.last_salt_upload ? (
         <>
           {date(ingest.last_salt_upload.at)} · {number.format(ingest.last_salt_upload.count)}
@@ -254,12 +225,9 @@ function NodePanel({
         unknown
       ),
     ],
+    ["CPU", metrics?.cpu_percent == null ? unknown : `${number.format(metrics.cpu_percent)}%`],
     [
-      copy("Нагрузка CPU контейнера", "Container CPU"),
-      metrics?.cpu_percent == null ? unknown : `${number.format(metrics.cpu_percent)}%`,
-    ],
-    [
-      copy("Память контейнера", "Container memory"),
+      copy("Память", "Memory"),
       metrics?.ram_bytes == null
         ? unknown
         : copy(
@@ -289,8 +257,17 @@ function NodePanel({
           </div>
         ))}
       </dl>
+      {ingest?.scheduler && (
+        <Suspense>
+          <RelayScheduler
+            observation={ingest.scheduler}
+            language={language}
+            stale={node.status === "disabled" || node.scheduler_freshness !== "fresh"}
+          />
+        </Suspense>
+      )}
       <details>
-        <summary>{copy("Последние события синхронизации", "Recent sync events")}</summary>
+        <summary>{copy("События синхронизации", "Sync events")}</summary>
         {node.history.length ? (
           <ul className="dc-relay-events">
             {node.history.map((item, index) => (
@@ -305,7 +282,7 @@ function NodePanel({
             ))}
           </ul>
         ) : (
-          <p>{copy("Событий пока нет.", "No events have been reported.")}</p>
+          <p>{copy("Событий пока нет.", "No events yet.")}</p>
         )}
       </details>
       {canManage && (
@@ -317,7 +294,9 @@ function NodePanel({
               disabled={busy}
               onClick={() => void onAction(node, toggle)}
             >
-              {adminActionLabel(toggle, copy)}
+              {node.enabled
+                ? copy("Отключить узел", "Disable node")
+                : copy("Включить узел", "Enable node")}
             </button>
           )}
           {node.has_token && (
@@ -327,7 +306,7 @@ function NodePanel({
               disabled={busy}
               onClick={() => void onAction(node, "revoke")}
             >
-              {adminActionLabel("revoke", copy)}
+              {copy("Отозвать ключ", "Revoke key")}
             </button>
           )}
         </div>
@@ -370,6 +349,17 @@ function Effectiveness({
     baseline: copy("Без активного участия", "No active opt-in"),
     unknown: copy("Статус Relay неизвестен", "Relay status unknown"),
   }
+  const columns = [
+    copy("Группа · режим", "Cohort · mode"),
+    "Companion",
+    copy("Попытки", "Attempts"),
+    copy("Без метаданных", "Metadata unobserved"),
+    copy("Без итога", "Unresolved"),
+    copy("Доля подтверждённых", "Confirmed share"),
+    copy("До метаданных", "To metadata"),
+    copy("До итога", "To decision"),
+    copy("Метаданные → итог", "Metadata → decision"),
+  ]
   return (
     <>
       <p>
@@ -391,6 +381,11 @@ function Effectiveness({
       {data.quota_at_match_time === "unobserved" && (
         <p>{copy("Квота на момент матчей неизвестна.", "Quota at match time was unobserved.")}</p>
       )}
+      {!!data.priority_cohorts?.length && (
+        <Suspense>
+          <RelayScheduler cohorts={data.priority_cohorts} copy={copy} latency={latency} />
+        </Suspense>
+      )}
       {data.sample_size === 0 || !data.cohorts.length ? (
         <p role="status">
           {copy(
@@ -402,8 +397,8 @@ function Effectiveness({
         <>
           <p>
             {copy(
-              "Задержка от конца матча до получения метаданных и итога проверки. Медиана / 90-й перцентиль, n — число наблюдений. В выборку входят попытки с найденным матчем.",
-              "Latency from match end to metadata and to a verification decision. Median / 90th percentile, n is the number of observations. The sample includes attempts with a detected match.",
+              "Задержка от конца найденного матча. Медиана / P90, n — число наблюдений.",
+              "Latency from the end of a detected match. Median / P90, n is sample size.",
             )}
           </p>
           <div
@@ -415,15 +410,11 @@ function Effectiveness({
             <table className="dc-relay-table">
               <thead>
                 <tr>
-                  <th scope="col">{copy("Группа · режим", "Cohort · mode")}</th>
-                  <th scope="col">Companion</th>
-                  <th scope="col">{copy("Попытки", "Attempts")}</th>
-                  <th scope="col">{copy("Без метаданных", "Metadata unobserved")}</th>
-                  <th scope="col">{copy("Без итога", "Unresolved")}</th>
-                  <th scope="col">{copy("Доля подтверждённых", "Confirmed share")}</th>
-                  <th scope="col">{copy("До метаданных", "To metadata")}</th>
-                  <th scope="col">{copy("До итога", "To decision")}</th>
-                  <th scope="col">{copy("Метаданные → итог", "Metadata → decision")}</th>
+                  {columns.map((label) => (
+                    <th scope="col" key={label}>
+                      {label}
+                    </th>
+                  ))}
                 </tr>
               </thead>
               <tbody>
@@ -488,17 +479,14 @@ export default function AdminContractRelay({
   async function update(node: RelayNode, action: NodeAction) {
     if (busy || !canManage) return
     const questions = {
-      enable: copy(
-        `Разрешить узлу ${node.id} снова обмениваться данными с сайтом?`,
-        `Allow node ${node.id} to exchange data with the site again?`,
-      ),
+      enable: copy(`Возобновить обмен с узлом ${node.id}?`, `Resume exchange with ${node.id}?`),
       disable: copy(
-        `Отключить обмен данными сайта с узлом ${node.id}? Существующий ключ можно снова включить.`,
-        `Stop site traffic for node ${node.id}? The existing key can be enabled again.`,
+        `Остановить обмен с ${node.id}? Этот ключ можно снова включить.`,
+        `Pause ${node.id}? You can re-enable its key.`,
       ),
       revoke: copy(
-        `Отозвать ключ узла ${node.id}? Обмен данными остановится. Для возобновления нужен новый ключ.`,
-        `Revoke the key for node ${node.id}? Traffic will stop. A new key is required to restore it.`,
+        `Отозвать ключ ${node.id}? Для возобновления нужен новый ключ.`,
+        `Revoke the ${node.id} key? Resuming requires a new key.`,
       ),
     }
     if (!window.confirm(questions[action])) return
