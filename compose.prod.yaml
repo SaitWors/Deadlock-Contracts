@@ -11,6 +11,7 @@ x-app-env: &app-env
   FORWARDED_ALLOW_IPS: ${TRUSTED_PROXY_NETWORKS:-172.16.0.0/12,10.0.0.0/8}
   RATE_LIMIT_REDIS_URL: redis://redis:6379/0
   CONTRACT_RELAY_ENABLED: ${CONTRACT_RELAY_ENABLED:-false}
+  CONTRACT_RELAY_NOTIFICATIONS_ENABLED: ${CONTRACT_RELAY_NOTIFICATIONS_ENABLED:-false}
   DATABASE_URL_FILE: /run/secrets/database_url
   SESSION_SECRET_FILE: /run/secrets/session_secret
   SESSION_TTL_DAYS: "14"
@@ -217,6 +218,8 @@ services:
     environment:
       <<: *app-env
       SERVICE_ROLE: worker
+      CONTRACT_RELAY_N8N_WEBHOOK_URL: ${CONTRACT_RELAY_N8N_WEBHOOK_URL:-}
+      CONTRACT_RELAY_N8N_WEBHOOK_SECRET: ${CONTRACT_RELAY_N8N_WEBHOOK_SECRET:-}
     secrets: [database_url, session_secret, deadlock_api_key, steam_web_api_key, telegram_bot_token, telegram_webhook_secret, discord_review_webhook_url]
     networks: [data, outbound]
     depends_on:
