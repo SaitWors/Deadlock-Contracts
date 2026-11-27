@@ -62,6 +62,8 @@ docker compose up -d --build
 
 В [PROJECT.md](PROJECT.md) собраны устройство frontend и backend, Companion, API, база данных, модель доверия, запуск, обновление, восстановление, проверки, сторонние материалы и история разработки.
 
+[Локальная проверка состояния Contract Relay](docs/development/contract-relay-monitoring.md)
+
 Версии сайта и Companion задаются в [release.json](release.json) и [companion/release.json](companion/release.json).
 
 ## Лицензия и вклад в проект
