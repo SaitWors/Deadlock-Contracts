@@ -5,13 +5,14 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Response
 from pydantic import BaseModel, ConfigDict
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from .db import get_db
 from .models import AuditLog, ContractRelayConnection, User, utcnow
+from .relay_models import RelayFriendship
 from .services.auth import require_csrf, require_user
-from .services.relay_state import connection_status, iso
+from .services.relay_state import connection_status, iso, utc
 
 
 PROFILE_PATH = "/api/profile/contract-relay"
@@ -92,27 +93,35 @@ def build_admin_router(require_admin) -> APIRouter:
         admin: User = Depends(require_admin), db: Session = Depends(get_db),
     ) -> dict:
         user = _lock_user(db, str(user_id))
-        connection = _connection(db, user.id)
+        connection = db.scalar(
+            select(ContractRelayConnection).where(ContractRelayConnection.user_id == user.id).with_for_update()
+        )
         if connection is None or connection.id != str(connection_id):
             raise HTTPException(409, "Запись об участии изменилась. Обновите страницу")
         if review.action == "confirm" and user.status != "ACTIVE":
             raise HTTPException(409, "Подтверждение доступно для активного игрока")
 
-        changed = (
-            review.action == "disconnect"
-            or (review.action == "confirm") != (connection.friendship_confirmed_at is not None)
-        )
-        if changed:
-            if review.action == "disconnect":
-                db.delete(connection)
-                connection = None
-            else:
-                connection.friendship_confirmed_at = utcnow() if review.action == "confirm" else None
-            db.add(AuditLog(
-                user_id=admin.id, action=f"admin.contract_relay_{review.action}",
-                entity_type="user", entity_id=user.id, data={},
+        if review.action == "disconnect":
+            db.delete(connection)
+            connection = None
+        elif review.action == "confirm":
+            if connection.friendship_confirmed_at is not None:
+                return _payload(response, db, connection)
+            connection.friendship_confirmed_at = utcnow()
+        else:
+            if connection.friendship_confirmed_at is None and connection_status(db, connection)["status"] != "connected":
+                return _payload(response, db, connection)
+            connection.friendship_confirmed_at = None
+            latest = db.scalar(select(func.max(RelayFriendship.observed_at)).where(
+                RelayFriendship.connection_id == connection.id
             ))
-            db.commit()
+            now = utcnow()
+            connection.friendship_cleared_at = max(now, utc(latest)) if latest else now
+        db.add(AuditLog(
+            user_id=admin.id, action=f"admin.contract_relay_{review.action}",
+            entity_type="user", entity_id=user.id, data={},
+        ))
+        db.commit()
         return _payload(response, db, connection)
 
     return router

@@ -23,7 +23,7 @@ from .relay_models import RelayFriendship, RelayHeartbeat, RelayNode
 from .security import rate_limit_allow
 from .services.auth import require_csrf
 from .services.relay_effectiveness import summary as effectiveness_summary
-from .services.relay_state import friendship_query, iso, summarize_connection, utc
+from .services.relay_state import friendship_query, iso, observation_allowed, summarize_connection, utc
 
 
 PREFIX = "/api/internal/relay/v1"
@@ -241,7 +241,7 @@ def friendship_status(payload: FriendshipBatch, request: Request, response: Resp
     applied = 0
     for key, item in latest.items():
         connection = current.get(key)
-        if not connection or item.observed_at < utc(connection.consented_at):
+        if not connection or not observation_allowed(connection, item.observed_at):
             continue
         observation = db.get(RelayFriendship, (key, node.id))
         if observation is None:

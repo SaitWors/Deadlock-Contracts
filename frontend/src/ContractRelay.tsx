@@ -70,6 +70,7 @@ export default function ContractRelay({
     ? "unknown"
     : (connection?.status ?? (confirmed ? "connected" : "pending"))
   const observed = connection?.friendship_observed_at ?? confirmed
+  const canClear = Boolean(confirmed || status === "connected")
   const statusLabels = {
     connected:
       connection?.friendship_source === "relay_manual"
@@ -140,9 +141,9 @@ export default function ContractRelay({
                 type="button"
                 className="dc-ghost"
                 disabled={busy}
-                onClick={() => void update(confirmed ? "clear" : "confirm")}
+                onClick={() => void update(canClear ? "clear" : "confirm")}
               >
-                {confirmed
+                {canClear
                   ? ru
                     ? "Снять отметку о дружбе"
                     : "Clear friendship confirmation"

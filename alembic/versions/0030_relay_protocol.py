@@ -10,6 +10,7 @@ depends_on = None
 
 
 def upgrade():
+    op.add_column("contract_relay_connections", sa.Column("friendship_cleared_at", sa.DateTime(timezone=True)))
     op.create_table(
         "relay_nodes",
         sa.Column("id", sa.String(32), primary_key=True),
@@ -45,3 +46,4 @@ def downgrade():
     op.drop_table("relay_friendships")
     op.drop_table("relay_heartbeats")
     op.drop_table("relay_nodes")
+    op.drop_column("contract_relay_connections", "friendship_cleared_at")

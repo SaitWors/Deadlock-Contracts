@@ -1,12 +1,15 @@
 from dataclasses import replace
 from datetime import timedelta
 from hashlib import sha256
+from io import StringIO
+import sys
 from uuid import uuid4
 
 import pytest
 from sqlalchemy import func, select
+from sqlalchemy.exc import SQLAlchemyError
 
-from app import relay_protocol
+from app import relay_credentials, relay_protocol
 from app.models import AuditLog, User, utcnow
 from app.relay_credentials import install_credential
 from app.relay_models import RelayFriendship, RelayHeartbeat, RelayNode
@@ -198,3 +201,37 @@ def test_rate_body_and_production_https_boundaries(relay, monkeypatch):
         assert user.post(endpoint, headers=auth(), json=payload()).status_code == 200
     limited = user.post(endpoint, headers=auth(), json=payload())
     assert limited.status_code == 429 and int(limited.headers["retry-after"]) > 0
+
+
+def test_clear_discards_relay_only_confirmation_and_old_retries(relay):
+    factory, player = relay
+    target_id, player_client = steam_player(factory, player, "Participant", 23456)
+    admin_id, admin = player()
+    elevate(factory, admin_id, admin, role="ADMIN")
+    connection = player_client.put(PROFILE).json()["connection"]["id"]
+    route = API + "/friendship-status"
+    skewed = utcnow() + timedelta(seconds=1)
+    observed = friendship(connection, when=skewed)
+    assert player_client.post(route, headers=auth(), json=observed).json()["applied"] == 1
+    review = admin.patch(f"/api/admin/users/{target_id}/contract-relay/{connection}", json={"action": "clear"})
+    assert review.json()["connection"]["status"] == "pending"
+    assert player_client.post(route, headers=auth(), json=observed).json()["applied"] == 0
+    newest = friendship(connection, when=skewed + timedelta(seconds=1))
+    assert player_client.post(route, headers=auth(), json=newest).json()["applied"] == 1
+    assert player_client.get(PROFILE).json()["connection"]["status"] == "connected"
+
+
+def test_credential_cli_database_errors_are_sanitized(monkeypatch, capsys):
+    digest_value = digest(TOKEN)
+    monkeypatch.setattr(sys, "argv", ["relay_credentials", "mcg"])
+    monkeypatch.setattr(sys, "stdin", StringIO(digest_value))
+
+    def failed(*args, **kwargs):
+        raise SQLAlchemyError(f"parameters: {digest_value}")
+
+    monkeypatch.setattr(relay_credentials, "install_credential", failed)
+    with pytest.raises(SystemExit) as error:
+        relay_credentials.main()
+    assert error.value.code == 2
+    stderr = capsys.readouterr().err
+    assert "Could not store Relay credential" in stderr and digest_value not in stderr

@@ -7,6 +7,7 @@ import re
 import sys
 
 from sqlalchemy import select
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
 from .db import SessionLocal
@@ -45,6 +46,8 @@ def main() -> None:
             node = install_credential(db, args.node_id, digest, friendship_writes=args.friendship_writes)
     except ValueError as error:
         parser.error(str(error))
+    except SQLAlchemyError:
+        parser.error("Could not store Relay credential")
     print(f"Credential installed for {node.id}. Node enabled: {node.enabled}.")
 
 

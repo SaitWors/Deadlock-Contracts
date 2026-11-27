@@ -26,6 +26,13 @@ def friendship_query():
     )
 
 
+def observation_allowed(connection: ContractRelayConnection, observed_at: datetime) -> bool:
+    instant = utc(observed_at)
+    return instant >= utc(connection.consented_at) and (
+        connection.friendship_cleared_at is None or instant > utc(connection.friendship_cleared_at)
+    )
+
+
 def summarize_connection(connection: ContractRelayConnection, observations: list[RelayFriendship], now: datetime) -> dict:
     cutoff = now - timedelta(hours=24)
     latest = []
@@ -34,7 +41,7 @@ def summarize_connection(connection: ContractRelayConnection, observations: list
     latest.extend(
         (utc(row.observed_at), row.state, "relay_manual")
         for row in observations
-        if utc(row.observed_at) >= max(cutoff, utc(connection.consented_at))
+        if utc(row.observed_at) >= cutoff and observation_allowed(connection, row.observed_at)
     )
     observed_at, state, source = max(latest, default=(None, "pending", None))
     return {
