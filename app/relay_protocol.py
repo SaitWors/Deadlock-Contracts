@@ -12,10 +12,11 @@ from uuid import UUID
 from anyio import from_thread
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response
 from pydantic import AwareDatetime, BaseModel, BeforeValidator, ConfigDict, Field
-from sqlalchemy import delete, select
+from sqlalchemy import delete, func, select
 from sqlalchemy.orm import Session
 
 from .config import settings
+from .contract_relay import PILOT_CAPACITY, _lock_pilot_admission
 from .db import get_db
 from .models import AuditLog, ContractRelayConnection, User, utcnow
 from .relay_credentials import NODE_PATTERN
@@ -23,6 +24,7 @@ from .relay_models import RelayFriendship, RelayHeartbeat, RelayNode
 from .security import rate_limit_allow
 from .services.auth import require_csrf
 from .services.relay_effectiveness import summary as effectiveness_summary
+from .services.relay_notifications import queue_application
 from .services.relay_state import FRESHNESS, friendship_query, iso, observation_allowed, summarize_connection, utc
 
 
@@ -104,6 +106,17 @@ class FriendshipBatch(Strict):
     observations: Annotated[list[Friendship], Field(min_length=1, max_length=100)]
 
 
+class Admission(Strict):
+    protocol_version: ProtocolVersion
+    steam_id64: Annotated[str, Field(strict=True, pattern=r"^[0-9]{17}$")]
+
+
+class AdmissionResult(Strict):
+    protocol_version: ProtocolVersion = 1
+    decision: Literal["allowed", "ineligible", "full"]
+    connection_id: UUID | None = None
+
+
 class NodeAction(Strict):
     action: Literal["enable", "disable", "revoke"]
 
@@ -169,6 +182,36 @@ def participants(request: Request, response: Response, after: UUID | None = None
         "participants": [{"connection_id": key, "steam_id64": str(steam_id)} for key, steam_id in rows[:PAGE_SIZE]],
         "next_cursor": rows[PAGE_SIZE - 1][0] if len(rows) > PAGE_SIZE else None,
     }
+
+
+@router.post("/admissions", response_model=AdmissionResult)
+def admit_incoming_request(payload: Admission, request: Request, response: Response,
+                           db: Session = Depends(get_db)) -> AdmissionResult:
+    """Reserve a pilot place for an observed incoming Steam friend request, not a confirmed friendship."""
+    node = _authenticate(request, response, db, write=True)
+    if not node.friendship_writes or not settings.relay_auto_enrollment_enabled:
+        raise HTTPException(403, "Relay automatic enrollment is not enabled")
+    steam_id = int(payload.steam_id64)
+    if not 76561197960265728 < steam_id <= 76561202255233023:
+        raise HTTPException(422, "Invalid individual Steam account")
+
+    # Use the same admission lock as the player-facing opt-in, then lock the user.
+    _lock_pilot_admission(db)
+    user = db.scalar(select(User).where(User.steam_id64 == steam_id).with_for_update())
+    if (user is None or user.status != "ACTIVE" or not user.account_id
+            or user.relay_auto_enrollment_blocked):
+        return AdmissionResult(decision="ineligible")
+    connection = db.scalar(select(ContractRelayConnection).where(ContractRelayConnection.user_id == user.id))
+    if connection is None:
+        count = db.scalar(select(func.count()).select_from(ContractRelayConnection))
+        if count >= PILOT_CAPACITY:
+            return AdmissionResult(decision="full")
+        now = utcnow()
+        connection = ContractRelayConnection(user_id=user.id, consented_at=now)
+        db.add(connection)
+        queue_application(db, user_id=user.id, now=now)
+        db.commit()
+    return AdmissionResult(decision="allowed", connection_id=connection.id)
 
 
 @router.post("/heartbeat")
