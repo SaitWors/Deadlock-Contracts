@@ -417,19 +417,14 @@ def test_manager_accepts_only_eligible_incoming_and_recovers_a_lost_steam_reply(
     def steam_response(request, timeout):
         address = urlsplit(request.full_url)
         if request.get_method() == "GET":
-            if address.path == "/chat/clientjstoken":
-                assert address.hostname == "steamcommunity.com"
-                assert request.get_header("Cookie").endswith(cookie.read_text())
-                assert not address.query
-                return BytesIO(json.dumps({"logged_in": True, "steamid": bot, "token": "web.api.token"}).encode())
-            assert address.hostname == "api.steampowered.com"
-            assert address.path == "/IFriendsListService/GetFriendsList/v1/"
-            assert parse_qs(address.query) == {"access_token": ["web.api.token"]}
-            assert request.get_header("Cookie") is None
-            body = {"response": {"friendslist": {"friends": [
+            assert address.hostname == "steamcommunity.com"
+            assert address.path == "/textfilter/ajaxgetfriendslist"
+            assert request.get_header("Cookie").endswith(cookie.read_text())
+            assert not address.query
+            body = {"success": 1, "friendslist": {"friends": [
                 {"ulfriendid": account, "efriendrelationship": relation}
                 for account, relation in relations.items()
-            ]}}}
+            ]}}
             return BytesIO(json.dumps(body).encode())
         assert address.netloc == "steamcommunity.com"
         assert address.path == f"/profiles/{bot}/friends/action"
