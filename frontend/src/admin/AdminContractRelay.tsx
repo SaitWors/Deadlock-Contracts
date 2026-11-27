@@ -1,11 +1,16 @@
-import { useEffect, useState } from "react"
+import { lazy, Suspense, useEffect, useState } from "react"
 import { ApiError, request, useResource } from "../community/api"
 import { LoadState } from "../community/Shared"
 import { useLanguage, type Language } from "../i18n"
+import type { Latency, PriorityCohort, SchedulerObservation } from "./RelayScheduler"
 import "./contract-relay-admin.css"
 
 const endpoint = "/api/admin/contract-relay"
 const isAdminAccessDenied = (status: number | null) => status === 401 || status === 403
+const RelayScheduler = lazy(() => import("./RelayScheduler"))
+const PriorityCohorts = lazy(() =>
+  import("./RelayScheduler").then((m) => ({ default: m.PriorityCohorts })),
+)
 
 type NodeAction = "enable" | "disable" | "revoke"
 
@@ -28,6 +33,7 @@ type IngestObservation = {
     ram_bytes?: number | null
   } | null
   error?: string | null
+  scheduler?: SchedulerObservation
 }
 
 type RelayNode = {
@@ -41,6 +47,7 @@ type RelayNode = {
   agent_version: string | null
   last_successful_cycle_at: string | null
   ingest_status?: "fresh" | "stale" | "unknown"
+  scheduler_freshness?: "fresh" | "stale" | "unknown"
   ingest: IngestObservation | null
   history: Array<{
     observed_at: string
@@ -56,12 +63,6 @@ type RelayOverview = {
   participants: Record<"connected" | "pending" | "disconnected" | "error", number>
 }
 
-type Latency = {
-  observed_count: number
-  median_seconds: number | null
-  p90_seconds: number | null
-}
-
 type RelayEffectiveness = {
   window_start: string
   window_end: string
@@ -70,6 +71,7 @@ type RelayEffectiveness = {
   unknown_match_end_count?: number
   truncated: boolean
   quota_at_match_time: string
+  priority_cohorts?: PriorityCohort[]
   cohorts: Array<{
     relay: "eligible" | "baseline" | "unknown"
     companion: "observed" | "unobserved"
@@ -182,6 +184,7 @@ function NodePanel({
     participant_sync_failed: copy("Ошибка получения участников", "Participant sync failed"),
     friendship_sync_failed: copy("Ошибка отправки статусов дружбы", "Friendship sync failed"),
     steam_enrollment_failed: copy("Сбой автоподключения через Steam", "Steam enrollment failed"),
+    scheduler_sync_failed: copy("Очередь планировщика недоступна", "Scheduler queue unavailable"),
     docker_inspect_failed: copy(
       "Не удалось прочитать состояние Docker",
       "Could not inspect Docker state",
@@ -228,14 +231,18 @@ function NodePanel({
       date(ingest?.last_gc_event_at),
     ],
     [copy("Сессия Steam", "Steam session"), state(ingest?.steam_session)],
-    [
-      copy("Квота метаданных", "Metadata quota"),
-      quota(metrics?.metadata_used, metrics?.metadata_available),
-    ],
-    [
-      copy("Квота истории матчей", "Match history quota"),
-      quota(metrics?.history_used, metrics?.history_available),
-    ],
+    ...(!ingest?.scheduler || ingest.scheduler.mode === "legacy"
+      ? ([
+          [
+            copy("Квота метаданных", "Metadata quota"),
+            quota(metrics?.metadata_used, metrics?.metadata_available),
+          ],
+          [
+            copy("Квота истории матчей", "Match history quota"),
+            quota(metrics?.history_used, metrics?.history_available),
+          ],
+        ] as const)
+      : []),
     [
       copy("Последний сигнал о квоте метаданных", "Last metadata quota signal"),
       date(ingest?.last_metadata_quota_signal_at),
@@ -289,6 +296,15 @@ function NodePanel({
           </div>
         ))}
       </dl>
+      {ingest?.scheduler && (
+        <Suspense>
+          <RelayScheduler
+            observation={ingest.scheduler}
+            language={language}
+            stale={node.status === "disabled" || node.scheduler_freshness !== "fresh"}
+          />
+        </Suspense>
+      )}
       <details>
         <summary>{copy("Последние события синхронизации", "Recent sync events")}</summary>
         {node.history.length ? (
@@ -390,6 +406,11 @@ function Effectiveness({
       )}
       {data.quota_at_match_time === "unobserved" && (
         <p>{copy("Квота на момент матчей неизвестна.", "Quota at match time was unobserved.")}</p>
+      )}
+      {!!data.priority_cohorts?.length && (
+        <Suspense>
+          <PriorityCohorts cohorts={data.priority_cohorts} copy={copy} latency={latency} />
+        </Suspense>
       )}
       {data.sample_size === 0 || !data.cohorts.length ? (
         <p role="status">

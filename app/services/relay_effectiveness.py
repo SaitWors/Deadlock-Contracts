@@ -20,7 +20,8 @@ from ..models import (
 )
 from ..relay_measurement_models import RelayMatchObservation
 from .gep_settlement import GEP_INTEGRITY_CLIENT_ATTESTED
-from .relay_state import connection_status
+from .public_badges import stored_public_badges
+from .relay_state import FRESHNESS, connection_status
 
 MAX_OBSERVATIONS = 5000
 
@@ -29,35 +30,41 @@ def _utc(value: datetime) -> datetime:
     return value.astimezone(timezone.utc) if value.tzinfo else value.replace(tzinfo=timezone.utc)
 
 
-def _relay_cohort(db: Session, board: ContractBoard, match: Match) -> str:
+def _relay_observation(db: Session, board: ContractBoard, match: Match, observed_at: datetime) -> tuple[str, bool | None]:
     connection = db.scalar(select(ContractRelayConnection).where(ContractRelayConnection.user_id == board.user_id))
     if connection is None:
         # There are no historical consent intervals. The baseline describes the
         # binding-time observation and cannot establish past non-participation.
-        return "baseline"
+        return "baseline", None
     if match.started_at is None or _utc(connection.consented_at) > _utc(match.started_at):
-        return "unknown"
+        return "unknown", None
 
     state = connection_status(db, connection)
     checked = state.get("friendship_observed_at")
     if state.get("status") != "connected" or not checked:
-        return "unknown"
+        return "unknown", None
     started = _utc(match.started_at)
     observed = _utc(datetime.fromisoformat(checked))
-    if not started - timedelta(hours=24) <= observed <= started:
-        return "unknown"
-    return "eligible"
+    cohort = "eligible" if started - timedelta(hours=24) <= observed <= started else "unknown"
+    priority_streamer = None
+    if (board.user.status == "ACTIVE" and not board.user.relay_auto_enrollment_blocked
+            and state.get("friendship_source") in ("steam_session", "steam_web_api")
+            and _utc(observed_at) - FRESHNESS <= observed <= _utc(observed_at)):
+        priority_streamer = "STREAMER" in stored_public_badges(board.user)
+    return cohort, priority_streamer
 
 
 def record_bound_attempt(db: Session, board: ContractBoard, match: Match, observed_at: datetime) -> None:
     """Snapshot new, provider-verified attempts in the transaction binding them."""
     if not (match.provider == "deadlock_api" and match.integrity_status == "SERVER_VERIFIED"):
         return
+    cohort, priority_streamer = _relay_observation(db, board, match, observed_at)
     db.add(RelayMatchObservation(
         board_id=board.id,
         match_id=match.id,
         observed_at=observed_at,
-        relay_cohort=_relay_cohort(db, board, match),
+        relay_cohort=cohort,
+        priority_streamer=priority_streamer,
     ))
 
 
@@ -86,7 +93,7 @@ def summary(db: Session, start: datetime, end: datetime, *, now: datetime | None
     # intermediate retry evaluations are excluded. Use the first final contract
     # decision when one attempt evaluated multiple selected contracts.
     settled = (
-        select(func.min(BoardOption.settled_at))
+        select(BoardOption.settled_at)
         .join(Evaluation, Evaluation.id == BoardOption.final_evaluation_id)
         .where(
             BoardOption.board_id == RelayMatchObservation.board_id,
@@ -98,8 +105,9 @@ def summary(db: Session, start: datetime, end: datetime, *, now: datetime | None
             BoardOption.settled_at <= cutoff,
         )
         .correlate(RelayMatchObservation, Match)
-        .scalar_subquery()
     )
+    first_settled = settled.with_only_columns(func.min(BoardOption.settled_at)).scalar_subquery()
+    confirmed_contracts = settled.with_only_columns(func.count(BoardOption.id)).scalar_subquery()
     companion_terminal = (
         select(CompanionEvent.id)
         .where(
@@ -135,8 +143,10 @@ def summary(db: Session, start: datetime, end: datetime, *, now: datetime | None
             Match.game_match_mode,
             Match.ended_at,
             Match.relay_provider_metadata_observed_at,
-            settled,
+            first_settled,
             or_(companion_terminal, companion_finalized),
+            RelayMatchObservation.priority_streamer,
+            confirmed_contracts,
         )
         .select_from(RelayMatchObservation)
         .join(ContractBoard, ContractBoard.id == RelayMatchObservation.board_id)
@@ -164,11 +174,13 @@ def summary(db: Session, start: datetime, end: datetime, *, now: datetime | None
     )
     truncated = len(rows) > MAX_OBSERVATIONS
     cohorts = defaultdict(list)
-    for relay, mode, ended_at, metadata_at, settled_at, companion in rows[:MAX_OBSERVATIONS]:
-        cohorts[relay, "observed" if companion else "unobserved", mode].append((
-            _duration(ended_at, metadata_at, cutoff),
-            _duration(ended_at, settled_at, cutoff),
-        ))
+    priority_rows = defaultdict(list)
+    for relay, mode, ended_at, metadata_at, settled_at, companion, streamer, confirmed in rows[:MAX_OBSERVATIONS]:
+        discovery = _duration(ended_at, metadata_at, cutoff)
+        verification = _duration(ended_at, settled_at, cutoff)
+        cohorts[relay, "observed" if companion else "unobserved", mode].append((discovery, verification))
+        if streamer is not None or relay != "baseline":
+            priority_rows[streamer].append((discovery, verification, confirmed))
 
     groups = []
     for (relay, companion, mode), durations in sorted(cohorts.items()):
@@ -201,4 +213,15 @@ def summary(db: Session, start: datetime, end: datetime, *, now: datetime | None
         "truncated": truncated,
         "quota_at_match_time": "unobserved",
         "cohorts": groups,
+        "priority_cohorts": [
+            {
+                "streamer": streamer,
+                "sample_size": len(samples),
+                "confirmed_contracts": sum(count for _, _, count in samples),
+                "discovery": _statistics([value for value, _, _ in samples if value is not None]),
+                "verification": _statistics([value for _, value, _ in samples if value is not None]),
+            }
+            for streamer in (True, False, None)
+            if (samples := priority_rows[streamer])
+        ],
     }

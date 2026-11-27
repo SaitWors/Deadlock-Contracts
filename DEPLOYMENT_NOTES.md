@@ -43,3 +43,55 @@ The public website currently serves the legacy pairing-code routes and web versi
 - Apply migration `0026` before replacing the web or worker image. Smoke the version gate, browser and legacy pairing, bootstrap, board lock and uninstall survey. Keep the existing Companion minimum until the new build is verified and distributed.
 - Publish the public release OPK and update the download URL only after the owner authorizes publication. Submit the matching OPK to Overwolf with the test evidence. Production ads remain off until both approvals are recorded.
 - To revert, restore the earlier web and worker images and previous download settings. The added table is compatible with the previous code and can stay in the database during rollback. Existing device rows and contract data are independent of it. Downgrading from `0026` to `0025` drops browser pairing sessions, so run that step only after reverting the application and closing any active review sessions.
+## Contract Relay Scheduler на Timeweb
+
+Команды запускаются оператором после слияния и проверок CI. Берите прежний каталог по метке работающего web-контейнера. Существующие тома, файлы секретов и конфигурация проекта используются повторно. Скрипт развёртывания делает резервную копию перед миграцией `0036`, которая добавляет признак категории для будущих наблюдений.
+
+```bash
+set -euo pipefail
+project=deadlock-contracts
+export COMPOSE_PROJECT_NAME=$project
+web=$(docker ps --filter "label=com.docker.compose.project=$project" \
+  --filter label=com.docker.compose.service=web --format '{{.ID}}')
+[[ -n $web && $web != *$'\n'* ]]
+previous=$(docker inspect --format '{{index .Config.Labels "com.docker.compose.project.working_dir"}}' "$web")
+[[ $previous = /opt/deadlock-contracts/* ]]
+docker exec "$web" python -m alembic current
+git -C "$previous" fetch origin main
+read -rp 'Коммит проекта из проверенного запуска CI: ' release_sha
+[[ $release_sha =~ ^[a-f0-9]{40}$ ]]
+git -C "$previous" merge-base --is-ancestor "$release_sha" origin/main
+git -C "$previous" merge-base --is-ancestor HEAD "$release_sha"
+next="/opt/deadlock-contracts/releases/$release_sha"
+git -C "$previous" worktree add --detach "$next" "$release_sha"
+install -m 0600 "$previous/.env.production" "$next/.env.production"
+ln -s "$(realpath "$previous/secrets")" "$next/secrets"
+if [[ -d "$previous/runtime" ]]; then
+  ln -s "$(realpath "$previous/runtime")" "$next/runtime"
+fi
+grep -q '^CONTRACT_RELAY_ENABLED=true$' "$next/.env.production"
+grep -q '^CONTRACT_RELAY_AUTO_ENROLLMENT_ENABLED=true$' "$next/.env.production"
+cd "$next"
+docker compose --env-file .env.production -f compose.prod.yaml config --quiet
+bash scripts/deploy-current.sh
+docker compose --env-file .env.production -f compose.prod.yaml exec -T web python -m alembic current --check-heads
+curl -fsS https://deadlock-contracts.online/api/ready
+printf '\nPrevious release: %s\n' "$previous"
+```
+
+После запуска проверьте heartbeat MCG, количество допущенных участников и формирование задач в админке. В случае отката сначала переключите MCG в `shadow`. Поднимите прежние `web` и `worker` из прежнего каталога, оставив занятые тома и аддитивную миграцию. Обычный скрипт выкладки старого коммита пытается сверять схему и применять миграции, поэтому здесь команды указаны отдельно.
+
+```bash
+cd "$previous"
+rollback=(docker compose --env-file .env.production -f compose.prod.yaml)
+"${rollback[@]}" build web worker
+"${rollback[@]}" up -d --wait --wait-timeout 120 --no-deps --force-recreate web worker
+"${rollback[@]}" up -d --no-deps --force-recreate caddy
+"${rollback[@]}" ps web worker caddy
+for service in web worker caddy; do
+  container=$("${rollback[@]}" ps -q "$service")
+  [[ $(docker inspect --format '{{.State.Running}}' "$container") == true ]]
+  [[ $(docker inspect --format '{{index .Config.Labels "com.docker.compose.project.working_dir"}}' "$container") == "$previous" ]]
+done
+curl -fsS https://deadlock-contracts.online/api/ready
+```

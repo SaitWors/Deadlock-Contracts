@@ -142,6 +142,128 @@ sudo journalctl -u contract-relay-manager.service -u contract-relay-publisher.se
 
 Менеджер запускает цикл примерно раз в минуту. За цикл он проверяет до 10 заявок и делает до трёх попыток приёма. Недоступность Steam или Timeweb приостанавливает сбор и отражается в админке. Ingest проверяет список перед запросами истории и метаданных. В этом режиме общая очередь отключена, а расписание поиска, действующие квоты Ingest и фоновая проверка сайта продолжают работать по своим правилам.
 
+## Smart Match Scheduler
+
+Для обновления используются три режима Ingest. `legacy` сохраняет сбор по свежему списку допущенных друзей. `shadow` читает тот же список и очередь контрактов, проверяет сохранённые данные API и показывает расчётные решения. В `shadow` Ingest приостанавливает локальный сбор через Steam GC. `active` включает фактическое планирование. В каждом режиме Relay общая очередь Ingest выключена.
+
+Сначала обновите [Timeweb](../DEPLOYMENT_NOTES.md#contract-relay-scheduler-на-timeweb), затем MCG. GHCR-образ появляется после проверенной сборки в `main`. В итогах задания **Ingest / publish verified digest** скопируйте полный адрес образа с `@sha256:`. Для сборки и тестов используется закреплённая ревизия Ingest. Если пакет приватный, Docker на MCG нужен доступ на чтение образа. Токен пакета хранится отдельно от Steam и Relay. [Исходники Ingest](https://github.com/deadlock-api/deadlock-api-ingest/tree/d8d51587253c25e09368010d959e7618e0f7a345) · [Документация GHCR](https://docs.github.com/en/packages/working-with-a-github-packages-registry/working-with-the-container-registry)
+
+### Обновление MCG и запуск shadow
+
+Работайте в Bash с доступом к локальному Docker Engine. Укажите полный коммит того же доверенного запуска CI и полный адрес образа из его итогов. Команды используют существующие Compose-файлы и сервис `ingest`.
+
+```bash
+set -euo pipefail
+read -rp 'Коммит проекта из запуска CI: ' release_sha
+read -rp 'Полный адрес образа GHCR с digest: ' RELAY_INGEST_IMAGE
+[[ $release_sha =~ ^[a-f0-9]{40}$ ]]
+[[ $RELAY_INGEST_IMAGE =~ ^ghcr\.io/saitwors/deadlock-contracts-relay-ingest@sha256:[a-f0-9]{64}$ ]]
+export RELAY_INGEST_IMAGE
+cd "$HOME/dc-relay-src"
+git fetch origin main
+git merge-base --is-ancestor "$release_sha" origin/main
+previous_manager=$(basename "$(readlink -f /opt/contract-relay-manager/current)")
+sudo bash relay/deploy.sh stage "$release_sha"
+release="/opt/contract-relay-manager/releases/$release_sha"
+cd /opt/contract-relay
+
+base=(docker compose -f compose.yaml -f compose.production.yaml -f compose.collector.yaml)
+old_container=$("${base[@]}" ps -q ingest)
+[[ -n $old_container ]]
+old_image=$(docker inspect --format '{{.Image}}' "$old_container")
+RELAY_INGEST_USER=$(docker exec "$old_container" sh -ec 'printf "%s:%s" "$(id -u)" "$(id -g)"')
+RELAY_INGEST_HOME=$(docker exec "$old_container" sh -ec 'printf "%s" "$HOME"')
+[[ $RELAY_INGEST_USER =~ ^[1-9][0-9]*:[0-9]+$ && $RELAY_INGEST_HOME = /* ]]
+export RELAY_INGEST_USER RELAY_INGEST_HOME
+if ! docker pull --platform linux/amd64 "$RELAY_INGEST_IMAGE"; then
+  read -rp 'Имя GitHub с доступом к приватному пакету: ' ghcr_user
+  read -rsp 'Токен classic с read:packages: ' ghcr_token
+  printf '\n'
+  printf '%s' "$ghcr_token" | docker login ghcr.io --username "$ghcr_user" --password-stdin
+  unset ghcr_token
+  docker pull --platform linux/amd64 "$RELAY_INGEST_IMAGE"
+fi
+[[ $(docker image inspect --format '{{index .Config.Labels "org.opencontainers.image.revision"}}' "$RELAY_INGEST_IMAGE") == "$release_sha" ]]
+
+sudo install -d -m 0755 -o "${RELAY_INGEST_USER%:*}" -g "${RELAY_INGEST_USER#*:}" /var/lib/contract-relay-scheduler
+manager_config=/etc/contract-relay-manager/config
+manager_backup=$(sudo mktemp /etc/contract-relay-manager/config.before-scheduler.XXXXXXXX)
+sudo install -m 0600 "$manager_config" "$manager_backup"
+sudoedit "$manager_config"
+```
+
+В существующем `RELAY_MANAGER_FLAGS` допишите `--scheduler-queue /run/contract-relay-collector/queue.json`. Сохраните флаги автоподключения, SteamID64 и файл участников. Сохраните выведенные следующим блоком пути для отката вместе с коммитом предыдущего менеджера и ID образа.
+
+```bash
+printf 'Manager release: %s\nManager config backup: %s\nPrevious image ID: %s\n' \
+  "$previous_manager" "$manager_backup" "$old_image"
+sudo bash "$release/relay/deploy.sh" activate "$release_sha"
+for second in {1..120}; do
+  if sudo test -s /run/contract-relay-collector/participants.json \
+    && sudo test -s /run/contract-relay-collector/queue.json; then
+    break
+  fi
+  sleep 1
+done
+sudo test -s /run/contract-relay-collector/participants.json
+sudo test -s /run/contract-relay-collector/queue.json
+
+scheduled=("${base[@]}" -f "$release/relay/ingest/compose.scheduler.yaml")
+export RELAY_SCHEDULER_MODE=shadow
+"${scheduled[@]}" config --quiet
+journal=$(docker exec "$old_container" sh -ec '
+  realpath -e "${XDG_DATA_HOME:-$HOME/.local/share}/deadlock-api-ingest/gc-quota.json"
+')
+docker inspect --format '{{json .Mounts}}' "$old_container" | python3 -c '
+import json, sys
+from pathlib import PurePosixPath
+target = PurePosixPath(sys.argv[1])
+assert any(m["Type"] in ("bind", "volume") and m["RW"] and target.is_relative_to(m["Destination"])
+           for m in json.load(sys.stdin)), "existing journal is outside the persistent mounts"
+' "$journal"
+"${scheduled[@]}" run --rm --no-deps --pull never --entrypoint /bin/sh ingest -ec '
+  state="${XDG_DATA_HOME:-$HOME/.local/share}/deadlock-api-ingest/gc-quota.json"
+  test "$(realpath -e "$state")" = "$1"
+  test -s "$state" && test -w "$state" && test -w "$(dirname "$state")"
+  test -r "$RELAY_COLLECTOR_ALLOWLIST" && test -r "$RELAY_COLLECTOR_QUEUE"
+  test -w "$(dirname "$RELAY_SCHEDULER_STATUS")"
+' sh "$journal"
+"${base[@]}" stop ingest
+"${scheduled[@]}" up -d --no-deps --force-recreate --pull never --no-build ingest
+"${scheduled[@]}" ps ingest
+sudo systemctl is-active contract-relay-manager.service contract-relay-publisher.timer
+```
+
+Если очередь ещё отсутствует, проверьте состояние менеджера и повторите две проверки файлов перед заменой Ingest. Убедитесь, что в фактической команде запущенного контейнера есть `--no-memory`. В админке проверьте режим `shadow`, свежесть очереди, расчётные решения и отсутствие новых расходов Steam GC. Проверьте отозванное согласие и игрока без подписанного контракта, совместный матч, очереди обеих категорий и отдельные фактические и расчётные счётчики.
+
+Перезапуск контейнера использует его сохранённый режим. При последующем пересоздании используйте все четыре Compose-файла, тот же закреплённый образ и сохранённые значения `RELAY_INGEST_USER`, `RELAY_INGEST_HOME` и `RELAY_SCHEDULER_MODE`. Если прежний журнал потерян, восстановите его из подтверждённого состояния с учётом всех последующих расходов перед включением active.
+
+### Активация и откат
+
+После проверки shadow и согласования допустимости автоматизации запустите Ingest в `active`. При необходимости задайте меньшие эффективные лимиты через `RELAY_HISTORY_LIMIT` и `RELAY_METADATA_LIMIT`. Синхронизируйте часы MCG. Перед переключением убедитесь, что сохранён прежний журнал `gc-quota.json` на постоянном томе.
+
+```bash
+export RELAY_SCHEDULER_MODE=active
+"${scheduled[@]}" config --quiet
+"${scheduled[@]}" up -d --no-deps --force-recreate --pull never --no-build ingest
+"${scheduled[@]}" ps ingest
+```
+
+Быстрая остановка Steam GC с сохранением наблюдений выполняется теми же командами с `RELAY_SCHEDULER_MODE=shadow`. Возврат к прежнему поведению на том же образе выполняется с `RELAY_SCHEDULER_MODE=legacy`, который учитывает сохранённую блокировку Steam. Для полного отката дождитесь окончания показанных в админке блокировок обоих типов, затем остановите Ingest, восстановите предыдущий образ через прежние Compose-файлы и верните менеджер и его конфигурацию. Если время блокировки неизвестно, оставьте сбор приостановленным полные 24 часа. Используйте актуальный журнал расходов с постоянного тома. Восстановление старой копии после новых запросов может скрыть расход квоты.
+
+```bash
+old_ref=$("${base[@]}" config --format json | python3 -c 'import json,sys; print(json.load(sys.stdin)["services"]["ingest"]["image"])')
+[[ $(docker image inspect --format '{{.Id}}' "$old_ref") == "$old_image" ]]
+"${scheduled[@]}" stop ingest
+sudo install -m 0600 "$manager_backup" "$manager_config"
+sudo bash "$release/relay/deploy.sh" rollback "$previous_manager"
+"${base[@]}" config --quiet
+"${base[@]}" up -d --no-deps --force-recreate --pull never --no-build ingest
+"${base[@]}" ps ingest
+```
+
+После отката проверьте новый heartbeat, свежесть файла участников и журналы Ingest. Сохраните том Steam, том данных Ingest и каталог состояний менеджера при любом переключении. Участие существующего друга активируется из профиля, где он может дать явное согласие для текущей дружбы.
+
 ## Откат и остановка
 
 Для отката укажите полный хеш предыдущего подготовленного релиза. Путь к состоянию доставки и файлы конфигурации остаются прежними. После отката проверьте heartbeat в админке.

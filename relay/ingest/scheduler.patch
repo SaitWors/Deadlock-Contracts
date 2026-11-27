@@ -1,0 +1,2796 @@
+diff --git a/Cargo.lock b/Cargo.lock
+index 734b45d..34bf065 100644
+--- a/Cargo.lock
++++ b/Cargo.lock
+@@ -893,6 +893,7 @@ dependencies = [
+  "aes 0.9.4",
+  "base64 0.23.1",
+  "cbc 0.2.1",
++ "chrono",
+  "clap",
+  "crc32fast",
+  "dirs",
+diff --git a/Cargo.toml b/Cargo.toml
+index 9ef349d..808bc0f 100644
+--- a/Cargo.toml
++++ b/Cargo.toml
+@@ -7,6 +7,7 @@ license = "MIT"
+ edition = "2024"
+ 
+ [dependencies]
++chrono = { version = "0.4.45", default-features = false, features = ["std", "serde"] }
+ clap = { version = "4.6.7", features = ["derive"] }
+ ureq = { version = "3.5.1", default-features = false, features = ["json", "rustls"] }
+ memchr = "2.8.3"
+diff --git a/src/gc/api.rs b/src/gc/api.rs
+index ce6339c..62c20f8 100644
+--- a/src/gc/api.rs
++++ b/src/gc/api.rs
+@@ -2,16 +2,18 @@
+ //! are already known, and the stored activity of the user's friends. Salts are posted via [`crate::utils::Salts::ingest`]. Blocking
+ //! `ureq`, matching the rest of the crate; called from `spawn_blocking` inside the async pass.
+ 
+-use std::collections::HashSet;
++use std::collections::{HashMap, HashSet};
+ use std::sync::{Mutex, MutexGuard, PoisonError};
+ 
+-use serde::Deserialize;
+ use serde::de::DeserializeOwned;
++use serde::{Deserialize, Serialize};
+ use tracing::warn;
+ use ureq::http::header::{COOKIE, SET_COOKIE};
+ use ureq::http::{HeaderMap, Response};
+ 
+ use super::error::GcError;
++use super::scheduler::GameMode;
++use super::store::now_secs;
+ 
+ const TO_FETCH_URL: &str = "https://api.deadlock-api.com/v1/matches/to-fetch";
+ const TO_FETCH_RELEASE_URL: &str = "https://api.deadlock-api.com/v1/matches/to-fetch/release";
+@@ -159,12 +161,14 @@ pub(crate) fn recent_players(account_ids: &[u32]) -> Result<HashSet<u32>, GcErro
+     Ok(players)
+ }
+ 
+-#[derive(Deserialize)]
++#[derive(Clone, Deserialize, Serialize)]
+ pub(crate) struct HistoryRow {
+     pub(crate) match_id: u64,
+     pub(crate) start_time: u32,
+     #[serde(default)]
+     pub(crate) match_duration_s: u32,
++    #[serde(default)]
++    pub(super) mode: Option<GameMode>,
+ }
+ 
+ /// The match history deadlock-api has stored for `account_id`, newest first. Without
+@@ -174,6 +178,102 @@ pub(crate) fn stored_match_history(account_id: u32) -> Result<Vec<HistoryRow>, G
+     get_json(client().get(url), "match-history")
+ }
+ 
++/// The API's ClickHouse-only bulk route. A returned empty history is distinct from
++/// an omitted player, whose API privacy request must be respected.
++pub(super) fn recent_stored(account_ids: &[u32]) -> Result<HashMap<u32, Vec<HistoryRow>>, GcError> {
++    #[derive(Deserialize)]
++    struct Player {
++        account_id: u32,
++        matches: Vec<HistoryRow>,
++    }
++    const RECENT: &str = "https://api.deadlock-api.com/v1/players/recent-matches";
++    if account_ids.is_empty() {
++        return Ok(HashMap::new());
++    }
++    let request = client()
++        .get(RECENT)
++        .query("account_ids", join_ids(account_ids))
++        .query("limit", "20");
++    let rows: Vec<Player> = read_cache(request, "stored history")?
++        .ok_or_else(|| GcError::Api("stored history route unavailable".into()))?;
++    Ok(rows
++        .into_iter()
++        .map(|row| (row.account_id, row.matches))
++        .collect())
++}
++
++#[derive(Deserialize)]
++struct StoredMetadata {
++    match_id: u64,
++    match_mode: Option<String>,
++    game_mode: Option<String>,
++}
++
++pub(super) fn stored_metadata(
++    match_ids: &[u64],
++) -> Result<HashMap<u64, Option<GameMode>>, GcError> {
++    let mut found = HashMap::new();
++    for chunk in match_ids.chunks(METADATA_CHUNK) {
++        let request = client()
++            .get(METADATA_URL)
++            .query("match_ids", join_ids(chunk))
++            .query("include_info", "true")
++            .query("game_mode", "")
++            .query("match_mode", "unranked,ranked,new_player_placement")
++            .query("limit", METADATA_CHUNK.to_string());
++        let rows: Vec<StoredMetadata> = read_cache(request, "stored metadata")?.unwrap_or_default();
++        found.extend(rows.into_iter().map(|row| {
++            let mode = match (row.match_mode.as_deref(), row.game_mode.as_deref()) {
++                (Some("Unranked"), Some("Normal")) => Some(GameMode::Standard),
++                (Some("Ranked" | "NewPlayerPlacement"), Some("Normal")) => Some(GameMode::Ranked),
++                (Some("Unranked"), Some("StreetBrawl")) => Some(GameMode::StreetBrawl),
++                _ => None,
++            };
++            (row.match_id, mode)
++        }));
++    }
++    Ok(found)
++}
++
++fn read_cache<T: DeserializeOwned>(
++    request: ureq::RequestBuilder<ureq::typestate::WithoutBody>,
++    label: &str,
++) -> Result<Option<T>, GcError> {
++    let mut response = request
++        .config()
++        .http_status_as_error(false)
++        .build()
++        .call()
++        .map_err(|error| GcError::Api(format!("{label}: {error}")))?;
++    match response.status().as_u16() {
++        200 => read_json(&mut response, label).map(Some),
++        404 => Ok(None),
++        code @ (429 | 503 | 504) => {
++            let now = now_secs();
++            let until = response
++                .headers()
++                .get("retry-after")
++                .and_then(|value| value.to_str().ok())
++                .and_then(|value| {
++                    value
++                        .parse::<i64>()
++                        .ok()
++                        .map(|seconds| now.saturating_add(seconds))
++                        .or_else(|| {
++                            chrono::DateTime::parse_from_rfc2822(value)
++                                .ok()
++                                .map(|date| date.timestamp())
++                        })
++                })
++                .unwrap_or(now + 5 * 60)
++                .max(now + 60);
++            warn!("gc: {label} API status {code}; honoring retry backoff");
++            Err(GcError::ApiBackoff(until))
++        }
++        code => Err(GcError::Api(format!("{label}: status {code}"))),
++    }
++}
++
+ #[cfg(test)]
+ mod tests {
+     use super::*;
+diff --git a/src/gc/client.rs b/src/gc/client.rs
+index 73bed3c..46e0648 100644
+--- a/src/gc/client.rs
++++ b/src/gc/client.rs
+@@ -34,9 +34,11 @@ use valveprotos::deadlock::{
+     c_msg_client_to_gc_get_match_meta_data_response::EResult,
+ };
+ 
++use super::api::HistoryRow;
+ use super::auth::{AuthContext, account_id_of};
+ use super::error::GcError;
+ use super::friends::Persona;
++use super::scheduler::GameMode;
+ use super::store::now_secs;
+ use crate::steam_user::STEAM_ID_64_IDENT;
+ use crate::utils::Salts;
+@@ -72,6 +74,7 @@ async fn with_timeout<T, E: core::fmt::Display>(
+ type LoggedOff = BoxFuture<'static, Result<CMsgClientLoggedOff, NetworkError>>;
+ // Steam pushes one right after logon and another whenever a session of the account starts
+ // or stops a game.
++type FriendUpdates = BoxStream<'static, Result<CMsgClientFriendsList, NetworkError>>;
+ type PlayingStates = BoxStream<'static, Result<CMsgClientPlayingSessionState, NetworkError>>;
+ 
+ /// A logged-on CM session bound to one account. It only reports the account as playing
+@@ -82,6 +85,7 @@ pub(crate) struct GcSession {
+     account_id: u32,
+     /// Account ids of this account's Steam friends; empty if Steam never sent the list.
+     pub(crate) friends: Vec<u32>,
++    live_friends: Mutex<(HashSet<u32>, FriendUpdates)>,
+     logged_off: Mutex<Logoff>,
+     playing: Mutex<PlayingState>,
+     /// Whether a GC handshake of this session has succeeded.
+@@ -119,10 +123,11 @@ impl GcSession {
+         let servers = with_timeout("server discovery", ServerList::discover()).await?;
+         // Listen before logging in: Steam pushes these right after logon, and steam-vent
+         // keeps only the last few messages nobody listens for.
+-        let (conn, friends_list, mut playing_states, logged_off) =
++        let (conn, friends_list, friend_updates, mut playing_states, logged_off) =
+             with_timeout("CM login", async {
+                 let unauthenticated = UnAuthenticatedConnection::connect(&servers).await?;
+                 let friends_list = unauthenticated.one::<CMsgClientFriendsList>().boxed();
++                let friend_updates = unauthenticated.on::<CMsgClientFriendsList>().boxed();
+                 let playing_states = unauthenticated
+                     .on::<CMsgClientPlayingSessionState>()
+                     .boxed();
+@@ -130,7 +135,13 @@ impl GcSession {
+                 let conn = unauthenticated
+                     .access(&ctx.account_name, &ctx.refresh_token)
+                     .await?;
+-                Ok::<_, ConnectionError>((conn, friends_list, playing_states, logged_off))
++                Ok::<_, ConnectionError>((
++                    conn,
++                    friends_list,
++                    friend_updates,
++                    playing_states,
++                    logged_off,
++                ))
+             })
+             .await?;
+ 
+@@ -160,6 +171,7 @@ impl GcSession {
+         Ok(Self {
+             conn,
+             account_id: ctx.account_id(),
++            live_friends: Mutex::new((friends.iter().copied().collect(), friend_updates)),
+             friends,
+             logged_off: Mutex::new(Logoff::Pending(logged_off)),
+             playing: Mutex::new(PlayingState {
+@@ -170,6 +182,35 @@ impl GcSession {
+         })
+     }
+ 
++    pub(super) fn confirmed_friend(&self, id: u32) -> bool {
++        let mut friends = self
++            .live_friends
++            .lock()
++            .unwrap_or_else(PoisonError::into_inner);
++        while let Some(Some(update)) = friends.1.next().now_or_never() {
++            let Ok(update) = update else {
++                friends.0.clear();
++                return false;
++            };
++            if !update.bincremental() {
++                friends.0 = friend_account_ids(&update).into_iter().collect();
++                continue;
++            }
++            for entry in update.friends {
++                let Some(steam_id) = entry.ulfriendid.filter(|id| (id >> 52) & 0xF == 1) else {
++                    continue;
++                };
++                let account = account_id_of(steam_id);
++                if entry.efriendrelationship == Some(FRIEND_RELATIONSHIP_FRIEND) {
++                    friends.0.insert(account);
++                } else {
++                    friends.0.remove(&account);
++                }
++            }
++        }
++        friends.0.contains(&id)
++    }
++
+     /// Whether the GC has welcomed this session at least once, i.e. it serves this account.
+     pub(crate) fn gc_answered(&self) -> bool {
+         self.gc_answered.load(Ordering::Relaxed)
+@@ -293,8 +334,12 @@ impl GcSession {
+ 
+     /// The match ids on the newest page of `account_id`'s history. One request, so it costs
+     /// a single unit of the caller's history quota.
+-    pub(crate) async fn fetch_recent_matches(&self, account_id: u32) -> Result<Vec<u64>, GcError> {
+-        let page = self.history_page(account_id, None).await?;
++    pub(crate) async fn fetch_recent_matches(
++        &self,
++        account_id: u32,
++        before_send: impl FnOnce() -> Result<(), GcError>,
++    ) -> Result<Vec<u64>, GcError> {
++        let page = self.history_page(account_id, None, before_send).await?;
+         Ok(page.matches.iter().filter_map(|m| m.match_id).collect())
+     }
+ 
+@@ -304,6 +349,7 @@ impl GcSession {
+         &self,
+         account_id: u32,
+         cursor: Option<u64>,
++        before_send: impl FnOnce() -> Result<(), GcError>,
+     ) -> Result<CMsgClientToGcGetMatchHistoryResponse, GcError> {
+         use c_msg_client_to_gc_get_match_history_response::EResult as HistoryResult;
+ 
+@@ -314,7 +360,7 @@ impl GcSession {
+             ..Default::default()
+         };
+         let raw = self
+-            .send_job(req.encode_to_vec(), kind, "match history")
++            .send_job(req.encode_to_vec(), kind, "match history", before_send)
+             .await?;
+         let resp = CMsgClientToGcGetMatchHistoryResponse::decode(raw.data.as_ref())
+             .map_err(|e| GcError::GcUnavailable(format!("bad match history response: {e}")))?;
+@@ -338,6 +384,7 @@ impl GcSession {
+         req_bytes: Vec<u8>,
+         kind: MsgKind,
+         label: &str,
++        before_send: impl FnOnce() -> Result<(), GcError>,
+     ) -> Result<RawNetMessage, GcError> {
+         if self.playing_blocked() {
+             return Err(GcError::AccountInUse);
+@@ -355,6 +402,10 @@ impl GcSession {
+                 e => e,
+             })?;
+             self.gc_answered.store(true, Ordering::Relaxed);
++            if self.playing_blocked() {
++                return Err(GcError::AccountInUse);
++            }
++            before_send()?;
+             with_timeout(label, gc.job_untyped(UntypedMessage(req_bytes), kind, true)).await
+         }
+         .await;
+@@ -367,12 +418,22 @@ impl GcSession {
+     /// retries: a failed fetch must cost at most one quota unit (the caller rate-limits
+     /// and quota-gates). A response without any salt is an error, so it is never posted.
+     pub(crate) async fn fetch_match_salts(&self, match_id: u64) -> Result<Salts, GcError> {
++        self.fetch_salts_guarded(match_id, || Ok(())).await
++    }
++
++    pub(super) async fn fetch_salts_guarded(
++        &self,
++        match_id: u64,
++        before_send: impl FnOnce() -> Result<(), GcError>,
++    ) -> Result<Salts, GcError> {
+         let req = CMsgClientToGcGetMatchMetaData {
+             match_id: Some(match_id),
+             ..Default::default()
+         };
+         let kind = MsgKind(EgcCitadelClientMessages::KEMsgClientToGcGetMatchMetaData as i32);
+-        let raw = self.send_job(req.encode_to_vec(), kind, "salts").await?;
++        let raw = self
++            .send_job(req.encode_to_vec(), kind, "salts", before_send)
++            .await?;
+ 
+         let resp = CMsgClientToGcGetMatchMetaDataResponse::decode(raw.data.as_ref())
+             .map_err(|e| GcError::GcUnavailable(format!("bad salts response: {e}")))?;
+@@ -388,6 +449,26 @@ impl GcSession {
+             .ok_or_else(|| GcError::GcUnavailable("response has no salts".into()))
+     }
+ 
++    pub(super) async fn fetch_history_guarded(
++        &self,
++        account_id: u32,
++        before_send: impl FnOnce() -> Result<(), GcError>,
++    ) -> Result<Vec<HistoryRow>, GcError> {
++        let page = self.history_page(account_id, None, before_send).await?;
++        Ok(page
++            .matches
++            .into_iter()
++            .filter_map(|row| {
++                Some(HistoryRow {
++                    match_id: row.match_id?,
++                    start_time: row.start_time?,
++                    match_duration_s: row.match_duration_s?,
++                    mode: Some(GameMode::from_provider(row.match_mode, row.game_mode)?),
++                })
++            })
++            .collect())
++    }
++
+     /// Every match id in `account_id`'s history, following `continue_cursor` pages, and
+     /// whether the history is complete: if Steam rate-limits mid-way, the pages fetched so
+     /// far are returned with `false`.
+@@ -398,7 +479,7 @@ impl GcSession {
+         let mut match_ids = Vec::new();
+         let mut cursor: Option<u64> = None;
+         loop {
+-            let resp = match self.history_page(account_id, cursor).await {
++            let resp = match self.history_page(account_id, cursor, || Ok(())).await {
+                 Ok(resp) => resp,
+                 Err(GcError::GcRateLimited) if !match_ids.is_empty() => {
+                     warn!(
+diff --git a/src/gc/error.rs b/src/gc/error.rs
+index 82b5aa6..bf0bc66 100644
+--- a/src/gc/error.rs
++++ b/src/gc/error.rs
+@@ -20,6 +20,8 @@ pub(crate) enum GcError {
+     AccountInUse,
+     /// The deadlock-api to-fetch/salts HTTP call failed.
+     Api(String),
++    ApiBackoff(i64),
++    RelayCancelled,
+     /// Reading or writing the persisted quota/backoff store failed.
+     Store(String),
+ }
+@@ -36,6 +38,8 @@ impl Display for GcError {
+             GcError::HistoryPrivate => write!(f, "match history is private"),
+             GcError::AccountInUse => write!(f, "the Steam account is playing a game"),
+             GcError::Api(s) => write!(f, "deadlock-api request failed: {s}"),
++            GcError::ApiBackoff(_) => write!(f, "deadlock-api rate limited"),
++            GcError::RelayCancelled => write!(f, "Relay task is no longer eligible"),
+             GcError::Store(s) => write!(f, "GC store error: {s}"),
+         }
+     }
+diff --git a/src/gc/mod.rs b/src/gc/mod.rs
+index 1f179a4..8241d20 100644
+--- a/src/gc/mod.rs
++++ b/src/gc/mod.rs
+@@ -24,6 +24,8 @@ mod error;
+ mod friends;
+ mod quota;
+ mod relay;
++mod scheduler;
++mod smart;
+ mod store;
+ 
+ use core::time::Duration;
+@@ -37,6 +39,7 @@ use auth::AuthContext;
+ use client::GcSession;
+ use error::GcError;
+ use quota::QuotaWindow;
++use scheduler::{DAY, Observation, Operation, Settings};
+ use store::{GcStore, MAX_SALT_ATTEMPTS, now_secs};
+ 
+ use crate::ingestion_cache::Source;
+@@ -120,6 +123,19 @@ async fn post(salts: Salts, source: Source) -> bool {
+ /// the persisted per-account quota gates it to 40/24h regardless of pass frequency.
+ pub(crate) fn run_pass_blocking() {
+     let collector = std::env::var_os("RELAY_COLLECTOR_ALLOWLIST").map(PathBuf::from);
++    match Settings::read() {
++        Ok(Some(settings)) => {
++            if let Some(path) = collector.as_deref() {
++                run_smart_blocking(&settings, path);
++            }
++            return;
++        }
++        Ok(None) => {}
++        Err(error) => {
++            warn!("gc: scheduler configuration blocked: {error}");
++            return;
++        }
++    }
+     let mut sys = crate::game_process::new_system();
+     if game_running(&mut sys) {
+         info!("gc: Deadlock is running, skipping GC pass");
+@@ -142,6 +158,80 @@ pub(crate) fn run_pass_blocking() {
+     };
+     let Some(runtime) = runtime() else { return };
+     runtime.block_on(run_pass(&contexts, &store, &mut sys, collector.as_deref()));
++    if let (Some(roster), Some(path)) = (
++        collector.as_deref(),
++        std::env::var_os("RELAY_SCHEDULER_STATUS"),
++    ) {
++        publish_legacy(&contexts, &store, roster, Path::new(&path));
++    }
++}
++
++fn publish_legacy(contexts: &[AuthContext], store: &GcStore, roster: &Path, status: &Path) {
++    let now = now_secs();
++    let mut observation = Observation::new(scheduler::Mode::Legacy, now);
++    if let Some(context) = contexts
++        .iter()
++        .find(|context| relay::current_participants(roster, context.steam_id64, now).is_some())
++    {
++        if let (Ok(account), Ok(history_limit), Ok(metadata_limit)) = (
++            store.relay_account(context.steam_id64, now),
++            scheduler::configured_limit(Operation::History),
++            scheduler::configured_limit(Operation::Metadata),
++        ) {
++            let state = account.scheduler.unwrap_or_default();
++            observation.history = Some(scheduler::Budget::legacy(
++                &account.history_hits,
++                history_limit,
++                Operation::History,
++                &state,
++                now,
++            ));
++            observation.metadata = Some(scheduler::Budget::legacy(
++                &account.quota_hits,
++                metadata_limit,
++                Operation::Metadata,
++                &state,
++                now,
++            ));
++            observation.status = "ready";
++        }
++    } else {
++        observation.status = "stale_input";
++    }
++    if let Err(error) = observation.publish(status) {
++        warn!("gc: cannot publish legacy status: {error}");
++    }
++}
++
++pub(crate) fn relay_configured() -> bool {
++    std::env::var_os("RELAY_COLLECTOR_ALLOWLIST").is_some()
++        || std::env::var_os("RELAY_SCHEDULER_MODE").is_some()
++}
++
++fn run_smart_blocking(settings: &Settings, roster: &Path) {
++    let mut observation = Observation::new(settings.mode, now_secs());
++    if let (Ok(store), Some(runtime)) = (GcStore::open(), runtime()) {
++        match auth::recover_all() {
++            Ok(contexts) => {
++                let mut system = crate::game_process::new_system();
++                observation = runtime.block_on(smart::run(
++                    &contexts,
++                    &store,
++                    &mut system,
++                    settings,
++                    roster,
++                    observation,
++                ));
++            }
++            Err(error) => {
++                warn!("gc: scheduler Steam session unavailable: {error}");
++                observation.status = "session_unavailable";
++            }
++        }
++    }
++    if let Err(error) = observation.publish(&settings.status) {
++        warn!("gc: cannot publish scheduler status: {error}");
++    }
+ }
+ 
+ async fn run_pass(
+@@ -211,12 +301,27 @@ async fn run_account(
+         return Ok(());
+     }
+ 
+-    let quota = store.load_quota(ctx.steam_id64)?;
++    let (quota, history_quota) = if collector.is_some() {
++        // Keep the explicit Steam cap and the migration requirements on a mode rollback.
++        let account = store.relay_account(ctx.steam_id64, now)?;
++        let metadata_limit = scheduler::configured_limit(Operation::Metadata)
++            .map_err(|error| GcError::Store(error.into()))?;
++        let history_limit = scheduler::configured_limit(Operation::History)
++            .map_err(|error| GcError::Store(error.into()))?;
++        (
++            QuotaWindow::new(account.quota_hits, metadata_limit, DAY),
++            QuotaWindow::new(account.history_hits, history_limit, DAY),
++        )
++    } else {
++        (
++            store.load_quota(ctx.steam_id64)?,
++            store.load_history_quota(ctx.steam_id64)?,
++        )
++    };
+     if quota.remaining(now) == 0 {
+         info!("gc: skipping account {account}, 24h quota spent");
+         return Ok(());
+     }
+-    let history_quota = store.load_history_quota(ctx.steam_id64)?;
+ 
+     // A failed to-fetch read only empties that phase; friends' matches can still be fetched.
+     let to_fetch = if collector.is_none() {
+@@ -318,24 +423,24 @@ impl AccountRun<'_> {
+     }
+ 
+     /// Record one salt fetch (or, if `exhaust`, Steam's rate limit) and persist it.
+-    fn spend_salt(&mut self, exhaust: bool) -> Result<(), GcError> {
+-        if exhaust {
+-            self.quota.exhaust(now_secs());
+-        } else {
+-            self.quota.try_consume(now_secs());
++    fn rate_limit(&mut self, kind: Operation) -> Result<(), GcError> {
++        let now = now_secs();
++        if self.collector.is_some() {
++            return self
++                .store
++                .relay_rate_limit(self.ctx.steam_id64, kind, now + DAY);
+         }
+-        self.store.save_quota(self.ctx.steam_id64, &self.quota)
+-    }
+-
+-    /// Record one history lookup (or, if `exhaust`, Steam's rate limit) and persist it.
+-    fn spend_history(&mut self, exhaust: bool) -> Result<(), GcError> {
+-        if exhaust {
+-            self.history_quota.exhaust(now_secs());
+-        } else {
+-            self.history_quota.try_consume(now_secs());
++        match kind {
++            Operation::Metadata => {
++                self.quota.exhaust(now);
++                self.store.save_quota(self.ctx.steam_id64, &self.quota)
++            }
++            Operation::History => {
++                self.history_quota.exhaust(now);
++                self.store
++                    .save_history_quota(self.ctx.steam_id64, &self.history_quota)
++            }
+         }
+-        self.store
+-            .save_history_quota(self.ctx.steam_id64, &self.history_quota)
+     }
+ 
+     /// Fetch and post salts for `match_ids` in order, skipping ones already processed this
+@@ -366,24 +471,46 @@ impl AccountRun<'_> {
+                 info!("gc: Deadlock launched mid-pass, stopping account {account}");
+                 break;
+             }
+-            if self.participants().is_some_and(|allowed| {
+-                !players
+-                    .get(&match_id)
+-                    .is_some_and(|ids| !ids.is_disjoint(&allowed))
+-            }) {
+-                continue;
++            if self
++                .store
++                .operation_blocked(self.ctx.steam_id64, Operation::Metadata, now_secs())?
++            {
++                break;
+             }
+-
+-            let salts = match self.session.fetch_match_salts(match_id).await {
++            let session = &self.session;
++            let attempt = session
++                .fetch_salts_guarded(match_id, || {
++                    let now = now_secs();
++                    if let Some(path) = self.collector {
++                        let allowed = relay::participants(path, self.ctx.steam_id64, now);
++                        if players.get(&match_id).is_none_or(|ids| {
++                            !ids.iter()
++                                .any(|id| allowed.contains(id) && session.confirmed_friend(*id))
++                        }) {
++                            return Err(GcError::RelayCancelled);
++                        }
++                    }
++                    if self.store.operation_blocked(
++                        self.ctx.steam_id64,
++                        Operation::Metadata,
++                        now,
++                    )? || !self.quota.try_consume(now)
++                    {
++                        return Err(GcError::RelayCancelled);
++                    }
++                    self.store.save_quota(self.ctx.steam_id64, &self.quota)
++                })
++                .await;
++            let salts = match attempt {
+                 Ok(s) => s,
+                 // Steam itself is throttling this account: treat the 24h bucket as spent so
+-                // we stop hammering it. Don't mark the id processed — another account may
++                // we stop hammering it. Don't mark the id processed Р Р†Р вЂљРІР‚Сњ another account may
+                 // fetch it.
+                 Err(GcError::GcRateLimited) => {
+                     warn!(
+                         "gc: account {account} rate-limited by Steam GC; quota exhausted for 24h"
+                     );
+-                    if let Err(e) = self.spend_salt(true) {
++                    if let Err(e) = self.rate_limit(Operation::Metadata) {
+                         warn!("gc: {e}");
+                     }
+                     break;
+@@ -394,7 +521,8 @@ impl AccountRun<'_> {
+                     break;
+                 }
+                 // Not the match's fault either, and every further match would only time out.
+-                Err(e @ GcError::GcHandshakeFailed(_)) => return Err(e),
++                Err(GcError::RelayCancelled) => continue,
++                Err(e @ (GcError::GcHandshakeFailed(_) | GcError::Store(_))) => return Err(e),
+                 // Any other failure fetched nothing; skip the id so it isn't retried this pass.
+                 Err(e) => {
+                     warn!("gc: account {account} salt fetch failed for {match_id}: {e}");
+@@ -405,10 +533,6 @@ impl AccountRun<'_> {
+             };
+ 
+             self.processed.insert(match_id);
+-            if let Err(e) = self.spend_salt(false) {
+-                warn!("gc: {e}");
+-                break;
+-            }
+             if post(salts, Source::Gc).await {
+                 record_salt_attempt(Some(self.store), match_id);
+                 fetched += 1;
+@@ -526,18 +650,39 @@ impl AccountRun<'_> {
+             {
+                 continue;
+             }
+-            let result = self.session.fetch_recent_matches(friend).await;
++            if self
++                .store
++                .operation_blocked(self.ctx.steam_id64, Operation::History, now_secs())?
++            {
++                break;
++            }
++            let session = &self.session;
++            let result = session
++                .fetch_recent_matches(friend, || {
++                    let now = now_secs();
++                    if let Some(path) = self.collector
++                        && (!relay::participants(path, self.ctx.steam_id64, now).contains(&friend)
++                            || !session.confirmed_friend(friend))
++                    {
++                        return Err(GcError::RelayCancelled);
++                    }
++                    if self
++                        .store
++                        .operation_blocked(self.ctx.steam_id64, Operation::History, now)?
++                        || !self.history_quota.try_consume(now)
++                    {
++                        return Err(GcError::RelayCancelled);
++                    }
++                    self.store
++                        .save_history_quota(self.ctx.steam_id64, &self.history_quota)
++                })
++                .await;
+             match result {
+                 Err(GcError::AccountInUse) => break,
+-                Err(e @ GcError::GcHandshakeFailed(_)) => return Err(e),
++                Err(GcError::RelayCancelled) => continue,
++                Err(e @ (GcError::GcHandshakeFailed(_) | GcError::Store(_))) => return Err(e),
+                 _ => {}
+             }
+-            let rate_limited = matches!(result, Err(GcError::GcRateLimited));
+-            // Every request counts against Steam's limit, whatever it answers.
+-            if let Err(e) = self.spend_history(rate_limited) {
+-                warn!("gc: {e}");
+-                break;
+-            }
+ 
+             let cooldown = match result {
+                 Ok(history) => {
+@@ -547,6 +692,7 @@ impl AccountRun<'_> {
+                     FRIEND_COOLDOWN_SECS
+                 }
+                 Err(GcError::GcRateLimited) => {
++                    self.rate_limit(Operation::History)?;
+                     warn!(
+                         "gc: account {} rate-limited on match history; skipping friends",
+                         self.ctx.account_id()
+@@ -611,6 +757,10 @@ fn active_friends(friends: &[u32]) -> Result<Vec<ActiveFriend>, GcError> {
+ /// that deadlock-api doesn't know yet. Ignores the 40/24h quota and runs until done or
+ /// until Steam rate-limits the account. Returns whether every match was recovered.
+ pub(crate) fn run_own_matches_blocking() -> bool {
++    if relay_configured() {
++        warn!("gc: own-match collection is disabled for Contract Relay");
++        return false;
++    }
+     let mut sys = crate::game_process::new_system();
+     if game_running(&mut sys) {
+         warn!("Deadlock is running, close it and run this again");
+@@ -771,7 +921,12 @@ pub(crate) fn spawn_background() {
+             log_auth_status();
+             loop {
+                 run_pass_blocking();
+-                std::thread::sleep(BACKGROUND_PASS_INTERVAL);
++                let interval = if matches!(Settings::read(), Ok(None)) {
++                    BACKGROUND_PASS_INTERVAL
++                } else {
++                    Duration::from_secs(60)
++                };
++                std::thread::sleep(interval);
+             }
+         });
+     if let Err(e) = spawned {
+diff --git a/src/gc/relay.rs b/src/gc/relay.rs
+index ecb4928..1c62648 100644
+--- a/src/gc/relay.rs
++++ b/src/gc/relay.rs
+@@ -9,6 +9,7 @@ use serde::Deserialize;
+ 
+ const MAX_BYTES: u64 = 128 * 1024;
+ const MAX_TTL: i64 = 120;
++const MAX_PARTICIPANTS: usize = 30;
+ 
+ #[derive(Deserialize)]
+ #[serde(deny_unknown_fields)]
+@@ -28,6 +29,7 @@ fn parse(bytes: &[u8], steam_id64: u64, now: i64) -> Option<HashSet<u32>> {
+         || roster.steam_id64 != steam_id64.to_string()
+         || roster.valid_until <= now
+         || roster.valid_until > now.saturating_add(MAX_TTL)
++        || roster.accounts.len() > MAX_PARTICIPANTS
+         || roster.accounts.contains(&0)
+     {
+         return None;
+@@ -35,14 +37,18 @@ fn parse(bytes: &[u8], steam_id64: u64, now: i64) -> Option<HashSet<u32>> {
+     Some(roster.accounts.into_iter().collect())
+ }
+ 
+-pub(super) fn participants(path: &Path, steam_id64: u64, now: i64) -> HashSet<u32> {
++pub(super) fn current_participants(path: &Path, steam_id64: u64, now: i64) -> Option<HashSet<u32>> {
+     let mut bytes = Vec::new();
+-    if let Ok(file) = File::open(path)
+-        && file.take(MAX_BYTES + 1).read_to_end(&mut bytes).is_ok()
+-    {
+-        return parse(&bytes, steam_id64, now).unwrap_or_default();
+-    }
+-    HashSet::new()
++    File::open(path)
++        .ok()?
++        .take(MAX_BYTES + 1)
++        .read_to_end(&mut bytes)
++        .ok()?;
++    parse(&bytes, steam_id64, now)
++}
++
++pub(super) fn participants(path: &Path, steam_id64: u64, now: i64) -> HashSet<u32> {
++    current_participants(path, steam_id64, now).unwrap_or_default()
+ }
+ 
+ #[cfg(test)]
+diff --git a/src/gc/scheduler.rs b/src/gc/scheduler.rs
+new file mode 100644
+index 0000000..c5c8464
+--- /dev/null
++++ b/src/gc/scheduler.rs
+@@ -0,0 +1,977 @@
++//! Contract Relay policy. Steam is only reached by the execution gate in the parent module.
++
++use std::collections::{HashMap, HashSet};
++use std::fs::File;
++use std::io::Read as _;
++use std::path::{Path, PathBuf};
++
++use chrono::{DateTime, FixedOffset};
++use serde::{Deserialize, Serialize};
++
++use super::api::HistoryRow;
++use super::friends::Persona;
++use super::quota::{FETCH_QUOTA_LIMIT, FETCH_QUOTA_WINDOW_SECS, FRIEND_HISTORY_QUOTA_LIMIT};
++use super::relay;
++
++pub(super) const HOUR: i64 = 3600;
++pub(super) const DAY: i64 = FETCH_QUOTA_WINDOW_SECS;
++const MAX_QUEUE_BYTES: u64 = 64 * 1024;
++const MAX_TASKS: usize = 120;
++const STEAM_BASE: u64 = crate::steam_user::STEAM_ID_64_IDENT;
++const MAX_TTL: i64 = 120;
++const MAX_SIGNAL_AGE: i64 = 15 * 60;
++
++#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
++#[serde(rename_all = "snake_case")]
++pub(super) enum Mode {
++    Legacy,
++    Shadow,
++    Active,
++}
++
++pub(super) struct Settings {
++    pub(super) mode: Mode,
++    pub(super) queue: PathBuf,
++    pub(super) status: PathBuf,
++    pub(super) history_limit: usize,
++    pub(super) metadata_limit: usize,
++}
++
++fn limit(var: &str, max: usize) -> Result<usize, &'static str> {
++    match std::env::var(var) {
++        Err(std::env::VarError::NotPresent) => Ok(max),
++        Ok(value) => value
++            .parse::<usize>()
++            .ok()
++            .filter(|value| *value <= max)
++            .ok_or("invalid scheduler quota cap"),
++        Err(_) => Err("invalid scheduler quota cap"),
++    }
++}
++
++pub(super) fn configured_limit(kind: Operation) -> Result<usize, &'static str> {
++    match kind {
++        Operation::History => limit("RELAY_HISTORY_LIMIT", FRIEND_HISTORY_QUOTA_LIMIT),
++        Operation::Metadata => limit("RELAY_METADATA_LIMIT", FETCH_QUOTA_LIMIT),
++    }
++}
++
++impl Settings {
++    pub(super) fn read() -> Result<Option<Self>, &'static str> {
++        let mode = match std::env::var("RELAY_SCHEDULER_MODE").as_deref() {
++            Err(std::env::VarError::NotPresent) => return Ok(None),
++            Ok("legacy" | "") if std::env::var_os("RELAY_COLLECTOR_ALLOWLIST").is_some() => {
++                return Ok(None);
++            }
++            Ok("legacy" | "") => return Err("RELAY_COLLECTOR_ALLOWLIST required"),
++            Ok("shadow") => Mode::Shadow,
++            Ok("active") => Mode::Active,
++            _ => return Err("invalid RELAY_SCHEDULER_MODE"),
++        };
++        let allowlist = std::env::var_os("RELAY_COLLECTOR_ALLOWLIST")
++            .ok_or("RELAY_COLLECTOR_ALLOWLIST required")?;
++        let queue = std::env::var_os("RELAY_COLLECTOR_QUEUE").map_or_else(
++            || Path::new(&allowlist).with_file_name("queue.json"),
++            PathBuf::from,
++        );
++        let status =
++            std::env::var_os("RELAY_SCHEDULER_STATUS").ok_or("RELAY_SCHEDULER_STATUS required")?;
++        Ok(Some(Self {
++            mode,
++            queue,
++            status: status.into(),
++            history_limit: configured_limit(Operation::History)?,
++            metadata_limit: configured_limit(Operation::Metadata)?,
++        }))
++    }
++
++    pub(super) const fn limit(&self, kind: Operation) -> usize {
++        match kind {
++            Operation::History => self.history_limit,
++            Operation::Metadata => self.metadata_limit,
++        }
++    }
++}
++
++#[derive(Clone, Copy, Debug, Deserialize, Serialize, PartialEq, Eq)]
++#[serde(rename_all = "snake_case")]
++pub(super) enum Operation {
++    History,
++    Metadata,
++}
++
++#[derive(Clone, Copy, Debug, Deserialize, Serialize, PartialEq, Eq)]
++#[serde(rename_all = "SCREAMING_SNAKE_CASE")]
++pub(super) enum GameMode {
++    Standard,
++    Ranked,
++    StreetBrawl,
++}
++
++impl GameMode {
++    pub(super) const fn from_provider(
++        match_mode: Option<i32>,
++        game_mode: Option<i32>,
++    ) -> Option<Self> {
++        match (match_mode, game_mode) {
++            (Some(1), Some(1)) => Some(Self::Standard),
++            (Some(4 | 8), Some(1)) => Some(Self::Ranked),
++            (Some(1), Some(4)) => Some(Self::StreetBrawl),
++            _ => None,
++        }
++    }
++
++    pub(super) const fn likely_duration(self) -> i64 {
++        match self {
++            Self::Standard | Self::Ranked => 35 * 60,
++            Self::StreetBrawl => 15 * 60,
++        }
++    }
++}
++
++#[derive(Clone, Copy, Debug, Deserialize, PartialEq, Eq)]
++#[serde(rename_all = "snake_case")]
++enum Evidence {
++    None,
++    StoredHistory,
++}
++
++#[derive(Clone, Debug, Deserialize, PartialEq, Eq)]
++#[serde(deny_unknown_fields)]
++pub(super) struct Task {
++    pub(super) steam_id64: String,
++    pub(super) operation: Operation,
++    pub(super) match_id: Option<u64>,
++    pub(super) waiting_since: DateTime<FixedOffset>,
++    pub(super) locked_at: DateTime<FixedOffset>,
++    pub(super) baseline_match_id: Option<u64>,
++    pub(super) streamer: bool,
++    pub(super) game_mode: GameMode,
++    pub(super) metadata_required: bool,
++    evidence: Evidence,
++}
++
++impl Task {
++    pub(super) fn account(&self) -> u32 {
++        self.steam_id64
++            .parse::<u64>()
++            .ok()
++            .and_then(|id| id.checked_sub(STEAM_BASE))
++            .and_then(|id| u32::try_from(id).ok())
++            .unwrap_or_default()
++    }
++
++    pub(super) fn is_relevant(&self, row: &HistoryRow, now: i64) -> bool {
++        row.match_id > self.baseline_match_id.unwrap_or(0)
++            && i64::from(row.start_time) > self.locked_at.timestamp()
++            && row.match_duration_s > 0
++            && i64::from(row.start_time) + i64::from(row.match_duration_s) <= now
++            && row.mode.is_none_or(|mode| mode == self.game_mode)
++    }
++
++    pub(super) const fn waiting(&self) -> i64 {
++        self.waiting_since.timestamp()
++    }
++}
++
++#[derive(Deserialize)]
++#[serde(deny_unknown_fields)]
++struct Queue {
++    protocol_version: u8,
++    schema_version: u8,
++    generated_at: DateTime<FixedOffset>,
++    expires_at: DateTime<FixedOffset>,
++    tasks: Vec<Task>,
++}
++
++fn parse_queue(bytes: &[u8], now: i64) -> Option<Vec<Task>> {
++    if bytes.len() as u64 > MAX_QUEUE_BYTES {
++        return None;
++    }
++    let queue: Queue = serde_json::from_slice(bytes).ok()?;
++    let generated = queue.generated_at.timestamp();
++    let expires = queue.expires_at.timestamp();
++    if queue.protocol_version != 1
++        || queue.schema_version != 1
++        || generated > now + 5
++        || expires <= now
++        || expires <= generated
++        || expires - generated > MAX_TTL
++        || queue.tasks.len() > MAX_TASKS
++        || queue.tasks.iter().any(|task| {
++            task.account() == 0
++                || task.waiting() < task.locked_at.timestamp()
++                || task.waiting() > generated
++                || task.locked_at.timestamp() > generated
++                || match task.operation {
++                    Operation::History => task.match_id.is_some(),
++                    Operation::Metadata => {
++                        task.match_id.is_none_or(|id| id == 0)
++                            || !task.metadata_required
++                            || task.evidence != Evidence::StoredHistory
++                    }
++                }
++        })
++    {
++        return None;
++    }
++    Some(queue.tasks)
++}
++
++pub(super) fn tasks(settings: &Settings, roster: &Path, bot: u64, now: i64) -> Option<Vec<Task>> {
++    let file = File::open(&settings.queue).ok()?;
++    let mut bytes = Vec::new();
++    file.take(MAX_QUEUE_BYTES + 1)
++        .read_to_end(&mut bytes)
++        .ok()?;
++    let roster = relay::current_participants(roster, bot, now)?;
++    // The roster is independently authoritative, including changes during a GC pass.
++    Some(
++        parse_queue(&bytes, now)?
++            .into_iter()
++            .filter(|task| roster.contains(&task.account()))
++            .collect(),
++    )
++}
++
++#[derive(Clone, Default, Deserialize, Serialize)]
++pub(super) struct Person {
++    seen_at: i64,
++    playing_since: Option<i64>,
++    stopped_at: Option<i64>,
++    #[serde(default)]
++    stopped_after_seconds: i64,
++}
++
++impl Person {
++    pub(super) fn observe(&mut self, persona: Option<Persona>, now: i64) {
++        let Some(persona) = persona else { return };
++        // Steam sometimes returns only an ID for a friend with hidden presence.
++        if !persona.in_deadlock && persona.last_seen.is_none() {
++            return;
++        }
++        let recent = now - self.seen_at <= MAX_SIGNAL_AGE;
++        self.seen_at = now;
++        if persona.in_deadlock {
++            if !recent || self.playing_since.is_none() {
++                self.playing_since = Some(now);
++            }
++        } else {
++            if recent && let Some(since) = self.playing_since {
++                self.stopped_at = Some(now);
++                self.stopped_after_seconds = now - since;
++            }
++            self.playing_since = None;
++        }
++    }
++
++    fn bonus(&self, task: &Task, now: i64) -> i64 {
++        if now - self.seen_at > MAX_SIGNAL_AGE {
++            return 0;
++        }
++        if self.stopped_at.is_some_and(|at| {
++            now - at <= MAX_SIGNAL_AGE
++                && at >= task.locked_at.timestamp()
++                && self.stopped_after_seconds >= task.game_mode.likely_duration()
++        }) {
++            40
++        } else if self.playing_since.is_some_and(|at| {
++            now - at.max(task.locked_at.timestamp()) >= task.game_mode.likely_duration()
++        }) {
++            30
++        } else if self.playing_since.is_none() {
++            -15
++        } else {
++            0
++        }
++    }
++}
++
++#[derive(Clone, Default, Deserialize, Serialize)]
++pub(super) struct Usage {
++    streamer_streak: u8,
++    #[serde(default)]
++    last_player: Option<u32>,
++    pub(super) rate_limited_until: Option<i64>,
++}
++
++#[derive(Clone, Default, Deserialize, Serialize)]
++pub(super) struct Totals {
++    history_streamer: u64,
++    history_regular: u64,
++    metadata_streamer: u64,
++    metadata_regular: u64,
++    pub(super) history_useful: u64,
++    pub(super) history_empty: u64,
++    pub(super) api_hits: u64,
++    pub(super) duplicates: u64,
++    pub(super) discovered_matches: u64,
++    pub(super) metadata_posted: u64,
++}
++
++#[derive(Clone, Default, Deserialize, Serialize)]
++pub(super) struct Demand {
++    utc_hour: [Option<usize>; 24],
++    last_sample: Option<i64>,
++}
++
++impl Demand {
++    fn hour_index(hour: i64) -> usize {
++        usize::try_from(hour.rem_euclid(24)).unwrap_or_default()
++    }
++
++    pub(super) fn observe(&mut self, players: usize, now: i64) {
++        let hour = now.div_euclid(HOUR);
++        if self.last_sample == Some(hour) {
++            return;
++        }
++        self.last_sample = Some(hour);
++        let slot = &mut self.utc_hour[Self::hour_index(hour)];
++        *slot = Some(slot.map_or(players, |previous| (previous * 3 + players).div_ceil(4)));
++    }
++
++    fn expect_busy(&self, now: i64) -> bool {
++        let hour = now.div_euclid(HOUR);
++        let current = self.utc_hour[Self::hour_index(hour)];
++        current.is_some_and(|current| current <= 3)
++            && [hour + 1, hour + 2].into_iter().any(|next| {
++                self.utc_hour[Self::hour_index(next)].is_some_and(|expected| expected >= 8)
++            })
++    }
++}
++
++#[derive(Clone, Default, Deserialize, Serialize)]
++#[serde(default)]
++pub(super) struct State {
++    pub(super) history: Usage,
++    pub(super) metadata: Usage,
++    pub(super) history_after: HashMap<u32, i64>,
++    pub(super) history_empty: HashSet<u32>,
++    pub(super) metadata_after: HashMap<u64, i64>,
++    pub(super) people: HashMap<u32, Person>,
++    pub(super) totals: Totals,
++    // One qualifying history page can reveal several matches; proven IDs survive restart.
++    pub(super) found: HashMap<u32, Vec<HistoryRow>>,
++    pub(super) latest_clock: i64,
++    pub(super) next_persona_at: i64,
++    pub(super) api_after: i64,
++    pub(super) api_seen: HashMap<u64, i64>,
++    pub(super) seen_duplicates: HashMap<u64, i64>,
++    pub(super) demand: Demand,
++}
++
++impl State {
++    pub(super) fn prune(&mut self, tasks: &[Task], now: i64) {
++        let players: HashSet<_> = tasks.iter().map(Task::account).collect();
++        // Keep cooldowns until their expiry even if a player toggles eligibility.
++        self.history_after.retain(|_, until| *until > now);
++        self.metadata_after.retain(|_, until| *until > now);
++        self.people.retain(|id, _| players.contains(id));
++        self.api_seen.retain(|_, seen| *seen > now - 7 * DAY);
++        self.seen_duplicates.retain(|_, seen| *seen > now - 7 * DAY);
++        self.history_empty.retain(|id| players.contains(id));
++        self.found.retain(|id, rows| {
++            rows.retain(|row| i64::from(row.start_time) > now - DAY);
++            !rows.is_empty() && players.contains(id)
++        });
++    }
++
++    pub(super) const fn usage(&self, kind: Operation) -> &Usage {
++        match kind {
++            Operation::History => &self.history,
++            Operation::Metadata => &self.metadata,
++        }
++    }
++
++    pub(super) const fn usage_mut(&mut self, kind: Operation) -> &mut Usage {
++        match kind {
++            Operation::History => &mut self.history,
++            Operation::Metadata => &mut self.metadata,
++        }
++    }
++
++    pub(super) fn charged(&mut self, candidate: &Candidate, now: i64) {
++        self.latest_clock = now;
++        let streamer = candidate.task.streamer;
++        let usage = self.usage_mut(candidate.kind());
++        usage.last_player = Some(candidate.task.account());
++        usage.streamer_streak = if streamer {
++            usage.streamer_streak.saturating_add(1)
++        } else {
++            0
++        };
++        if let Some(id) = candidate.match_id {
++            self.metadata_after.insert(id, now + HOUR);
++            if streamer {
++                self.totals.metadata_streamer += 1;
++            } else {
++                self.totals.metadata_regular += 1;
++            }
++        } else {
++            // If a response is lost the request remains charged and backing off.
++            self.history_after
++                .insert(candidate.task.account(), now + 6 * HOUR);
++            if streamer {
++                self.totals.history_streamer += 1;
++            } else {
++                self.totals.history_regular += 1;
++            }
++        }
++    }
++}
++
++#[derive(Clone)]
++pub(super) struct Candidate {
++    pub(super) task: Task,
++    pub(super) match_id: Option<u64>,
++    score: i64,
++    urgency: bool,
++    recent_completion: bool,
++    age: i64,
++}
++
++impl Candidate {
++    pub(super) fn new(task: Task, match_id: Option<u64>, state: &State, now: i64) -> Self {
++        let age = (now - task.waiting()).max(0);
++        let activity = if match_id.is_some() {
++            60
++        } else {
++            state
++                .people
++                .get(&task.account())
++                .map_or(0, |person| person.bonus(&task, now))
++        };
++        let mut score = 100 + activity + (10 * (age / HOUR)).min(120);
++        if task.streamer {
++            score += 40;
++        }
++        if match_id.is_none() && state.history_empty.contains(&task.account()) {
++            score -= 30;
++        }
++        let urgency = match_id.is_some() || activity >= 40 || (!task.streamer && age >= 6 * HOUR);
++        Self {
++            task,
++            match_id,
++            score,
++            urgency,
++            recent_completion: match_id.is_none() && activity >= 40,
++            age,
++        }
++    }
++
++    pub(super) const fn kind(&self) -> Operation {
++        if self.match_id.is_some() {
++            Operation::Metadata
++        } else {
++            Operation::History
++        }
++    }
++
++    fn cooldown_until(&self, state: &State, now: i64) -> Option<i64> {
++        let after = match self.match_id {
++            Some(id) => state.metadata_after.get(&id),
++            None => state.history_after.get(&self.task.account()),
++        };
++        after.copied().filter(|&until| until > now)
++    }
++
++    pub(super) const fn decision(&self, reason: &'static str) -> Decision {
++        Decision {
++            operation: self.kind(),
++            streamer: self.task.streamer,
++            score: self.score,
++            streamer_bonus: if self.task.streamer { 40 } else { 0 },
++            wait_seconds: self.age,
++            reason,
++            next_request_at: None,
++        }
++    }
++}
++
++#[derive(Clone, Serialize)]
++pub(super) struct Decision {
++    operation: Operation,
++    streamer: bool,
++    score: i64,
++    streamer_bonus: i64,
++    wait_seconds: i64,
++    reason: &'static str,
++    #[serde(skip_serializing_if = "Option::is_none")]
++    next_request_at: Option<i64>,
++}
++
++impl Decision {
++    pub(super) fn scheduled(
++        mut self,
++        budget: &Budget,
++        candidate: &Candidate,
++        state: &State,
++        now: i64,
++    ) -> Self {
++        self.next_request_at = match self.reason {
++            "quota" | "paced" | "rate_limited" | "cooldown" | "reserve" => [
++                budget.next_request_at,
++                candidate.cooldown_until(state, now),
++                (candidate.kind() == Operation::History)
++                    .then(|| {
++                        candidate.task.locked_at.timestamp()
++                            + candidate.task.game_mode.likely_duration()
++                    })
++                    .filter(|at| *at > now),
++            ]
++            .into_iter()
++            .flatten()
++            .max(),
++            _ => None,
++        };
++        self
++    }
++
++    pub(super) const fn score(&self) -> i64 {
++        self.score
++    }
++
++    pub(super) fn selected(&self) -> bool {
++        self.reason == "selected"
++    }
++}
++
++#[derive(Clone, Serialize)]
++pub(super) struct Budget {
++    used: usize,
++    limit: usize,
++    remaining: usize,
++    reserve: usize,
++    next_release_at: Option<i64>,
++    next_request_at: Option<i64>,
++    rate_limited_until: Option<i64>,
++    #[serde(skip)]
++    allow_urgent_at: Option<i64>,
++}
++
++impl Budget {
++    pub(super) fn new(
++        hits: &[i64],
++        limit: usize,
++        kind: Operation,
++        state: &State,
++        now: i64,
++    ) -> Self {
++        let mut recent: Vec<_> = hits.iter().copied().filter(|&at| at > now - DAY).collect();
++        recent.sort_unstable();
++        let used = recent.len();
++        let held = limit / 5;
++        let remaining = limit.saturating_sub(used);
++        let min_interval = match kind {
++            Operation::History => HOUR,
++            Operation::Metadata => HOUR / 2,
++        };
++        let interval =
++            (DAY / i64::try_from(limit.saturating_sub(held).max(1)).unwrap_or(1)).max(min_interval);
++        let rate_limited_until = state.usage(kind).rate_limited_until.filter(|&at| at > now);
++        let next_release_at = recent.first().map(|at| at + DAY);
++        let next_capacity_at = if remaining == 0 && limit > 0 {
++            recent.get(used - limit).map(|at| at + DAY)
++        } else {
++            None
++        };
++        let next_interval = recent.last().map(|at| at + interval);
++        // An observed end to a continuous session is useful at the next safe history slot.
++        let allow_urgent_at = recent.last().map(|at| at + min_interval);
++        let next_request_at = [rate_limited_until, next_interval, next_capacity_at]
++            .into_iter()
++            .flatten()
++            .max()
++            .filter(|&at| at > now);
++        Self {
++            used,
++            limit,
++            remaining,
++            reserve: held.min(remaining),
++            next_release_at,
++            next_request_at,
++            rate_limited_until,
++            allow_urgent_at,
++        }
++    }
++
++    pub(super) fn legacy(
++        hits: &[i64],
++        limit: usize,
++        kind: Operation,
++        state: &State,
++        now: i64,
++    ) -> Self {
++        let mut budget = Self::new(hits, limit, kind, state, now);
++        budget.reserve = 0;
++        budget.next_request_at = budget.rate_limited_until.or_else(|| {
++            if budget.remaining == 0 && limit > 0 {
++                budget.next_release_at
++            } else {
++                None
++            }
++        });
++        budget
++    }
++
++    pub(super) fn exhausted(&self) -> bool {
++        self.remaining == 0 || self.rate_limited_until.is_some()
++    }
++
++    pub(super) fn reason(
++        &self,
++        candidate: &Candidate,
++        state: &State,
++        now: i64,
++    ) -> Option<&'static str> {
++        if self.rate_limited_until.is_some() {
++            return Some("rate_limited");
++        }
++        if self.remaining == 0 {
++            return Some("quota");
++        }
++        if candidate.kind() == Operation::History
++            && candidate.task.locked_at.timestamp() + candidate.task.game_mode.likely_duration()
++                > now
++        {
++            return Some("paced");
++        }
++        if candidate.cooldown_until(state, now).is_some() {
++            return Some("cooldown");
++        }
++        if self.remaining <= self.reserve && !candidate.urgency {
++            return Some("reserve");
++        }
++        if self.next_request_at.is_some()
++            && !(candidate.recent_completion && self.allow_urgent_at.is_some_and(|at| at <= now))
++        {
++            return Some("paced");
++        }
++        if candidate.kind() == Operation::History
++            && !candidate.urgency
++            && candidate.age < 2 * HOUR
++            && self.remaining <= self.reserve + 2
++            && state.demand.expect_busy(now)
++        {
++            return Some("paced");
++        }
++        None
++    }
++}
++
++pub(super) fn pick<'a>(
++    candidates: impl Iterator<Item = &'a Candidate>,
++    usage: &Usage,
++) -> Option<&'a Candidate> {
++    let mut streamer = None;
++    let mut regular = None;
++    for candidate in candidates {
++        let best = if candidate.task.streamer {
++            &mut streamer
++        } else {
++            &mut regular
++        };
++        if best.is_none_or(|current: &Candidate| {
++            if (candidate.score - current.score).abs() <= 20 {
++                let candidate_repeated = usage.last_player == Some(candidate.task.account());
++                let current_repeated = usage.last_player == Some(current.task.account());
++                if candidate_repeated != current_repeated {
++                    return !candidate_repeated;
++                }
++            }
++            (
++                candidate.score,
++                candidate.age,
++                candidate.task.account(),
++                candidate.match_id,
++            ) > (
++                current.score,
++                current.age,
++                current.task.account(),
++                current.match_id,
++            )
++        }) {
++            *best = Some(candidate);
++        }
++    }
++    match (streamer, regular) {
++        (Some(s), Some(r)) if r.age >= 6 * HOUR && r.age > s.age => Some(r),
++        (Some(s), Some(r)) if usage.streamer_streak >= 2 && s.score - r.score <= 70 => Some(r),
++        (Some(s), Some(r)) if r.score > s.score => Some(r),
++        (Some(s), _) => Some(s),
++        (_, Some(r)) => Some(r),
++        _ => None,
++    }
++}
++
++#[derive(Default, Serialize)]
++pub(super) struct Simulated {
++    pub(super) history: usize,
++    pub(super) metadata: usize,
++}
++
++#[derive(Serialize)]
++pub(super) struct Observation {
++    mode: Mode,
++    pub(super) status: &'static str,
++    pub(super) observed_at: i64,
++    pub(super) history: Option<Budget>,
++    pub(super) metadata: Option<Budget>,
++    queued_streamer: Option<usize>,
++    queued_regular: Option<usize>,
++    oldest_wait_seconds: Option<i64>,
++    pub(super) decisions: Vec<Decision>,
++    pub(super) totals: Option<Totals>,
++    pub(super) simulated: Simulated,
++}
++
++impl Observation {
++    pub(super) fn new(mode: Mode, now: i64) -> Self {
++        Self {
++            mode,
++            status: "blocked",
++            observed_at: now,
++            history: None,
++            metadata: None,
++            queued_streamer: None,
++            queued_regular: None,
++            oldest_wait_seconds: None,
++            decisions: Vec::new(),
++            totals: None,
++            simulated: Simulated::default(),
++        }
++    }
++
++    pub(super) fn count(&mut self, tasks: &[Task], now: i64) {
++        let streamers: HashSet<_> = tasks
++            .iter()
++            .filter(|task| task.streamer)
++            .map(Task::account)
++            .collect();
++        let regulars: HashSet<_> = tasks
++            .iter()
++            .filter(|task| !streamers.contains(&task.account()))
++            .map(Task::account)
++            .collect();
++        self.queued_streamer = Some(streamers.len());
++        self.queued_regular = Some(regulars.len());
++        self.oldest_wait_seconds = Some(
++            tasks
++                .iter()
++                .map(|task| (now - task.waiting()).max(0))
++                .max()
++                .unwrap_or_default(),
++        );
++    }
++
++    pub(super) fn publish(&self, path: &Path) -> Result<(), std::io::Error> {
++        let tmp = path.with_extension("json.tmp");
++        let file = File::create(&tmp)?;
++        #[cfg(unix)]
++        {
++            use std::os::unix::fs::PermissionsExt as _;
++            file.set_permissions(std::fs::Permissions::from_mode(0o644))?;
++        }
++        serde_json::to_writer(file, self)?;
++        std::fs::rename(tmp, path)
++    }
++}
++
++#[cfg(test)]
++mod tests {
++    use super::*;
++
++    const NOW: i64 = 1_000_000;
++
++    fn task(id: u32, streamer: bool, age: i64) -> Task {
++        let waiting_since = DateTime::from_timestamp(NOW - age, 0)
++            .unwrap()
++            .fixed_offset();
++        Task {
++            steam_id64: (STEAM_BASE + u64::from(id)).to_string(),
++            operation: Operation::History,
++            match_id: None,
++            waiting_since,
++            locked_at: waiting_since,
++            baseline_match_id: Some(20),
++            streamer,
++            game_mode: GameMode::Standard,
++            metadata_required: false,
++            evidence: Evidence::None,
++        }
++    }
++
++    #[test]
++    fn stale_or_unsafe_queue_fails_closed() {
++        let date = |stamp| DateTime::from_timestamp(stamp, 0).unwrap().to_rfc3339();
++        let row = serde_json::json!({
++            "steam_id64": (STEAM_BASE + 10).to_string(),
++            "operation": "history",
++            "match_id": null,
++            "waiting_since": date(NOW - HOUR),
++            "locked_at": date(NOW - HOUR),
++            "baseline_match_id": 15,
++            "streamer": true,
++            "game_mode": "STANDARD",
++            "metadata_required": false,
++            "evidence": "none"
++        });
++        let mut document = serde_json::json!({
++            "protocol_version": 1,
++            "schema_version": 1,
++            "generated_at": date(NOW),
++            "expires_at": date(NOW + 120),
++            "tasks": [row]
++        });
++        let read = |document: &serde_json::Value, now| {
++            parse_queue(&serde_json::to_vec(document).unwrap(), now)
++        };
++        assert_eq!(read(&document, NOW).unwrap()[0].account(), 10);
++        assert!(read(&document, NOW + 120).is_none());
++        assert!(read(&document, NOW - 7).is_none());
++        document["tasks"][0]["operation"] = "metadata".into();
++        document["tasks"][0]["match_id"] = 123.into();
++        assert!(read(&document, NOW).is_none());
++        document["tasks"][0]["metadata_required"] = true.into();
++        document["tasks"][0]["evidence"] = "stored_history".into();
++        assert!(read(&document, NOW).is_some());
++    }
++
++    #[test]
++    fn streamer_bonus_fairness_aging_and_rotation_survive_serialization() {
++        let mut state = State::default();
++        let s1 = Candidate::new(task(1, true, HOUR), Some(101), &state, NOW);
++        let s2 = Candidate::new(task(2, true, HOUR), Some(102), &state, NOW);
++        let regular = Candidate::new(task(3, false, HOUR), Some(103), &state, NOW);
++        assert_eq!(s1.score, regular.score + 40);
++        assert!(
++            pick([&s1, &regular].into_iter(), &state.metadata)
++                .unwrap()
++                .task
++                .streamer
++        );
++        state.charged(&s1, NOW);
++        assert_eq!(
++            pick([&s1, &s2].into_iter(), &state.metadata)
++                .unwrap()
++                .task
++                .account(),
++            2
++        );
++        state.charged(&s2, NOW);
++        let restored: State = serde_json::from_slice(&serde_json::to_vec(&state).unwrap()).unwrap();
++        assert_eq!(
++            pick([&s1, &s2, &regular].into_iter(), &restored.metadata)
++                .unwrap()
++                .task
++                .account(),
++            3
++        );
++        let aged = Candidate::new(task(4, false, 7 * HOUR), None, &state, NOW);
++        assert!(
++            !pick(
++                [
++                    &Candidate::new(task(1, true, HOUR), None, &state, NOW),
++                    &aged
++                ]
++                .into_iter(),
++                &state.history
++            )
++            .unwrap()
++            .task
++            .streamer
++        );
++    }
++
++    #[test]
++    fn persona_duration_and_recent_end_are_one_signal_and_unknown_remains_eligible() {
++        let mut state = State::default();
++        let row = task(2, false, 2 * HOUR);
++        let healthy = Persona {
++            in_deadlock: true,
++            last_seen: Some(NOW),
++        };
++        for offset in [40, 35, 30, 25, 20, 15, 10, 5, 0] {
++            state
++                .people
++                .entry(2)
++                .or_default()
++                .observe(Some(healthy), NOW - offset * 60);
++        }
++        let active = Candidate::new(row.clone(), None, &state, NOW);
++        assert_eq!(active.score, 150);
++        state.people.entry(2).or_default().observe(
++            Some(Persona {
++                in_deadlock: false,
++                last_seen: Some(NOW),
++            }),
++            NOW,
++        );
++        let ended = Candidate::new(row.clone(), None, &state, NOW);
++        assert_eq!(ended.score, 160);
++        assert!(ended.recent_completion);
++        state
++            .people
++            .entry(2)
++            .or_default()
++            .observe(None, NOW + 20 * 60);
++        let unknown = Candidate::new(row, None, &state, NOW + 20 * 60);
++        assert_eq!(unknown.score, 120);
++        assert!(
++            Budget::new(&[], 20, Operation::History, &state, NOW)
++                .reason(&unknown, &state, NOW)
++                .is_none()
++        );
++    }
++
++    #[test]
++    fn rolling_lower_limits_and_reserve_share_hard_cap() {
++        let mut state = State::default();
++        let history = Candidate::new(task(1, true, HOUR), None, &state, NOW);
++        let aged = Candidate::new(task(2, false, 8 * HOUR), None, &state, NOW);
++        let ready = vec![NOW - 3 * HOUR; 16];
++        let budget = Budget::new(&ready, 20, Operation::History, &state, NOW);
++        assert_eq!(budget.used, 16);
++        assert_eq!(budget.reserve, 4);
++        assert_eq!(budget.reason(&history, &state, NOW), Some("reserve"));
++        assert_eq!(budget.reason(&aged, &state, NOW), None);
++        state.charged(&aged, NOW);
++        assert_eq!(budget.reason(&aged, &state, NOW + HOUR), Some("cooldown"));
++        let lower = Budget::new(
++            &[NOW - DAY, NOW - DAY + 60, NOW - DAY + 120],
++            1,
++            Operation::History,
++            &state,
++            NOW,
++        );
++        assert_eq!(lower.used, 2);
++        assert_eq!(lower.next_release_at, Some(NOW + 60));
++        assert_eq!(lower.next_request_at, Some(NOW + 120));
++        state.history.rate_limited_until = Some(NOW + 60);
++        let suppressed = Budget::new(&[], 20, Operation::History, &state, NOW);
++        assert_eq!(
++            suppressed.reason(&history, &state, NOW),
++            Some("rate_limited")
++        );
++    }
++
++    #[test]
++    fn history_lock_mode_and_completion_are_required() {
++        let task = task(1, false, HOUR);
++        let mut row = HistoryRow {
++            match_id: 25,
++            start_time: (NOW - 2000).try_into().unwrap(),
++            match_duration_s: 1000,
++            mode: Some(GameMode::Standard),
++        };
++        assert!(task.is_relevant(&row, NOW));
++        row.mode = Some(GameMode::StreetBrawl);
++        assert!(!task.is_relevant(&row, NOW));
++        row.mode = Some(GameMode::Standard);
++        row.start_time = (NOW - HOUR).try_into().unwrap();
++        assert!(!task.is_relevant(&row, NOW));
++        row.start_time = (NOW - 2000).try_into().unwrap();
++        row.match_id = 20;
++        assert!(!task.is_relevant(&row, NOW));
++    }
++}
+diff --git a/src/gc/smart.rs b/src/gc/smart.rs
+new file mode 100644
+index 0000000..f51eeb2
+--- /dev/null
++++ b/src/gc/smart.rs
+@@ -0,0 +1,701 @@
++//! Execute Contract Relay work through the one upstream GC session and journal.
++
++use std::collections::{HashMap, HashSet};
++use std::path::Path;
++use std::sync::Mutex;
++
++use tracing::{info, warn};
++
++use super::api::{self, HistoryRow};
++use super::auth::AuthContext;
++use super::client::GcSession;
++use super::error::GcError;
++use super::scheduler::{
++    self, Budget, Candidate, DAY, HOUR, Mode, Observation, Operation, Settings, State, Task,
++};
++use super::store::{AccountState, GcStore, now_secs};
++use super::{blocking, game_running, post};
++use crate::ingestion_cache::Source;
++
++const PERSONA_INTERVAL: i64 = 5 * 60;
++const API_CACHE_TTL: i64 = 5 * 60;
++
++#[derive(Clone)]
++struct Cached {
++    accounts: Vec<u32>,
++    until: i64,
++    history: HashMap<u32, Vec<HistoryRow>>,
++    metadata: HashMap<u64, Option<scheduler::GameMode>>,
++}
++
++static CACHE: Mutex<Option<Cached>> = Mutex::new(None);
++static API_RETRY_AFTER: Mutex<i64> = Mutex::new(0);
++
++async fn preflight(tasks: &[Task], state: &State, now: i64) -> Result<Cached, GcError> {
++    let mut accounts: Vec<_> = tasks.iter().map(Task::account).collect();
++    accounts.sort_unstable();
++    accounts.dedup();
++    if let Some(cached) = CACHE.lock().ok().and_then(|cache| cache.clone())
++        && cached.accounts == accounts
++        && cached.until > now
++    {
++        return Ok(cached);
++    }
++    let tasks = tasks.to_vec();
++    let found = state.found.clone();
++    let cached = blocking(move || {
++        let history = api::recent_stored(&accounts)?;
++        let mut ids: Vec<_> = tasks
++            .iter()
++            .flat_map(|task| {
++                history
++                    .get(&task.account())
++                    .into_iter()
++                    .flatten()
++                    .chain(found.get(&task.account()).into_iter().flatten())
++                    .filter(|row| task.is_relevant(row, now))
++                    .map(|row| row.match_id)
++                    .chain(task.match_id)
++            })
++            .collect();
++        ids.sort_unstable();
++        ids.dedup();
++        let metadata = api::stored_metadata(&ids)?;
++        Ok(Cached {
++            accounts,
++            until: now + API_CACHE_TTL,
++            history,
++            metadata,
++        })
++    })
++    .await?;
++    if let Ok(mut cache) = CACHE.lock() {
++        *cache = Some(cached.clone());
++    }
++    Ok(cached)
++}
++
++/// The bulk history rows do not carry game mode. Only a supported mode in the
++/// stored match metadata (or a typed local GC response) can establish a mode match.
++fn stored_relevant(
++    task: &Task,
++    row: &HistoryRow,
++    data: &HashMap<u64, Option<scheduler::GameMode>>,
++    now: i64,
++) -> bool {
++    task.is_relevant(row, now) && data.get(&row.match_id).copied().flatten() == Some(task.game_mode)
++}
++
++fn record_hit(state: &mut State, id: u64, now: i64) {
++    if state.api_seen.insert(id, now).is_none() {
++        state.totals.api_hits += 1;
++    }
++}
++
++fn candidates(
++    tasks: &[Task],
++    data: &Cached,
++    state: &mut State,
++    now: i64,
++    obs: &mut Observation,
++) -> Vec<Candidate> {
++    let mut candidates = Vec::new();
++    let mut id_counts = HashMap::<u64, HashSet<u32>>::new();
++    for task in tasks {
++        let Some(history) = data.history.get(&task.account()) else {
++            // The provider omits protected accounts, including from an otherwise healthy result.
++            obs.decisions.push(
++                Candidate::new(task.clone(), task.match_id, state, now).decision("not_available"),
++            );
++            continue;
++        };
++        if let Some(id) = task.match_id {
++            let candidate = Candidate::new(task.clone(), Some(id), state, now);
++            if data.metadata.contains_key(&id) {
++                record_hit(state, id, now);
++                obs.decisions.push(candidate.decision("api_hit"));
++            } else {
++                candidates.push(candidate);
++                id_counts.entry(id).or_default().insert(task.account());
++            }
++            continue;
++        }
++
++        let mut from_history = false;
++        for row in history
++            .iter()
++            .filter(|row| stored_relevant(task, row, &data.metadata, now))
++        {
++            record_hit(state, row.match_id, now);
++            obs.decisions.push(
++                Candidate::new(task.clone(), Some(row.match_id), state, now).decision("api_hit"),
++            );
++            from_history = true;
++        }
++        let locally_proven: Vec<_> = state
++            .found
++            .get(&task.account())
++            .into_iter()
++            .flatten()
++            .filter(|row| task.is_relevant(row, now))
++            .map(|row| row.match_id)
++            .collect();
++        for id in locally_proven {
++            let candidate = Candidate::new(task.clone(), Some(id), state, now);
++            if data.metadata.contains_key(&id) {
++                record_hit(state, id, now);
++                obs.decisions.push(candidate.decision("api_hit"));
++            } else if !candidates
++                .iter()
++                .any(|candidate| candidate.task == *task && candidate.match_id == Some(id))
++            {
++                candidates.push(candidate);
++                id_counts.entry(id).or_default().insert(task.account());
++            }
++            from_history = true;
++        }
++        if !from_history {
++            candidates.push(Candidate::new(task.clone(), None, state, now));
++        }
++    }
++    for (id, accounts) in id_counts {
++        if accounts.len() > 1 && state.seen_duplicates.insert(id, now).is_none() {
++            state.totals.duplicates += (accounts.len() - 1) as u64;
++        }
++    }
++    candidates
++}
++
++fn budget(
++    account: &AccountState,
++    state: &State,
++    settings: &Settings,
++    kind: Operation,
++    now: i64,
++) -> Budget {
++    let hits = match kind {
++        Operation::History => &account.history_hits,
++        Operation::Metadata => &account.quota_hits,
++    };
++    Budget::new(hits, settings.limit(kind), kind, state, now)
++}
++
++fn is_live(
++    session: &GcSession,
++    candidate: &Candidate,
++    settings: &Settings,
++    roster: &Path,
++    bot: u64,
++    now: i64,
++) -> bool {
++    session.confirmed_friend(candidate.task.account())
++        && scheduler::tasks(settings, roster, bot, now)
++            .is_some_and(|tasks| tasks.contains(&candidate.task))
++}
++
++fn api_failure(error: &GcError, state: &mut State, now: i64) {
++    state.api_after = match error {
++        GcError::ApiBackoff(until) => *until,
++        _ => now + API_CACHE_TTL,
++    };
++    if let Ok(mut after) = API_RETRY_AFTER.lock() {
++        *after = state.api_after;
++    }
++    warn!("gc: scheduler cache preflight unavailable: {error}");
++}
++
++async fn precheck_history(candidate: &Candidate, state: &mut State) -> Option<&'static str> {
++    let player = candidate.task.account();
++    let task = candidate.task.clone();
++    let now = now_secs();
++    let fresh_history = blocking(move || {
++        let fresh = api::recent_stored(&[player])?;
++        let Some(rows) = fresh.get(&player) else {
++            return Ok(None);
++        };
++        let ids: Vec<_> = rows
++            .iter()
++            .filter(|row| task.is_relevant(row, now))
++            .map(|row| row.match_id)
++            .collect();
++        let metadata = api::stored_metadata(&ids)?;
++        Ok(Some(
++            rows.iter()
++                .find(|row| stored_relevant(&task, row, &metadata, now))
++                .map(|row| row.match_id),
++        ))
++    })
++    .await;
++    match fresh_history {
++        Ok(None) => return Some("not_available"),
++        Ok(Some(Some(id))) => {
++            if let Ok(mut cache) = CACHE.lock() {
++                *cache = None;
++            }
++            record_hit(state, id, now_secs());
++            return Some("api_hit");
++        }
++        Ok(Some(None)) => {}
++        Err(error) => {
++            api_failure(&error, state, now_secs());
++            return Some("api_unavailable");
++        }
++    }
++    None
++}
++
++fn record_history(rows: Vec<HistoryRow>, player: u32, tasks: &[Task], state: &mut State, now: i64) {
++    let rows: Vec<_> = rows
++        .into_iter()
++        .filter(|row| {
++            tasks.iter().any(|task| {
++                task.account() == player
++                    && task.operation == Operation::History
++                    && task.is_relevant(row, now)
++            })
++        })
++        .collect();
++    if rows.is_empty() {
++        state.totals.history_empty += 1;
++        state.history_empty.insert(player);
++    } else {
++        state.totals.history_useful += 1;
++        state.history_empty.remove(&player);
++        state.history_after.insert(player, now + 3 * HOUR);
++        let mut seen: HashSet<_> = state
++            .found
++            .values()
++            .flatten()
++            .map(|row| row.match_id)
++            .collect();
++        let found = state.found.entry(player).or_default();
++        for row in rows {
++            if !found
++                .iter()
++                .any(|existing| existing.match_id == row.match_id)
++            {
++                state.totals.discovered_matches += u64::from(seen.insert(row.match_id));
++                found.push(row);
++            }
++        }
++    }
++}
++
++#[allow(clippy::too_many_arguments)]
++async fn serve(
++    session: &GcSession,
++    candidate: &Candidate,
++    tasks: &[Task],
++    settings: &Settings,
++    roster: &Path,
++    ctx: &AuthContext,
++    store: &GcStore,
++    state: &mut State,
++    sys: &mut sysinfo::System,
++) -> Result<&'static str, GcError> {
++    let bot = ctx.steam_id64;
++    if !is_live(session, candidate, settings, roster, bot, now_secs()) {
++        return Ok("no_friendship");
++    }
++    if let Some(id) = candidate.match_id {
++        if store.given_up_matches()?.contains(&id) {
++            return Ok("not_available");
++        }
++        // Recheck near dispatch even if the warm metadata batch did not yet have the match.
++        let cached = blocking(move || Ok(api::stored_metadata(&[id])?.contains_key(&id))).await;
++        match cached {
++            Ok(true) => {
++                record_hit(state, id, now_secs());
++                return Ok("api_hit");
++            }
++            Ok(false) => {}
++            Err(error) => {
++                api_failure(&error, state, now_secs());
++                return Ok("api_unavailable");
++            }
++        }
++    }
++    if candidate.match_id.is_none()
++        && let Some(reason) = precheck_history(candidate, state).await
++    {
++        return Ok(reason);
++    }
++    // Check the same signed work and live friendship after the GC handshake, immediately
++    // before recording the attempt and sending the job. Only this callback spends quota.
++    let before_send = || {
++        let now = now_secs();
++        if game_running(sys) || !is_live(session, candidate, settings, roster, bot, now) {
++            return Err(GcError::RelayCancelled);
++        }
++        store.relay_charge(bot, state, candidate, settings, now)
++    };
++    if let Some(id) = candidate.match_id {
++        let result = session.fetch_salts_guarded(id, before_send).await;
++        match result {
++            Ok(salts) => {
++                if post(salts, Source::Gc).await {
++                    state.totals.metadata_posted += 1;
++                }
++            }
++            Err(
++                error @ (GcError::RelayCancelled
++                | GcError::GcRateLimited
++                | GcError::GcHandshakeFailed(_)
++                | GcError::AccountInUse
++                | GcError::Store(_)),
++            ) => return Err(error),
++            // Attempt and cooldown were persisted before this uncertain response.
++            Err(_) => {}
++        }
++    } else {
++        let player = candidate.task.account();
++        let result = session.fetch_history_guarded(player, before_send).await;
++        let now = now_secs();
++        match result {
++            Ok(rows) => record_history(rows, player, tasks, state, now),
++            Err(GcError::HistoryPrivate) => {
++                state.history_after.insert(player, now + 7 * DAY);
++            }
++            Err(
++                error @ (GcError::RelayCancelled
++                | GcError::GcRateLimited
++                | GcError::GcHandshakeFailed(_)
++                | GcError::AccountInUse
++                | GcError::Store(_)),
++            ) => return Err(error),
++            // An uncertain response remains a charged attempt with the pre-send cooldown.
++            Err(_) => {}
++        }
++    }
++    Ok("selected")
++}
++
++#[allow(
++    clippy::too_many_arguments,
++    clippy::too_many_lines,
++    reason = "single dispatch boundary for both quota lanes and their decision telemetry"
++)]
++async fn dispatch(
++    picks: &[Candidate],
++    tasks: &[Task],
++    session: Option<&GcSession>,
++    settings: &Settings,
++    roster: &Path,
++    ctx: &AuthContext,
++    store: &GcStore,
++    account: &AccountState,
++    state: &mut State,
++    sys: &mut sysinfo::System,
++    obs: &mut Observation,
++    planned: &impl Fn(&Candidate, &State) -> Option<&'static str>,
++    now: i64,
++) {
++    let bot = ctx.steam_id64;
++    // Dispatch at most one of the two operation types per pass, trying exact IDs first.
++    // The next pass is one minute later, above Steam's minimum 20 seconds between requests.
++    let mut dispatched = false;
++    for kind in [Operation::Metadata, Operation::History] {
++        let by_kind = || picks.iter().filter(|candidate| candidate.kind() == kind);
++        let best = scheduler::pick(
++            by_kind()
++                .filter(|candidate| !dispatched && planned(candidate, state).is_none())
++                .filter(|candidate| {
++                    session.is_none_or(|session| session.confirmed_friend(candidate.task.account()))
++                }),
++            state.usage(kind),
++        );
++        let mut stop = false;
++        for candidate in by_kind() {
++            let reason = if best.is_some_and(|best| core::ptr::eq(candidate, best)) {
++                match session {
++                    Some(session) => match serve(
++                        session, candidate, tasks, settings, roster, ctx, store, state, sys,
++                    )
++                    .await
++                    {
++                        Ok(reason) => {
++                            stop = matches!(reason, "selected" | "api_unavailable");
++                            reason
++                        }
++                        Err(GcError::GcRateLimited) => {
++                            let until = now_secs() + DAY;
++                            state.usage_mut(kind).rate_limited_until = Some(until);
++                            if let Err(error) = store.relay_rate_limit(bot, kind, until) {
++                                warn!("gc: scheduler cannot persist Steam rate limit: {error}");
++                                obs.status = "blocked";
++                            }
++                            stop = true;
++                            "rate_limited"
++                        }
++                        Err(GcError::RelayCancelled) => "stale_input",
++                        Err(GcError::AccountInUse) => {
++                            stop = true;
++                            "not_available"
++                        }
++                        Err(GcError::GcHandshakeFailed(_)) => {
++                            if let Err(error) = store.set_backoff(bot, Some(now_secs() + HOUR)) {
++                                warn!("gc: scheduler cannot persist GC backoff: {error}");
++                            }
++                            stop = true;
++                            "not_available"
++                        }
++                        Err(error) => {
++                            warn!("gc: scheduler GC request stopped: {error}");
++                            obs.status = "blocked";
++                            "not_available"
++                        }
++                    },
++                    None if settings.mode == Mode::Shadow => {
++                        match kind {
++                            Operation::History => obs.simulated.history += 1,
++                            Operation::Metadata => obs.simulated.metadata += 1,
++                        }
++                        "selected"
++                    }
++                    None => "not_available",
++                }
++            } else if session
++                .is_some_and(|session| !session.confirmed_friend(candidate.task.account()))
++            {
++                "no_friendship"
++            } else if candidate.match_id.is_some()
++                && best.is_some_and(|best| candidate.match_id == best.match_id)
++            {
++                "duplicate"
++            } else {
++                planned(candidate, state).unwrap_or("paced")
++            };
++            let quota = budget(account, state, settings, kind, now);
++            obs.decisions.push(
++                candidate
++                    .decision(reason)
++                    .scheduled(&quota, candidate, state, now),
++            );
++        }
++        dispatched |= stop;
++        if obs.status == "blocked" {
++            break;
++        }
++    }
++}
++
++async fn observe_personas(session: &GcSession, picks: &[Candidate], state: &mut State) {
++    let accounts: HashSet<_> = picks
++        .iter()
++        .filter(|pick| {
++            pick.kind() == Operation::History && session.confirmed_friend(pick.task.account())
++        })
++        .map(|pick| pick.task.account())
++        .collect();
++    let personas = session
++        .request_personas(&accounts.iter().copied().collect::<Vec<_>>())
++        .await;
++    let observed_at = now_secs();
++    for account_id in accounts {
++        state
++            .people
++            .entry(account_id)
++            .or_default()
++            .observe(personas.get(&account_id).copied(), observed_at);
++    }
++    state.next_persona_at = observed_at + PERSONA_INTERVAL;
++}
++
++#[allow(
++    clippy::too_many_lines,
++    reason = "one pass owns the complete read-plan-dispatch-report sequence"
++)]
++pub(super) async fn run(
++    contexts: &[AuthContext],
++    store: &GcStore,
++    sys: &mut sysinfo::System,
++    settings: &Settings,
++    roster: &Path,
++    mut obs: Observation,
++) -> Observation {
++    let now = now_secs();
++    let context = contexts
++        .iter()
++        .find(|ctx| super::relay::current_participants(roster, ctx.steam_id64, now).is_some())
++        .or_else(|| {
++            if contexts.len() == 1 {
++                contexts.first()
++            } else {
++                None
++            }
++        });
++    let Some(ctx) = context else {
++        obs.status = "stale_input";
++        return obs;
++    };
++    let bot = ctx.steam_id64;
++    let mut account = match store.relay_account(bot, now) {
++        Ok(account) => account,
++        Err(error) => {
++            warn!("gc: scheduler journal blocked: {error}");
++            return obs;
++        }
++    };
++    let mut state = account.scheduler.take().unwrap_or_default();
++    obs.history = Some(budget(&account, &state, settings, Operation::History, now));
++    obs.metadata = Some(budget(&account, &state, settings, Operation::Metadata, now));
++    obs.totals = Some(state.totals.clone());
++    let Some(tasks) = scheduler::tasks(settings, roster, bot, now) else {
++        obs.status = "stale_input";
++        return obs;
++    };
++    obs.count(&tasks, now);
++    let players = tasks
++        .iter()
++        .map(Task::account)
++        .collect::<HashSet<_>>()
++        .len();
++    state.demand.observe(players, now);
++    if tasks.is_empty() {
++        obs.status = "no_tasks";
++        if settings.mode == Mode::Active
++            && let Err(error) = store.relay_update(bot, &state)
++        {
++            warn!("gc: scheduler demand journal failed: {error}");
++            obs.status = "blocked";
++        }
++        return obs;
++    }
++
++    if state.api_after > now || API_RETRY_AFTER.lock().is_ok_and(|until| *until > now) {
++        obs.status = "api_unavailable";
++        return obs;
++    }
++    let data = match preflight(&tasks, &state, now).await {
++        Ok(data) => data,
++        Err(error) => {
++            api_failure(&error, &mut state, now);
++            if settings.mode == Mode::Active
++                && let Err(error) = store.relay_update(bot, &state)
++            {
++                warn!("gc: scheduler API backoff journal failed: {error}");
++                return obs;
++            }
++            obs.status = "api_unavailable";
++            return obs;
++        }
++    };
++    state.prune(&tasks, now);
++    let mut picks = candidates(&tasks, &data, &mut state, now, &mut obs);
++    let given_up = match store.given_up_matches() {
++        Ok(given_up) => given_up,
++        Err(error) => {
++            warn!("gc: scheduler metadata attempt journal blocked: {error}");
++            return obs;
++        }
++    };
++    let planned = |pick: &Candidate, state: &State| {
++        if pick.match_id.is_some_and(|id| given_up.contains(&id)) {
++            return Some("not_available");
++        }
++        let kind = pick.kind();
++        if kind == Operation::History
++            && budget(&account, state, settings, Operation::Metadata, now).exhausted()
++        {
++            return Some("quota");
++        }
++        budget(&account, state, settings, kind, now).reason(pick, state, now)
++    };
++    let persona_due = state.next_persona_at <= now
++        && !budget(&account, &state, settings, Operation::History, now).exhausted()
++        && !budget(&account, &state, settings, Operation::Metadata, now).exhausted()
++        && picks.iter().any(|pick| pick.kind() == Operation::History);
++    let steam_due = picks.iter().any(|pick| planned(pick, &state).is_none());
++    let backed_off = store
++        .relay_backoff(bot)
++        .is_ok_and(|until| until.is_some_and(|until| until > now));
++    let session = if settings.mode == Mode::Active
++        && (persona_due || steam_due)
++        && !backed_off
++        && !game_running(sys)
++    {
++        match GcSession::connect(ctx).await {
++            Ok(session) => Some(session),
++            Err(error) => {
++                if !matches!(error, GcError::AccountInUse) {
++                    warn!("gc: scheduler Steam session unavailable: {error}");
++                    if let Err(error) = store.set_backoff(bot, Some(now + HOUR)) {
++                        warn!("gc: scheduler cannot persist Steam backoff: {error}");
++                    }
++                }
++                None
++            }
++        }
++    } else {
++        None
++    };
++    if let Some(session) = &session
++        && persona_due
++    {
++        observe_personas(session, &picks, &mut state).await;
++        let observed_at = now_secs();
++        picks = picks
++            .into_iter()
++            .map(|candidate| {
++                Candidate::new(candidate.task, candidate.match_id, &state, observed_at)
++            })
++            .collect();
++    }
++
++    obs.status = if settings.mode == Mode::Active && (steam_due || persona_due) && session.is_none()
++    {
++        "session_unavailable"
++    } else {
++        "ready"
++    };
++    dispatch(
++        &picks,
++        &tasks,
++        session.as_ref(),
++        settings,
++        roster,
++        ctx,
++        store,
++        &account,
++        &mut state,
++        sys,
++        &mut obs,
++        &planned,
++        now,
++    )
++    .await;
++    if settings.mode == Mode::Active {
++        state.latest_clock = state.latest_clock.max(now_secs());
++        if let Err(error) = store.relay_update(bot, &state) {
++            warn!("gc: scheduler journal update failed: {error}");
++            obs.status = "blocked";
++        }
++        if let Ok(reloaded) = store.relay_account(bot, now_secs()) {
++            account = reloaded;
++        } else {
++            obs.history = None;
++            obs.metadata = None;
++            return obs;
++        }
++        obs.totals = Some(state.totals.clone());
++    }
++    obs.history = Some(budget(
++        &account,
++        &state,
++        settings,
++        Operation::History,
++        now_secs(),
++    ));
++    obs.metadata = Some(budget(
++        &account,
++        &state,
++        settings,
++        Operation::Metadata,
++        now_secs(),
++    ));
++    obs.decisions
++        .sort_by_key(|decision| core::cmp::Reverse((decision.selected(), decision.score())));
++    obs.decisions.truncate(30);
++    info!("gc: scheduler pass complete");
++    obs
++}
+diff --git a/src/gc/store.rs b/src/gc/store.rs
+index 03b6b14..233bf01 100644
+--- a/src/gc/store.rs
++++ b/src/gc/store.rs
+@@ -4,11 +4,11 @@
+ //! "don't re-check until" so friends shared by several accounts are looked up once, and
+ //! per-match salt fetch attempts so a match deadlock-api never gets metadata for (Valve
+ //! sometimes can't serve it) is given up on after [`MAX_SALT_ATTEMPTS`]. A single JSON
+-//! file in the app data dir, loaded and saved whole — the data is tiny.
++//! file in the app data dir, loaded and saved whole РІР‚вЂќ the data is tiny.
+ 
+ use std::collections::{HashMap, HashSet};
+ use std::fs::{File, TryLockError};
+-use std::io::ErrorKind;
++use std::io::{ErrorKind, Write as _};
+ use std::path::PathBuf;
+ 
+ use serde::{Deserialize, Serialize};
+@@ -24,16 +24,19 @@ const LOCK_FILE: &str = "gc-quota.lock";
+ /// deadlock-api still had no metadata for, so its salts were fetched again.
+ pub(crate) const MAX_SALT_ATTEMPTS: u32 = 3;
+ 
++use super::scheduler::{Budget, Candidate, DAY, Operation, Settings, State};
+ pub(crate) use crate::utils::now_secs;
+ 
+ #[derive(Default, Serialize, Deserialize)]
+-struct AccountState {
++pub(super) struct AccountState {
+     #[serde(default)]
+-    quota_hits: Vec<i64>,
++    pub(super) quota_hits: Vec<i64>,
+     #[serde(default)]
+     gc_backoff_until: Option<i64>,
+     #[serde(default)]
+-    history_hits: Vec<i64>,
++    pub(super) history_hits: Vec<i64>,
++    #[serde(default, skip_serializing_if = "Option::is_none")]
++    pub(super) scheduler: Option<State>,
+ }
+ 
+ #[derive(Default, Serialize, Deserialize)]
+@@ -92,8 +95,19 @@ impl GcStore {
+     fn save(&self, data: &StoreData) -> Result<(), GcError> {
+         let text = serde_json::to_string_pretty(data).map_err(|e| store_err("serialize", e))?;
+         let tmp = self.path.with_extension("json.tmp");
+-        std::fs::write(&tmp, text).map_err(|e| store_err("write failed", e))?;
+-        std::fs::rename(&tmp, &self.path).map_err(|e| store_err("rename failed", e))
++        let mut file = File::create(&tmp).map_err(|e| store_err("open temporary journal", e))?;
++        file.write_all(text.as_bytes())
++            .map_err(|e| store_err("write failed", e))?;
++        file.sync_all().map_err(|e| store_err("sync journal", e))?;
++        drop(file);
++        std::fs::rename(&tmp, &self.path).map_err(|e| store_err("rename failed", e))?;
++        #[cfg(unix)]
++        if let Some(parent) = self.path.parent() {
++            File::open(parent)
++                .and_then(|dir| dir.sync_all())
++                .map_err(|e| store_err("sync journal directory", e))?;
++        }
++        Ok(())
+     }
+ 
+     fn account(&self, steam_id64: u64) -> Result<AccountState, GcError> {
+@@ -110,6 +124,129 @@ impl GcStore {
+         self.save(&data)
+     }
+ 
++    /// Scheduler enrollment requires the real previous ledger, including both quota
++    /// arrays. Missing state never implies all Steam attempts are available.
++    pub(super) fn relay_account(&self, bot: u64, now: i64) -> Result<AccountState, GcError> {
++        let bytes =
++            std::fs::read(&self.path).map_err(|e| store_err("read existing Relay journal", e))?;
++        let json: serde_json::Value =
++            serde_json::from_slice(&bytes).map_err(|e| store_err("corrupt Relay journal", e))?;
++        let key = bot.to_string();
++        let account = json
++            .get("accounts")
++            .and_then(|accounts| accounts.get(&key))
++            .filter(|account| {
++                account
++                    .get("quota_hits")
++                    .is_some_and(serde_json::Value::is_array)
++                    && account
++                        .get("history_hits")
++                        .is_some_and(serde_json::Value::is_array)
++            })
++            .ok_or_else(|| GcError::Store("existing Relay quota arrays absent".into()))?;
++        let data: AccountState = serde_json::from_value(account.clone())
++            .map_err(|e| store_err("corrupt Relay account", e))?;
++        if data
++            .quota_hits
++            .iter()
++            .chain(&data.history_hits)
++            .any(|&at| !(1..=now).contains(&at))
++            || data
++                .scheduler
++                .as_ref()
++                .is_some_and(|state| state.latest_clock > now)
++        {
++            return Err(GcError::Store(
++                "Relay journal timestamps require synchronized time".into(),
++            ));
++        }
++        Ok(data)
++    }
++
++    pub(super) fn relay_update(&self, bot: u64, state: &State) -> Result<(), GcError> {
++        self.update(bot, |account| account.scheduler = Some(state.clone()))
++    }
++
++    pub(super) fn relay_charge(
++        &self,
++        bot: u64,
++        state: &mut State,
++        candidate: &Candidate,
++        settings: &Settings,
++        now: i64,
++    ) -> Result<(), GcError> {
++        let account = self.relay_account(bot, now)?;
++        if account.gc_backoff_until.is_some_and(|until| until > now)
++            || account
++                .quota_hits
++                .iter()
++                .chain(&account.history_hits)
++                .any(|&at| at > now - 20)
++        {
++            return Err(GcError::RelayCancelled);
++        }
++        let kind = candidate.kind();
++        let hits = match kind {
++            Operation::History => &account.history_hits,
++            Operation::Metadata => &account.quota_hits,
++        };
++        if Budget::new(hits, settings.limit(kind), kind, state, now)
++            .reason(candidate, state, now)
++            .is_some()
++        {
++            return Err(GcError::RelayCancelled);
++        }
++        state.charged(candidate, now);
++        let mut data = self.load()?;
++        let account = data.accounts.entry(bot).or_default();
++        let hits = match kind {
++            Operation::History => &mut account.history_hits,
++            Operation::Metadata => &mut account.quota_hits,
++        };
++        hits.retain(|&at| at > now - DAY);
++        hits.push(now);
++        account.scheduler = Some(state.clone());
++        if let Some(id) = candidate.match_id {
++            let attempts = data.salt_attempts.entry(id).or_default();
++            *attempts = attempts.saturating_add(1);
++        }
++        self.save(&data)
++    }
++
++    pub(super) fn relay_rate_limit(
++        &self,
++        bot: u64,
++        kind: Operation,
++        until: i64,
++    ) -> Result<(), GcError> {
++        self.update(bot, |account| {
++            account
++                .scheduler
++                .get_or_insert_with(State::default)
++                .usage_mut(kind)
++                .rate_limited_until = Some(until);
++        })
++    }
++
++    pub(super) fn operation_blocked(
++        &self,
++        bot: u64,
++        kind: Operation,
++        now: i64,
++    ) -> Result<bool, GcError> {
++        let account = self.account(bot)?;
++        Ok(account.scheduler.is_some_and(|state| {
++            state
++                .usage(kind)
++                .rate_limited_until
++                .is_some_and(|until| until > now)
++        }))
++    }
++
++    pub(super) fn relay_backoff(&self, bot: u64) -> Result<Option<i64>, GcError> {
++        self.load_backoff(bot)
++    }
++
+     pub(crate) fn load_history_quota(&self, steam_id64: u64) -> Result<QuotaWindow, GcError> {
+         let hits = self.account(steam_id64)?.history_hits;
+         Ok(QuotaWindow::new(
+@@ -195,3 +332,87 @@ impl GcStore {
+         self.update(steam_id64, |a| a.gc_backoff_until = until)
+     }
+ }
++
++#[cfg(test)]
++mod tests {
++    use super::super::scheduler::{Mode, Task};
++    use super::*;
++
++    #[test]
++    fn precharge_survives_restart_and_missing_or_malformed_state_is_blocked() {
++        const NOW: i64 = 86_401;
++        const BOT: u64 = 76561197960265731;
++        let nonce = std::time::SystemTime::now()
++            .duration_since(std::time::UNIX_EPOCH)
++            .unwrap()
++            .as_nanos();
++        let dir =
++            std::env::temp_dir().join(format!("relay-journal-{}-{nonce}", std::process::id()));
++        std::fs::create_dir(&dir).unwrap();
++        let open = || GcStore {
++            path: dir.join(STORE_FILE),
++            _lock: File::create(dir.join(LOCK_FILE)).unwrap(),
++        };
++        let store = open();
++        assert!(store.relay_account(BOT, NOW).is_err());
++        std::fs::write(
++            &store.path,
++            br#"{"accounts":{"76561197960265731":{"quota_hits":[]}}}"#,
++        )
++        .unwrap();
++        assert!(store.relay_account(BOT, NOW).is_err());
++        std::fs::write(
++            &store.path,
++            br#"{"accounts":{"76561197960265731":{"quota_hits":[],"history_hits":[]}}}"#,
++        )
++        .unwrap();
++        let task: Task = serde_json::from_value(serde_json::json!({
++            "steam_id64": "76561197960265732",
++            "operation": "metadata",
++            "match_id": 42,
++            "waiting_since": "1970-01-01T23:00:00+00:00",
++            "locked_at": "1970-01-01T22:00:00+00:00",
++            "baseline_match_id": 30,
++            "streamer": true,
++            "game_mode": "STANDARD",
++            "metadata_required": true,
++            "evidence": "stored_history"
++        }))
++        .unwrap();
++        let settings = Settings {
++            mode: Mode::Active,
++            queue: dir.join("queue"),
++            status: dir.join("status"),
++            history_limit: 20,
++            metadata_limit: 40,
++        };
++        let mut state = State::default();
++        let candidate = Candidate::new(task, Some(42), &state, NOW);
++        store
++            .relay_charge(BOT, &mut state, &candidate, &settings, NOW)
++            .unwrap();
++        drop(store);
++        let reopened = open();
++        let account = reopened.relay_account(BOT, NOW + 1).unwrap();
++        assert_eq!(account.quota_hits, [NOW]);
++        assert_eq!(reopened.load().unwrap().salt_attempts.get(&42), Some(&1));
++        let mut state = account.scheduler.unwrap();
++        assert!(matches!(
++            reopened.relay_charge(BOT, &mut state, &candidate, &settings, NOW + 1),
++            Err(GcError::RelayCancelled)
++        ));
++        assert_eq!(
++            reopened
++                .relay_account(BOT, NOW + 1)
++                .unwrap()
++                .quota_hits
++                .len(),
++            1
++        );
++        assert!(reopened.relay_account(BOT, NOW - 1).is_err());
++        drop(reopened);
++        std::fs::remove_file(dir.join(STORE_FILE)).unwrap();
++        std::fs::remove_file(dir.join(LOCK_FILE)).unwrap();
++        std::fs::remove_dir(dir).unwrap();
++    }
++}
+diff --git a/src/main.rs b/src/main.rs
+index e8dd8ec..5fe8832 100644
+--- a/src/main.rs
++++ b/src/main.rs
+@@ -213,7 +213,7 @@ fn main() {
+ 
+     // In launch-wrapper mode on Linux this runs in the game's ancestor, which Yama's
+     // default `ptrace_scope` needs for reading its memory.
+-    if !args.no_memory && !args.once {
++    if !args.no_memory && !gc::relay_configured() && !args.once {
+         game_memory::spawn_background();
+     }
+ 
+@@ -238,7 +238,7 @@ fn main() {
+         if !args.no_gc {
+             gc::run_pass_blocking();
+         }
+-        if !args.no_memory {
++        if !args.no_memory && !gc::relay_configured() {
+             game_memory::run_pass_blocking();
+         }
+         std::process::exit(0);

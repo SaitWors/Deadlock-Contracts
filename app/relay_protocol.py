@@ -5,7 +5,7 @@ import hmac
 import logging
 import re
 from collections import Counter, defaultdict
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Annotated, Literal
 from uuid import UUID
 
@@ -26,6 +26,7 @@ from .services.auth import STEAM_ID64_BASE, require_csrf
 from .services.relay_effectiveness import summary as effectiveness_summary
 from .services.relay_notifications import queue_application
 from .services.relay_state import FRESHNESS, friendship_query, iso, observation_allowed, summarize_connection, utc
+from .services.relay_tasks import task_snapshot
 
 
 PREFIX = "/api/internal/relay/v1"
@@ -41,8 +42,10 @@ Count = Annotated[int, Field(strict=True, ge=0, le=2**31 - 1)]
 ContainerStatus = Literal["running", "exited", "dead", "created", "restarting", "paused", "removing", "missing", "unknown"]
 EventCode = Literal[
     "host_snapshot_invalid", "host_snapshot_unavailable", "participant_sync_failed", "friendship_sync_failed",
-    "steam_enrollment_failed",
+    "steam_enrollment_failed", "scheduler_sync_failed",
 ]
+SchedulerEpoch = Annotated[int, Field(strict=True, ge=946684800, le=4102444800)]
+SchedulerOperation = Literal["history", "metadata"]
 log = logging.getLogger(__name__)
 router = APIRouter(prefix=PREFIX)
 
@@ -65,6 +68,61 @@ class Metrics(Strict):
     ram_bytes: Annotated[int, Field(strict=True, ge=0, le=2**53 - 1)] | None = None
 
 
+class SchedulerQuota(Strict):
+    used: Count | None = None
+    limit: Count | None = None
+    remaining: Count | None = None
+    reserve: Count | None = None
+    next_release_at: SchedulerEpoch | None = None
+    next_request_at: SchedulerEpoch | None = None
+    rate_limited_until: SchedulerEpoch | None = None
+
+
+class SchedulerDecision(Strict):
+    operation: SchedulerOperation
+    streamer: Annotated[bool, Field(strict=True)]
+    score: Count
+    streamer_bonus: Count
+    wait_seconds: Count
+    next_request_at: SchedulerEpoch | None = None
+    reason: Literal[
+        "selected", "paced", "cooldown", "quota", "reserve", "stale_input", "no_friendship", "api_hit",
+        "api_unavailable", "duplicate", "rate_limited", "not_available",
+    ]
+
+
+class SchedulerTotals(Strict):
+    history_streamer: Count | None = None
+    history_regular: Count | None = None
+    metadata_streamer: Count | None = None
+    metadata_regular: Count | None = None
+    history_useful: Count | None = None
+    history_empty: Count | None = None
+    api_hits: Count | None = None
+    duplicates: Count | None = None
+    discovered_matches: Count | None = None
+    metadata_posted: Count | None = None
+
+
+class SchedulerSimulation(Strict):
+    history: Count | None = None
+    metadata: Count | None = None
+
+
+class SchedulerObservation(Strict):
+    mode: Literal["legacy", "shadow", "active"]
+    status: Literal["ready", "stale_input", "blocked", "no_tasks", "api_unavailable", "session_unavailable"]
+    observed_at: SchedulerEpoch
+    history: SchedulerQuota | None = None
+    metadata: SchedulerQuota | None = None
+    queued_streamer: Count | None = None
+    queued_regular: Count | None = None
+    oldest_wait_seconds: Count | None = None
+    decisions: Annotated[list[SchedulerDecision], Field(max_length=30)] | None = None
+    totals: SchedulerTotals | None = None
+    simulated: SchedulerSimulation | None = None
+
+
 class IngestObservation(Strict):
     container_status: ContainerStatus
     gc_logs: Literal["recent", "stale", "missing", "unavailable"]
@@ -77,6 +135,7 @@ class IngestObservation(Strict):
     ingest_version: VERSION | None = None
     steam_session: Literal["unknown", "active", "expired", "unavailable"] | None = None
     metrics: Metrics | None = None
+    scheduler: SchedulerObservation | None = None
     error: Literal["docker_inspect_failed", "docker_logs_failed"] | None = None
 
 
@@ -208,6 +267,14 @@ def participants(
     }
 
 
+@router.get("/tasks")
+def scheduler_tasks(request: Request, response: Response, db: Annotated[Session, Depends(get_db)]) -> dict:
+    node = _authenticate(request, response, db)
+    if not node.friendship_writes:
+        raise HTTPException(403, "Relay credential may not read scheduler tasks")
+    return task_snapshot(db, node.id, utcnow())
+
+
 @router.post("/admissions", response_model=AdmissionResult)
 def admit_incoming_request(
     payload: Admission, request: Request, response: Response, db: Session = Depends(get_db),
@@ -245,10 +312,12 @@ def heartbeat(payload: Heartbeat, request: Request, response: Response, db: Sess
     now = utcnow()
     _check_time(payload.observed_at, now)
     ingest = payload.ingest
+    scheduler_observed_at = datetime.fromtimestamp(ingest.scheduler.observed_at, timezone.utc) if ingest.scheduler else None
     timestamps = (
         ingest.observed_at, ingest.container_started_at, ingest.last_gc_event_at,
         ingest.last_metadata_quota_signal_at, ingest.last_history_rate_limit_at,
         ingest.last_salt_upload.at if ingest.last_salt_upload else None, payload.last_successful_cycle_at,
+        scheduler_observed_at,
     )
     if any(value and value > now + CLOCK_SKEW for value in timestamps):
         raise HTTPException(422, "Relay telemetry timestamp is in the future")
@@ -375,9 +444,15 @@ def _serialize_node(node: RelayNode, history: list[RelayHeartbeat], now: datetim
     ingest_status = "unknown"
     if observed_at:
         ingest_status = "fresh" if datetime.fromisoformat(observed_at) >= now - FRESHNESS else "stale"
+    scheduler_observed_at = ((node.ingest or {}).get("scheduler") or {}).get("observed_at")
+    scheduler_freshness = "unknown"
+    if scheduler_observed_at is not None:
+        scheduler_observed = datetime.fromtimestamp(scheduler_observed_at, timezone.utc)
+        scheduler_freshness = "fresh" if scheduler_observed >= now - FRESHNESS else "stale"
     return {
         "id": node.id, "enabled": node.enabled, "has_token": bool(node.token_hash),
         "friendship_writes": node.friendship_writes, "status": status, "ingest_status": ingest_status,
+        "scheduler_freshness": scheduler_freshness,
         "last_observed_at": iso(node.last_observed_at), "last_heartbeat_at": iso(node.last_heartbeat_at),
         "last_successful_cycle_at": iso(node.last_successful_cycle_at), "agent_version": node.agent_version,
         "ingest": node.ingest,

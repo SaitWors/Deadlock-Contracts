@@ -233,6 +233,93 @@ class RelayTest(unittest.TestCase):
         steam.relationships.assert_called_once()
         steam.accept_incoming.assert_not_called()
 
+    def test_task_queue_requires_fresh_confirmed_participants_and_strips_unexpected_fields(self):
+        now = datetime.now(timezone.utc)
+        collector = self.root / "participants.json"
+        queue = self.root / "queue.json"
+        first, second = "76561198000000111", "76561198000000222"
+        task = {"steam_id64": first, "operation": "history", "match_id": None, "waiting_since": now.isoformat(),
+                "locked_at": now.isoformat(), "baseline_match_id": None, "streamer": True,
+                "game_mode": "STANDARD", "evidence": "none", "metadata_required": True}
+        tasks = {"protocol_version": 1, "schema_version": 1, "generated_at": now.isoformat(),
+                 "expires_at": (now + timedelta(minutes=2)).isoformat(),
+                 "tasks": [dict(task, raw="private"), task, dict(task, steam_id64=second),
+                           dict(task, game_mode="STREET_BRAWL")]}
+
+        def reply(path, payload=None, **kwargs):
+            if path == "/participants":
+                return {"participants": [{"connection_id": ONE, "steam_id64": first},
+                                         {"connection_id": TWO, "steam_id64": second}], "next_cursor": None}
+            if path == "/friendship-status":
+                return {"collector_connections": [ONE]}
+            if path == "/tasks":
+                return tasks
+            return {"applied": 1}
+
+        self.client.request.side_effect = reply
+        steam = Mock(account="76561198000000333")
+        steam.relationships.return_value = steam_friends.SteamRelationships(frozenset({first}), frozenset())
+        cycle = self.cycle(steam_session=steam, collector=collector, scheduler_queue=queue)
+        cycle.tick(now)
+        self.assertEqual(protocol.read_json(queue), dict(tasks, tasks=[task, dict(task, game_mode="STREET_BRAWL")]))
+        self.assertNotIn(first, self.state.read_text())
+        self.assertLess([call.args[0] for call in self.client.request.call_args_list].index("/friendship-status"),
+                        [call.args[0] for call in self.client.request.call_args_list].index("/tasks"))
+
+        tasks["tasks"] = [dict(task, operation="metadata", match_id=True)]
+        cycle.tick(now + timedelta(minutes=1))
+        self.assertFalse(queue.exists())
+        self.assertTrue(collector.exists())
+        self.assertIn("scheduler_sync_failed", self.client.request.call_args.args[1]["events"])
+
+    def test_scheduler_queue_expiry_and_schema_are_fail_closed(self):
+        document = {"protocol_version": 1, "schema_version": 1, "generated_at": NOW.isoformat(),
+                    "expires_at": (NOW + timedelta(minutes=2)).isoformat(), "tasks": []}
+        self.assertEqual(manager.collector_tasks(document, set(), NOW), document)
+        for invalid in (dict(document, schema_version=True), dict(document, expires_at=NOW.isoformat()),
+                        dict(document, expires_at=(NOW + timedelta(minutes=10)).isoformat())):
+            with self.assertRaises(ValueError):
+                manager.collector_tasks(invalid, set(), NOW)
+
+    def test_scheduler_status_is_bounded_and_does_not_export_text(self):
+        status = {
+            "mode": "shadow", "status": "ready", "observed_at": int(NOW.timestamp()),
+            "queued_regular": 1, "queued_streamer": 1, "oldest_wait_seconds": 123,
+            "metadata": {"used": 3, "limit": 40, "remaining": 37, "reserve": 8, "raw": "private"},
+            "simulated": {"metadata": 1},
+            "decisions": [{"operation": "history", "streamer": True, "score": 140,
+                           "streamer_bonus": 40, "wait_seconds": 123, "reason": "selected",
+                           "steam_id64": "76561198000000999"}],
+        }
+        clean = protocol.scheduler_snapshot(status)
+        self.assertEqual(clean["metadata"]["remaining"], 37)
+        self.assertEqual(clean["simulated"]["metadata"], 1)
+        self.assertNotIn("private", json.dumps(clean))
+        self.assertNotIn("76561198000000999", json.dumps(clean))
+        self.assertNotIn("decisions", protocol.scheduler_snapshot(dict(status, decisions=status["decisions"] * 31)))
+        self.assertNotIn("decisions", protocol.scheduler_snapshot(dict(status, decisions=[dict(status["decisions"][0], reason="secret")])))
+
+    def test_publisher_attaches_only_fresh_scheduler_reports_to_manager_heartbeat(self):
+        now = datetime.now(timezone.utc)
+        file = self.root / "scheduler.json"
+        observation = {"mode": "active", "status": "no_tasks", "observed_at": int(now.timestamp()),
+                       "queued_streamer": 0, "token": "private"}
+        host = {"checked_at": now.isoformat(), "container_status": "running", "gc_logs": "recent"}
+        protocol.atomic_json(file, observation)
+        with patch.object(publisher.contract_relay_status, "check", side_effect=lambda *args: (dict(host), 0)):
+            with patch.object(publisher, "docker_metrics", return_value={}):
+                publisher.publish("container", self.snapshot, file)
+                self.cycle(heartbeat_only=True).tick(now)
+                report = self.client.request.call_args.args[1]["ingest"]
+                self.assertEqual(report["scheduler"], {key: value for key, value in observation.items() if key != "token"})
+                protocol.atomic_json(file, dict(observation, observed_at=int(now.timestamp()) - 250))
+                publisher.publish("container", self.snapshot, file)
+                self.assertNotIn("scheduler", protocol.read_json(self.snapshot))
+                host["container_started_at"] = (now - timedelta(seconds=30)).isoformat()
+                protocol.atomic_json(file, dict(observation, observed_at=int(now.timestamp()) - 60))
+                publisher.publish("container", self.snapshot, file)
+        self.assertNotIn("scheduler", protocol.read_json(self.snapshot))
+
     def test_steam_session_rejects_credentials_for_a_different_account_before_request(self):
         cookie = self.root / "steam-login-secure"
         cookie.write_text("76561198000000444%7C%7Cinvalid.invalid.invalid")

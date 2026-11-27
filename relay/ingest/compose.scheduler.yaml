@@ -1,0 +1,28 @@
+services:
+  ingest:
+    image: ${RELAY_INGEST_IMAGE:?set the validated relay-ingest digest}
+    user: ${RELAY_INGEST_USER:?preserve the existing non-root UID and GID}
+    read_only: true
+    privileged: false
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    environment:
+      HOME: ${RELAY_INGEST_HOME:?preserve HOME from the running Ingest container}
+      RELAY_SCHEDULER_MODE: ${RELAY_SCHEDULER_MODE:-legacy}
+      RELAY_COLLECTOR_ALLOWLIST: /run/contract-relay-collector/participants.json
+      RELAY_COLLECTOR_QUEUE: /run/contract-relay-collector/queue.json
+      RELAY_SCHEDULER_STATUS: /var/lib/contract-relay-scheduler/status.json
+      RELAY_HISTORY_LIMIT: ${RELAY_HISTORY_LIMIT:-20}
+      RELAY_METADATA_LIMIT: ${RELAY_METADATA_LIMIT:-40}
+    volumes:
+      - type: bind
+        source: /run/contract-relay-collector
+        target: /run/contract-relay-collector
+        read_only: true
+        bind:
+          create_host_path: false
+      - type: bind
+        source: /var/lib/contract-relay-scheduler
+        target: /var/lib/contract-relay-scheduler
+        bind:
+          create_host_path: false

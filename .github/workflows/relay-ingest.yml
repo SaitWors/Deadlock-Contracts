@@ -5,18 +5,24 @@ on:
     paths:
       - "relay/ingest/**"
       - ".github/workflows/relay-ingest.yml"
+  push:
+    branches: [main]
+    paths:
+      - "relay/ingest/**"
+      - ".github/workflows/relay-ingest.yml"
 
 permissions:
   contents: read
 
+env:
+  INGEST_REVISION: d8d51587253c25e09368010d959e7618e0f7a345
+  LOCAL_IMAGE: contract-relay-ingest:ci
+
 jobs:
   ingest:
-    name: Ingest / apply and test participant filter
+    name: Ingest / Rust tests and Linux image
     runs-on: ubuntu-latest
-    timeout-minutes: 20
-    env:
-      CARGO_PROFILE_TEST_DEBUG: "0"
-      CARGO_NET_GIT_FETCH_WITH_CLI: "true"
+    timeout-minutes: 45
     steps:
       - name: Check out Deadlock Contracts
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
@@ -26,17 +32,105 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           repository: deadlock-api/deadlock-api-ingest
-          ref: d8d51587253c25e09368010d959e7618e0f7a345
+          ref: ${{ env.INGEST_REVISION }}
           path: .qa/relay-ingest
           persist-credentials: false
-      - name: Install build dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends cmake protobuf-compiler libprotobuf-dev libssl-dev
-          rustup toolchain install 1.98 --profile minimal
-      - name: Apply and test the participant filter
+      - name: Apply the Relay patch
         working-directory: .qa/relay-ingest
         run: |
+          test "$(git rev-parse HEAD)" = "$INGEST_REVISION"
           git apply --check "$GITHUB_WORKSPACE/relay/ingest/participants.patch"
-          git apply "$GITHUB_WORKSPACE/relay/ingest/participants.patch"
-          cargo test --locked --bin deadlock-api-ingest gc::
+          git apply --index "$GITHUB_WORKSPACE/relay/ingest/participants.patch"
+          git apply --check "$GITHUB_WORKSPACE/relay/ingest/scheduler.patch"
+          git apply --index "$GITHUB_WORKSPACE/relay/ingest/scheduler.patch"
+          git diff --cached --check
+      - name: Run Rust formatting, lint and tests
+        run: |
+          docker build --platform linux/amd64 --target verify \
+            -f relay/ingest/Dockerfile .qa/relay-ingest
+      - name: Build the Linux amd64 image
+        run: |
+          docker build --platform linux/amd64 \
+            --label "org.opencontainers.image.revision=$GITHUB_SHA" \
+            --label "online.deadlock-contracts.ingest.upstream=$INGEST_REVISION" \
+            -f relay/ingest/Dockerfile -t "$LOCAL_IMAGE" .qa/relay-ingest
+      - name: Verify image contents and execution restrictions
+        run: |
+          test "$(docker image inspect --format '{{.Os}}/{{.Architecture}}' "$LOCAL_IMAGE")" = linux/amd64
+          test "$(docker image inspect --format '{{json .Config.Entrypoint}}' "$LOCAL_IMAGE")" = '["/usr/local/bin/deadlock-api-ingest","--no-memory"]'
+          docker run --rm --network none --read-only --cap-drop ALL --security-opt no-new-privileges \
+            --entrypoint /bin/sh "$LOCAL_IMAGE" -ec '
+              test "$(id -u)" -ne 0
+              test -s /usr/share/doc/deadlock-api-ingest/LICENSE
+              ! command -v cargo
+              ! command -v docker
+              test ! -e /var/run/docker.sock
+              test ! -e /root/.steam
+              /usr/local/bin/deadlock-api-ingest --no-memory --version
+            '
+      - name: Smoke test shadow startup and restart without Steam
+        run: |
+          docker run --rm --network none --read-only --cap-drop ALL --security-opt no-new-privileges \
+            --tmpfs /probe:rw,uid=65532,gid=65532,mode=0700 --tmpfs /tmp \
+            --entrypoint /bin/sh "$LOCAL_IMAGE" -ec '
+              export HOME=/probe/home XDG_DATA_HOME=/probe/data
+              export RELAY_SCHEDULER_MODE=shadow
+              export RELAY_COLLECTOR_ALLOWLIST=/probe/participants.json
+              export RELAY_SCHEDULER_STATUS=/probe/status.json
+              journal="$XDG_DATA_HOME/deadlock-api-ingest/gc-quota.json"
+              mkdir -p "$HOME/.steam/steam/appcache/httpcache" "$(dirname "$journal")"
+              printf "{\"accounts\":{}}\n" > "$journal"
+              cp "$journal" /probe/original.json
+              for restart in first second; do
+                /usr/local/bin/deadlock-api-ingest --no-memory --once
+                grep -Eq "\"mode\"[[:space:]]*:[[:space:]]*\"shadow\"" "$RELAY_SCHEDULER_STATUS"
+                cmp "$journal" /probe/original.json
+              done
+            '
+      - name: Scan for fixed high and critical vulnerabilities and embedded secrets
+        uses: aquasecurity/trivy-action@a9c7b0f06e461e9d4b4d1711f154ee024b8d7ab8 # v0.36.0
+        with:
+          image-ref: ${{ env.LOCAL_IMAGE }}
+          scanners: vuln,secret
+          severity: HIGH,CRITICAL
+          ignore-unfixed: true
+          exit-code: "1"
+      - name: Save the verified image
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        run: docker image save "$LOCAL_IMAGE" | gzip -1 > relay-ingest-amd64.tar.gz
+      - name: Upload the verified image to this run
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: relay-ingest-amd64
+          path: relay-ingest-amd64.tar.gz
+          if-no-files-found: error
+          retention-days: 2
+          compression-level: 0
+
+  publish:
+    name: Ingest / publish verified digest
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: ingest
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: Recover the verified image from this run
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7
+        with:
+          name: relay-ingest-amd64
+      - name: Publish to GHCR
+        env:
+          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          docker image load --input relay-ingest-amd64.tar.gz
+          image="ghcr.io/${GITHUB_REPOSITORY,,}-relay-ingest"
+          ref="$image:upstream-$INGEST_REVISION-project-$GITHUB_SHA"
+          docker tag "$LOCAL_IMAGE" "$ref"
+          printf '%s\n' "$GHCR_TOKEN" | docker login ghcr.io --username "$GITHUB_ACTOR" --password-stdin
+          docker push "$ref"
+          digest_ref="$(docker image inspect --format '{{index .RepoDigests 0}}' "$ref")"
+          [[ "$digest_ref" =~ @sha256:[[:xdigit:]]{64}$ ]]
+          printf 'Verified Linux amd64 image\n\n`%s`\n' "$digest_ref" >> "$GITHUB_STEP_SUMMARY"

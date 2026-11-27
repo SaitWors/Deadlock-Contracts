@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from sqlalchemy import DateTime, ForeignKey, Index, String
+from sqlalchemy import Boolean, DateTime, ForeignKey, Index, String
 from sqlalchemy.orm import Mapped, mapped_column
 
 from .db import Base
@@ -20,3 +20,4 @@ class RelayMatchObservation(Base):
     )
     observed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     relay_cohort: Mapped[str] = mapped_column(String(32))
+    priority_streamer: Mapped[bool | None] = mapped_column(Boolean)

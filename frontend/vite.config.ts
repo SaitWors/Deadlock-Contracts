@@ -39,6 +39,7 @@ export default defineConfig({
   ],
   resolve: { alias: { "@": path.resolve(import.meta.dirname, "./src") } },
   build: {
+    manifest: true,
     sourcemap: false,
     minify: true,
     assetsDir: "assets",

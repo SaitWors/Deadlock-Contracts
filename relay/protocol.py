@@ -31,6 +31,64 @@ INGEST_TIMES = {
     "last_history_rate_limit_at",
 }
 FRIEND_STATES = {"connected", "disconnected", "unknown", "error"}
+SCHEDULER_MODES = ("legacy", "shadow", "active")
+SCHEDULER_STATES = ("ready", "stale_input", "blocked", "no_tasks", "api_unavailable", "session_unavailable")
+SCHEDULER_OPERATIONS = ("history", "metadata")
+SCHEDULER_REASONS = (
+    "selected", "paced", "cooldown", "quota", "reserve", "stale_input", "no_friendship", "api_hit",
+    "api_unavailable", "duplicate", "rate_limited", "not_available",
+)
+SCHEDULER_TOTALS = (
+    "history_streamer", "history_regular", "metadata_streamer", "metadata_regular", "history_useful", "history_empty",
+    "api_hits", "duplicates", "discovered_matches", "metadata_posted",
+)
+SCHEDULER_QUOTA = ("used", "limit", "remaining", "reserve")
+SCHEDULER_QUOTA_TIMES = ("next_release_at", "next_request_at", "rate_limited_until")
+SCHEDULER_COUNTS = ("queued_streamer", "queued_regular", "oldest_wait_seconds")
+SCHEDULER_DECISION_COUNTS = ("score", "streamer_bonus", "wait_seconds")
+
+
+def _scheduler_numbers(payload: dict, fields: tuple[str, ...], minimum: int = 0, maximum: int = 2**31 - 1) -> dict:
+    return {key: payload[key] for key in fields if type(payload.get(key)) is int and minimum <= payload[key] <= maximum}
+
+
+def scheduler_snapshot(payload: object) -> dict:
+    """Expose only structured, bounded counters and enum codes from Ingest's status file."""
+    if not isinstance(payload, dict) or payload.get("mode") not in SCHEDULER_MODES or payload.get("status") not in SCHEDULER_STATES:
+        raise ValueError("invalid scheduler status")
+    result = {"mode": payload["mode"], "status": payload["status"]}
+    times = _scheduler_numbers(payload, ("observed_at",), 946684800, 4102444800)
+    if "observed_at" not in times:
+        raise ValueError("invalid scheduler observation time")
+    result.update(times)
+    result.update(_scheduler_numbers(payload, SCHEDULER_COUNTS))
+    for operation in SCHEDULER_OPERATIONS:
+        quota = payload.get(operation)
+        if isinstance(quota, dict):
+            counts = _scheduler_numbers(quota, SCHEDULER_QUOTA)
+            counts.update(_scheduler_numbers(quota, SCHEDULER_QUOTA_TIMES, 946684800, 4102444800))
+            if counts:
+                result[operation] = counts
+    for key, fields in (("totals", SCHEDULER_TOTALS), ("simulated", SCHEDULER_OPERATIONS)):
+        values = payload.get(key)
+        if isinstance(values, dict):
+            counts = _scheduler_numbers(values, fields)
+            if counts:
+                result[key] = counts
+    rows = payload.get("decisions")
+    if isinstance(rows, list) and len(rows) <= 30:
+        decisions = []
+        for row in rows:
+            if (not isinstance(row, dict) or row.get("operation") not in SCHEDULER_OPERATIONS
+                    or row.get("reason") not in SCHEDULER_REASONS or type(row.get("streamer")) is not bool):
+                continue
+            numbers = _scheduler_numbers(row, SCHEDULER_DECISION_COUNTS)
+            if len(numbers) == len(SCHEDULER_DECISION_COUNTS):
+                numbers.update(_scheduler_numbers(row, ("next_request_at",), 946684800, 4102444800))
+                decisions.append({"operation": row["operation"], "streamer": row["streamer"], "reason": row["reason"], **numbers})
+        if not rows or decisions:
+            result["decisions"] = decisions
+    return result
 
 
 def utc(value: object) -> datetime:
@@ -100,6 +158,8 @@ def ingest_snapshot(payload: dict) -> dict:
         if not isinstance(upload, dict) or type(upload.get("count")) is not int or not 1 <= upload["count"] <= 100_000:
             raise ValueError("invalid upload count")
         result["last_salt_upload"] = {"at": utc(upload.get("at")).isoformat(), "count": upload["count"]}
+    if "scheduler" in payload:
+        result["scheduler"] = scheduler_snapshot(payload["scheduler"])
     metrics = payload.get("metrics")
     if isinstance(metrics, dict):
         allowed = {}
