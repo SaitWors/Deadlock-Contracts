@@ -231,9 +231,6 @@ html[data-theme] .ritual-public .ns-document-number { color: var(--ns-accent); b
   html[data-theme] .ritual-public .public-document > section { padding: 1.375rem; }
   html[data-theme] .ritual-public .public-document h2 { font-size: 1.3125rem; }
 }
-@media (prefers-reduced-motion: reduce) {
-  .ritual-public *, .ritual-public *::before, .ritual-public *::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; }
-}
 html[data-motion="reduced"] .ritual-public *, html[data-motion="reduced"] .ritual-public *::before, html[data-motion="reduced"] .ritual-public *::after { animation: none !important; transition: none !important; }
 
 /* One city-backed contract anchors the first screen; the rest stays readable. */

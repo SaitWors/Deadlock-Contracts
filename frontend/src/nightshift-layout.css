@@ -73,4 +73,4 @@ html[data-theme] .bureau-mobile-nav{background:var(--ns-surface);border-color:va
 }
 @media(max-width:390px){.bureau-header-inner{padding-inline:9px;gap:6px}.bureau-brand{gap:5px}.bureau-brand img{width:104px}.bureau-account{gap:5px}.bureau-account .ns-theme-trigger{padding:6px;min-height:34px;width:34px}.bureau-account .ns-theme-trigger svg{width:17px;height:17px}.bureau-account .dc-language-switch{padding:2px;gap:0}.bureau-account .dc-language-switch :is(a,button){min-width:24px;min-height:29px;font-size:9px;padding:4px}.bureau-steam-button.is-compact{min-height:34px;padding:7px 8px;font-size:10px;gap:5px}.bureau-menu-toggle{width:34px;height:34px;min-width:34px}.bureau-menu-toggle svg{width:20px;height:20px}.ns-private .bureau-location>span{max-width:52%;line-height:1.8}}
 @media(max-width:600px){.bureau-public .bureau-account .dc-language-switch{display:none}}
-@media(prefers-reduced-motion:reduce){.ns-mascot-button,.ns-world-card>img,.city-local{animation:none!important;transition:none!important;transform:none!important}}
+html[data-motion="reduced"] :is(.ns-mascot-button,.ns-world-card>img,.city-local){transform:none!important}

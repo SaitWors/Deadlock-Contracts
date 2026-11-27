@@ -516,9 +516,3 @@ html[data-motion="reduced"] .ns-private .dc-contract-dossier :is(*, .dc-motion-c
   display: none;
 }
 }
-@media (prefers-reduced-motion: reduce) {
-:root .ns-private .dc-contract-dossier :is(*, .dc-motion-contract-card) {
-  animation: none !important;
-  transition: none !important;
-}
-}

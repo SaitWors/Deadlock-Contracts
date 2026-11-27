@@ -1,7 +1,6 @@
 import { useState } from "react"
 import { useLanguage } from "./i18n"
-import { useAppearance } from "./Appearance"
-import { prefersReducedMotion } from "./motion"
+import { useReducedMotion } from "./Appearance"
 import idle from "./imports/nightshift/mascot-idle.webp"
 import welcome from "./imports/nightshift/mascot-welcome.webp"
 import dossier from "./imports/nightshift/mascot-dossier.webp"
@@ -20,10 +19,10 @@ export default function Mascot({
 }) {
   const { language } = useLanguage(),
     ru = language === "ru"
-  const { appearance } = useAppearance()
+  const reduced = useReducedMotion()
   const [pose, setPose] = useState<Pose>(initialPose),
     [hovered, setHovered] = useState(false)
-  const shown = hovered && pose === "idle" ? "welcome" : pose
+  const shown = !reduced && hovered && pose === "idle" ? "welcome" : pose
   const labels = ru
     ? { idle: "На связи", welcome: "Добро пожаловать", dossier: "За работой" }
     : { idle: "At your service", welcome: "Welcome aboard", dossier: "On the case" }
@@ -40,8 +39,7 @@ export default function Mascot({
           setPose(poses[(poses.indexOf(pose) + 1) % poses.length])
         }}
         onPointerEnter={(event) => {
-          if (event.pointerType === "mouse" && appearance.motion && !prefersReducedMotion())
-            setHovered(true)
+          if (event.pointerType === "mouse" && !reduced) setHovered(true)
         }}
         onPointerLeave={() => setHovered(false)}
       >

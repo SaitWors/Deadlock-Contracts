@@ -52,6 +52,7 @@ const examples = [
   { key: "empty", label: "Empty pack", ranks: [] },
   { key: "single", label: "One card", ranks: ["F"] },
   { key: "five", label: "Five cards", ranks: five },
+  { key: "wide-pair", label: "Two wide cards", ranks: ["S", "EX", "SSS", "EX", "SS"] },
   { key: "all", label: "All ten ranks", ranks: allRanks },
   { key: "repeated", label: "Repeated ranks", ranks: ["B", "B", "SS", "SS", "B"] },
   { key: "high", label: "High ranks", ranks: ["S", "SS", "SSS", "EX", "SSS"] },
@@ -66,7 +67,7 @@ type Example = (typeof examples)[number]
 function exampleReceipt({ key, ranks }: Example, revision = 0): Receipt {
   const gift = key === "gift"
   const sandbox = key === "sandbox"
-  const distinctDesigns = key === "repeated" || key === "high"
+  const distinctDesigns = key === "repeated" || key === "high" || key === "wide-pair"
   const seen = new Set<Rank>()
   return {
     id: `demo-${key}-${revision}`,

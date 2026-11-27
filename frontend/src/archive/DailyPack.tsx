@@ -127,12 +127,16 @@ export default function DailyPack({
     setPending(savedKey(accountKey))
     setBusy(false)
     setError("")
+    return () => {
+      claimFlight.current?.abort()
+      claimFlight.current = null
+    }
+  }, [accountKey])
+  useEffect(() => {
     if (accountKey) void refresh()
     return () => {
       statusFlight.current?.abort()
       statusFlight.current = null
-      claimFlight.current?.abort()
-      claimFlight.current = null
     }
   }, [accountKey, refresh])
   useEffect(() => {

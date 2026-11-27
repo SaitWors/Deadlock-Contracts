@@ -14,4 +14,3 @@
 :root[data-theme=light] .bureau-soul-motes{display:none}
 @keyframes bureau-soul-rise{0%{transform:translate(0,35px);opacity:0}20%{opacity:.6}80%{opacity:.3}100%{transform:translate(22px,-95px);opacity:0}}
 @media(max-width:600px){:root[data-theme] .bureau-atmosphere-film{opacity:.55;mask-image:linear-gradient(#000,#0007)}:root[data-theme] .bureau-soul-motes i:nth-child(n+10){display:none}}
-@media(prefers-reduced-motion:reduce){:root[data-theme] .bureau-soul-motes i{animation:none}}

@@ -1,5 +1,6 @@
 import {
   createContext,
+  Fragment,
   useContext,
   useEffect,
   useId,
@@ -12,52 +13,79 @@ import Icon from "./icons/Icon"
 import { useLanguage } from "./i18n"
 import {
   APPEARANCE_KEY,
+  SYSTEM_MOTION_QUERY,
+  SYSTEM_THEME_QUERY,
   applyAppearance,
   defaultAppearance,
   normalizeAppearance,
   readAppearance,
+  resolveReducedMotion,
   themeModes,
   type Appearance,
+  type EffectsQuality,
 } from "./appearance-state"
 
 const Context = createContext({
   appearance: defaultAppearance,
   update: (_patch: Partial<Appearance>) => {},
+  reducedMotion: undefined as boolean | undefined,
+  effectsQuality: undefined as Exclude<EffectsQuality, "AUTO"> | undefined,
 })
+const COARSE_POINTER_QUERY = "(pointer: coarse)"
+
+function useMediaMatches(query: string, enabled = true) {
+  const [matches, setMatches] = useState(() => enabled && window.matchMedia(query).matches)
+  useEffect(() => {
+    if (!enabled) return
+    const media = window.matchMedia(query)
+    const readMatch = () => setMatches(media.matches)
+    readMatch()
+    media.addEventListener("change", readMatch)
+    return () => media.removeEventListener("change", readMatch)
+  }, [query, enabled])
+  return matches
+}
+
+function resolveEffectsQuality(quality: EffectsQuality, coarsePointer: boolean) {
+  if (quality !== "AUTO") return quality
+  const cores = navigator.hardwareConcurrency
+  return coarsePointer || (cores > 0 && cores <= 4) ? "LITE" : "FULL"
+}
+
 export function useAppearance() {
   return useContext(Context)
 }
+
 export function useReducedMotion() {
-  const { appearance } = useAppearance()
-  const [systemReduced, setSystemReduced] = useState(
-    () => window.matchMedia("(prefers-reduced-motion: reduce)").matches,
-  )
-  useEffect(() => {
-    const media = window.matchMedia("(prefers-reduced-motion: reduce)")
-    const update = () => setSystemReduced(media.matches)
-    update()
-    media.addEventListener("change", update)
-    return () => media.removeEventListener("change", update)
-  }, [])
-  return !appearance.motion || systemReduced
+  const { reducedMotion } = useAppearance()
+  const systemReduced = useMediaMatches(SYSTEM_MOTION_QUERY, reducedMotion === undefined)
+  return reducedMotion ?? systemReduced
 }
+
+export function useEffectsQuality() {
+  const { effectsQuality } = useAppearance()
+  const coarsePointer = useMediaMatches(COARSE_POINTER_QUERY, effectsQuality === undefined)
+  return effectsQuality ?? resolveEffectsQuality("AUTO", coarsePointer)
+}
+
 export function AppearanceProvider({ children }: { children: ReactNode }) {
   const [appearance, setAppearance] = useState(readAppearance)
-  const [dark, setDark] = useState(() => window.matchMedia("(prefers-color-scheme: dark)").matches)
+  const dark = useMediaMatches(SYSTEM_THEME_QUERY)
+  const systemReduced = useMediaMatches(SYSTEM_MOTION_QUERY)
+  const coarsePointer = useMediaMatches(COARSE_POINTER_QUERY)
+  const reducedMotion = resolveReducedMotion(appearance.motion, systemReduced)
+  const effectsQuality = resolveEffectsQuality(appearance.effectsQuality, coarsePointer)
   useEffect(() => {
-    const media = window.matchMedia("(prefers-color-scheme: dark)")
-    const onChange = (event: MediaQueryListEvent) => setDark(event.matches)
     const onStorage = (event: StorageEvent) => {
       if (event.key === APPEARANCE_KEY || event.key === null) setAppearance(readAppearance())
     }
-    media.addEventListener("change", onChange)
     window.addEventListener("storage", onStorage)
-    return () => {
-      media.removeEventListener("change", onChange)
-      window.removeEventListener("storage", onStorage)
-    }
+    return () => window.removeEventListener("storage", onStorage)
   }, [])
-  useLayoutEffect(() => applyAppearance(appearance, dark), [appearance, dark])
+  useLayoutEffect(
+    () => applyAppearance(appearance, dark, reducedMotion),
+    [appearance, dark, reducedMotion],
+  )
   const update = (patch: Partial<Appearance>) =>
     setAppearance((current) => {
       const next = normalizeAppearance({ ...current, ...patch })
@@ -68,7 +96,11 @@ export function AppearanceProvider({ children }: { children: ReactNode }) {
       }
       return next
     })
-  return <Context.Provider value={{ appearance, update }}>{children}</Context.Provider>
+  return (
+    <Context.Provider value={{ appearance, update, reducedMotion, effectsQuality }}>
+      {children}
+    </Context.Provider>
+  )
 }
 
 export function AppearanceButton() {
@@ -91,15 +123,63 @@ export function AppearanceButton() {
   )
 }
 
+// Each theme pairs its label and description in English and Russian.
+const themeCopy = {
+  system: [
+    ["System", "Follow your device"],
+    ["Системная", "Вслед за устройством"],
+  ],
+  light: [
+    ["Light", "Paper and ink"],
+    ["Светлая", "Бумага и чернила"],
+  ],
+  dark: [
+    ["Dark", "Dark contract"],
+    ["Тёмная", "Тёмный контракт"],
+  ],
+  black: [
+    ["Ultra black", "Pure black canvas"],
+    ["Ультрачёрная", "Глубокий чёрный"],
+  ],
+  custom: [
+    ["Custom", "Your own palette"],
+    ["Авторская", "Своя палитра"],
+  ],
+}
+
+const motionFields = [
+  {
+    field: "motion",
+    label: ["Motion", "Анимации"],
+    options: [
+      ["SYSTEM", "Follow your device", "Как на устройстве"],
+      ["FULL", "Full motion", "Полные анимации"],
+      ["OFF", "Off", "Выключены"],
+    ],
+  },
+  {
+    field: "effectsQuality",
+    label: ["Effects quality", "Качество эффектов"],
+    options: [
+      ["AUTO", "Auto", "Авто"],
+      ["FULL", "Full", "Полное"],
+      ["LITE", "Lite", "Упрощённое"],
+    ],
+  },
+] as const
+
 function AppearanceDialog({ onClose }: { onClose: () => void }) {
   const { language } = useLanguage(),
     ru = language === "ru"
+  const languageIndex = ru ? 1 : 0
   const { appearance, update } = useAppearance()
   const dialog = useRef<HTMLDialogElement>(null),
     heading = useRef<HTMLHeadingElement>(null)
   const titleId = useId(),
     rangeId = useId(),
-    colorId = useId()
+    colorId = useId(),
+    preferencesId = useId()
+  const motionHintId = `${preferencesId}-hint`
   useEffect(() => {
     const previous = document.activeElement as HTMLElement | null
     const overflow = document.body.style.overflow
@@ -113,30 +193,6 @@ function AppearanceDialog({ onClose }: { onClose: () => void }) {
       if (previous?.isConnected) previous.focus()
     }
   }, [])
-  const names = ru
-    ? {
-        system: "Системная",
-        light: "Светлая",
-        dark: "Тёмная",
-        black: "Ультрачёрная",
-        custom: "Авторская",
-      }
-    : { system: "System", light: "Light", dark: "Dark", black: "Ultra black", custom: "Custom" }
-  const descriptions = ru
-    ? {
-        system: "Вслед за устройством",
-        light: "Бумага и чернила",
-        dark: "Тёмный контракт",
-        black: "Глубокий чёрный",
-        custom: "Своя палитра",
-      }
-    : {
-        system: "Follow your device",
-        light: "Paper and ink",
-        dark: "Dark contract",
-        black: "Pure black canvas",
-        custom: "Your own palette",
-      }
   return (
     <dialog
       ref={dialog}
@@ -147,16 +203,10 @@ function AppearanceDialog({ onClose }: { onClose: () => void }) {
         onClose()
       }}
       onClick={(event) => {
-        if (event.target === dialog.current) {
-          const r = dialog.current!.getBoundingClientRect()
-          if (
-            event.clientX < r.left ||
-            event.clientX > r.right ||
-            event.clientY < r.top ||
-            event.clientY > r.bottom
-          )
-            onClose()
-        }
+        if (event.target !== event.currentTarget) return
+        const { clientX, clientY } = event
+        const { left, right, top, bottom } = event.currentTarget.getBoundingClientRect()
+        if (clientX < left || clientX > right || clientY < top || clientY > bottom) onClose()
       }}
     >
       <header>
@@ -179,28 +229,32 @@ function AppearanceDialog({ onClose }: { onClose: () => void }) {
         {ru ? "Выбери, каким будет твой город сегодня." : "Choose how your city feels today."}
       </p>
       <div className="ns-theme-grid">
-        {themeModes.map((mode) => (
-          <button
-            type="button"
-            key={mode}
-            data-theme-choice={mode}
-            className={`ns-theme-choice ns-sample-${mode}`}
-            aria-pressed={appearance.theme === mode}
-            onClick={() => update({ theme: mode })}
-          >
-            <span className="ns-theme-thumbnail" aria-hidden="true">
-              <i />
-              <b />
-              <em />
-              <em />
-            </span>
-            <span className="ns-theme-name">
-              {names[mode]}
-              {appearance.theme === mode && <Icon name="check" size={16} />}
-            </span>
-            <small>{descriptions[mode]}</small>
-          </button>
-        ))}
+        {themeModes.map((mode) => {
+          const [name, description] = themeCopy[mode][languageIndex]
+          const selected = appearance.theme === mode
+          return (
+            <button
+              type="button"
+              key={mode}
+              data-theme-choice={mode}
+              className={`ns-theme-choice ns-sample-${mode}`}
+              aria-pressed={selected}
+              onClick={() => update({ theme: mode })}
+            >
+              <span className="ns-theme-thumbnail" aria-hidden="true">
+                <i />
+                <b />
+                <em />
+                <em />
+              </span>
+              <span className="ns-theme-name">
+                {name}
+                {selected && <Icon name="check" size={16} />}
+              </span>
+              <small>{description}</small>
+            </button>
+          )
+        })}
       </div>
       {appearance.theme === "custom" && (
         <div className="ns-preference-group">
@@ -249,26 +303,37 @@ function AppearanceDialog({ onClose }: { onClose: () => void }) {
           <span>{ru ? "Мягко" : "Soft"}</span>
         </div>
       </div>
-      <label className="ns-motion-control">
-        <span>
-          <b>{ru ? "Живой интерфейс" : "Interface motion"}</b>
-          <small>
-            {ru
-              ? "Маскот, переходы и реакции на наведение"
-              : "Mascot, transitions and hover responses"}
-          </small>
-        </span>
-        <input
-          type="checkbox"
-          checked={appearance.motion}
-          onChange={(e) => update({ motion: e.target.checked })}
-        />
-      </label>
-      <p className="ns-preference-note">
-        {ru
-          ? "Выбор сохраняется в этом браузере. Системное уменьшение движения имеет приоритет."
-          : "Saved in this browser. Your device’s reduced motion setting takes priority."}
-      </p>
+      <div className="ns-preference-group">
+        {motionFields.map(({ field, label, options }) => {
+          const id = `${preferencesId}-${field}`
+          const hasMotionHint = field === "motion"
+          return (
+            <Fragment key={field}>
+              <label htmlFor={id}>{label[languageIndex]}</label>
+              <select
+                id={id}
+                className="ns-preference-select"
+                aria-describedby={hasMotionHint ? motionHintId : undefined}
+                value={appearance[field]}
+                onChange={(event) => update({ [field]: event.target.value })}
+              >
+                {options.map(([mode, english, russian]) => (
+                  <option key={mode} value={mode}>
+                    {ru ? russian : english}
+                  </option>
+                ))}
+              </select>
+              {hasMotionHint && (
+                <p id={motionHintId} className="ns-preference-note">
+                  {ru
+                    ? "Полные анимации могут включать яркие вспышки и интенсивное движение."
+                    : "Full motion may include bright flashes and intense movement."}
+                </p>
+              )}
+            </Fragment>
+          )
+        })}
+      </div>
       <label className="ns-motion-control">
         <span>
           <b>{ru ? "Звуки открытия паков" : "Pack opening sounds"}</b>

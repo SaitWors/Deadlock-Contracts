@@ -60,7 +60,16 @@
 /* The document is the one deliberately warm, tactile surface in the signing flow. */
 @media(max-width:1199px){.bureau-nav{display:none}.bureau-menu-toggle{display:grid;place-items:center}.bureau-mobile-nav{display:grid;gap:4px}.bureau-mobile-nav :is(button,a){text-align:left;padding:8px 12px;border-radius:4px}.bureau-mobile-nav :is(button,a)[aria-current]{background:var(--color-elevated)}}
 @media(max-width:600px){.bureau-header-inner{min-height:64px;gap:8px;padding-inline:12px}.bureau-brand img{width:112px}.bureau-account{gap:8px}.bureau-account .dc-companion-chip{display:none!important}.bureau-account .btn-primary{padding:10px;font-size:.75rem}.bureau-account .dc-language-switch{display:none}.bureau-mobile-preferences{padding:12px}.bureau-mobile-nav{max-height:calc(100svh - 64px)}}
-@media(prefers-reduced-motion:reduce){.bureau-public *,.bureau-public *::before,.bureau-public *::after,.bureau-app *,.bureau-app *::before,.bureau-app *::after{animation:none!important;transition:none!important;scroll-behavior:auto!important}.bureau-public .reveal-section,.bureau-public .stagger-children>*{opacity:1!important;transform:none!important}.bureau-public .contract-card,.bureau-app .dc-motion-contract-card{transform:none!important}}
+html[data-motion="reduced"] :is(.bureau-public .contract-card,.bureau-app .dc-motion-contract-card){transform:none!important}
+
+/* Honour the system before the appearance provider sets the effective site preference. */
+@media(prefers-reduced-motion:reduce){
+  html:not([data-motion]),html:not([data-motion]) :is(.bureau-public,.bureau-app) *,
+  html:not([data-motion]) :is(.bureau-public,.bureau-app) *::before,
+  html:not([data-motion]) :is(.bureau-public,.bureau-app) *::after{
+    animation:none!important;transition:none!important;scroll-behavior:auto!important
+  }
+}
 
 .bureau-mobile-preferences{display:flex;align-items:center;justify-content:space-between;gap:16px;border-top:1px solid var(--color-border);padding-top:12px}
 .bureau-app .dc-mobile-bottom-nav>button span{font:600 .75rem/1.2 var(--font-display);letter-spacing:0;white-space:normal;overflow-wrap:anywhere}

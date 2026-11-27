@@ -602,23 +602,9 @@ body {
 
 /* Responsive parity with the landing board. */
 
-/* Respect the OS motion preference. The visual state remains, motion is reduced. */
-@media (prefers-reduced-motion: reduce){
-  html{scroll-behavior:auto!important}
-  body.custom-cursor *{cursor:auto!important}
-  .dc-v3 .neon-text,.dc-v3 .btn-primary:after{
-    animation:none!important
-  }
-  .dc-v3 .dc-workspace>section{
-    animation:none!important;transform:none!important;filter:none!important
-  }
-  .dc-v3 .dc-primary,.dc-v3 .dc-ghost{
-    transition:color .15s,border-color .15s,background-color .15s,box-shadow .15s!important
-  }
-  .dc-v3 .dc-primary:hover,.dc-v3 .dc-ghost:hover{
-    transform:none!important
-  }
-}
+/* Keep buttons and content still when the resolved motion preference is reduced. */
+html[data-motion="reduced"] body.custom-cursor *{cursor:auto!important}
+html[data-motion="reduced"] .dc-v3 .dc-workspace>section{transform:none!important;filter:none!important}
 
 /* Landing button treatment for the rest of the authenticated shell. */
 .dc-v3 .dc-primary:after{content:"";position:absolute;inset:0;background:linear-gradient(105deg,transparent 35%,rgba(255,255,255,.13) 50%,transparent 65%);
@@ -630,10 +616,7 @@ body {
 .dc-v3 .dc-primary:hover:not(:disabled){transform:translateY(-2px);box-shadow:0 0 28px rgba(122,179,132,.5),0 0 58px rgba(122,179,132,.16),0 10px 24px rgba(0,0,0,.36)}
 .dc-v3 .dc-ghost:hover:not(:disabled){transform:translateY(-3px) scale(1.025);box-shadow:0 0 16px rgba(59,81,69,.5),0 8px 20px rgba(0,0,0,.28)}
 
-@media (prefers-reduced-motion: reduce){
-  .dc-v3 .dc-page-head h1:hover{animation:none!important}
-  .dc-v3 .dc-primary:hover:not(:disabled),.dc-v3 .dc-ghost:hover:not(:disabled){transform:none!important}
-}
+html[data-motion="reduced"] .dc-v3 :is(.dc-primary,.dc-ghost):is(:hover,:active):not(:disabled){transform:none!important}
 .dc-v3 .dc-auth-menu-toggle.active i:nth-child(1){transform:translateY(5px) rotate(45deg)}
 .dc-v3 .dc-auth-menu-toggle.active i:nth-child(2){opacity:0}
 .dc-v3 .dc-auth-menu-toggle.active i:nth-child(3){transform:translateY(-5px) rotate(-45deg)}
@@ -678,7 +661,6 @@ body {
 .dc-v3 .dc-companion-state.online{border-color:#48785a;color:#8fd79e;background:rgba(49,107,67,.13)}
 
 @media(max-width:900px){.dc-v3 .dc-companion-chip{display:none}}
-@media(prefers-reduced-motion:reduce){.dc-v3 .dc-companion-chip.online i,.dc-v3 .dc-companion-state.online i{animation:none!important}}
 
 
 /* Deadlines / case lifetime */

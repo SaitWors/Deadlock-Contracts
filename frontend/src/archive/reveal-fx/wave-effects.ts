@@ -29,7 +29,6 @@ function outline(name: string, sides: number, turn: number) {
 export const WAVE_EFFECTS = [
   {
     name: "shockwave",
-    kind: "wave",
     // One thick ring thrown out from the card, thinning as it goes.
     seconds: 1.1,
     play: (stage, tl) => {
@@ -45,7 +44,6 @@ export const WAVE_EFFECTS = [
   },
   {
     name: "ripples",
-    kind: "wave",
     // Three thin rings one after another, as on water.
     seconds: 1.7,
     play: (stage, tl) => {
@@ -70,7 +68,6 @@ export const WAVE_EFFECTS = [
   },
   {
     name: "pulse",
-    kind: "wave",
     // A filled disc with a bright edge that swells out and thins to nothing.
     seconds: 0.9,
     play: (stage, tl) => {
@@ -81,21 +78,18 @@ export const WAVE_EFFECTS = [
   },
   {
     name: "hex",
-    kind: "wave",
     // A six-sided outline that opens, turns a notch and fades, with a second one behind it.
     seconds: 1.2,
     play: outline("hex", 6, 30),
   },
   {
     name: "diamond",
-    kind: "wave",
     // The same, cut as a diamond: sharper, and it turns a quarter as it goes.
     seconds: 1.2,
     play: outline("diamond", 4, 90),
   },
   {
     name: "slam",
-    kind: "wave",
     // A ring that spreads flat along the floor under the card, as if it had been dropped there.
     seconds: 0.9,
     play: (stage, tl) => {
@@ -118,7 +112,6 @@ export const WAVE_EFFECTS = [
   },
   {
     name: "converge",
-    kind: "wave",
     // Rings closing in on the card from outside. A wind-up, the opposite of a shockwave.
     seconds: 1,
     play: (stage, tl) => {
@@ -142,7 +135,6 @@ export const WAVE_EFFECTS = [
   },
   {
     name: "echo",
-    kind: "wave",
     // The card's own outline, three times over, each one larger and fainter than the last.
     seconds: 1.4,
     play: (stage, tl) => {
@@ -161,7 +153,6 @@ export const WAVE_EFFECTS = [
   },
   {
     name: "nova",
-    kind: "wave",
     // A disc of white light that bursts, hollows from the middle and leaves as a ring.
     seconds: 1,
     play: (stage, tl) => {

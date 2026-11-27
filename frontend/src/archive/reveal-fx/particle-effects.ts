@@ -27,7 +27,6 @@ const around =
 export const PARTICLE_EFFECTS = [
   {
     name: "sparks",
-    kind: "particles",
     // A ring of lit squares thrown hard and slowing fast, the way the card's own burst does.
     seconds: 1.3,
     play: (stage, tl) => {
@@ -49,7 +48,6 @@ export const PARTICLE_EFFECTS = [
   },
   {
     name: "embers",
-    kind: "particles",
     // Small hot lights lifting off the card, drifting and flickering out on the way up.
     seconds: 3.4,
     play: (stage, tl) => {
@@ -76,7 +74,6 @@ export const PARTICLE_EFFECTS = [
   },
   {
     name: "stardust",
-    kind: "particles",
     // Four-pointed stars easing outward and twinkling as they slow.
     seconds: 2.6,
     play: (stage, tl) => {
@@ -100,7 +97,6 @@ export const PARTICLE_EFFECTS = [
   },
   {
     name: "shards",
-    kind: "particles",
     // Splinters of glass with one lit facet each, spinning as they fall.
     seconds: 1.7,
     play: (stage, tl) => {
@@ -122,7 +118,6 @@ export const PARTICLE_EFFECTS = [
   },
   {
     name: "comets",
-    kind: "particles",
     // A handful of bright heads with tapering tails, fired outward.
     seconds: 1.1,
     play: (stage, tl) => {
@@ -143,7 +138,6 @@ export const PARTICLE_EFFECTS = [
   },
   {
     name: "spiral",
-    kind: "particles",
     // Three arms of light winding out from behind the card like a small galaxy.
     seconds: 2.2,
     play: (stage, tl) => {
@@ -175,7 +169,6 @@ export const PARTICLE_EFFECTS = [
   },
   {
     name: "fireflies",
-    kind: "particles",
     // Slow lights wandering around the card, each pulsing at its own pace.
     seconds: 3.8,
     play: (stage, tl) => {
@@ -199,7 +192,6 @@ export const PARTICLE_EFFECTS = [
   },
   {
     name: "orbit",
-    kind: "particles",
     // Lights circling the card on a tilted ring, tightening as they fade.
     seconds: 2.6,
     play: (stage, tl) => {
@@ -225,7 +217,6 @@ export const PARTICLE_EFFECTS = [
   },
   {
     name: "implosion",
-    kind: "particles",
     // Streaks drawn in from all around to the card's middle. A charge, best before something louder.
     seconds: 0.95,
     play: (stage, tl) => {
@@ -256,7 +247,6 @@ export const PARTICLE_EFFECTS = [
   },
   {
     name: "smoke",
-    kind: "particles",
     // Soft puffs in the tier's colour swelling and thinning out behind the card.
     seconds: 2.4,
     play: (stage, tl) => {
@@ -280,7 +270,6 @@ export const PARTICLE_EFFECTS = [
   },
   {
     name: "dust",
-    kind: "particles",
     // A low cloud kicked out sideways from the card's foot, as if it had landed hard.
     seconds: 1.5,
     play: (stage, tl) => {

@@ -33,7 +33,6 @@ const asPoints = (points: readonly Point[]) =>
 export const LIGHT_EFFECTS = [
   {
     name: "rays",
-    kind: "light",
     // The wheel of rays a loud card opens behind itself, turning slowly.
     seconds: 2.6,
     play: (stage, tl) => {
@@ -51,7 +50,6 @@ export const LIGHT_EFFECTS = [
   },
   {
     name: "beams",
-    kind: "light",
     // A few broad, soft shafts of light sweeping past each other in two layers.
     seconds: 3,
     play: (stage, tl) => {
@@ -70,7 +68,6 @@ export const LIGHT_EFFECTS = [
   },
   {
     name: "halo",
-    kind: "light",
     // A soft ring of light around the card that breathes a few times and lets go.
     seconds: 2.4,
     play: (stage, tl) => {
@@ -88,7 +85,6 @@ export const LIGHT_EFFECTS = [
   },
   {
     name: "flare",
-    kind: "light",
     // A wide streak through a hot core, with two ghosts sliding out along it, as through a lens.
     seconds: 1.5,
     play: (stage, tl) => {
@@ -142,7 +138,6 @@ export const LIGHT_EFFECTS = [
   },
   {
     name: "spotlight",
-    kind: "light",
     // A cone of light from the top of the stage that finds the card, sways and settles on it.
     seconds: 2.6,
     play: (stage, tl) => {
@@ -160,7 +155,6 @@ export const LIGHT_EFFECTS = [
   },
   {
     name: "sunburst",
-    kind: "light",
     // Needle-thin spikes shot outward once, like light off a blade.
     seconds: 0.9,
     play: (stage, tl) => {
@@ -175,7 +169,6 @@ export const LIGHT_EFFECTS = [
   },
   {
     name: "starburst",
-    kind: "light",
     // A four-pointed star that snaps open, turns a little and closes: the glint on something precious.
     seconds: 0.95,
     play: (stage, tl) => {
@@ -194,7 +187,6 @@ export const LIGHT_EFFECTS = [
   },
   {
     name: "pillar",
-    kind: "light",
     // A column of light through the card from the top of the stage to the bottom, the beam over rare loot.
     seconds: 2,
     play: (stage, tl) => {
@@ -223,7 +215,6 @@ export const LIGHT_EFFECTS = [
   },
   {
     name: "lightning",
-    kind: "light",
     // Jagged bolts out of the card that strike, vanish and strike again along new paths.
     seconds: 0.62,
     play: (stage, tl) => {
@@ -256,17 +247,16 @@ export const LIGHT_EFFECTS = [
       strike()
       tl.set(svg, { opacity: 1 }, 0)
       tl.set(svg, { opacity: 0 }, 0.08)
-      tl.call(strike, undefined, 0.1)
+      tl.call(strike, 0.1)
       tl.set(svg, { opacity: 1 }, 0.12)
       tl.set(svg, { opacity: 0.35 }, 0.2)
-      tl.call(strike, undefined, 0.24)
+      tl.call(strike, 0.24)
       tl.set(svg, { opacity: 1 }, 0.26)
       tl.to(svg, { opacity: 0, duration: 0.3, ease: "power1.in" }, 0.32)
     },
   },
   {
     name: "rim",
-    kind: "light",
     // The card's own outline, lit hot from behind, pulsing twice.
     seconds: 1.6,
     play: (stage, tl) => {
@@ -284,7 +274,6 @@ export const LIGHT_EFFECTS = [
   },
   {
     name: "frost",
-    kind: "light",
     // A six-armed ice crystal that grows out from behind the card, turns a notch and melts away.
     seconds: 2,
     play: (stage, tl) => {
@@ -325,30 +314,29 @@ export const LIGHT_EFFECTS = [
   },
   {
     name: "sigil",
-    kind: "light",
     // A circle of power drawn behind the card: two rings, a six-pointed star and a second seal turning against it.
     seconds: 2.6,
     play: (stage, tl) => {
       const ticks = Array.from({ length: 24 }, (_unused, index) => {
         const angle = (index / 24) * TAU
         const from = index % 2 === 0 ? 84 : 88
-        return `<line class="rco-fx-sigil-line" x1="${(Math.cos(angle) * from).toFixed(1)}" y1="${(Math.sin(angle) * from).toFixed(1)}" x2="${(Math.cos(angle) * 94).toFixed(1)}" y2="${(Math.sin(angle) * 94).toFixed(1)}" vector-effect="non-scaling-stroke" />`
+        return `<line class="rco-fx-sigil-line" x1="${(Math.cos(angle) * from).toFixed(1)}" y1="${(Math.sin(angle) * from).toFixed(1)}" x2="${(Math.cos(angle) * 94).toFixed(1)}" y2="${(Math.sin(angle) * 94).toFixed(1)}" />`
       }).join("")
       const outer = figure(
         stage,
         "sigil",
-        `<circle class="rco-fx-sigil-line" r="98" vector-effect="non-scaling-stroke" />
-         <circle class="rco-fx-sigil-dash" r="80" vector-effect="non-scaling-stroke" />
+        `<circle class="rco-fx-sigil-line" r="98" />
+         <circle class="rco-fx-sigil-dash" r="80" />
          ${ticks}
-         <polygon class="rco-fx-sigil-line" points="${corners(3, 80)}" vector-effect="non-scaling-stroke" />
-         <polygon class="rco-fx-sigil-line" points="${corners(3, 80)}" transform="rotate(180)" vector-effect="non-scaling-stroke" />`,
+         <polygon class="rco-fx-sigil-line" points="${corners(3, 80)}" />
+         <polygon class="rco-fx-sigil-line" points="${corners(3, 80)}" transform="rotate(180)" />`,
       )
       const inner = figure(
         stage,
         "sigil rco-fx-sigil-inner",
-        `<circle class="rco-fx-sigil-line" r="96" vector-effect="non-scaling-stroke" />
-         <polygon class="rco-fx-sigil-dash" points="${corners(4, 96)}" vector-effect="non-scaling-stroke" />
-         <polygon class="rco-fx-sigil-line" points="${corners(4, 96)}" transform="rotate(45)" vector-effect="non-scaling-stroke" />`,
+        `<circle class="rco-fx-sigil-line" r="96" />
+         <polygon class="rco-fx-sigil-dash" points="${corners(4, 96)}" />
+         <polygon class="rco-fx-sigil-line" points="${corners(4, 96)}" transform="rotate(45)" />`,
       )
       tl.fromTo(
         outer,
@@ -369,7 +357,6 @@ export const LIGHT_EFFECTS = [
   },
   {
     name: "cracks",
-    kind: "light",
     // The air around the card splits: glowing fractures race outward, fork, and burn out slowly.
     seconds: 1.9,
     play: (stage, tl) => {
@@ -396,12 +383,17 @@ export const LIGHT_EFFECTS = [
         lines[index]?.setAttribute("points", asPoints(main))
         lines[count + index]?.setAttribute("points", asPoints(fork))
       }
-      // They are there in an instant and spread a little as they open. Then the light drains out of them.
-      tl.fromTo(svg, { opacity: 1, scale: 0.55 }, { scale: 1, duration: 0.16, ease: "expo.out" }, 0)
-      tl.to(svg, { scale: 1.06, duration: 1.7, ease: "none" }, 0.16)
-      tl.to(svg, { opacity: 0.55, duration: 0.12 }, 0.2)
-      tl.to(svg, { opacity: 1, duration: 0.08 }, 0.36)
-      tl.to(svg, { opacity: 0, duration: 1.3, ease: "power2.in" }, 0.55)
+      // Wind up as faint fissures. The same branching lines spread when the card turns.
+      const charge = stage.chargeSeconds ?? 0
+      const split = charge + 0.12
+      tl.fromTo(
+        svg,
+        { opacity: 0, scale: 0.52 },
+        { opacity: 0.55, scale: 0.78, duration: charge, ease: "power2.out" },
+        0,
+      )
+      tl.to(svg, { opacity: 0.93, scale: 1, duration: 0.21, ease: "expo.out" }, split)
+      tl.to(svg, { opacity: 0, scale: 1.1, duration: 0.77, ease: "power1.in" }, split + 0.21)
     },
   },
 ] as const satisfies readonly Effect[]

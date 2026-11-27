@@ -162,10 +162,14 @@ svg.rco-fx {
   width: calc(3.4 * var(--fx-size));
 }
 
+.rco-fx-play[data-wide] .rco-fx-rays {
+  scale: var(--fx-zoom) calc(.72 * var(--fx-zoom));
+}
+
 .rco-fx-rays-light {
   background: repeating-conic-gradient(
     from 0deg,
-    rgb(var(--fx-rgb) / 0.38) 0deg 7deg,
+    color-mix(in srgb, var(--fx-tone) 38%, transparent) 0deg 7deg,
     #0000 7deg 20deg
   );
   -webkit-mask-image: radial-gradient(circle, black 10%, #0000 66%);
@@ -181,13 +185,13 @@ svg.rco-fx {
   background: conic-gradient(
     from 0deg,
     #0000 0% 4%,
-    rgb(var(--fx-rgb) / 0.46) 10%,
+    color-mix(in srgb, var(--fx-tone) 46%, transparent) 10%,
     #0000 17% 29%,
-    rgb(var(--fx-rgb) / 0.3) 36%,
+    color-mix(in srgb, var(--fx-tone) 30%, transparent) 36%,
     #0000 44% 54%,
-    rgb(var(--fx-rgb) / 0.52) 61%,
+    color-mix(in srgb, var(--fx-tone) 52%, transparent) 61%,
     #0000 69% 79%,
-    rgb(var(--fx-rgb) / 0.28) 87%,
+    color-mix(in srgb, var(--fx-tone) 28%, transparent) 87%,
     #0000 95%
   );
   -webkit-mask-image: radial-gradient(circle, black 0%, #0000 68%);
@@ -202,9 +206,9 @@ svg.rco-fx {
   background: radial-gradient(
     circle,
     #0000 36%,
-    rgb(var(--fx-rgb) / 0.2) 43%,
+    color-mix(in srgb, var(--fx-tone) 20%, transparent) 43%,
     color-mix(in oklch, var(--fx-tone) 78%, white) 51%,
-    rgb(var(--fx-rgb) / 0.28) 59%,
+    color-mix(in srgb, var(--fx-tone) 28%, transparent) 59%,
     #0000 72%
   );
 }
@@ -220,9 +224,9 @@ svg.rco-fx {
   background: linear-gradient(
     90deg,
     #0000,
-    rgb(var(--fx-rgb) / 0.6) 25%,
+    color-mix(in srgb, var(--fx-tone) 60%, transparent) 25%,
     white 50%,
-    rgb(var(--fx-rgb) / 0.6) 75%,
+    color-mix(in srgb, var(--fx-tone) 60%, transparent) 75%,
     #0000
   );
 
@@ -236,9 +240,9 @@ svg.rco-fx {
   background: linear-gradient(
     180deg,
     #0000,
-    rgb(var(--fx-rgb) / 0.6) 30%,
+    color-mix(in srgb, var(--fx-tone) 60%, transparent) 30%,
     white 50%,
-    rgb(var(--fx-rgb) / 0.6) 70%,
+    color-mix(in srgb, var(--fx-tone) 60%, transparent) 70%,
     #0000
   );
   -webkit-mask-image: linear-gradient(90deg, #0000 0%, black 38%, black 62%, #0000 100%);
@@ -251,7 +255,7 @@ svg.rco-fx {
     circle,
     white 0%,
     var(--fx-highlight) 14%,
-    rgb(var(--fx-rgb) / 0.4) 34%,
+    color-mix(in srgb, var(--fx-tone) 40%, transparent) 34%,
     #0000 68%
   );
 }
@@ -261,8 +265,8 @@ svg.rco-fx {
   background: radial-gradient(
     circle,
     #0000 42%,
-    rgb(var(--fx-rgb) / 0.45) 58%,
-    rgb(var(--fx-accent-rgb) / 0.3) 66%,
+    color-mix(in srgb, var(--fx-tone) 45%, transparent) 58%,
+    color-mix(in srgb, var(--fx-accent) 30%, transparent) 66%,
     #0000 72%
   );
 }
@@ -304,9 +308,9 @@ svg.rco-fx {
   width: calc(2.8 * var(--fx-size));
   background: radial-gradient(
     circle,
-    rgb(var(--fx-rgb) / 0.62) 0%,
-    rgb(var(--fx-rgb) / 0.26) 14%,
-    rgb(var(--fx-rgb) / 0.08) 30%,
+    color-mix(in srgb, var(--fx-tone) 62%, transparent) 0%,
+    color-mix(in srgb, var(--fx-tone) 26%, transparent) 14%,
+    color-mix(in srgb, var(--fx-tone) 8%, transparent) 30%,
     #0000 46%
   );
 }
@@ -339,11 +343,11 @@ svg.rco-fx {
   background: linear-gradient(
     90deg,
     #0000 0%,
-    rgb(var(--fx-rgb) / 0.22) 22%,
+    color-mix(in srgb, var(--fx-tone) 22%, transparent) 22%,
     color-mix(in oklch, var(--fx-tone) 62%, white) 44%,
     white 50%,
     color-mix(in oklch, var(--fx-tone) 62%, white) 56%,
-    rgb(var(--fx-rgb) / 0.22) 78%,
+    color-mix(in srgb, var(--fx-tone) 22%, transparent) 78%,
     #0000 100%
   );
   -webkit-mask-image: linear-gradient(180deg, #0000 0%, black 16%, black 84%, #0000 100%);
@@ -366,7 +370,7 @@ svg.rco-fx {
   box-shadow:
     0 0 0 calc(0.012 * var(--fx-size)) color-mix(in oklch, var(--fx-tone) 55%, white),
     0 0 calc(0.1 * var(--fx-size)) calc(0.045 * var(--fx-size)) var(--fx-tone),
-    0 0 calc(0.5 * var(--fx-size)) calc(0.16 * var(--fx-size)) rgb(var(--fx-rgb) / 0.55);
+    0 0 calc(0.5 * var(--fx-size)) calc(0.16 * var(--fx-size)) color-mix(in srgb, var(--fx-tone) 55%, transparent);
 }
 
 .rco-fx-frost {
@@ -384,6 +388,11 @@ svg.rco-fx {
 
 .rco-fx-sigil-inner {
   width: calc(2.06 * var(--fx-size));
+}
+
+.rco-fx-sigil-line,
+.rco-fx-sigil-dash {
+  vector-effect: non-scaling-stroke;
 }
 
 .rco-fx-sigil-line {
@@ -417,12 +426,12 @@ svg.rco-fx {
   background: radial-gradient(
     circle closest-side,
     #0000 calc(var(--fx-inner) - 12%),
-    rgb(var(--fx-rgb) / 0.14) calc(var(--fx-inner) - 5%),
-    rgb(var(--fx-rgb) / 0.52) calc(var(--fx-inner) - 0.5%),
+    color-mix(in srgb, var(--fx-tone) 14%, transparent) calc(var(--fx-inner) - 5%),
+    color-mix(in srgb, var(--fx-tone) 52%, transparent) calc(var(--fx-inner) - 0.5%),
     var(--fx-highlight) var(--fx-inner),
     var(--fx-highlight) 76.6%,
-    rgb(var(--fx-rgb) / 0.52) 77.2%,
-    rgb(var(--fx-rgb) / 0.14) 83%,
+    color-mix(in srgb, var(--fx-tone) 52%, transparent) 77.2%,
+    color-mix(in srgb, var(--fx-tone) 14%, transparent) 83%,
     #0000 92%
   );
 
@@ -451,8 +460,8 @@ svg.rco-fx {
     #0000 84.6%,
     color-mix(in oklch, var(--fx-tone) 75%, white) 85.3%,
     color-mix(in oklch, var(--fx-tone) 75%, white) 87.5%,
-    rgb(var(--fx-rgb) / 0.3) 88.1%,
-    rgb(var(--fx-rgb) / 0.09) 91.5%,
+    color-mix(in srgb, var(--fx-tone) 30%, transparent) 88.1%,
+    color-mix(in srgb, var(--fx-tone) 9%, transparent) 91.5%,
     #0000 96%
   );
 }
@@ -462,8 +471,8 @@ svg.rco-fx {
   border-radius: 9999px;
   background: radial-gradient(
     circle,
-    rgb(var(--fx-rgb) / 0.08) 0%,
-    rgb(var(--fx-rgb) / 0.34) 52%,
+    color-mix(in srgb, var(--fx-tone) 8%, transparent) 0%,
+    color-mix(in srgb, var(--fx-tone) 34%, transparent) 52%,
     color-mix(in oklch, var(--fx-tone) 60%, white) 67%,
     #0000 70%
   );
@@ -503,7 +512,7 @@ svg.rco-fx {
   background: radial-gradient(
     ellipse,
     white 0%,
-    rgb(var(--fx-rgb) / 0.6) 30%,
+    color-mix(in srgb, var(--fx-tone) 60%, transparent) 30%,
     #0000 70%
   );
 }
@@ -515,7 +524,7 @@ svg.rco-fx {
   opacity: 0;
   box-shadow:
     inset 0 0 0 max(1.5px, calc(0.01 * var(--fx-size))) var(--fx-highlight),
-    0 0 calc(0.08 * var(--fx-size)) rgb(var(--fx-rgb) / 0.55);
+    0 0 calc(0.08 * var(--fx-size)) color-mix(in srgb, var(--fx-tone) 55%, transparent);
 }
 
 .rco-fx-nova {
@@ -529,7 +538,7 @@ svg.rco-fx {
     #0000 var(--fx-edge),
     white calc(var(--fx-edge) + 2%),
     color-mix(in oklch, var(--fx-tone) 60%, white) calc(var(--fx-edge) + 7%),
-    rgb(var(--fx-rgb) / 0.45) calc(var(--fx-edge) + 13%),
+    color-mix(in srgb, var(--fx-tone) 45%, transparent) calc(var(--fx-edge) + 13%),
     #0000 calc(var(--fx-edge) + 20%)
   );
 }
@@ -542,7 +551,7 @@ svg.rco-fx {
   background: radial-gradient(
     ellipse at 50% 50%,
     #0000 40%,
-    rgb(var(--fx-rgb) / 0.38) 76%,
+    color-mix(in srgb, var(--fx-tone) 38%, transparent) 76%,
     color-mix(in oklch, var(--fx-tone) 70%, black) 100%
   );
 }
@@ -554,27 +563,27 @@ svg.rco-fx {
   will-change: transform, opacity;
   mix-blend-mode: screen;
   background: radial-gradient(
-    circle at var(--fx-cx) var(--fx-cy),
-    rgb(var(--fx-rgb) / 0.95) 0%,
-    rgb(var(--fx-rgb) / 0.45) 30%,
+    circle at calc(var(--fx-x) / var(--fx-zoom)) calc(var(--fx-y) / var(--fx-zoom)),
+    color-mix(in srgb, var(--fx-tone) 95%, transparent) 0%,
+    color-mix(in srgb, var(--fx-tone) 45%, transparent) 30%,
     #0000 66%
   );
 }
 
 .rco-fx-chroma-other {
   background: radial-gradient(
-    circle at var(--fx-cx) var(--fx-cy),
-    rgb(var(--fx-accent-rgb) / 0.95) 0%,
-    rgb(var(--fx-accent-rgb) / 0.45) 30%,
+    circle at calc(var(--fx-x) / var(--fx-zoom)) calc(var(--fx-y) / var(--fx-zoom)),
+    color-mix(in srgb, var(--fx-accent) 95%, transparent) 0%,
+    color-mix(in srgb, var(--fx-accent) 45%, transparent) 30%,
     #0000 66%
   );
 }
 
 /* Alpha mask from the project's original Ritual contract seal (PR #55). */
 .rco-fx-patron-seal {
-  width: calc(var(--fx-size) * 1.96);
+  width: min(calc(var(--fx-size) * 2.35), calc(96vw / var(--fx-zoom)), calc(94dvh / var(--fx-zoom)));
   aspect-ratio: 400 / 395;
-  background: radial-gradient(circle, var(--fx-accent) 22%, var(--fx-tone) 68%, var(--fx-accent));
+  background: radial-gradient(circle, var(--fx-accent) 22%, var(--fx-tone) 56%, var(--fx-accent) 83%);
   mask: url("./patron-seal.webp") center / contain no-repeat;
 }
 
@@ -583,10 +592,9 @@ svg.rco-fx {
   aspect-ratio: 1;
 }
 
-.rco-fx-archive-seal :is(ellipse, path) {
-  fill: none;
-  stroke: var(--fx-accent);
-  stroke-width: 1.2;
+.rco-fx-archive-seal-line {
+  stroke: var(--fx-ink, var(--fx-accent));
+  stroke-width: calc(1.2px + var(--fx-wide, 0px));
 }
 
 .rco-fx-beams-back {
@@ -598,11 +606,11 @@ svg.rco-fx {
   background: conic-gradient(
     from 40deg,
     #0000 0% 12%,
-    rgb(var(--fx-accent-rgb) / 0.34) 19%,
+    color-mix(in srgb, var(--fx-accent) 34%, transparent) 19%,
     #0000 27% 48%,
-    rgb(var(--fx-accent-rgb) / 0.26) 56%,
+    color-mix(in srgb, var(--fx-accent) 26%, transparent) 56%,
     #0000 64% 82%,
-    rgb(var(--fx-accent-rgb) / 0.3) 90%,
+    color-mix(in srgb, var(--fx-accent) 30%, transparent) 90%,
     #0000 97%
   );
 }

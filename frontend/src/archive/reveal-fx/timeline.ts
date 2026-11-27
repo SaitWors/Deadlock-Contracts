@@ -15,7 +15,7 @@ export type EffectTimeline = {
   set: (targets: Targets, values: TweenValues, at: number) => void
   to: (targets: Targets, values: TweenValues, at: number) => void
   fromTo: (targets: Targets, from: TweenValues, to: TweenValues, at: number) => void
-  call: (callback: () => void, params: undefined, at: number) => void
+  call: (callback: () => void, at: number) => void
 }
 
 type Tween = {
@@ -35,15 +35,13 @@ function easing(name = "power1.out"): Ease {
   if (name === "none") return IDENTITY
   if (name === "expo.out") return (progress) => (progress === 1 ? 1 : 1 - 2 ** (-10 * progress))
   if (name === "sine.inOut") return (progress) => (1 - Math.cos(progress * Math.PI)) / 2
-  const back = /back\.out\(([^)]+)\)/.exec(name)
-  if (back) {
-    const overshoot = Number(back[1])
+  if (name.startsWith("back.out(")) {
+    const overshoot = Number(name.slice(9, -1))
     return (progress) => 1 + (progress - 1) ** 2 * ((overshoot + 1) * (progress - 1) + overshoot)
   }
-  const power = /power([1-4])\.(in|out)/.exec(name)
-  if (!power) return IDENTITY
-  const exponent = Number(power[1]) + 1
-  return power[2] === "in"
+  if (!name.startsWith("power")) return IDENTITY
+  const exponent = Number(name[5]) + 1
+  return name.endsWith(".in")
     ? (progress) => progress ** exponent
     : (progress) => 1 - (1 - progress) ** exponent
 }
@@ -115,7 +113,7 @@ export function runTimeline(
     set: (nodes, values, at) => enqueue(nodes, values, values, at),
     to: (nodes, values, at) => enqueue(nodes, {}, values, at),
     fromTo: enqueue,
-    call: (callback, _params, at) => {
+    call: (callback, at) => {
       calls.push({ at, callback })
       end = Math.max(end, at)
     },
@@ -133,7 +131,7 @@ export function runTimeline(
       const opacity = get("opacity")
       const scale = get("scale") ?? 1
       if (opacity !== undefined) node.style.opacity = String(opacity)
-      node.style.transform = `translate(${get("x") ?? 0}px, ${get("y") ?? 0}px) rotate(${get("rotate") ?? 0}deg) scale(${scale * (get("scaleX") ?? 1)}, ${scale * (get("scaleY") ?? 1)})`
+      node.style.transform = `translateX(${get("x") ?? 0}px) rotate(${get("rotate") ?? 0}deg) scale(${scale * (get("scaleX") ?? 1)}, ${scale * (get("scaleY") ?? 1)})`
       for (const [property, track] of tracks) {
         if (!property.startsWith("--")) continue
         const value = valueAt(track, at)
