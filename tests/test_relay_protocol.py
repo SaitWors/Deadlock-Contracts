@@ -393,7 +393,7 @@ def test_manager_accepts_only_eligible_incoming_and_recovers_a_lost_steam_reply(
     factory, player = relay
     _, user = steam_player(factory, player, "Registered", 23456)
     suspended_id, _ = steam_player(factory, player, "Suspended", 34567)
-    steam_player(factory, player, "Existing friend with no consent", 45678)
+    _, existing_friend = steam_player(factory, player, "Existing friend with no consent", 45678)
     with factory.begin() as db:
         db.get(User, suspended_id).status = "SUSPENDED"
     monkeypatch.setattr(relay_protocol, "settings",
@@ -473,3 +473,10 @@ def test_manager_accepts_only_eligible_incoming_and_recovers_a_lost_steam_reply(
     assert user.delete(PROFILE).status_code == 200
     assert second.sync_enrollment(now + timedelta(minutes=2), [], steam, collector) is None
     assert protocol.read_json(collector)["accounts"] == []
+
+    # The existing friend appears only after explicit consent and needs no Steam accept action.
+    assert existing_friend.put(PROFILE).json()["connection"]["status"] == "pending"
+    assert second.sync_enrollment(now + timedelta(minutes=3), [], steam, collector) is None
+    assert accepted == [steam_id]
+    assert protocol.read_json(collector)["accounts"] == [45678]
+    assert existing_friend.get(PROFILE).json()["connection"]["status"] == "connected"

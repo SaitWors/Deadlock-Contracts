@@ -228,6 +228,16 @@ export default function ContractRelay({
                   {ru ? "Добавить в друзья Steam" : "Add on Steam"}
                 </a>
               ))}
+            {!connection && (
+              <button
+                type="button"
+                className="dc-ghost"
+                disabled={busy}
+                onClick={() => void update("join")}
+              >
+                {ru ? "Я уже в друзьях, согласен участвовать" : "Already friends? Opt in"}
+              </button>
+            )}
             {connection && (
               <button
                 type="button"
