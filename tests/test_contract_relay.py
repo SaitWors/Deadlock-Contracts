@@ -10,6 +10,7 @@ from test_player_community import community
 
 
 PROFILE = "/api/profile/contract-relay"
+OPEN_QUICK_INVITE = f"{PROFILE}/quick-invite"
 QUICK_INVITE = "https://s.team/p/abcd-efgh/AbC123XY"
 STEAM_PROFILE = "https://steamcommunity.com/id/deadlock-contracts-relay/"
 
@@ -127,7 +128,7 @@ def test_quick_invite_is_private_to_current_consent_and_can_be_revoked(community
     assert QUICK_INVITE not in published.text
     assert QUICK_INVITE not in admin.get(admin_url).text
     assert QUICK_INVITE not in outsider.get(PROFILE).text
-    assert outsider.get(f"{PROFILE}/quick-invite", follow_redirects=False).headers["location"] == STEAM_PROFILE
+    assert outsider.post(OPEN_QUICK_INVITE).json()["url"] == STEAM_PROFILE
     assert QUICK_INVITE not in admin.put(outsider_url, json=invite).text
     assert admin.put(outsider_url, json=invite).status_code == 409
 
@@ -135,24 +136,27 @@ def test_quick_invite_is_private_to_current_consent_and_can_be_revoked(community
     assert received.headers["cache-control"] == "private, no-store"
     connection = received.json()["connection"]
     assert QUICK_INVITE not in received.text
-    redirected = client.get(f"{PROFILE}/quick-invite", follow_redirects=False)
-    assert redirected.status_code == 303
-    assert redirected.headers["location"] == QUICK_INVITE
-    assert redirected.headers["cache-control"] == "private, no-store"
-    assert redirected.headers["referrer-policy"] == "no-referrer"
+    assert client.get(OPEN_QUICK_INVITE, follow_redirects=False).status_code == 404
+    csrf = client.headers.pop("X-CSRF-Token")
+    assert client.post(OPEN_QUICK_INVITE).status_code == 403
+    client.headers["X-CSRF-Token"] = csrf
+    invitation = client.post(OPEN_QUICK_INVITE)
+    assert invitation.status_code == 200
+    assert invitation.json() == {"url": QUICK_INVITE}
+    assert invitation.headers["cache-control"] == "private, no-store"
     expires_at = connection["quick_invite_expires_at"]
     assert utcnow() < datetime.fromisoformat(expires_at) <= utcnow() + timedelta(hours=24)
     assert admin.put(invite_url, json=invite).json()["connection"]["quick_invite_expires_at"] == expires_at
 
     assert admin.delete(invite_url).status_code == 200
     assert "quick_invite_expires_at" not in client.get(PROFILE).json()["connection"]
-    assert client.get(f"{PROFILE}/quick-invite", follow_redirects=False).headers["location"] == STEAM_PROFILE
+    assert client.post(OPEN_QUICK_INVITE).json()["url"] == STEAM_PROFILE
     assert admin.delete(invite_url).status_code == 200
     assert admin.put(invite_url, json=invite).status_code == 200
     client.delete(PROFILE)
     assert client.put(PROFILE).json()["connection"]["id"] != opted_in["id"]
     assert admin.put(invite_url, json=invite).status_code == 409
-    assert client.get(f"{PROFILE}/quick-invite", follow_redirects=False).headers["location"] == STEAM_PROFILE
+    assert client.post(OPEN_QUICK_INVITE).json()["url"] == STEAM_PROFILE
     with factory() as db:
         assert all(entry.data == {} for entry in db.scalars(select(AuditLog)).all())
 
@@ -167,14 +171,14 @@ def test_quick_invite_is_hidden_after_expiry_or_friendship_confirmation(communit
     invite_url = f"{review_url}/quick-invite"
     assert admin.put(invite_url, json={"url": QUICK_INVITE}).status_code == 200
     assert admin.patch(review_url, json={"action": "confirm"}).status_code == 200
-    assert client.get(f"{PROFILE}/quick-invite", follow_redirects=False).headers["location"] == STEAM_PROFILE
+    assert client.post(OPEN_QUICK_INVITE).json()["url"] == STEAM_PROFILE
     assert admin.patch(review_url, json={"action": "clear"}).status_code == 200
     with factory() as db:
         db.get(ContractRelayConnection, connection["id"]).quick_invite_expires_at = utcnow() - timedelta(seconds=1)
         db.commit()
-    assert client.get(f"{PROFILE}/quick-invite", follow_redirects=False).headers["location"] == STEAM_PROFILE
+    assert client.post(OPEN_QUICK_INVITE).json()["url"] == STEAM_PROFILE
     assert QUICK_INVITE not in admin.put(invite_url, json={"url": QUICK_INVITE}).text
-    assert client.get(f"{PROFILE}/quick-invite", follow_redirects=False).headers["location"] == STEAM_PROFILE
+    assert client.post(OPEN_QUICK_INVITE).json()["url"] == STEAM_PROFILE
 
 
 @pytest.mark.parametrize("invalid", [

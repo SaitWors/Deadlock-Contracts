@@ -76,6 +76,23 @@ export default function ContractRelay({
     }
   }
 
+  async function openInvite() {
+    setBusy(true)
+    setError("")
+    try {
+      const result = await request<{ url: string }>(`${url}/quick-invite`, csrf, { method: "POST" })
+      const link = document.createElement("a")
+      link.href = result.url
+      link.rel = "noreferrer"
+      link.referrerPolicy = "no-referrer"
+      link.click()
+    } catch (reason) {
+      setError((reason as Error).message)
+    } finally {
+      setBusy(false)
+    }
+  }
+
   const confirmed = connection?.friendship_confirmed_at
   const date = (value: string) =>
     new Intl.DateTimeFormat(language, {
@@ -152,13 +169,14 @@ export default function ContractRelay({
           )}
           {!userId && inviteExpires && (
             <p>
-              <a
-                href={`${url}/quick-invite`}
-                rel="external noreferrer"
-                referrerPolicy="no-referrer"
+              <button
+                type="button"
+                className="dc-ghost"
+                disabled={busy}
+                onClick={() => void openInvite()}
               >
                 {ru ? "Открыть Quick Invite в Steam" : "Open Quick Invite in Steam"}
-              </a>{" "}
+              </button>{" "}
               {ru ? "Доступно до" : "Available until"}{" "}
               <time dateTime={inviteExpires}>{date(inviteExpires)}</time>
             </p>

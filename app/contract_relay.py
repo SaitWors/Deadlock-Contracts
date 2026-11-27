@@ -6,7 +6,6 @@ from typing import Literal
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Response
-from fastapi.responses import RedirectResponse
 from pydantic import BaseModel, ConfigDict, Field, SecretStr
 from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
@@ -38,6 +37,10 @@ class RelayQuickInvite(BaseModel):
     model_config = ConfigDict(extra="forbid", hide_input_in_errors=True)
 
     url: SecretStr = Field(max_length=128)
+
+
+class RelayQuickInviteDestination(BaseModel):
+    url: str
 
 
 def _connection(db: Session, user_id: str) -> ContractRelayConnection | None:
@@ -87,8 +90,10 @@ def get_connection(response: Response, user: User = Depends(require_user), db: S
     return _payload(response, db, _connection(db, user.id), player=True)
 
 
-@player_router.get(PROFILE_PATH + QUICK_INVITE_PATH, response_class=RedirectResponse, status_code=303)
-def open_quick_invite(user: User = Depends(require_user), db: Session = Depends(get_db)) -> RedirectResponse:
+@player_router.post(PROFILE_PATH + QUICK_INVITE_PATH, dependencies=[Depends(require_csrf)])
+def open_quick_invite(
+    response: Response, user: User = Depends(require_user), db: Session = Depends(get_db),
+) -> RelayQuickInviteDestination:
     connection = db.scalar(
         select(ContractRelayConnection).options(undefer(ContractRelayConnection.quick_invite_url))
         .where(ContractRelayConnection.user_id == user.id)
@@ -100,9 +105,8 @@ def open_quick_invite(user: User = Depends(require_user), db: Session = Depends(
         and connection_status(db, connection)["status"] != "connected"
     ):
         destination = connection.quick_invite_url
-    return RedirectResponse(destination, status_code=303, headers={
-        "Cache-Control": "private, no-store", "Referrer-Policy": "no-referrer",
-    })
+    response.headers["Cache-Control"] = "private, no-store"
+    return RelayQuickInviteDestination(url=destination)
 
 
 @player_router.put(PROFILE_PATH, dependencies=[Depends(require_csrf)])
