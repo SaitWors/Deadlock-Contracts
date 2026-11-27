@@ -11,51 +11,67 @@
   transition: opacity .3s ease;
 }
 .card-surface[data-revealed=true] .card-surface-shine {
-  opacity: calc(.2 + var(--shine-active, 0) * .55);
-  animation: card-foil-arrive .9s ease-out;
+  opacity: calc(.10 + var(--shine-active,0) * .43);
+}
+.card-surface[data-material-arrival] .card-surface-shine {
+  animation: card-foil-arrive .5s ease-out;
 }
 .card-surface[data-revealed=true] .card-surface-glare {
-  opacity: calc(.12 + var(--shine-active, 0) * .55);
+  opacity: calc(.06 + var(--shine-active,0) * .34);
 }
-.card-surface-shine { mix-blend-mode: soft-light; }
+.card-surface-shine {
+  mix-blend-mode: soft-light;
+  background-image: var(--material);
+  background-size: 220% 220%;
+  background-position: var(--shine-x,50%) var(--shine-y,50%);
+}
 .card-surface-glare {
-  background: radial-gradient(ellipse at var(--shine-x, 50%) var(--shine-y, 25%), #fffbd2aa, #ffffff18 28%, transparent 66%);
+  background: radial-gradient(ellipse at var(--shine-x,50%) var(--shine-y,25%), #fff5d570, #fff1 24%, transparent 62%);
   mix-blend-mode: screen;
 }
-.card-surface[data-finish=matte] .card-surface-shine { display: none; }
-.card-surface[data-finish=matte] .card-surface-glare { opacity: calc(var(--shine-active, 0) * .2); }
-.card-surface[data-finish=foil] .card-surface-shine {
-  background: repeating-linear-gradient(118deg, #172336 0%, #8ce4d7 14%, #f9df9d 25%, #778ebe 38%, #172336 52%);
-  background-size: 260% 180%;
-  background-position: var(--shine-x, 50%) var(--shine-y, 25%);
-  mix-blend-mode: color-dodge;
+.card-surface[data-material=matte] .card-surface-glare {
+  opacity: calc(var(--shine-active,0) * .18);
 }
-.card-surface[data-finish=holo] .card-surface-shine {
-  background-image: repeating-linear-gradient(128deg, #ec9ddd 0%, #7c97ea 12%, #7cddca 24%, #f2dd90 36%, #eca68c 48%, #ec9ddd 60%);
-  background-size: 320% 240%;
-  background-position: var(--shine-x, 50%) var(--shine-y, 25%);
-  mix-blend-mode: color-dodge;
-  filter: saturate(.8) contrast(1.25);
+.card-surface[data-material=satin] {
+  --material: linear-gradient(108deg,#26271f 8%,#f5ebc5 46%,#575745 58%,#26271f 90%);
 }
-.card-surface[data-finish=holo] .card-surface-shine::before {
+.card-surface[data-material=lacquer] {
+  --material: linear-gradient(126deg,transparent 22%,#dceccc 42%,#90c8a3 48%,transparent 66%);
+}
+.card-surface[data-material=foil] {
+  --material: repeating-linear-gradient(130deg,#0c2830 0 7%,#79bcba 12%,#e7eded 15%,#23484a 22%);
+}
+.card-surface[data-material=crystalline] {
+  --material: repeating-conic-gradient(from 23deg,#263558 0 13%,#91abd6 19%,#cfddf8 24%,#34477a 28%,#263558 39%);
+}
+.card-surface[data-material=prism] {
+  --material: repeating-linear-gradient(107deg,#322145 2%,#935db0 14%,#e4b6d9 19%,#a2b6df 25%,#433456 39%);
+}
+.card-surface[data-material=gold] {
+  --material: repeating-linear-gradient(115deg,#503808 0 6%,#ba8430 9%,#f6df9b 12%,#f9edc3 14%,#825218 21%);
+}
+.card-surface[data-material=brass] {
+  --material: repeating-linear-gradient(94deg,#38291c 0 4%,#93714b 7%,#e2bf7a 8%,#5d482a 13%);
+}
+.card-surface[data-material=holographic] {
+  --material: repeating-linear-gradient(128deg,#ad6b83 0%,#818cc7 10%,#c4d9b3 16%,#eed0aa 21%,#ab7c9e 30%);
+}
+.card-surface[data-material=patron] {
+  --material: repeating-linear-gradient(121deg,#293e3b 0%,#7ba687 9%,#cee99a 13%,#d5d1ac 19%,#a8a0bc 26%,#293e3b 38%);
+}
+.card-surface:is([data-material=holographic],[data-material=patron]) .card-surface-shine::before {
   content: "";
-  background: repeating-linear-gradient(82deg, #000 0 10%, #d7f7ff 12%, #000 14% 22%, #fbdfac 23%, #000 25% 40%);
-  background-size: 230% 190%;
-  background-position: var(--shine-y, 25%) var(--shine-x, 50%);
+  opacity: .6;
+  background: radial-gradient(circle,#fff9 0 1px,transparent 1.6px), repeating-conic-gradient(from 20deg,#151522 0deg 62deg,#eae7d6 90deg,#151522 170deg);
+  background-size: 11px 15px, 48px 56px;
+  background-position: var(--shine-y,25%) var(--shine-x,50%);
   mix-blend-mode: soft-light;
 }
-.card-surface[data-finish=holo] .card-surface-shine::after {
+.card-surface[data-material=patron] .card-surface-shine::after {
   content: "";
-  background: radial-gradient(ellipse at var(--shine-x, 50%) var(--shine-y, 25%), #fff6, transparent 45%, #0009);
-  mix-blend-mode: multiply;
+  background: radial-gradient(ellipse at var(--shine-x,50%) var(--shine-y,25%),#e1f1b9aa,transparent 46%);
+  mix-blend-mode: screen;
 }
-.card-surface[data-rank=SS] .card-surface-shine::before,
-.card-surface[data-rank=SSS] .card-surface-shine::before {
-  background-image: radial-gradient(circle, #fff 0 1px, transparent 1.8px), repeating-conic-gradient(from 20deg, #000 0deg 70deg, #bbb 95deg, #000 130deg 180deg);
-  background-size: 13px 17px, 55px 65px;
-  mix-blend-mode: overlay;
-}
-.card-surface[data-rank=SSS] .card-surface-shine { filter: saturate(1.15) contrast(1.35); }
 .card-surface:focus-within { --shine-active: .65; }
 .card-surface[data-reduced=true] .card-surface-tilt { transform: none !important; }
 .card-surface[data-reduced=true] .card-surface-tilt,

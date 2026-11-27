@@ -1,11 +1,18 @@
 export type ThemeMode = "system" | "light" | "dark" | "black" | "custom"
-export type Appearance = { theme: ThemeMode; accent: string; radius: number; motion: boolean }
+export type Appearance = {
+  theme: ThemeMode
+  accent: string
+  radius: number
+  motion: boolean
+  packSound: boolean
+}
 export const APPEARANCE_KEY = "dc.ui.appearance"
 export const defaultAppearance: Appearance = {
   theme: "dark",
   accent: "#aec69b",
   radius: 4,
   motion: true,
+  packSound: false,
 }
 export const themeModes: ThemeMode[] = ["system", "light", "dark", "black", "custom"]
 
@@ -22,6 +29,7 @@ export function normalizeAppearance(value: unknown): Appearance {
         ? Math.max(0, Math.min(8, p.radius))
         : 4,
     motion: p.motion !== false,
+    packSound: p.packSound === true,
   }
 }
 export function readAppearance(): Appearance {

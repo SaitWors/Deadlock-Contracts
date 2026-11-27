@@ -63,6 +63,8 @@ function ReceiptHarness({
 }
 
 export { act }
+export { CARD_RANK_COLORS } from "../src/archive/card-palette"
+export { REVEAL_PROFILES } from "../src/archive/reveal-profiles"
 export function mount(element: HTMLElement, page: string, props: Record<string, unknown>) {
   const Component = {
     account: AccountMenu,

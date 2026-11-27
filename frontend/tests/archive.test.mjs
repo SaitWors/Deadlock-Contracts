@@ -42,7 +42,8 @@ function runtime(fetch, language = "ru", reducedMotion = false) {
     addEventListener: (_, listener) => motionListeners.add(listener),
     removeEventListener: (_, listener) => motionListeners.delete(listener),
   }
-  w.matchMedia = () => media
+  w.matchMedia = (query) => (query === "(pointer: coarse)" ? { ...media, matches: false } : media)
+  Object.defineProperty(w.navigator, "hardwareConcurrency", { value: 8 })
   w.HTMLDialogElement.prototype.showModal = function () {
     this.setAttribute("open", "")
   }
@@ -442,23 +443,45 @@ const packControl = (doc, name) => doc.querySelector(`dialog button[aria-label="
 const packStage = (doc) => doc.querySelector(".pack-reveal-shell").dataset.stage
 const closePack = (doc) => doc.querySelector("dialog").close()
 
-async function dealPack(api, doc) {
-  await api.act(async () => button(doc, "Reveal cards").click())
+function escapePack(doc) {
+  const dialog = doc.querySelector("dialog")
+  // jsdom has no default close action for the native dialog cancel event.
+  if (dialog.dispatchEvent(new doc.defaultView.Event("cancel", { cancelable: true })))
+    dialog.close()
+}
+
+async function dealPack(api, doc, trigger = "Reveal cards") {
+  await api.act(async () => button(doc, trigger).click())
   await api.act(async () => packControl(doc, "Break the seal").click())
   await api.act(async () => animationEnd(doc, doc.querySelector(".pack-opening-scene")))
 }
 
-function endFlight(doc, phase) {
-  const motion = doc.querySelector(`.pack-card-motion[data-flight="${phase}"]`)
-  assert.ok(motion, `expected a card in the ${phase} phase`)
+const flight = (doc, phase) => doc.querySelector(`.pack-card-motion[data-flight="${phase}"]`)
+
+function transitionEnd(doc, element, propertyName = "transform") {
+  assert.ok(element, "expected an active card transition")
   const event = new doc.defaultView.Event("transitionend", { bubbles: true })
-  Object.defineProperty(event, "propertyName", { value: "transform" })
-  motion.dispatchEvent(event)
+  Object.defineProperty(event, "propertyName", { value: propertyName })
+  element.dispatchEvent(event)
+}
+
+function endFlight(doc, phase) {
+  transitionEnd(doc, flight(doc, phase))
+}
+
+function endTurn(doc) {
+  transitionEnd(doc, flight(doc, "revealing")?.querySelector(".card-surface-turn"))
 }
 
 async function inspectCard(api, doc, card = packControl(doc, "Reveal card")) {
+  const rank = card.closest(".card-surface").querySelector(".archive-card").dataset.rank
   await api.act(async () => card.click())
   await api.act(async () => endFlight(doc, "lifting"))
+  if (flight(doc, "charging")) {
+    const { chargeMs } = api.REVEAL_PROFILES[rank]
+    await api.act(async () => await new Promise((resolve) => setTimeout(resolve, chargeMs)))
+  }
+  await api.act(async () => endTurn(doc))
 }
 
 async function finishReturn(api, doc) {
@@ -469,6 +492,78 @@ async function returnCard(api, doc) {
   await api.act(async () => packControl(doc, "Return card to pack").click())
   await finishReturn(api, doc)
 }
+
+function controlTimeouts(w, shouldControl) {
+  const nativeSetTimeout = w.setTimeout.bind(w)
+  const nativeClearTimeout = w.clearTimeout.bind(w)
+  const pending = new Map()
+  let id = 0
+  w.setTimeout = (callback, delay, ...args) => {
+    if (!shouldControl(delay)) return nativeSetTimeout(callback, delay, ...args)
+    const timer = { id: --id, delay, invoke: () => callback(...args) }
+    pending.set(timer.id, timer)
+    return timer.id
+  }
+  w.clearTimeout = (timerId) => {
+    if (timerId < 0) pending.delete(timerId)
+    else nativeClearTimeout(timerId)
+  }
+  return {
+    pending() {
+      return [...pending.values()]
+    },
+    fire(timer) {
+      assert.ok(pending.delete(timer.id), "the requested phase timer must still be active")
+      timer.invoke()
+    },
+  }
+}
+
+const rankColors = {
+  F: "#96aaa1",
+  E: "#b4b595",
+  D: "#8db697",
+  C: "#79bcba",
+  B: "#91abd6",
+  A: "#b798cc",
+  S: "#d9b765",
+  SS: "#e6c3a0",
+  SSS: "#d2ef96",
+  EX: "#d8ba77",
+}
+
+test("all archive ranks use their receipt colors and distinct material and reveal plans", () => {
+  const { api } = runtime(async () => response({}), "en")
+  assert.deepEqual(Object.keys(api.REVEAL_PROFILES).sort(), Object.keys(rankColors).sort())
+  const materials = new Set(),
+    revealPlans = new Set()
+  let lastCharge = -1
+  for (const [rank, color] of Object.entries(rankColors)) {
+    const profile = api.REVEAL_PROFILES[rank]
+    assert.equal(api.CARD_RANK_COLORS[rank].toLowerCase(), color, rank)
+    assert.equal(profile.color.toLowerCase(), color, rank)
+    assert.match(profile.secondary, /^#[\da-f]{6}$/i, rank)
+    assert.ok(profile.turnMs > 0, rank)
+    assert.ok(profile.reveal.length > 0, rank)
+    assert.ok(profile.intensity > 0, rank)
+    for (const effects of [profile.hum, profile.reveal, profile.liteHum, profile.liteReveal]) {
+      assert.ok(
+        effects.every(({ name, delayMs }) => name && delayMs >= 0),
+        rank,
+      )
+    }
+    if (rank !== "EX") {
+      assert.ok(profile.chargeMs > lastCharge, rank)
+      lastCharge = profile.chargeMs
+    }
+    materials.add(profile.material)
+    revealPlans.add(profile.reveal.map(({ name }) => name).join(","))
+  }
+  assert.equal(api.REVEAL_PROFILES.F.chargeMs, 0)
+  assert.ok(lastCharge >= 1300 && lastCharge <= 1800)
+  assert.equal(materials.size, Object.keys(rankColors).length)
+  assert.equal(revealPlans.size, Object.keys(rankColors).length)
+})
 
 test("the opening scene deals the whole pack and contains only the pack and cards", async () => {
   const { api, doc } = runtime(async () => {
@@ -498,6 +593,245 @@ test("the opening scene deals the whole pack and contains only the pack and card
   assert.equal(dialog.querySelectorAll("button[aria-label='Reveal card']").length, 2)
   assert.equal(dialog.querySelectorAll(".card-surface-front[aria-hidden='true']").length, 2)
   assert.equal(dialog.querySelectorAll("button").length, 2)
+  await api.act(async () => root.unmount())
+})
+
+test("every rank reveals its receipt card through the configured Hum and Reveal phases", async () => {
+  const requests = []
+  const { api, doc, w } = runtime(async (...args) => {
+    requests.push(args)
+    return response({})
+  }, "en")
+  const ranks = Object.keys(rankColors)
+  const charges = ranks.map((rank) => api.REVEAL_PROFILES[rank].chargeMs)
+  const clock = controlTimeouts(w, (delay) => delay > 0 && charges.includes(delay))
+  for (const group of [ranks.slice(0, 5), ranks.slice(5)]) {
+    let root
+    const items = group.map((rank) => {
+      const item = receiptItem(rank, `Receipt card ${rank}`, rank)
+      if (rank === "EX") item.card.category = "BASE"
+      return item
+    })
+    await api.act(async () => {
+      root = api.mount(doc.getElementById("mount"), "receipt", {
+        receipt: packReceipt(`ranks-${group[0]}`, items),
+        cinematic: true,
+      })
+    })
+    await dealPack(api, doc)
+    const seats = [...doc.querySelectorAll(".pack-card-seat")]
+    const effectsLayer = doc.querySelector(".pack-effects-layer")
+    assert.equal(effectsLayer.getAttribute("aria-hidden"), "true")
+    assert.equal(seats.length, items.length)
+    assert.equal(
+      doc.querySelectorAll(".pack-card-seat .card-surface[data-rank]").length,
+      0,
+      "rank styling must not appear on dealt backs",
+    )
+    for (let index = items.length - 1; index >= 0; index--) {
+      const { card } = items[index]
+      const seat = seats[index]
+      const surface = seat.querySelector(".card-surface")
+      const front = surface.querySelector(".card-surface-front")
+      const motion = seat.querySelector(".pack-card-motion")
+      await api.act(async () => seat.querySelector(".card-surface-control").click())
+      assert.equal(front.getAttribute("aria-hidden"), "true", card.rank)
+      await api.act(async () => endFlight(doc, "lifting"))
+      const { chargeMs } = api.REVEAL_PROFILES[card.rank]
+      if (chargeMs > 0) {
+        assert.ok(flight(doc, "charging"), card.rank)
+        assert.equal(effectsLayer.dataset.phase, "hum", card.rank)
+        assert.equal(front.getAttribute("aria-hidden"), "true", card.rank)
+        const phase = clock.pending().find(({ delay }) => delay === chargeMs)
+        assert.ok(phase, `Hum delay is scheduled for ${card.rank}`)
+        await api.act(async () => clock.fire(phase))
+      }
+      assert.ok(flight(doc, "revealing"), card.rank)
+      assert.equal(effectsLayer.dataset.phase, "turn", card.rank)
+      assert.equal(
+        motion.style.getPropertyValue("--reveal-color").toLowerCase(),
+        rankColors[card.rank],
+      )
+      assert.equal(front.getAttribute("aria-hidden"), "false", card.rank)
+      assert.equal(surface.dataset.rank, card.rank)
+      assert.equal(front.querySelector(".archive-card strong").textContent, card.title)
+      if (card.rank === "EX") {
+        assert.equal(surface.dataset.category, "BASE")
+        assert.equal(front.querySelector(".archive-card").dataset.category, "BASE")
+      }
+      await api.act(async () => endTurn(doc))
+      assert.ok(flight(doc, "inspect"), card.rank)
+      await returnCard(api, doc)
+    }
+    assert.equal(packStage(doc), "results")
+    assert.equal(
+      doc.querySelectorAll("dialog .card-surface[data-revealed=true]").length,
+      items.length,
+    )
+    await api.act(async () => root.unmount())
+  }
+  assert.equal(requests.length, 0)
+})
+
+test("rapid inputs cannot interrupt the first reveal and repeated inspection skips acquisition", async () => {
+  const { api, doc, w } = runtime(async () => response({}), "en")
+  const chargeMs = api.REVEAL_PROFILES.SSS.chargeMs
+  const clock = controlTimeouts(w, (delay) => delay === chargeMs)
+  let root
+  await api.act(async () => {
+    root = api.mount(doc.getElementById("mount"), "receipt", {
+      receipt: packReceipt("repeat-inspection", [
+        receiptItem("rare", "Rare receipt", "SSS"),
+        receiptItem("other", "Other receipt"),
+      ]),
+      cinematic: true,
+    })
+  })
+  await dealPack(api, doc)
+  const [rare, other] = [...doc.querySelectorAll(".pack-card-seat")].map((seat) =>
+    seat.querySelector(".card-surface-control"),
+  )
+  await api.act(async () => {
+    rare.click()
+    rare.click()
+    other.click()
+  })
+  assert.ok(flight(doc, "lifting")?.contains(rare))
+  const rareTurn = rare.closest(".card-surface").querySelector(".card-surface-turn")
+  await api.act(async () => transitionEnd(doc, rareTurn))
+  assert.ok(flight(doc, "lifting"), "an inner transition cannot end the lift")
+  await api.act(async () => endFlight(doc, "lifting"))
+  assert.ok(flight(doc, "charging")?.contains(rare))
+  assert.equal(clock.pending().length, 1)
+  await api.act(async () => {
+    rare.click()
+    other.click()
+    rare.dispatchEvent(new w.KeyboardEvent("keydown", { key: "ArrowRight", bubbles: true }))
+  })
+  assert.ok(flight(doc, "charging")?.contains(rare))
+  await api.act(async () => clock.fire(clock.pending()[0]))
+  await api.act(async () => {
+    rare.click()
+    other.click()
+    transitionEnd(doc, rareTurn, "opacity")
+  })
+  assert.ok(flight(doc, "revealing")?.contains(rare))
+  await api.act(async () => endTurn(doc))
+  assert.ok(flight(doc, "inspect")?.contains(rare))
+  await returnCard(api, doc)
+  assert.equal(rare.getAttribute("aria-label"), "Inspect card")
+  assert.equal(other.closest(".card-surface").dataset.revealed, "false")
+
+  await api.act(async () => rare.click())
+  assert.equal(rare.closest(".card-surface").dataset.revealed, "true")
+  await api.act(async () => endFlight(doc, "lifting"))
+  assert.ok(flight(doc, "inspect")?.contains(rare), "an opened card can be inspected immediately")
+  assert.equal(doc.querySelector(".pack-effects-layer").dataset.phase, undefined)
+  assert.equal(clock.pending().length, 0, "reinspection does not schedule another Hum")
+  await returnCard(api, doc)
+
+  await api.act(async () => other.click())
+  assert.ok(flight(doc, "lifting")?.contains(other))
+  await api.act(async () => doc.querySelector(".pack-reveal-shell").click())
+  assert.ok(flight(doc, "returning")?.contains(other), "the backdrop can skip an unfinished reveal")
+  await finishReturn(api, doc)
+  assert.equal(packStage(doc), "results")
+  await api.act(async () => root.unmount())
+})
+
+test("Escape preserves the receipt and stale phase callbacks cannot affect a new reveal", async () => {
+  const { api, doc, w } = runtime(async () => response({}), "en")
+  const chargeMs = api.REVEAL_PROFILES.SSS.chargeMs
+  const clock = controlTimeouts(w, (delay) => delay >= 400)
+  w.requestAnimationFrame = (callback) => w.setTimeout(() => callback(w.performance.now()), 16)
+  w.cancelAnimationFrame = (id) => w.clearTimeout(id)
+  let root
+  await api.act(async () => {
+    root = api.mount(doc.getElementById("mount"), "receipt", {
+      receipt: packReceipt("all-phase-cleanup", [
+        receiptItem("rare", "Receipt already saved", "SSS"),
+      ]),
+      cinematic: true,
+    })
+  })
+  const trigger = button(doc, "Reveal cards")
+  const phases = ["sealed", "opening", "lifting", "charging", "revealing", "inspect", "returning"]
+  for (const [index, phase] of phases.entries()) {
+    await api.act(async () => trigger.click())
+    if (index >= 1) await api.act(async () => packControl(doc, "Break the seal").click())
+    if (index >= 2) {
+      await api.act(async () => animationEnd(doc, doc.querySelector(".pack-opening-scene")))
+      await api.act(async () => packControl(doc, "Reveal card").click())
+    }
+    const effectsLayer = doc.querySelector(".pack-effects-layer")
+    if (phase === "charging") {
+      const surface = doc.querySelector("dialog .card-surface")
+      surface.getBoundingClientRect = () => ({ left: 0, top: 0, width: 200, height: 300 })
+    }
+    if (index >= 3) await api.act(async () => endFlight(doc, "lifting"))
+    if (index >= 4) {
+      const timer = clock.pending().find(({ delay }) => delay === chargeMs)
+      await api.act(async () => clock.fire(timer))
+    }
+    if (index >= 5) await api.act(async () => endTurn(doc))
+    if (index >= 6) await api.act(async () => packControl(doc, "Return card to pack").click())
+    assert.ok(index < 2 ? packStage(doc) === phase : flight(doc, phase), phase)
+    if (phase === "charging") assert.ok(effectsLayer.querySelector('[data-effect="vignette"]'))
+    const callbacks = clock.pending()
+    if (!["sealed", "inspect"].includes(phase)) assert.ok(callbacks.length > 0, phase)
+    await api.act(async () => escapePack(doc))
+    assert.equal(doc.querySelector("dialog").open, false, phase)
+    assert.equal(clock.pending().length, 0, phase)
+    assert.equal(effectsLayer.childElementCount, 0, phase)
+    assert.equal(doc.querySelectorAll("dialog .pack-effects-layer").length, 0, phase)
+    assert.match(doc.querySelector(".pack-reveal-inline").textContent, /Receipt already saved/)
+    assert.ok(doc.activeElement === trigger, phase)
+
+    await api.act(async () => trigger.click())
+    await api.act(async () => callbacks.forEach((timer) => timer.invoke()))
+    assert.equal(packStage(doc), "sealed", phase)
+    assert.equal(doc.querySelectorAll("[data-flight]").length, 0, phase)
+    assert.equal(doc.querySelectorAll(".pack-effects-layer > *").length, 0, phase)
+    await api.act(async () => closePack(doc))
+  }
+  await api.act(async () => root.unmount())
+})
+
+test("fallback timers finish an opening and preserve its result without transition events", async () => {
+  const writes = []
+  const { api, doc, w } = runtime(async (...args) => {
+    writes.push(args)
+    return response({})
+  }, "en")
+  const clock = controlTimeouts(w, (delay) => delay >= 450)
+  let root
+  await api.act(async () => {
+    root = api.mount(doc.getElementById("mount"), "receipt", {
+      receipt: packReceipt("animation-fallback", [receiptItem("one", "Recovered result")]),
+      cinematic: true,
+    })
+  })
+  async function finishWithoutEvent() {
+    const timers = clock.pending()
+    assert.equal(timers.length, 1)
+    await api.act(async () => clock.fire(timers[0]))
+  }
+
+  await api.act(async () => button(doc, "Reveal cards").click())
+  await api.act(async () => packControl(doc, "Break the seal").click())
+  await finishWithoutEvent()
+  await api.act(async () => packControl(doc, "Reveal card").click())
+  assert.ok(flight(doc, "lifting"))
+  await finishWithoutEvent()
+  assert.ok(flight(doc, "revealing"))
+  await finishWithoutEvent()
+  assert.ok(flight(doc, "inspect"))
+  await api.act(async () => packControl(doc, "Return card to pack").click())
+  await finishWithoutEvent()
+  assert.equal(packStage(doc), "results")
+  await api.act(async () => closePack(doc))
+  assert.match(doc.querySelector(".pack-reveal-inline").textContent, /Recovered result/)
+  assert.equal(writes.length, 0)
   await api.act(async () => root.unmount())
 })
 
@@ -921,6 +1255,12 @@ test("reduced motion opens a pack reveal directly at complete results", async ()
   await api.act(async () => button(doc, "Reveal cards").click())
   assert.match(doc.querySelector("dialog").textContent, /Quiet card/)
   assert.equal(packControl(doc, "Break the seal"), null)
+  assert.equal(
+    doc.querySelectorAll("dialog .pack-effects-layer[data-phase], dialog .pack-effects-layer > *")
+      .length,
+    0,
+  )
+  assert.equal(doc.querySelector("dialog .card-surface").dataset.revealed, "true")
   await api.act(async () => root.unmount())
 })
 
@@ -1014,6 +1354,39 @@ test("a reduced-motion change during opening skips directly to results", async (
   await api.act(async () => root.unmount())
 })
 
+test("enabling reduced motion during Hum clears the charge timer and finishes the receipt", async () => {
+  const { api, doc, w, setReducedMotion } = runtime(async () => response({}), "en")
+  const chargeMs = api.REVEAL_PROFILES.SSS.chargeMs
+  const clock = controlTimeouts(w, (delay) => delay === chargeMs)
+  let root
+  await api.act(async () => {
+    root = api.mount(doc.getElementById("mount"), "receipt", {
+      receipt: packReceipt("motion-change-during-hum", [receiptItem("rare", "Still rare", "SSS")]),
+      cinematic: true,
+    })
+  })
+  await dealPack(api, doc)
+  await api.act(async () => packControl(doc, "Reveal card").click())
+  await api.act(async () => endFlight(doc, "lifting"))
+  assert.ok(flight(doc, "charging"))
+  const [obsolete] = clock.pending()
+  assert.ok(obsolete)
+
+  await api.act(async () => setReducedMotion(true))
+  assert.equal(clock.pending().length, 0)
+  await api.act(async () => obsolete.invoke())
+  assert.equal(packStage(doc), "results")
+  assert.match(doc.querySelector("dialog").textContent, /Still rare/)
+  assert.equal(doc.querySelector("dialog .card-surface").dataset.revealed, "true")
+  assert.equal(
+    doc.querySelectorAll(
+      "dialog [data-flight], dialog .pack-effects-layer[data-phase], dialog .pack-effects-layer > *",
+    ).length,
+    0,
+  )
+  await api.act(async () => root.unmount())
+})
+
 test("TransactionStatus offers the cinematic reveal for a saved starter pack receipt", async () => {
   const starter = {
     ...packReceipt("starter", [receiptItem("starter-card", "Starter dossier", "A")]),
@@ -1074,7 +1447,7 @@ test("close, cancel and unmount each clear the pending opening timer", async () 
   const clearedOpeningTimers = new Set()
   w.setTimeout = (callback, delay, ...args) => {
     const timer = nativeSetTimeout(callback, delay, ...args)
-    if (delay === 1330) openingTimers.push(timer)
+    if (delay >= 1000 && delay < 2000) openingTimers.push(timer)
     return timer
   }
   w.clearTimeout = (timer) => {
@@ -1099,11 +1472,7 @@ test("close, cancel and unmount each clear the pending opening timer", async () 
 
   await api.act(async () => trigger.click())
   await api.act(async () => packControl(doc, "Break the seal").click())
-  await api.act(async () => {
-    const dialog = doc.querySelector("dialog")
-    // jsdom has no default close action for the native dialog cancel event.
-    if (dialog.dispatchEvent(new w.Event("cancel", { cancelable: true }))) dialog.close()
-  })
+  await api.act(async () => escapePack(doc))
   assert.ok(clearedOpeningTimers.has(openingTimers[1]))
 
   await api.act(async () => trigger.click())

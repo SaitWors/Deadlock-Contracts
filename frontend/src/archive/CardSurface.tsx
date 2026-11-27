@@ -3,6 +3,7 @@ import { useLanguage } from "../i18n"
 import { useReducedMotion } from "../Appearance"
 import Icon from "../icons/Icon"
 import CardPreview from "./CardPreview"
+import { revealProfile } from "./reveal-profiles"
 import { RANKS, type Card } from "./types"
 import "./card-surface.css"
 
@@ -21,6 +22,8 @@ export default function CardSurface({
   revealed = true,
   reduced: forceReduced = false,
   disabled = false,
+  preloadArtwork = false,
+  animateMaterial = false,
   actionLabel,
   onFlip,
   onSwipe,
@@ -29,6 +32,8 @@ export default function CardSurface({
   revealed?: boolean
   reduced?: boolean
   disabled?: boolean
+  preloadArtwork?: boolean
+  animateMaterial?: boolean
   actionLabel?: string
   onFlip?: () => void
   onSwipe?: (direction: "left" | "right") => void
@@ -103,6 +108,8 @@ export default function CardSurface({
       data-revealed={revealed}
       data-reduced={reduced}
       data-finish={rank >= 6 ? "holo" : rank >= 3 ? "foil" : "matte"}
+      data-material={revealed ? revealProfile(card).material : undefined}
+      data-material-arrival={animateMaterial || undefined}
       onPointerDown={(event) => {
         if (!event.isPrimary || event.button !== 0 || disabled) return
         const target = event.target as Element
@@ -155,6 +162,7 @@ export default function CardSurface({
           <div className="card-surface-front" aria-hidden={!revealed}>
             <CardPreview
               card={card}
+              preloadArtwork={preloadArtwork}
               artOverlay={
                 <>
                   <span className="card-surface-shine" aria-hidden="true" />

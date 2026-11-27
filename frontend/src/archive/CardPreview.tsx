@@ -1,5 +1,6 @@
 import Icon from "../icons/Icon"
-import type { ReactNode } from "react"
+import { useState, type ReactNode } from "react"
+import { CARD_RANK_COLORS } from "./card-palette"
 import { RANKS, type Card } from "./types"
 import "./card-preview.css"
 
@@ -7,13 +8,17 @@ export default function CardPreview({
   card,
   artOverlay,
   preserveArtwork = false,
+  preloadArtwork = false,
 }: {
   card: Pick<Card, "rank" | "title" | "hero_name" | "image_url" | "crop_x" | "crop_y" | "zoom"> &
     Partial<Pick<Card, "id" | "source_url" | "release_poster" | "category">>
   artOverlay?: ReactNode
   preserveArtwork?: boolean
+  preloadArtwork?: boolean
 }) {
   const base = card.rank === "EX" || card.category === "BASE"
+  const [failedImage, setFailedImage] = useState<string | null>(null)
+  const image = card.image_url && card.image_url !== failedImage ? card.image_url : null
   const tier = base ? 9 : RANKS.indexOf(card.rank as (typeof RANKS)[number])
   const releasePoster =
     card.release_poster === true &&
@@ -29,16 +34,18 @@ export default function CardPreview({
       data-tier={tier}
       data-release={releasePoster ? "city-never-sleeps" : undefined}
       data-full-artwork={releasePoster || preserveArtwork ? "true" : undefined}
+      style={{ "--rank": CARD_RANK_COLORS[base ? "EX" : card.rank] } as React.CSSProperties}
       aria-label={`${card.hero_name} · ${card.title} · ${card.rank}`}
       title={`${card.hero_name} · ${card.title} · ${card.rank}`}
     >
       <div className="archive-card-art">
-        {card.image_url ? (
+        {image ? (
           <img
-            src={card.image_url}
+            src={image}
             alt=""
-            loading="lazy"
+            loading={preloadArtwork ? "eager" : "lazy"}
             decoding="async"
+            onError={() => setFailedImage(image)}
             style={{
               objectFit: releasePoster || preserveArtwork ? "contain" : undefined,
               objectPosition: preserveArtwork ? "50% 50%" : `${card.crop_x}% ${card.crop_y}%`,

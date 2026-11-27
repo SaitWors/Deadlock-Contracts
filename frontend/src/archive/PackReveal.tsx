@@ -1,19 +1,29 @@
-import { useEffect, useRef, useState, type CSSProperties } from "react"
+import { useEffect, useRef, useState, type CSSProperties, type PointerEvent } from "react"
 import Icon from "../icons/Icon"
 import { useLanguage } from "../i18n"
-import { useReducedMotion } from "../Appearance"
+import { useAppearance, useReducedMotion } from "../Appearance"
 import CardSurface from "./CardSurface"
 import { FavoriteButton, FavoriteError, type FavoriteControls } from "./favorites"
-import type { Receipt } from "./types"
+import { createPackAudio } from "./pack-audio"
+import { createRevealEffects, prewarmRevealEffects } from "./reveal-effects"
+import { PACK_REVEAL_PROFILE, revealProfile, type RevealProfile } from "./reveal-profiles"
+import { RANKS, type Receipt } from "./types"
 import "./pack-reveal.css"
 import "./nightshift-archive.css"
 
 type Stage = "sealed" | "opening" | "cards" | "results"
 type Flight = {
   id: string
-  phase: "lifting" | "inspect" | "returning"
+  phase: "lifting" | "charging" | "revealing" | "inspect" | "returning"
+  first: boolean
+  starred?: boolean
   position: CSSProperties
 }
+
+const TEAR_MS = 420
+const DEAL_MS = 660
+const LAND_MS = 600
+const STAGGER_MS = 70
 
 export default function PackReveal({
   receipt,
@@ -25,30 +35,57 @@ export default function PackReveal({
   const { language } = useLanguage()
   const ru = language === "ru"
   const reduced = useReducedMotion()
+  const { appearance } = useAppearance()
   const dialogRef = useRef<HTMLDialogElement>(null)
   const triggerRef = useRef<HTMLButtonElement>(null)
   const sealRef = useRef<HTMLButtonElement>(null)
   const seats = useRef(new Map<string, HTMLElement>())
-  const timerRef = useRef<number | null>(null)
+  const effectsLayer = useRef<HTMLDivElement>(null)
+  const effects = useRef<ReturnType<typeof createRevealEffects> | null>(null)
+  const audio = useRef<ReturnType<typeof createPackAudio>>(undefined)
   const session = useRef(0)
   const saving = useRef(false)
+  const favoriteRequest = useRef(0)
   const [stage, setStage] = useState<Stage>("sealed")
   const [isOpen, setIsOpen] = useState(false)
   const [revealed, setRevealed] = useState<string[]>([])
   const [flight, setFlight] = useState<Flight | null>(null)
   const [completed, setCompleted] = useState(false)
   const [showInlineResults, setShowInlineResults] = useState(false)
+  const [favoriteError, setFavoriteError] = useState<string | null>(null)
   const results = stage === "results" || reduced
   const title = receipt.pack?.title || (ru ? "Карточки архива" : "Archive cards")
+  const activeItem = receipt.items.find(({ id }) => flight?.id === id)
+  const profile = activeItem && revealProfile(activeItem.card)
+  const dealTime = DEAL_MS + LAND_MS + STAGGER_MS * Math.max(0, receipt.items.length - 1)
+  const lite =
+    window.matchMedia("(pointer: coarse)").matches ||
+    (navigator.hardwareConcurrency > 0 && navigator.hardwareConcurrency <= 4)
+  const chargeMs = (profile?.chargeMs ?? 0) * (lite ? 0.6 : 1)
+  const highlight = results
+    ? receipt.items.reduce<Receipt["items"][number] | undefined>((best, item) => {
+        const rank = item.card.rank
+        if (rank === "EX") return best
+        return !best ||
+          RANKS.indexOf(rank) > RANKS.indexOf(best.card.rank as (typeof RANKS)[number])
+          ? item
+          : best
+      }, undefined)?.id
+    : undefined
 
   useEffect(() => {
     if (reduced && dialogRef.current?.open) {
-      ++session.current
-      saving.current = false
+      stopSession()
       setFlight(null)
       setStage("results")
     }
   }, [reduced])
+
+  useEffect(() => {
+    if (!appearance.packSound) stopAudio()
+  }, [appearance.packSound])
+
+  useEffect(() => () => stopSession(), [])
 
   useEffect(() => {
     if (!isOpen) return
@@ -60,25 +97,73 @@ export default function PackReveal({
   }, [stage, isOpen])
 
   useEffect(() => {
+    if (!isOpen || reduced) return
     const phase = flight?.phase
-    // CSS events lead the interaction. Timers cover interrupted or unavailable animations.
-    const delay =
-      stage === "opening"
-        ? 1330 + 70 * (receipt.items.length - 1)
-        : phase === "lifting"
-          ? 850
-          : phase === "returning"
-            ? 700
-            : null
-    if (delay === null) return
-    timerRef.current = window.setTimeout(stage === "opening" ? finishOpening : finishFlight, delay)
-    return () => clearTimer()
-  }, [stage, flight?.id, flight?.phase, receipt.items.length])
+    const phaseDelay = {
+      lifting: 850,
+      charging: chargeMs,
+      revealing: (profile?.turnMs ?? 600) + 110,
+      returning: 700,
+      inspect: undefined,
+    }
+    const delay = stage === "opening" ? dealTime + 150 : phase && phaseDelay[phase]
+    if (delay === undefined) return
+    const epoch = session.current
+    const timer = window.setTimeout(() => {
+      if (epoch !== session.current) return
+      if (stage === "opening") finishOpening()
+      else if (phase) finishFlight(phase)
+    }, delay)
+    return () => window.clearTimeout(timer)
+  }, [isOpen, reduced, stage, flight?.id, flight?.phase, dealTime, chargeMs, profile?.turnMs])
+
+  useEffect(() => {
+    if (!isOpen || reduced) return
+    const epoch = session.current
+    const play = (cue: "pack" | "hum" | "reveal", anchor: HTMLElement, recipe: RevealProfile) => {
+      if (epoch !== session.current || !effectsLayer.current) return
+      const handle = (effects.current ??= createRevealEffects(effectsLayer.current))
+      handle.play(cue, anchor, recipe, lite ? "lite" : "full", anchor)
+    }
+
+    if (stage === "opening") {
+      const count = receipt.items.length
+      audio.current?.play("press")
+      audio.current?.play("tear", TEAR_MS / 1000)
+      for (let i = 0; i < count; i++) {
+        const launch = DEAL_MS + STAGGER_MS * i
+        audio.current?.play("deal", launch / 1000)
+        audio.current?.play("land", (launch + LAND_MS - 70) / 1000)
+      }
+      const timer = window.setTimeout(() => {
+        if (sealRef.current) play("pack", sealRef.current, PACK_REVEAL_PROFILE)
+      }, TEAR_MS)
+      return () => window.clearTimeout(timer)
+    }
+
+    const subject =
+      flight && seats.current.get(flight.id)?.querySelector<HTMLElement>(".card-surface")
+    if (!flight || !profile || !subject) return
+    if (flight.phase === "lifting") audio.current?.play("lift")
+    if (flight.phase === "charging") {
+      play("hum", subject, profile)
+      audio.current?.play("hum", 0, profile.sound, chargeMs / 1000)
+    }
+    if (flight.phase === "revealing") {
+      play("reveal", subject, profile)
+      audio.current?.play("reveal", Math.min(0.12, profile.turnMs / 5000), profile.sound)
+    }
+    if (flight.phase === "returning") {
+      effects.current?.clear()
+      audio.current?.play("return")
+    }
+  }, [isOpen, reduced, stage, flight?.id, flight?.phase])
 
   useEffect(() => {
     if (!flight || flight.phase === "returning") return
     const { id } = flight
     const recenter = () => {
+      effects.current?.clear()
       const position = flightPosition(id)
       setFlight((current) =>
         current?.id === id && current.phase !== "returning" ? { ...current, position } : current,
@@ -88,36 +173,65 @@ export default function PackReveal({
     return () => window.removeEventListener("resize", recenter)
   }, [flight?.id, flight?.phase])
 
-  const clearTimer = () => {
-    if (timerRef.current !== null) window.clearTimeout(timerRef.current)
-    timerRef.current = null
+  function stopAudio() {
+    audio.current?.close()
+    audio.current = undefined
+  }
+
+  function stopSession() {
+    ++session.current
+    saving.current = false
+    effects.current?.clear()
+    effects.current = null
+    stopAudio()
   }
 
   function finishOpening() {
     if (dialogRef.current?.open) setStage((current) => (current === "opening" ? "cards" : current))
   }
 
-  function finishFlight() {
-    if (!flight || !dialogRef.current?.open) return
-    if (flight.phase === "lifting") {
-      setRevealed((ids) => (ids.includes(flight.id) ? ids : [...ids, flight.id]))
-      setFlight({ ...flight, phase: "inspect" })
-    } else if (flight.phase === "returning") {
-      setFlight(null)
+  function markRevealed(id: string) {
+    setRevealed((ids) => (ids.includes(id) ? ids : [...ids, id]))
+  }
+
+  function finishFlight(expected: Flight["phase"]) {
+    if (flight?.phase !== expected || !dialogRef.current?.open) return
+    if (expected === "returning") {
+      setFlight((current) =>
+        current?.id === flight.id && current.phase === expected ? null : current,
+      )
       if (revealed.length === receipt.items.length) setStage("results")
+      return
     }
+    const phase =
+      expected === "revealing" || !flight.first
+        ? "inspect"
+        : expected === "lifting" && chargeMs > 0
+          ? "charging"
+          : "revealing"
+    if (phase === "revealing") markRevealed(flight.id)
+    setFlight((current) =>
+      current?.id === flight.id && current.phase === expected ? { ...current, phase } : current,
+    )
   }
 
   const open = () => {
-    ++session.current
-    clearTimer()
-    saving.current = false
+    if (dialogRef.current?.open) return
+    stopSession()
     setRevealed([])
     setFlight(null)
+    setFavoriteError(null)
     setShowInlineResults(false)
     setStage(reduced || !receipt.items.length ? "results" : "sealed")
     dialogRef.current?.showModal()
     setIsOpen(true)
+    if (!reduced) {
+      void prewarmRevealEffects()
+      if (appearance.packSound) {
+        audio.current = createPackAudio()
+        audio.current?.play("appear")
+      }
+    }
   }
 
   function positionFromCenter(id: string) {
@@ -143,32 +257,85 @@ export default function PackReveal({
   }
 
   const breakSeal = () => {
+    audio.current?.resume()
+    const exitOffset = (sealRef.current?.getBoundingClientRect().height ?? 0) * 0.24
     for (const [id, seat] of seats.current) {
       const { x, y } = positionFromCenter(id)
       seat.style.setProperty("--deal-x", `${x}px`)
-      seat.style.setProperty("--deal-y", `${y}px`)
+      seat.style.setProperty("--deal-y", `${y - exitOffset}px`)
     }
     setStage("opening")
   }
 
   const inspect = (id: string) => {
     if (flight || stage === "opening" || stage === "sealed") return
-    setFlight({ id, phase: "lifting", position: flightPosition(id) })
+    audio.current?.resume()
+    setFavoriteError(null)
+    const position = flightPosition(id)
+    setFlight(
+      (current) =>
+        current ?? {
+          id,
+          phase: "lifting",
+          position,
+          first: !results && !revealed.includes(id),
+        },
+    )
   }
 
   const returnCard = async (direction: "left" | "right" = "right") => {
-    if (flight?.phase !== "inspect" || saving.current) return
-    const item = receipt.items.find(({ id }) => id === flight.id)
+    if (flight?.phase !== "inspect") return
+    setFavoriteError(null)
     if (direction === "left") {
-      if (!item || !favorites?.ids || favorites.loading || favorites.pendingId) return
+      if (saving.current) return
+      if (!activeItem || !favorites?.ids || favorites.loading || favorites.pendingId) return
       const epoch = session.current
+      const request = ++favoriteRequest.current
       saving.current = true
-      const saved = await favorites.setFavorite(item.card.id, true)
-      if (epoch !== session.current || !dialogRef.current?.open) return
+      const saved = await favorites.setFavorite(activeItem.card.id, true).catch(() => false)
+      if (
+        epoch !== session.current ||
+        request !== favoriteRequest.current ||
+        !dialogRef.current?.open
+      )
+        return
       saving.current = false
-      if (!saved) return
+      if (!saved) {
+        setFavoriteError(ru ? "Не удалось сохранить" : "Could not save favorite")
+        return
+      }
+      audio.current?.play("favorite")
     }
-    setFlight({ ...flight, phase: "returning" })
+    favoriteRequest.current++
+    saving.current = false
+    setFlight((current) =>
+      current?.id === flight.id && current.phase === "inspect"
+        ? { ...current, phase: "returning", starred: direction === "left" }
+        : current,
+    )
+  }
+
+  const tiltSeal = (event: PointerEvent<HTMLButtonElement>) => {
+    if (event.pointerType !== "mouse" || stage !== "sealed" || reduced) return
+    const { left, top, width, height } = event.currentTarget.getBoundingClientRect()
+    if (!width || !height) return
+    const x = (event.clientX - left) / width
+    const y = (event.clientY - top) / height
+    event.currentTarget.style.setProperty("--pack-x", `${x * 100}%`)
+    event.currentTarget.style.setProperty("--pack-y", `${y * 100}%`)
+    event.currentTarget.style.setProperty("--pack-rx", `${(0.5 - y) * 12}deg`)
+    event.currentTarget.style.setProperty("--pack-ry", `${(x - 0.5) * 14}deg`)
+  }
+
+  const backdropAction = () => {
+    if (!flight) {
+      dialogRef.current?.close()
+    } else if (flight.phase === "inspect") {
+      void returnCard()
+    } else if (flight.phase !== "returning") {
+      markRevealed(flight.id)
+      setFlight({ ...flight, phase: "returning", first: false })
+    }
   }
 
   return (
@@ -210,18 +377,15 @@ export default function PackReveal({
       <dialog
         ref={dialogRef}
         className="pack-reveal"
+        data-reduced={reduced}
         aria-label={title}
         onClick={(event) => {
-          if (!(event.target as Element).closest(".pack-opening-scene, .pack-card-seat")) {
-            if (flight) void returnCard()
-            else event.currentTarget.close()
-          }
+          if (!(event.target as Element).closest(".pack-opening-scene, .pack-card-seat"))
+            backdropAction()
         }}
         onClose={() => {
           if (dialogRef.current?.open) return
-          ++session.current
-          clearTimer()
-          saving.current = false
+          stopSession()
           setIsOpen(false)
           setFlight(null)
           setShowInlineResults(true)
@@ -230,7 +394,29 @@ export default function PackReveal({
         }}
       >
         {isOpen && (
-          <div className="pack-reveal-shell" data-stage={stage} data-reduced={reduced}>
+          <div
+            className="pack-reveal-shell"
+            data-stage={stage}
+            data-reduced={reduced}
+            style={{ "--tear-at": `${TEAR_MS}ms` } as CSSProperties}
+          >
+            <div
+              className="pack-effects-layer rco-fx-layer"
+              ref={effectsLayer}
+              aria-hidden="true"
+              data-phase={
+                flight?.phase === "charging"
+                  ? "hum"
+                  : flight?.phase === "revealing"
+                    ? "turn"
+                    : undefined
+              }
+            />
+            <span className="sr-only" role="status">
+              {flight?.phase === "inspect" && activeItem
+                ? `${activeItem.card.title} · ${activeItem.card.rank}`
+                : ""}
+            </span>
             {(stage === "sealed" || stage === "opening") && (
               <button
                 ref={sealRef}
@@ -238,6 +424,12 @@ export default function PackReveal({
                 className="pack-opening-scene pack-envelope-art"
                 aria-label={ru ? "Вскрыть конверт" : "Break the seal"}
                 aria-disabled={stage === "opening"}
+                onPointerMove={tiltSeal}
+                onPointerLeave={(event) => {
+                  for (const name of ["--pack-x", "--pack-y", "--pack-rx", "--pack-ry"]) {
+                    event.currentTarget.style.removeProperty(name)
+                  }
+                }}
                 onClick={() => {
                   if (stage === "sealed") breakSeal()
                 }}
@@ -250,23 +442,24 @@ export default function PackReveal({
                     finishOpening()
                   }
                 }}
-                style={
-                  { "--deal-time": `${1180 + 70 * (receipt.items.length - 1)}ms` } as CSSProperties
-                }
+                style={{ "--deal-time": `${dealTime}ms` } as CSSProperties}
               >
                 <span className="pack-wrapper" aria-hidden="true">
-                  <span className="pack-tear-strip">
-                    <b>DEAD</b>
-                    <b>LOCK</b>
-                    <b>CON</b>
-                    <b>TRACTS</b>
-                  </span>
-                  <span className="pack-envelope-body">
-                    <Icon name="layers" size={70} />
-                    <span>{receipt.pack?.title || "THE ARCHIVE"}</span>
-                    <small>
-                      {String(receipt.items.length).padStart(2, "0")} · COLLECTION FILES
-                    </small>
+                  <span className="pack-wrapper-pose">
+                    <span className="pack-envelope-body">
+                      <Icon name="layers" size={70} />
+                      <span>{receipt.pack?.title || "THE ARCHIVE"}</span>
+                      <small>
+                        {String(receipt.items.length).padStart(2, "0")} · COLLECTION FILES
+                      </small>
+                    </span>
+                    <span className="pack-tear-light" />
+                    <span className="pack-tear-strip">
+                      <b>DEAD</b>
+                      <b>LOCK</b>
+                      <b>CON</b>
+                      <b>TRACTS</b>
+                    </span>
                   </span>
                 </span>
               </button>
@@ -275,11 +468,22 @@ export default function PackReveal({
             <div
               className={results ? "pack-deck pack-reveal-results" : "pack-deck"}
               data-pentagon={receipt.items.length === 5}
+              data-dim={
+                !!profile?.background &&
+                (flight?.phase === "charging" || flight?.phase === "revealing")
+              }
+              style={
+                {
+                  "--rows-mobile": Math.max(1, Math.ceil(receipt.items.length / 3)),
+                  "--rows-narrow": Math.max(1, Math.ceil(receipt.items.length / 2)),
+                } as CSSProperties
+              }
               inert={stage === "sealed" || stage === "opening"}
             >
               {receipt.items.map((item, index) => {
                 const itemFlight = flight?.id === item.id ? flight : null
                 const faceUp = results || revealed.includes(item.id)
+                const config = revealProfile(item.card)
                 const label = itemFlight
                   ? ru
                     ? "Вернуть карточку в раскладку"
@@ -296,13 +500,14 @@ export default function PackReveal({
                     key={item.id}
                     className="pack-card-seat"
                     data-active={!!itemFlight}
+                    data-highlight={item.id === highlight && !reduced}
                     ref={(node) => {
                       if (node) seats.current.set(item.id, node)
                       else seats.current.delete(item.id)
                     }}
                     style={
                       {
-                        "--deal-delay": `${580 + 70 * index}ms`,
+                        "--deal-delay": `${DEAL_MS + STAGGER_MS * index}ms`,
                         "--deal-rotation": `${[28, -34, 15, 38, -22][index % 5]}deg`,
                       } as CSSProperties
                     }
@@ -317,20 +522,37 @@ export default function PackReveal({
                     <div
                       className="pack-card-motion"
                       data-flight={itemFlight?.phase}
-                      style={itemFlight?.position}
+                      style={
+                        itemFlight
+                          ? ({
+                              ...itemFlight.position,
+                              "--turn-time": `${config.turnMs}ms`,
+                              "--reveal-color": config.color,
+                              "--charge-time": `${chargeMs}ms`,
+                              "--charge-glow": config.glow,
+                            } as CSSProperties)
+                          : undefined
+                      }
                       onTransitionEnd={(event) => {
+                        if (!itemFlight || event.propertyName !== "transform") return
                         if (
-                          itemFlight &&
-                          event.target === event.currentTarget &&
-                          event.propertyName === "transform"
+                          itemFlight.phase === "revealing" &&
+                          (event.target as Element).classList.contains("card-surface-turn")
                         )
-                          finishFlight()
+                          finishFlight("revealing")
+                        if (
+                          event.target === event.currentTarget &&
+                          (itemFlight.phase === "lifting" || itemFlight.phase === "returning")
+                        )
+                          finishFlight(itemFlight.phase)
                       }}
                     >
                       <CardSurface
                         card={item.card}
                         revealed={faceUp}
                         reduced={reduced}
+                        preloadArtwork
+                        animateMaterial={itemFlight?.phase === "revealing"}
                         disabled={!!flight && !itemFlight}
                         actionLabel={label}
                         onFlip={
@@ -343,6 +565,26 @@ export default function PackReveal({
                         }
                         onSwipe={itemFlight ? (direction) => void returnCard(direction) : undefined}
                       />
+                      {itemFlight?.first &&
+                        (itemFlight.phase === "revealing" || itemFlight.phase === "inspect") && (
+                          <span
+                            className="pack-receipt-mark"
+                            data-duplicate={item.duplicate}
+                            aria-hidden="true"
+                          >
+                            {item.duplicate ? (ru ? "ДУБЛЬ" : "COPY") : ru ? "НОВАЯ" : "NEW"}
+                          </span>
+                        )}
+                      {itemFlight?.starred && (
+                        <span className="pack-favorite-spark" aria-hidden="true">
+                          <Icon name="star" size={18} />
+                        </span>
+                      )}
+                      {itemFlight && favoriteError && (
+                        <span className="pack-favorite-notice" role="alert">
+                          {favoriteError}
+                        </span>
+                      )}
                     </div>
                   </article>
                 )

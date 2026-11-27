@@ -1,0 +1,407 @@
+// Adapted from BetterTyped react-cards-opening (MIT). See LICENSE.txt in this directory.
+
+import { corners, drawing, type Effect, type EffectStage, figure, part, piece } from "./stage"
+
+// Effects made of light: wheels of rays, beams, flashes, glows. Each is an element or two that the stylesheet
+// draws (`.rco-fx-<name>`, sized in `--rco-fx-u`, coloured by `--rco-tone`) and a timeline that moves it.
+
+const TAU = Math.PI * 2
+
+type Point = readonly [x: number, y: number]
+
+/** A jagged line from `from` outward along `angle`, `length` long. A new one every time it is asked. */
+function bolt(
+  stage: EffectStage,
+  { from, angle, length, steps }: { from: Point; angle: number; length: number; steps: number },
+): Point[] {
+  const points: Point[] = [from]
+  for (let at = 1; at <= steps; at += 1) {
+    const reach = (at / steps) * length
+    // Off its line by a little near the start and by more at the end, where a bolt forks about.
+    const off = (stage.random() - 0.5) * (5 + at * 3.2)
+    points.push([
+      from[0] + Math.cos(angle) * reach - Math.sin(angle) * off,
+      from[1] + Math.sin(angle) * reach + Math.cos(angle) * off,
+    ])
+  }
+  return points
+}
+
+const asPoints = (points: readonly Point[]) =>
+  points.map(([x, y]) => `${x.toFixed(1)},${y.toFixed(1)}`).join(" ")
+
+export const LIGHT_EFFECTS = [
+  {
+    name: "rays",
+    kind: "light",
+    // The wheel of rays a loud card opens behind itself, turning slowly.
+    seconds: 2.6,
+    play: (stage, tl) => {
+      const rays = part(stage, "rays")
+      piece(rays, "rays-light")
+      tl.fromTo(
+        rays,
+        { opacity: 0, scale: 0.5, rotate: 0 },
+        { opacity: 0.95, scale: 1, duration: 0.5, ease: "expo.out" },
+        0,
+      )
+      tl.to(rays, { rotate: 70, duration: 2.6, ease: "none" }, 0)
+      tl.to(rays, { opacity: 0, duration: 0.6, ease: "power1.in" }, 2)
+    },
+  },
+  {
+    name: "beams",
+    kind: "light",
+    // A few broad, soft shafts of light sweeping past each other in two layers.
+    seconds: 3,
+    play: (stage, tl) => {
+      const beams = part(stage, "beams")
+      const back = piece(piece(beams, "beams-light"), "beams-back")
+      tl.fromTo(
+        beams,
+        { opacity: 0, scale: 0.7, rotate: 0 },
+        { opacity: 0.9, scale: 1, duration: 0.6, ease: "power2.out" },
+        0,
+      )
+      tl.to(beams, { rotate: -46, scale: 1.12, duration: 3, ease: "none" }, 0)
+      tl.fromTo(back, { rotate: 0 }, { rotate: 110, duration: 3, ease: "none" }, 0)
+      tl.to(beams, { opacity: 0, duration: 0.8, ease: "power1.in" }, 2.2)
+    },
+  },
+  {
+    name: "halo",
+    kind: "light",
+    // A soft ring of light around the card that breathes a few times and lets go.
+    seconds: 2.4,
+    play: (stage, tl) => {
+      const halo = part(stage, "halo")
+      piece(halo, "halo-light")
+      tl.fromTo(
+        halo,
+        { opacity: 0, scale: 0.78 },
+        { opacity: 1, scale: 1, duration: 0.5, ease: "expo.out" },
+        0,
+      )
+      tl.to(halo, { scale: 1.09, duration: 0.45, ease: "sine.inOut", repeat: 3, yoyo: true }, 0.5)
+      tl.to(halo, { opacity: 0, scale: 1.2, duration: 0.5, ease: "power1.in" }, 1.9)
+    },
+  },
+  {
+    name: "flare",
+    kind: "light",
+    // A wide streak through a hot core, with two ghosts sliding out along it, as through a lens.
+    seconds: 1.5,
+    play: (stage, tl) => {
+      const flare = part(stage, "flare")
+      const streak = piece(flare, "flare-streak")
+      const cross = piece(flare, "flare-cross")
+      const core = piece(flare, "flare-core")
+      const near = piece(flare, "flare-ghost")
+      const far = piece(flare, "flare-ghost")
+      const u = stage.unit
+      tl.set(flare, { opacity: 1 }, 0)
+      tl.fromTo(
+        core,
+        { scale: 0, opacity: 1 },
+        { scale: 1, duration: 0.16, ease: "back.out(2)" },
+        0,
+      )
+      tl.to(core, { scale: 0.5, opacity: 0, duration: 1.1, ease: "power2.in" }, 0.2)
+      tl.fromTo(
+        streak,
+        { scaleX: 0, opacity: 1 },
+        { scaleX: 1, duration: 0.3, ease: "expo.out" },
+        0,
+      )
+      tl.to(
+        streak,
+        { scaleX: 1.25, scaleY: 0.3, opacity: 0, duration: 1.1, ease: "power2.in" },
+        0.3,
+      )
+      tl.fromTo(
+        cross,
+        { scaleY: 0, opacity: 0.9 },
+        { scaleY: 1, duration: 0.24, ease: "expo.out" },
+        0.04,
+      )
+      tl.to(cross, { scaleY: 0.4, opacity: 0, duration: 0.8, ease: "power2.in" }, 0.3)
+      tl.fromTo(
+        near,
+        { x: 0, scale: 0.4, opacity: 0 },
+        { x: u * 0.85, scale: 1, opacity: 0.55, duration: 0.5, ease: "expo.out" },
+        0.05,
+      )
+      tl.fromTo(
+        far,
+        { x: 0, scale: 0.3, opacity: 0 },
+        { x: -u * 1.4, scale: 1.7, opacity: 0.35, duration: 0.6, ease: "expo.out" },
+        0.05,
+      )
+      tl.to([near, far], { opacity: 0, duration: 0.7, ease: "power1.in" }, 0.6)
+    },
+  },
+  {
+    name: "spotlight",
+    kind: "light",
+    // A cone of light from the top of the stage that finds the card, sways and settles on it.
+    seconds: 2.6,
+    play: (stage, tl) => {
+      const cone = part(stage, "spotlight")
+      tl.fromTo(
+        cone,
+        { opacity: 0, rotate: -9 },
+        { opacity: 0.85, rotate: 5, duration: 0.7, ease: "power2.out" },
+        0,
+      )
+      tl.to(cone, { rotate: -3, duration: 0.6, ease: "sine.inOut" }, 0.7)
+      tl.to(cone, { rotate: 0, duration: 0.5, ease: "sine.inOut" }, 1.3)
+      tl.to(cone, { opacity: 0, duration: 0.6, ease: "power1.in" }, 2)
+    },
+  },
+  {
+    name: "sunburst",
+    kind: "light",
+    // Needle-thin spikes shot outward once, like light off a blade.
+    seconds: 0.9,
+    play: (stage, tl) => {
+      const burst = part(stage, "sunburst")
+      tl.fromTo(
+        burst,
+        { opacity: 1, scale: 0.15, rotate: 0 },
+        { opacity: 0, scale: 1.25, rotate: 14, duration: 0.9, ease: "expo.out" },
+        0,
+      )
+    },
+  },
+  {
+    name: "starburst",
+    kind: "light",
+    // A four-pointed star that snaps open, turns a little and closes: the glint on something precious.
+    seconds: 0.95,
+    play: (stage, tl) => {
+      const star = part(stage, "starburst")
+      piece(star, "starburst-star")
+      piece(star, "starburst-star rco-fx-starburst-small")
+      tl.set(star, { opacity: 1 }, 0)
+      tl.fromTo(
+        star,
+        { scale: 0, rotate: -20 },
+        { scale: 1, rotate: 0, duration: 0.2, ease: "back.out(1.6)" },
+        0,
+      )
+      tl.to(star, { scale: 0, rotate: 32, duration: 0.7, ease: "power2.in" }, 0.25)
+    },
+  },
+  {
+    name: "pillar",
+    kind: "light",
+    // A column of light through the card from the top of the stage to the bottom, the beam over rare loot.
+    seconds: 2,
+    play: (stage, tl) => {
+      const pillar = part(stage, "pillar")
+      tl.fromTo(
+        pillar,
+        { opacity: 1, scaleX: 0 },
+        { scaleX: 1, duration: 0.22, ease: "expo.out" },
+        0,
+      )
+      tl.to(
+        pillar,
+        {
+          keyframes: [
+            { scaleX: 0.72, duration: 0.18 },
+            { scaleX: 1.08, duration: 0.22 },
+            { scaleX: 0.84, duration: 0.3 },
+            { scaleX: 0.95, duration: 0.5 },
+          ],
+          ease: "sine.inOut",
+        },
+        0.22,
+      )
+      tl.to(pillar, { scaleX: 0, opacity: 0, duration: 0.55, ease: "power2.in" }, 1.45)
+    },
+  },
+  {
+    name: "lightning",
+    kind: "light",
+    // Jagged bolts out of the card that strike, vanish and strike again along new paths.
+    seconds: 0.62,
+    play: (stage, tl) => {
+      const count = 6
+      // Six bolts, and a fork off each of them.
+      const lines = drawing(stage, "lightning", { tag: "polyline", count: count * 2 })
+      const svg = lines[0]?.ownerSVGElement
+      if (!svg) return
+      const strike = () => {
+        const lean = stage.random() * TAU
+        for (let index = 0; index < count; index += 1) {
+          const angle = lean + (index / count) * TAU + (stage.random() - 0.5) * 0.5
+          const main = bolt(stage, {
+            from: [Math.cos(angle) * 16, Math.sin(angle) * 16],
+            angle,
+            length: 84,
+            steps: 7,
+          })
+          const knee = main[3 + Math.floor(stage.random() * 2)] ?? main[0] ?? [0, 0]
+          const fork = bolt(stage, {
+            from: knee,
+            angle: angle + (stage.random() > 0.5 ? 0.6 : -0.6),
+            length: 34,
+            steps: 4,
+          })
+          lines[index]?.setAttribute("points", asPoints(main))
+          lines[count + index]?.setAttribute("points", asPoints(fork))
+        }
+      }
+      strike()
+      tl.set(svg, { opacity: 1 }, 0)
+      tl.set(svg, { opacity: 0 }, 0.08)
+      tl.call(strike, undefined, 0.1)
+      tl.set(svg, { opacity: 1 }, 0.12)
+      tl.set(svg, { opacity: 0.35 }, 0.2)
+      tl.call(strike, undefined, 0.24)
+      tl.set(svg, { opacity: 1 }, 0.26)
+      tl.to(svg, { opacity: 0, duration: 0.3, ease: "power1.in" }, 0.32)
+    },
+  },
+  {
+    name: "rim",
+    kind: "light",
+    // The card's own outline, lit hot from behind, pulsing twice.
+    seconds: 1.6,
+    play: (stage, tl) => {
+      const rim = part(stage, "rim")
+      tl.fromTo(
+        rim,
+        { opacity: 0, scale: 0.98 },
+        { opacity: 1, scale: 1.03, duration: 0.18, ease: "power2.out" },
+        0,
+      )
+      tl.to(rim, { opacity: 0.45, scale: 1, duration: 0.3, ease: "sine.inOut" }, 0.18)
+      tl.to(rim, { opacity: 1, scale: 1.05, duration: 0.22, ease: "sine.inOut" }, 0.48)
+      tl.to(rim, { opacity: 0, scale: 1.1, duration: 0.9, ease: "power1.out" }, 0.7)
+    },
+  },
+  {
+    name: "frost",
+    kind: "light",
+    // A six-armed ice crystal that grows out from behind the card, turns a notch and melts away.
+    seconds: 2,
+    play: (stage, tl) => {
+      // Six arms, and two pairs of barbs on each.
+      const lines = drawing(stage, "frost", { tag: "polyline", count: 6 * 5 })
+      const svg = lines[0]?.ownerSVGElement
+      if (!svg) return
+      for (let arm = 0; arm < 6; arm += 1) {
+        const angle = (arm / 6) * TAU - Math.PI / 2
+        const at = (reach: number, turn = 0, far = 0): Point => [
+          Math.cos(angle) * reach + Math.cos(angle + turn) * far,
+          Math.sin(angle) * reach + Math.sin(angle + turn) * far,
+        ]
+        lines[arm * 5]?.setAttribute("points", asPoints([at(14), at(98)]))
+        for (const [index, [reach, far]] of [
+          [56, 20],
+          [78, 14],
+        ].entries()) {
+          lines[arm * 5 + 1 + index * 2]?.setAttribute(
+            "points",
+            asPoints([at(reach), at(reach, 0.95, far)]),
+          )
+          lines[arm * 5 + 2 + index * 2]?.setAttribute(
+            "points",
+            asPoints([at(reach), at(reach, -0.95, far)]),
+          )
+        }
+      }
+      tl.fromTo(
+        svg,
+        { opacity: 0, scale: 0.25, rotate: -30 },
+        { opacity: 1, scale: 1, rotate: 0, duration: 0.5, ease: "back.out(1.5)" },
+        0,
+      )
+      tl.to(svg, { rotate: 12, duration: 1.5, ease: "none" }, 0.5)
+      tl.to(svg, { opacity: 0, scale: 1.12, duration: 0.7, ease: "power1.in" }, 1.3)
+    },
+  },
+  {
+    name: "sigil",
+    kind: "light",
+    // A circle of power drawn behind the card: two rings, a six-pointed star and a second seal turning against it.
+    seconds: 2.6,
+    play: (stage, tl) => {
+      const ticks = Array.from({ length: 24 }, (_unused, index) => {
+        const angle = (index / 24) * TAU
+        const from = index % 2 === 0 ? 84 : 88
+        return `<line class="rco-fx-sigil-line" x1="${(Math.cos(angle) * from).toFixed(1)}" y1="${(Math.sin(angle) * from).toFixed(1)}" x2="${(Math.cos(angle) * 94).toFixed(1)}" y2="${(Math.sin(angle) * 94).toFixed(1)}" vector-effect="non-scaling-stroke" />`
+      }).join("")
+      const outer = figure(
+        stage,
+        "sigil",
+        `<circle class="rco-fx-sigil-line" r="98" vector-effect="non-scaling-stroke" />
+         <circle class="rco-fx-sigil-dash" r="80" vector-effect="non-scaling-stroke" />
+         ${ticks}
+         <polygon class="rco-fx-sigil-line" points="${corners(3, 80)}" vector-effect="non-scaling-stroke" />
+         <polygon class="rco-fx-sigil-line" points="${corners(3, 80)}" transform="rotate(180)" vector-effect="non-scaling-stroke" />`,
+      )
+      const inner = figure(
+        stage,
+        "sigil rco-fx-sigil-inner",
+        `<circle class="rco-fx-sigil-line" r="96" vector-effect="non-scaling-stroke" />
+         <polygon class="rco-fx-sigil-dash" points="${corners(4, 96)}" vector-effect="non-scaling-stroke" />
+         <polygon class="rco-fx-sigil-line" points="${corners(4, 96)}" transform="rotate(45)" vector-effect="non-scaling-stroke" />`,
+      )
+      tl.fromTo(
+        outer,
+        { opacity: 0, scale: 0.3, rotate: -60 },
+        { opacity: 1, scale: 1, rotate: 0, duration: 0.6, ease: "expo.out" },
+        0,
+      )
+      tl.to(outer, { rotate: 70, duration: 2, ease: "none" }, 0.6)
+      tl.fromTo(
+        inner,
+        { opacity: 0, scale: 0.2, rotate: 90 },
+        { opacity: 1, scale: 1, rotate: 0, duration: 0.7, ease: "expo.out" },
+        0.1,
+      )
+      tl.to(inner, { rotate: -120, duration: 1.8, ease: "none" }, 0.8)
+      tl.to([outer, inner], { opacity: 0, scale: 1.15, duration: 0.6, ease: "power1.in" }, 2)
+    },
+  },
+  {
+    name: "cracks",
+    kind: "light",
+    // The air around the card splits: glowing fractures race outward, fork, and burn out slowly.
+    seconds: 1.9,
+    play: (stage, tl) => {
+      const count = 9
+      const lines = drawing(stage, "cracks", { tag: "polyline", count: count * 2 })
+      const svg = lines[0]?.ownerSVGElement
+      if (!svg) return
+      const lean = stage.random() * TAU
+      for (let index = 0; index < count; index += 1) {
+        const angle = lean + (index / count) * TAU + (stage.random() - 0.5) * 0.4
+        const main = bolt(stage, {
+          from: [Math.cos(angle) * 20, Math.sin(angle) * 20],
+          angle,
+          length: 52 + stage.random() * 46,
+          steps: 6,
+        })
+        const knee = main[2 + Math.floor(stage.random() * 3)] ?? main[0] ?? [0, 0]
+        const fork = bolt(stage, {
+          from: knee,
+          angle: angle + (stage.random() > 0.5 ? 0.75 : -0.75),
+          length: 20 + stage.random() * 22,
+          steps: 3,
+        })
+        lines[index]?.setAttribute("points", asPoints(main))
+        lines[count + index]?.setAttribute("points", asPoints(fork))
+      }
+      // They are there in an instant and spread a little as they open. Then the light drains out of them.
+      tl.fromTo(svg, { opacity: 1, scale: 0.55 }, { scale: 1, duration: 0.16, ease: "expo.out" }, 0)
+      tl.to(svg, { scale: 1.06, duration: 1.7, ease: "none" }, 0.16)
+      tl.to(svg, { opacity: 0.55, duration: 0.12 }, 0.2)
+      tl.to(svg, { opacity: 1, duration: 0.08 }, 0.36)
+      tl.to(svg, { opacity: 0, duration: 1.3, ease: "power2.in" }, 0.55)
+    },
+  },
+] as const satisfies readonly Effect[]
