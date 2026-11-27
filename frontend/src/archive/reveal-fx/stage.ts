@@ -6,26 +6,15 @@ import type { Particle, ParticleField, ParticleShape, Polar } from "./particles"
 // What an effect is given to work with, and the two ways it has of drawing: particles on the layer's canvas, and
 // parts, which are plain elements styled by the stylesheet and moved by a timeline.
 
-export type EffectKind = "particles" | "light" | "wave" | "screen"
-
 export interface EffectStage {
   /** The element every part of this play is put in. It is taken away when the play is over. */
   root: HTMLElement
-  field: ParticleField
+  emit: ParticleField["emit"]
   /** Where the effect is centred, in pixels from the layer's top left corner. */
   x: number
   y: number
-  /** The width of what is being celebrated, in pixels. Every effect is drawn for a card 300 wide and scaled to it. */
-  size: number
   /** `size / 300`: what a design pixel is worth here. */
   scale: number
-  /**
-   * How much smaller than life the parts are laid out: 1 on most screens. A screen that draws three pixels for
-   * every one it lays out keeps every part as a picture nine times its laid-out size, so there each part is laid
-   * out smaller and drawn back up to size by the stylesheet (`--rco-fx-up`). Particles are not parts and take no
-   * notice of it.
-   */
-  render: number
   /** `size * render`: the width of what is celebrated in the parts' own pixels. What a part moves by. */
   unit: number
   /** Height over width of what is celebrated. */
@@ -34,48 +23,38 @@ export interface EffectStage {
   width: number
   height: number
   tone: string
-  accent: string
-  /** What a shake or a punch moves. */
-  subject: HTMLElement | null
+  /** Time remaining before the card turns, when this cue starts during charge. */
+  chargeSeconds?: number
   random: () => number
 }
 
 export interface Effect<Name extends string = string> {
   name: Name
-  kind: EffectKind
   /** How long it plays. */
   seconds: number
   /** Adds what the effect does to `timeline`, starting at zero. */
   play: (stage: EffectStage, timeline: EffectTimeline) => void
 }
 
-const HEX = /^#(?:[0-9a-f]{3}|[0-9a-f]{6})$/i
-
+/** Rank palettes are six-digit hexadecimal colors. */
 export const channels = (hex: string): number[] => {
-  const value = hex.replace("#", "")
-  const full = value.length === 3 ? [...value].map((char) => char + char).join("") : value
-  return [0, 2, 4].map((at) => Number.parseInt(full.slice(at, at + 2), 16) || 0)
+  const value = Number.parseInt(hex.slice(1), 16)
+  return [value >> 16, (value >> 8) & 255, value & 255]
 }
 
-/** `amount` of the way from one hex colour to another: 0 is the first, 1 the second. */
-function mixColors(from: string, to: string, amount: number): string {
-  const b = channels(to)
+/** Mix a rank color towards black or white by a share between 0 and 1. */
+function mixBrightness(from: string, target: number, amount: number): string {
   return `#${channels(from)
-    .map((channel, index) =>
-      Math.round(Math.min(255, Math.max(0, channel + ((b[index] ?? 0) - channel) * amount)))
+    .map((channel) =>
+      Math.round(channel + (target - channel) * amount)
         .toString(16)
         .padStart(2, "0"),
     )
     .join("")}`
 }
 
-/** A colour a share of the way to white. A colour that is not a plain hex is handed back as it came. */
-export const tint = (colour: string, amount: number) =>
-  HEX.test(colour) ? mixColors(colour, "#ffffff", amount) : colour
-
-/** A colour a share of the way to black. */
-export const shade = (colour: string, amount: number) =>
-  HEX.test(colour) ? mixColors(colour, "#000000", amount) : colour
+export const tint = (colour: string, amount: number) => mixBrightness(colour, 255, amount)
+export const shade = (colour: string, amount: number) => mixBrightness(colour, 0, amount)
 
 /* ---------- particles ---------- */
 
@@ -204,7 +183,7 @@ export function spawn(stage: EffectStage, spec: Spawn): Particle[] {
 
 /** Lets particles go at their moment of the timeline. */
 export function emit(stage: EffectStage, timeline: EffectTimeline, spec: Spawn): void {
-  timeline.call(() => stage.field.emit(spawn(stage, spec)), undefined, spec.at ?? 0)
+  timeline.call(() => stage.emit(spawn(stage, spec)), spec.at ?? 0)
 }
 
 /* ---------- parts ---------- */
@@ -214,17 +193,17 @@ export function emit(stage: EffectStage, timeline: EffectTimeline, spec: Spawn):
  * `--rco-fx-u`, the width of what is celebrated. A cover fills the whole layer instead.
  */
 export function part(stage: EffectStage, name: string, cover = false): HTMLElement {
-  const element = document.createElement("i")
-  element.className = cover ? `rco-fx-cover rco-fx-${name}` : `rco-fx rco-fx-${name}`
-  element.setAttribute("aria-hidden", "true")
-  stage.root.append(element)
-  return element
+  return appendPiece(stage.root, `${cover ? "rco-fx-cover" : "rco-fx"} rco-fx-${name}`)
 }
 
 /** A part inside another part: a ring's second line, a flare's ghost. */
 export function piece(parent: HTMLElement, name: string): HTMLElement {
+  return appendPiece(parent, `rco-fx-${name}`)
+}
+
+function appendPiece(parent: HTMLElement, className: string): HTMLElement {
   const element = document.createElement("i")
-  element.className = `rco-fx-${name}`
+  element.className = className
   parent.append(element)
   return element
 }
@@ -244,7 +223,6 @@ function sheet(stage: EffectStage, name: string): { svg: SVGSVGElement; ink: SVG
   const svg = document.createElementNS(SVG, "svg")
   svg.setAttribute("class", `rco-fx rco-fx-${name}`)
   svg.setAttribute("viewBox", "-100 -100 200 200")
-  svg.setAttribute("aria-hidden", "true")
   drawn += 1
   const id = `rco-fx-ink-${drawn}`
   const kept = document.createElementNS(SVG, "defs")

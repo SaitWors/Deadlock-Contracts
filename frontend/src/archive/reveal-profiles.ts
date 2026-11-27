@@ -18,6 +18,7 @@ type Cue = {
   readonly name: EffectName
   readonly delayMs: number
   readonly intensity: number
+  readonly size: number
 }
 
 export type RevealProfile = {
@@ -29,14 +30,18 @@ export type RevealProfile = {
   readonly glow: number
   readonly material: RevealMaterial
   readonly sound: number
-  readonly background: boolean
   readonly hum: readonly Cue[]
   readonly reveal: readonly Cue[]
   readonly liteHum: readonly Cue[]
   readonly liteReveal: readonly Cue[]
 }
 
-const cue = (name: EffectName, delayMs = 0, intensity = 1): Cue => ({ name, delayMs, intensity })
+const cue = (name: EffectName, delayMs = 0, intensity = 1, size = 1): Cue => ({
+  name,
+  delayMs,
+  intensity,
+  size,
+})
 
 export const REVEAL_PROFILES = {
   F: {
@@ -48,7 +53,6 @@ export const REVEAL_PROFILES = {
     glow: 0.08,
     material: "matte",
     sound: 0,
-    background: false,
     hum: [],
     reveal: [cue("slam", 140), cue("dust", 170)],
     liteHum: [],
@@ -63,7 +67,6 @@ export const REVEAL_PROFILES = {
     glow: 0.16,
     material: "satin",
     sound: 1,
-    background: false,
     hum: [cue("flare", 0, 0.22)],
     reveal: [cue("ripples", 110), cue("starburst", 185, 0.7)],
     liteHum: [],
@@ -78,7 +81,6 @@ export const REVEAL_PROFILES = {
     glow: 0.25,
     material: "lacquer",
     sound: 2,
-    background: false,
     hum: [cue("halo", 0, 0.28)],
     reveal: [cue("pulse", 125, 0.7), cue("fireflies", 205)],
     liteHum: [],
@@ -93,7 +95,6 @@ export const REVEAL_PROFILES = {
     glow: 0.34,
     material: "foil",
     sound: 3,
-    background: false,
     hum: [cue("converge", 0, 0.62)],
     reveal: [
       cue("frost", 120, 0.8),
@@ -113,7 +114,6 @@ export const REVEAL_PROFILES = {
     glow: 0.42,
     material: "crystalline",
     sound: 4,
-    background: false,
     hum: [cue("rim", 0, 0.5), cue("lightning", 35, 0.38)],
     reveal: [
       cue("shockwave", 145),
@@ -133,7 +133,6 @@ export const REVEAL_PROFILES = {
     glow: 0.46,
     material: "prism",
     sound: 5,
-    background: false,
     hum: [cue("implosion", 0, 0.72)],
     reveal: [
       cue("sigil", 100, 0.74),
@@ -153,17 +152,16 @@ export const REVEAL_PROFILES = {
     glow: 0.55,
     material: "gold",
     sound: 6,
-    background: false,
-    hum: [cue("halo", 0, 0.7)],
+    hum: [cue("halo", 0, 0.42, 0.8)],
     reveal: [
-      cue("sunburst", 120, 0.7),
-      cue("pillar", 140, 0.7),
-      cue("starburst", 255, 0.6),
-      cue("embers", 295),
-      cue("beams", 430, 0.48),
+      cue("pillar", 120, 0.56, 0.82),
+      cue("sunburst", 215, 0.45, 0.74),
+      cue("embers", 235, 0.9),
+      cue("starburst", 340, 0.33, 0.72),
+      cue("beams", 420, 0.54, 0.9),
     ],
-    liteHum: [cue("halo", 0, 0.65)],
-    liteReveal: [cue("sunburst", 120, 0.6), cue("embers", 180)],
+    liteHum: [cue("halo", 0, 0.39, 0.8)],
+    liteReveal: [cue("pillar", 120, 0.5, 0.8), cue("embers", 190, 0.85)],
   },
   SS: {
     color: CARD_RANK_COLORS.SS,
@@ -174,17 +172,15 @@ export const REVEAL_PROFILES = {
     glow: 0.62,
     material: "holographic",
     sound: 7,
-    background: true,
-    hum: [cue("converge", 0, 0.65), cue("implosion", 245, 0.85)],
+    hum: [cue("converge", 0, 0.54, 0.92), cue("implosion", 195, 0.82), cue("cracks", 475, 0.92)],
     reveal: [
-      cue("cracks", 135, 0.78),
-      cue("chroma", 170, 0.49),
-      cue("echo", 235, 0.75),
-      cue("nova", 320, 0.68),
-      cue("shards", 390),
+      cue("chroma", 165, 0.34),
+      cue("echo", 210, 0.79),
+      cue("shards", 265),
+      cue("nova", 495, 0.21, 0.77),
     ],
-    liteHum: [cue("implosion", 10, 0.72)],
-    liteReveal: [cue("cracks", 100, 0.9), cue("shards", 195)],
+    liteHum: [cue("cracks", 155, 0.88)],
+    liteReveal: [cue("echo", 130, 0.68), cue("shards", 200, 0.92)],
   },
   SSS: {
     color: CARD_RANK_COLORS.SSS,
@@ -195,24 +191,22 @@ export const REVEAL_PROFILES = {
     glow: 0.78,
     material: "patron",
     sound: 8,
-    background: true,
     hum: [
-      cue("vignette", 0, 0.64),
-      cue("converge", 210, 0.78),
-      cue("patron-seal", 240, 0.92),
-      cue("implosion", 660, 0.95),
+      cue("vignette", 0, 0.29),
+      cue("patron-seal", 80, 0.95),
+      cue("converge", 300, 0.34, 0.84),
+      cue("orbit", 440, 0.46),
+      cue("implosion", 695, 0.87),
     ],
     reveal: [
-      cue("nova", 105, 0.92),
-      cue("pillar", 140, 0.65),
-      cue("lightning", 215, 0.55),
-      cue("cracks", 275, 0.75),
-      cue("shockwave", 340, 0.76),
-      cue("comets", 415, 0.83),
-      cue("smoke", 630, 0.56),
+      cue("pillar", 215, 0.46, 0.82),
+      cue("nova", 310, 0.69, 0.91),
+      cue("comets", 380, 0.81),
+      cue("spiral", 540, 0.42),
+      cue("smoke", 690, 0.38),
     ],
-    liteHum: [cue("patron-seal", 30, 0.7), cue("converge", 100, 0.75)],
-    liteReveal: [cue("nova", 85, 0.8), cue("shockwave", 130, 0.6), cue("comets", 180, 0.65)],
+    liteHum: [cue("patron-seal", 55, 0.83), cue("implosion", 390, 0.67)],
+    liteReveal: [cue("nova", 255, 0.59, 0.86), cue("comets", 335, 0.68)],
   },
   EX: {
     color: CARD_RANK_COLORS.EX,
@@ -223,16 +217,15 @@ export const REVEAL_PROFILES = {
     glow: 0.48,
     material: "brass",
     sound: 9,
-    background: false,
-    hum: [cue("halo", 0, 0.43), cue("spotlight", 110, 0.5)],
+    hum: [cue("spotlight", 75, 0.55, 0.69)],
     reveal: [
-      cue("rays", 120, 0.68),
-      cue("stardust", 210, 0.9),
-      cue("flare", 315, 0.53),
-      cue("archive-seal", 360, 0.8),
+      cue("flare", 130, 0.39, 0.69),
+      cue("rays", 200, 0.52, 0.8),
+      cue("archive-seal", 285, 0.85),
+      cue("stardust", 365, 0.89),
     ],
-    liteHum: [cue("halo", 0, 0.43)],
-    liteReveal: [cue("rays", 115, 0.63), cue("stardust", 150, 0.7)],
+    liteHum: [cue("spotlight", 50, 0.5, 0.69)],
+    liteReveal: [cue("archive-seal", 180, 0.78), cue("stardust", 250, 0.72)],
   },
 } satisfies Record<Rank, RevealProfile>
 

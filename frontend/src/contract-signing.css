@@ -96,4 +96,3 @@ html[data-theme] dialog.signing-dialog .signing-colophon{display:flex;justify-co
  html[data-theme] dialog.signing-dialog .signing-actions button{width:100%}
 }
 html[data-theme] dialog.signing-dialog[data-motion=reduced],html[data-theme] dialog.signing-dialog[data-motion=reduced] *{animation:none!important;transition:none!important;scroll-behavior:auto!important}
-@media(prefers-reduced-motion:reduce){html[data-theme] dialog.signing-dialog,html[data-theme] dialog.signing-dialog *{animation:none!important;transition:none!important;scroll-behavior:auto!important}}

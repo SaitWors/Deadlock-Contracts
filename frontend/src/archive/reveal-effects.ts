@@ -2,10 +2,15 @@ import type { RevealProfile } from "./reveal-profiles"
 
 type Renderer = typeof import("./reveal-fx/renderer")
 let loading: Promise<Renderer | undefined> | undefined
+let loadFailureReported = false
 
 export function prewarmRevealEffects() {
   loading ??= import("./reveal-fx/renderer").catch(() => {
     loading = undefined
+    if (!loadFailureReported) {
+      loadFailureReported = true
+      console.warn("Archive reveal effects could not be loaded.")
+    }
     return undefined
   })
   return loading
@@ -22,7 +27,6 @@ export function createRevealEffects(layer: HTMLElement) {
       anchor: HTMLElement,
       profile: RevealProfile,
       motion: "full" | "lite" | "reduced",
-      subject?: HTMLElement,
     ) {
       if (motion === "reduced" || typeof requestAnimationFrame !== "function") return
       const anchorBounds = anchor.getBoundingClientRect()
@@ -33,6 +37,7 @@ export function createRevealEffects(layer: HTMLElement) {
         anchorBounds.top + anchorBounds.height * (cue === "pack" ? 0.18 : 0.5) - layerBounds.top
       const lite = motion === "lite"
       const hum = cue === "hum"
+      const chargeMs = profile.chargeMs * (lite ? 0.6 : 1)
       const steps = lite
         ? hum
           ? profile.liteHum
@@ -52,18 +57,17 @@ export function createRevealEffects(layer: HTMLElement) {
           // A cold import may outlive the visual beat. Do not bunch expired cues onto a later phase.
           if (delay < -220) continue
           const render = () => {
-            if (current !== generation) return
+            if (current !== generation || !anchor.isConnected) return
             renderer?.play(step.name, {
               x,
               y,
-              size: anchorBounds.width,
+              size: anchorBounds.width * step.size,
               ratio: anchorBounds.height / anchorBounds.width,
               tone: profile.color,
               accent: profile.secondary,
               intensity: profile.intensity * step.intensity,
-              chargeMs: hum ? (profile.chargeMs - step.delayMs) * (lite ? 0.6 : 1) : undefined,
+              chargeMs: hum ? Math.max(50, chargeMs - (performance.now() - started)) : undefined,
               lite,
-              subject,
             })
           }
           if (delay <= 0) render()

@@ -652,6 +652,25 @@ test("reduced motion suppresses interactive tilt and ripple", async () => {
   await api.act(async () => instance.unmount())
 })
 
+test("the full site motion override enables hover and click feedback under system reduced motion", async () => {
+  const { document, api, w } = runtime()
+  document.documentElement.dataset.motion = "full"
+  let instance
+  await api.act(async () => {
+    instance = api.mountMotion(document.getElementById("mount"))
+  })
+  const button = document.querySelector("main button")
+  button.getBoundingClientRect = () => ({ left: 0, top: 0, width: 100, height: 60 })
+  await api.act(async () => {
+    button.dispatchEvent(new w.MouseEvent("mousemove", { bubbles: true, clientX: 80, clientY: 40 }))
+    button.dispatchEvent(new w.MouseEvent("click", { bubbles: true, detail: 1 }))
+  })
+  assert.match(button.style.transform, /perspective\(1000px\)/)
+  assert.equal(button.querySelectorAll(".ripple-span").length, 1)
+  assert.equal(w.matchMedia("(prefers-reduced-motion: reduce)").matches, true)
+  await api.act(async () => instance.unmount())
+})
+
 test("completed or expired cases are not presented as newly opened", async () => {
   const { api } = runtime()
   for (const status of ["SETTLED", "EXPIRED", "VOID"]) {

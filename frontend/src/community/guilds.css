@@ -235,5 +235,4 @@
 .guild-hero-actions .dc-primary{font-size:12px;padding:12px}
 .guild-hero-actions .dc-ghost{font-size:12px;padding:12px}
 .guild-identity h1{font-size:24px}}
-@media (prefers-reduced-motion: reduce){.guild-directory-card.bureau-directory-card{transition:none}
-.guild-directory-card.bureau-directory-card:hover{transform:none}}
+html[data-motion="reduced"] .guild-directory-card.bureau-directory-card:hover{transform:none}

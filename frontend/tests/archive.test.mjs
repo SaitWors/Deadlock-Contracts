@@ -470,7 +470,7 @@ function endFlight(doc, phase) {
 }
 
 function endTurn(doc) {
-  transitionEnd(doc, flight(doc, "revealing")?.querySelector(".card-surface-turn"))
+  animationEnd(doc, flight(doc, "revealing")?.querySelector(".card-surface-turn"), "pack-turn")
 }
 
 async function inspectCard(api, doc, card = packControl(doc, "Reveal card")) {
@@ -582,6 +582,11 @@ test("the opening scene deals the whole pack and contains only the pack and card
   assert.equal(dialog.querySelector("header, footer"), null)
   assert.equal(dialog.querySelectorAll("button:not([inert] *)").length, 1)
   const pack = packControl(doc, "Break the seal")
+  await api.act(async () => {
+    animationEnd(doc, pack.querySelector(".pack-arrival"), "pack-appear")
+    animationEnd(doc, pack)
+  })
+  assert.equal(packStage(doc), "sealed", "appearance and stale deal events cannot open the pack")
   await api.act(async () => pack.click())
   assert.equal(packStage(doc), "opening")
   const scene = dialog.querySelector(".pack-opening-scene")
@@ -589,10 +594,59 @@ test("the opening scene deals the whole pack and contains only the pack and card
   assert.equal(packStage(doc), "opening", "an animation bubbling from a child must be ignored")
   await api.act(async () => animationEnd(doc, scene))
   assert.equal(packStage(doc), "cards")
+  assert.equal(dialog.querySelector(".pack-opening-scene"), null)
   assert.equal(dialog.querySelectorAll(".pack-card-seat").length, 2)
   assert.equal(dialog.querySelectorAll("button[aria-label='Reveal card']").length, 2)
   assert.equal(dialog.querySelectorAll(".card-surface-front[aria-hidden='true']").length, 2)
   assert.equal(dialog.querySelectorAll("button").length, 2)
+  await api.act(async () => root.unmount())
+})
+
+test("inspection leaves the deck displaced until landing and keeps the receipt mark on its face", async () => {
+  const { api, doc, w } = runtime(async () => response({}), "en")
+  let root
+  await api.act(async () => {
+    root = api.mount(doc.getElementById("mount"), "receipt", {
+      receipt: packReceipt("paint-order", [
+        receiptItem("a", "First"),
+        receiptItem("ex", "Wide", "EX"),
+      ]),
+      cinematic: true,
+    })
+  })
+  await dealPack(api, doc)
+  const deck = doc.querySelector(".pack-deck")
+  assert.equal(deck.querySelectorAll('[data-wide="true"]').length, 1)
+  await api.act(async () => packControl(doc, "Reveal card").click())
+  assert.equal(deck.dataset.occupied, "true")
+  await api.act(async () => endFlight(doc, "lifting"))
+  const front = flight(doc, "revealing").querySelector(".card-surface-front")
+  assert.ok(front.querySelector(".pack-receipt-mark"))
+  assert.equal(
+    front.querySelector("figcaption").contains(front.querySelector(".pack-receipt-mark")),
+    false,
+  )
+  await api.act(async () => endTurn(doc))
+  assert.equal(deck.dataset.occupied, "true")
+  assert.equal(front, flight(doc, "inspect").querySelector(".card-surface-front"))
+  await api.act(async () => {
+    pointer(w, packControl(doc, "Return card to pack"), "pointerdown", 120)
+    doc.querySelector("dialog").dispatchEvent(
+      new w.MouseEvent("click", {
+        bubbles: true,
+        detail: 1,
+        clientX: 180,
+        clientY: 100,
+      }),
+    )
+  })
+  assert.ok(flight(doc, "inspect"), "the end of an object gesture cannot activate the backdrop")
+  await api.act(async () => packControl(doc, "Return card to pack").click())
+  assert.equal(deck.dataset.occupied, "true")
+  await finishReturn(api, doc)
+  assert.equal(deck.dataset.occupied, "false")
+  assert.equal(front.getAttribute("aria-hidden"), "false")
+  assert.equal(front.querySelector(".pack-receipt-mark"), null)
   await api.act(async () => root.unmount())
 })
 
@@ -1284,6 +1338,10 @@ test("manual motion off opens pack results immediately and disables pointer tilt
     pointer(w, surface, "pointermove", 150, 150)
   })
   assert.equal(surface.style.getPropertyValue("--tilt-x"), "")
+  await api.act(async () => packControl(doc, "Inspect card").click())
+  assert.ok(flight(doc, "inspect"))
+  await api.act(async () => packControl(doc, "Return card to pack").click())
+  assert.equal(doc.querySelector("dialog [data-flight]"), null)
   await api.act(async () => root.unmount())
 })
 

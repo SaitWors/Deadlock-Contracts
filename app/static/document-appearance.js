@@ -5,6 +5,7 @@
   const key = "dc.ui.appearance";
   const modes = ["system", "light", "dark", "black", "custom"];
   const system = window.matchMedia("(prefers-color-scheme: dark)");
+  const systemMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
   const controls = document.querySelectorAll("[data-document-theme]");
   function read() {
     let value;
@@ -14,7 +15,9 @@
       theme: modes.includes(p.theme) ? p.theme : "dark",
       accent: typeof p.accent === "string" && /^#[a-f\d]{6}$/i.test(p.accent) ? p.accent : "#aec69b",
       radius: Number.isFinite(p.radius) ? Math.max(0, Math.min(8, p.radius)) : 4,
-      motion: p.motion !== false,
+      motion: p.motion === false || p.motion === "OFF" ? "OFF" : p.motion === "FULL" ? "FULL" : "SYSTEM",
+      effectsQuality: p.effectsQuality === "FULL" || p.effectsQuality === "LITE" ? p.effectsQuality : "AUTO",
+      packSound: p.packSound === true,
     };
   }
   const rgb = (hex) => hex.match(/[a-f\d]{2}/gi).map((v) => parseInt(v, 16));
@@ -32,7 +35,7 @@
     const theme = p.theme === "system" ? (system.matches ? "dark" : "light") : p.theme;
     root.dataset.theme = theme;
     root.dataset.themeMode = p.theme;
-    root.dataset.motion = p.motion ? "full" : "reduced";
+    root.dataset.motion = p.motion === "OFF" || (p.motion === "SYSTEM" && systemMotion.matches) ? "reduced" : "full";
     root.style.colorScheme = theme === "light" ? "light" : "dark";
     root.style.setProperty("--ns-radius", `${p.radius}px`);
     root.style.setProperty("--ns-small", `${Math.min(4, Math.round(p.radius * .55))}px`);
@@ -56,6 +59,7 @@
     apply();
   }));
   system.addEventListener("change", apply);
+  systemMotion.addEventListener("change", apply);
   window.addEventListener("storage", (event) => {
     if (event.key === key || event.key === null) { preference = read(); apply(); }
   });

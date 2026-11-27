@@ -70,7 +70,6 @@
 }
 @media(max-width:359px){.bureau-guide-footer{grid-template-columns:1fr}.bureau-guide-footer>.bureau-action:last-child{grid-row:1}.bureau-location button{font-size:.8rem}.bureau-guide-content>.bureau-regalia{float:none;width:64px;height:70px;margin:0}}
 
-@media(prefers-reduced-motion:reduce){.bureau-guide *{animation:none!important;transition:none!important;scroll-behavior:auto!important}}
 @media (min-width:1200px) and (max-width:1399px) {
   .bureau-app .bureau-nav{display:none}
   .bureau-app .bureau-menu-toggle{display:block}

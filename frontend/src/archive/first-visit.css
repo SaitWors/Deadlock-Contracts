@@ -51,4 +51,3 @@
 .guest-choice button{font-size:0.72rem}
 .guest-symbol-picker{gap:5px}
 .guest-symbol-picker button{flex-direction:column;font-size:0.78rem}}
-@media (prefers-reduced-motion: reduce){.guest-cipher *{animation:none !important;transition:none !important}}

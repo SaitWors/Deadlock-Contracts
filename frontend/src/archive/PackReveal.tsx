@@ -1,10 +1,11 @@
 import { useEffect, useRef, useState, type CSSProperties, type PointerEvent } from "react"
 import Icon from "../icons/Icon"
 import { useLanguage } from "../i18n"
-import { useAppearance, useReducedMotion } from "../Appearance"
+import { useAppearance, useEffectsQuality, useReducedMotion } from "../Appearance"
 import CardSurface from "./CardSurface"
 import { FavoriteButton, FavoriteError, type FavoriteControls } from "./favorites"
 import { createPackAudio } from "./pack-audio"
+import { deckRows, restingOffset, wideCard } from "./pack-layout"
 import { createRevealEffects, prewarmRevealEffects } from "./reveal-effects"
 import { PACK_REVEAL_PROFILE, revealProfile, type RevealProfile } from "./reveal-profiles"
 import { RANKS, type Receipt } from "./types"
@@ -46,6 +47,7 @@ export default function PackReveal({
   const session = useRef(0)
   const saving = useRef(false)
   const favoriteRequest = useRef(0)
+  const pointerStart = useRef<{ object: boolean; x: number; y: number } | null>(null)
   const [stage, setStage] = useState<Stage>("sealed")
   const [isOpen, setIsOpen] = useState(false)
   const [revealed, setRevealed] = useState<string[]>([])
@@ -58,9 +60,9 @@ export default function PackReveal({
   const activeItem = receipt.items.find(({ id }) => flight?.id === id)
   const profile = activeItem && revealProfile(activeItem.card)
   const dealTime = DEAL_MS + LAND_MS + STAGGER_MS * Math.max(0, receipt.items.length - 1)
-  const lite =
-    window.matchMedia("(pointer: coarse)").matches ||
-    (navigator.hardwareConcurrency > 0 && navigator.hardwareConcurrency <= 4)
+  const mixed = receipt.items.some(({ card }) => wideCard(card))
+  const quality = useEffectsQuality()
+  const lite = quality === "LITE"
   const chargeMs = (profile?.chargeMs ?? 0) * (lite ? 0.6 : 1)
   const highlight = results
     ? receipt.items.reduce<Receipt["items"][number] | undefined>((best, item) => {
@@ -90,11 +92,11 @@ export default function PackReveal({
   useEffect(() => {
     if (!isOpen) return
     if (stage === "sealed") sealRef.current?.focus()
-    if (stage === "cards") {
+    if (stage === "cards" || (stage === "results" && reduced)) {
       const seat = seats.current.values().next().value
       seat?.querySelector("button")?.focus({ preventScroll: true })
     }
-  }, [stage, isOpen])
+  }, [stage, isOpen, reduced])
 
   useEffect(() => {
     if (!isOpen || reduced) return
@@ -123,7 +125,7 @@ export default function PackReveal({
     const play = (cue: "pack" | "hum" | "reveal", anchor: HTMLElement, recipe: RevealProfile) => {
       if (epoch !== session.current || !effectsLayer.current) return
       const handle = (effects.current ??= createRevealEffects(effectsLayer.current))
-      handle.play(cue, anchor, recipe, lite ? "lite" : "full", anchor)
+      handle.play(cue, anchor, recipe, lite ? "lite" : "full")
     }
 
     if (stage === "opening") {
@@ -151,7 +153,7 @@ export default function PackReveal({
     }
     if (flight.phase === "revealing") {
       play("reveal", subject, profile)
-      audio.current?.play("reveal", Math.min(0.12, profile.turnMs / 5000), profile.sound)
+      audio.current?.play("reveal", profile.turnMs / 2000, profile.sound)
     }
     if (flight.phase === "returning") {
       effects.current?.clear()
@@ -221,6 +223,7 @@ export default function PackReveal({
     setRevealed([])
     setFlight(null)
     setFavoriteError(null)
+    pointerStart.current = null
     setShowInlineResults(false)
     setStage(reduced || !receipt.items.length ? "results" : "sealed")
     dialogRef.current?.showModal()
@@ -237,21 +240,39 @@ export default function PackReveal({
   function positionFromCenter(id: string) {
     const seat = seats.current.get(id)?.getBoundingClientRect()
     const scene = dialogRef.current?.getBoundingClientRect()
-    if (!seat || !scene) return { x: 0, y: 0, scale: 1 }
+    if (!seat || !scene) return { x: 0, y: 0, scale: 1, picked: seat, scene }
     const ratio = seat.width ? seat.height / seat.width : 1.5
-    const width = Math.min(ratio < 1 ? 460 : 320, scene.width * 0.8, (scene.height * 0.78) / ratio)
+    const width = Math.min(
+      ratio < 1 ? 520 : 360,
+      scene.width * (ratio < 1 ? 0.88 : 0.8),
+      (scene.height * 0.76) / ratio,
+    )
     return {
       x: scene.left + (scene.width - seat.width) / 2 - seat.left,
       y: scene.top + (scene.height - seat.height) / 2 - seat.top,
       scale: seat.width ? width / seat.width : 1,
+      picked: seat,
+      scene,
     }
   }
 
   function flightPosition(id: string) {
-    const { x, y, scale } = positionFromCenter(id)
+    const { x, y, scale, picked, scene } = positionFromCenter(id)
+    if (scene && picked?.width) {
+      for (const [other, seat] of seats.current) {
+        if (other === id) continue
+        const offset = restingOffset(
+          seat.getBoundingClientRect(),
+          picked,
+          scene,
+          picked.width * scale,
+        )
+        seat.style.setProperty("--rest-shift", `${offset.x}px,${offset.y}px`)
+        seat.style.setProperty("--rest-opacity", String(offset.opacity))
+      }
+    }
     return {
-      "--flight-x": `${x}px`,
-      "--flight-y": `${y}px`,
+      "--flight-shift": `${x}px,${y}px`,
       "--flight-scale": scale,
     } as CSSProperties
   }
@@ -276,7 +297,7 @@ export default function PackReveal({
       (current) =>
         current ?? {
           id,
-          phase: "lifting",
+          phase: reduced ? "inspect" : "lifting",
           position,
           first: !results && !revealed.includes(id),
         },
@@ -308,6 +329,10 @@ export default function PackReveal({
     }
     favoriteRequest.current++
     saving.current = false
+    if (reduced) {
+      setFlight(null)
+      return
+    }
     setFlight((current) =>
       current?.id === flight.id && current.phase === "inspect"
         ? { ...current, phase: "returning", starred: direction === "left" }
@@ -379,7 +404,24 @@ export default function PackReveal({
         className="pack-reveal"
         data-reduced={reduced}
         aria-label={title}
+        onPointerDownCapture={(event) => {
+          pointerStart.current = {
+            object: Boolean(
+              (event.target as Element).closest(".pack-opening-scene, .pack-card-seat"),
+            ),
+            x: event.clientX,
+            y: event.clientY,
+          }
+        }}
         onClick={(event) => {
+          const origin = pointerStart.current
+          pointerStart.current = null
+          if (
+            event.detail &&
+            origin &&
+            (origin.object || Math.hypot(event.clientX - origin.x, event.clientY - origin.y) > 12)
+          )
+            return
           if (!(event.target as Element).closest(".pack-opening-scene, .pack-card-seat"))
             backdropAction()
         }}
@@ -398,7 +440,8 @@ export default function PackReveal({
             className="pack-reveal-shell"
             data-stage={stage}
             data-reduced={reduced}
-            style={{ "--tear-at": `${TEAR_MS}ms` } as CSSProperties}
+            data-quality={quality}
+            style={{ "--tear-at": `${TEAR_MS}ms`, "--deal-at": `${DEAL_MS}ms` } as CSSProperties}
           >
             <div
               className="pack-effects-layer rco-fx-layer"
@@ -421,7 +464,7 @@ export default function PackReveal({
               <button
                 ref={sealRef}
                 type="button"
-                className="pack-opening-scene pack-envelope-art"
+                className="pack-opening-scene"
                 aria-label={ru ? "Вскрыть конверт" : "Break the seal"}
                 aria-disabled={stage === "opening"}
                 onPointerMove={tiltSeal}
@@ -444,21 +487,20 @@ export default function PackReveal({
                 }}
                 style={{ "--deal-time": `${dealTime}ms` } as CSSProperties}
               >
-                <span className="pack-wrapper" aria-hidden="true">
-                  <span className="pack-wrapper-pose">
-                    <span className="pack-envelope-body">
-                      <Icon name="layers" size={70} />
-                      <span>{receipt.pack?.title || "THE ARCHIVE"}</span>
-                      <small>
-                        {String(receipt.items.length).padStart(2, "0")} · COLLECTION FILES
-                      </small>
-                    </span>
-                    <span className="pack-tear-light" />
-                    <span className="pack-tear-strip">
-                      <b>DEAD</b>
-                      <b>LOCK</b>
-                      <b>CON</b>
-                      <b>TRACTS</b>
+                <span className="pack-arrival" aria-hidden="true">
+                  <span className="pack-wrapper">
+                    <span className="pack-wrapper-pose">
+                      <span className="pack-envelope-body">
+                        <Icon name="layers" size={70} />
+                        <span>{receipt.pack?.title || "THE ARCHIVE"}</span>
+                      </span>
+                      <span className="pack-tear-light" />
+                      <span className="pack-tear-strip">
+                        <b>DEAD</b>
+                        <b>LOCK</b>
+                        <b>CON</b>
+                        <b>TRACTS</b>
+                      </span>
                     </span>
                   </span>
                 </span>
@@ -468,14 +510,14 @@ export default function PackReveal({
             <div
               className={results ? "pack-deck pack-reveal-results" : "pack-deck"}
               data-pentagon={receipt.items.length === 5}
-              data-dim={
-                !!profile?.background &&
-                (flight?.phase === "charging" || flight?.phase === "revealing")
-              }
+              data-occupied={!!flight}
+              data-dense={receipt.items.length > 6}
+              data-mixed={mixed}
               style={
                 {
-                  "--rows-mobile": Math.max(1, Math.ceil(receipt.items.length / 3)),
-                  "--rows-narrow": Math.max(1, Math.ceil(receipt.items.length / 2)),
+                  "--rows-wide": deckRows(receipt.items, mixed ? 5.52 : 5),
+                  "--rows-mobile": deckRows(receipt.items, 3),
+                  "--rows-narrow": deckRows(receipt.items, 2),
                 } as CSSProperties
               }
               inert={stage === "sealed" || stage === "opening"}
@@ -483,7 +525,6 @@ export default function PackReveal({
               {receipt.items.map((item, index) => {
                 const itemFlight = flight?.id === item.id ? flight : null
                 const faceUp = results || revealed.includes(item.id)
-                const config = revealProfile(item.card)
                 const label = itemFlight
                   ? ru
                     ? "Вернуть карточку в раскладку"
@@ -500,6 +541,7 @@ export default function PackReveal({
                     key={item.id}
                     className="pack-card-seat"
                     data-active={!!itemFlight}
+                    data-wide={wideCard(item.card)}
                     data-highlight={item.id === highlight && !reduced}
                     ref={(node) => {
                       if (node) seats.current.set(item.id, node)
@@ -523,58 +565,64 @@ export default function PackReveal({
                       className="pack-card-motion"
                       data-flight={itemFlight?.phase}
                       style={
-                        itemFlight
+                        itemFlight && profile
                           ? ({
                               ...itemFlight.position,
-                              "--turn-time": `${config.turnMs}ms`,
-                              "--reveal-color": config.color,
+                              "--turn-time": `${profile.turnMs}ms`,
+                              "--reveal-color": profile.color,
                               "--charge-time": `${chargeMs}ms`,
-                              "--charge-glow": config.glow,
+                              "--charge-glow": profile.glow,
                             } as CSSProperties)
                           : undefined
                       }
                       onTransitionEnd={(event) => {
                         if (!itemFlight || event.propertyName !== "transform") return
                         if (
-                          itemFlight.phase === "revealing" &&
-                          (event.target as Element).classList.contains("card-surface-turn")
-                        )
-                          finishFlight("revealing")
-                        if (
                           event.target === event.currentTarget &&
                           (itemFlight.phase === "lifting" || itemFlight.phase === "returning")
                         )
                           finishFlight(itemFlight.phase)
                       }}
+                      onAnimationEnd={(event) => {
+                        if (
+                          itemFlight?.phase === "revealing" &&
+                          event.animationName === "pack-turn"
+                        )
+                          finishFlight("revealing")
+                      }}
                     >
-                      <CardSurface
-                        card={item.card}
-                        revealed={faceUp}
-                        reduced={reduced}
-                        preloadArtwork
-                        animateMaterial={itemFlight?.phase === "revealing"}
-                        disabled={!!flight && !itemFlight}
-                        actionLabel={label}
-                        onFlip={
-                          reduced
-                            ? undefined
-                            : () => {
-                                if (itemFlight) void returnCard()
-                                else inspect(item.id)
-                              }
-                        }
-                        onSwipe={itemFlight ? (direction) => void returnCard(direction) : undefined}
-                      />
-                      {itemFlight?.first &&
-                        (itemFlight.phase === "revealing" || itemFlight.phase === "inspect") && (
-                          <span
-                            className="pack-receipt-mark"
-                            data-duplicate={item.duplicate}
-                            aria-hidden="true"
-                          >
-                            {item.duplicate ? (ru ? "ДУБЛЬ" : "COPY") : ru ? "НОВАЯ" : "NEW"}
-                          </span>
-                        )}
+                      <div className="pack-card-scale">
+                        <div className="pack-card-recoil">
+                          <CardSurface
+                            card={item.card}
+                            revealed={faceUp}
+                            reduced={reduced}
+                            preloadArtwork
+                            disabled={!!flight && !itemFlight}
+                            actionLabel={label}
+                            onFlip={() => {
+                              if (itemFlight) void returnCard()
+                              else inspect(item.id)
+                            }}
+                            onSwipe={
+                              itemFlight ? (direction) => void returnCard(direction) : undefined
+                            }
+                            edgeMark={
+                              itemFlight?.first &&
+                              (itemFlight.phase === "revealing" ||
+                                itemFlight.phase === "inspect") && (
+                                <span
+                                  className="pack-receipt-mark"
+                                  data-duplicate={item.duplicate}
+                                  aria-hidden="true"
+                                >
+                                  {item.duplicate ? (ru ? "ДУБЛЬ" : "COPY") : ru ? "НОВАЯ" : "NEW"}
+                                </span>
+                              )
+                            }
+                          />
+                        </div>
+                      </div>
                       {itemFlight?.starred && (
                         <span className="pack-favorite-spark" aria-hidden="true">
                           <Icon name="star" size={18} />

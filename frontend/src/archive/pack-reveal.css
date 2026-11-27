@@ -30,9 +30,11 @@ html:has(.pack-reveal[open]) {
   box-sizing: border-box;
   position: relative;
   min-height: 100%;
+  isolation: isolate;
   display: grid;
   place-items: center;
-  padding: 16px;
+  padding: max(16px, env(safe-area-inset-top)) max(16px, env(safe-area-inset-right))
+    max(16px, env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left));
 }
 
 .pack-reveal button:focus-visible {
@@ -46,7 +48,7 @@ html:has(.pack-reveal[open]) {
 
 .pack-effects-layer {
   position: absolute;
-  z-index: 1;
+  z-index: 2;
   inset: 0;
   pointer-events: none;
   overflow: hidden;
@@ -57,17 +59,27 @@ html:has(.pack-reveal[open]) {
   grid-area: 1 / 1;
   width: min(240px, 70vw, 60dvh);
   aspect-ratio: 4 / 5;
-  z-index: 3;
-  border: 0;
-  padding: 0;
-  background: transparent;
+  z-index: 4;
+  /* The native hit area must never paint the surrounding archive's button chrome. */
+  appearance: none;
+  border: 0 !important;
+  padding: 0 !important;
+  background: none !important;
+  box-shadow: none !important;
+  opacity: 1;
+  visibility: visible;
   cursor: pointer;
   font-family: var(--font-body);
   perspective: 900px;
 }
 
-[data-stage=sealed] .pack-opening-scene {
-  animation: pack-appear .48s cubic-bezier(.2,1.21,.45,1) both;
+.pack-arrival {
+  position: absolute;
+  inset: 0;
+}
+
+[data-stage=sealed] .pack-arrival {
+  animation: pack-appear .48s cubic-bezier(.2,1.21,.45,1) backwards;
 }
 
 .pack-wrapper {
@@ -139,7 +151,10 @@ html:has(.pack-reveal[open]) {
 }
 
 .pack-reveal-shell[data-stage=opening] .pack-opening-scene {
-  animation: pack-burst var(--deal-time) step-end both;
+  animation: pack-burst var(--deal-time) step-end both,
+    pack-clear-mouth 1ms var(--deal-at) step-end forwards;
+  outline: none;
+  pointer-events: none;
 }
 
 .pack-reveal-shell[data-stage=opening] .pack-wrapper {
@@ -165,16 +180,22 @@ html:has(.pack-reveal[open]) {
 }
 
 .pack-deck {
-  --gap: clamp(8px, 2vw, 22px);
-  --seat-width: min(156px, (100% - 4 * var(--gap)) / 5, 30dvh);
+  --gap: clamp(8px, 2vw, 26px);
+  --cols: 5;
+  --rows: var(--rows-wide);
+  --gaps: 4;
+  --height-fit: calc((100dvh - 36px - (var(--rows) - 1) * var(--gap)) / (1.5 * var(--rows)));
+  --seat-width: min(168px, (100% - var(--gaps) * var(--gap)) / var(--cols), var(--height-fit));
   grid-area: 1 / 1;
   display: flex;
   flex-wrap: wrap;
   justify-content: center;
   align-items: center;
   gap: var(--gap);
-  width: min(100%, 900px);
+  width: min(100%, 1140px);
 }
+
+.pack-deck[data-mixed=true] { --cols: 5.52; }
 
 .pack-reveal-shell[data-stage=sealed] .pack-deck {
   visibility: hidden;
@@ -182,21 +203,28 @@ html:has(.pack-reveal[open]) {
 
 .pack-card-seat {
   position: relative;
+  z-index: 1;
   min-width: 0;
-  width: var(--seat-width);
-  transition: opacity .25s;
+  width: calc(var(--seat-width) * var(--seat-span, 1));
 }
 
-.pack-deck[data-dim=true] .pack-card-seat[data-active=false] {
-  opacity: .19;
+.pack-card-seat[data-wide=true] {
+  --seat-span: 1.52;
+}
+
+.pack-deck[data-occupied=true] .pack-card-seat[data-active=false] .pack-card-motion {
+  transform: translate(var(--rest-shift, 0px, 0px)) scale(.84);
+  opacity: var(--rest-opacity, .24);
+  pointer-events: none;
+  transition-duration: .24s;
 }
 
 .pack-card-seat[data-active=true] {
-  z-index: 2;
+  z-index: 3;
 }
 
 .pack-card-motion {
-  transition: transform .6s cubic-bezier(.645, .045, .355, 1);
+  transition: transform .6s cubic-bezier(.645,.045,.355,1), opacity .35s ease;
 }
 
 .pack-reveal-shell[data-stage=opening] .pack-card-motion {
@@ -204,7 +232,7 @@ html:has(.pack-reveal[open]) {
 }
 
 .pack-card-motion[data-flight]:where(:not([data-flight=returning])) {
-  transform: translate(var(--flight-x), var(--flight-y)) scale(var(--flight-scale)) rotate(var(--flight-tilt, 0deg));
+  transform: translate(var(--flight-shift)) rotate(var(--flight-tilt, 0deg));
   transition: transform .35s cubic-bezier(.333333, 1.533333, .666667, 1);
 }
 
@@ -213,20 +241,42 @@ html:has(.pack-reveal[open]) {
   transition: transform .75s cubic-bezier(.19, 1, .22, 1);
 }
 
-.pack-deck .card-surface {
-  perspective: 1100px;
+.pack-card-scale {
+  transition: transform .6s cubic-bezier(.645,.045,.355,1);
 }
 
-.pack-deck .card-surface-turn {
-  transition: transform var(--turn-time,.6s) cubic-bezier(.32,.68,.43,1.14);
+.pack-card-motion[data-flight]:not([data-flight=returning]) .pack-card-scale {
+  transform: scale(var(--flight-scale));
+}
+
+.pack-card-motion[data-flight=lifting] .pack-card-scale {
+  transition: transform .75s cubic-bezier(.19,1,.22,1);
+}
+
+/* The reveal turns one plane. Only its painted face swaps when edge-on. */
+.pack-card-motion[data-flight]:not([data-flight=inspect]) .card-surface-tilt { transform: none; }
+.pack-deck .card-surface .card-surface-front {
+  overflow: visible;
+}
+.pack-card-motion[data-flight=revealing] .card-surface-turn {
+  animation: pack-turn var(--turn-time) cubic-bezier(.28,.6,.55,1) both;
+}
+.pack-card-motion[data-flight=revealing] .card-surface-front {
+  animation: pack-show-face var(--turn-time) step-end both;
+}
+.pack-card-motion[data-flight=revealing] .card-surface-back {
+  animation: pack-hide-back var(--turn-time) step-end both;
 }
 
 .pack-card-motion[data-flight=charging] .card-surface-back {
   animation: pack-card-hum var(--charge-time) ease-out both;
 }
 
-.pack-card-motion[data-flight=revealing] .card-surface-tilt {
+.pack-card-motion[data-flight=revealing] .pack-card-recoil {
   animation: pack-card-recoil .42s ease-out;
+}
+.pack-card-motion[data-flight=revealing] .card-surface-shine {
+  animation: card-foil-arrive .5s ease-out;
 }
 
 .pack-deck .card-surface .card-surface-back {
@@ -248,8 +298,8 @@ html:has(.pack-reveal[open]) {
 }
 
 .pack-receipt-mark {
-  right: 8%;
-  bottom: 3.5%;
+  right: 5%;
+  bottom: calc(100% + .24em);
   padding: .15em .45em;
   border: 1px solid currentColor;
   font: 700 .38rem/1.1 var(--font-body);
@@ -262,8 +312,11 @@ html:has(.pack-reveal[open]) {
 .pack-favorite-spark { top: 8%; left: 10%; animation: pack-spark .6s ease-out both; }
 .pack-favorite-notice { top: 101%; width: 100%; text-align: center; font: 600 .38rem/1.2 var(--font-body); }
 
-.pack-reveal-shell[data-stage=results] [data-highlight=true] .card-surface-front {
-  animation: pack-final-rim .95s ease-out;
+.pack-reveal-shell[data-stage=results][data-reduced=false] .pack-card-recoil {
+  animation: pack-gather .56s calc((var(--deal-delay) - var(--deal-at)) * .55) ease-out both;
+}
+.pack-reveal-shell[data-stage=results][data-reduced=false] [data-highlight=true] .card-surface-front {
+  animation: pack-final-rim .95s .36s ease-out;
 }
 
 @media (hover: hover) {
@@ -276,38 +329,57 @@ html:has(.pack-reveal[open]) {
   }
 }
 
-@media (min-width: 601px) {
+@media (min-width: 601px) and (min-height: 540px) {
   .pack-deck[data-pentagon=true] {
-    --seat-width: min(122px, 17dvh, (100vw - 32px) / 5);
+    --ring-gap: clamp(10px, 2.2dvh, 22px);
+    --pitch: .19;
+    --seat-width: min(158px, (100dvh - 76px) / 4.5, (100vw - 44px) / 6);
     width: auto;
     display: grid;
-    grid-template-columns: repeat(10, calc(var(--seat-width) / 2));
-    gap: 0;
+    grid-template-columns: repeat(12, calc(var(--seat-width) / 2));
+    justify-items: center;
+    grid-template-rows: repeat(3, calc(1.5 * var(--seat-width)));
+    gap: var(--ring-gap) 0;
+  }
+  .pack-deck[data-pentagon=true][data-mixed=true] {
+    --pitch: .41;
+    --seat-width: min(158px, (100dvh - 76px) / 4.5, (100vw - 44px) / 7.2);
+  }
+  .pack-deck[data-pentagon=true]:has([data-wide=true] ~ [data-wide=true]) {
+    --pitch: .62;
+    --seat-width: min(158px, (100dvh - 76px) / 4.5, (100vw - 44px) / 8.2);
   }
 
-  .pack-deck[data-pentagon=true] .pack-card-seat {
-    width: 100%;
+  .pack-deck[data-pentagon=true] .pack-card-seat:nth-child(1) { grid-area: 1 / 6 / 2 / 8; --row-shift: 1; }
+  .pack-deck[data-pentagon=true] .pack-card-seat:nth-child(2) { grid-area: 2 / 2 / 3 / 4; --col-shift: -2; }
+  .pack-deck[data-pentagon=true] .pack-card-seat:nth-child(3) { grid-area: 2 / 10 / 3 / 12; --col-shift: 2; }
+  .pack-deck[data-pentagon=true] .pack-card-seat:nth-child(4) { grid-area: 3 / 4 / 4 / 6; --col-shift: -1; --row-shift: -1; }
+  .pack-deck[data-pentagon=true] .pack-card-seat:nth-child(5) { grid-area: 3 / 8 / 4 / 10; --col-shift: 1; --row-shift: -1; }
+  .pack-deck[data-pentagon=true].pack-reveal-results .pack-card-seat {
+    --gather-x: calc(var(--seat-width) * var(--pitch) * var(--col-shift, 0));
+    --gather-y: calc((1.5 * var(--seat-width) + var(--ring-gap)) * var(--row-shift, 0));
+    translate: var(--gather-x) var(--gather-y);
   }
-
-  .pack-deck[data-pentagon=true] .pack-card-seat:nth-child(1) { grid-area: 1 / 5 / 2 / 7; }
-  .pack-deck[data-pentagon=true] .pack-card-seat:nth-child(2) { grid-area: 2 / 2 / 3 / 4; }
-  .pack-deck[data-pentagon=true] .pack-card-seat:nth-child(3) { grid-area: 2 / 8 / 3 / 10; }
-  .pack-deck[data-pentagon=true] .pack-card-seat:nth-child(4) { grid-area: 3 / 3 / 4 / 5; }
-  .pack-deck[data-pentagon=true] .pack-card-seat:nth-child(5) { grid-area: 3 / 7 / 4 / 9; }
+  .pack-reveal-shell[data-stage=results][data-reduced=false] [data-pentagon=true] .pack-card-recoil {
+    animation: pack-gather-row .56s ease-out both;
+  }
 }
 
 @media (max-width: 600px) {
   .pack-deck {
+    --cols: 3;
+    --gaps: 2;
     --rows: var(--rows-mobile);
-    --height-fit: (100dvh - 32px - (var(--rows) - 1) * var(--gap)) / (1.5 * var(--rows));
-    --seat-width: min(144px, (100% - 2 * var(--gap)) / 3, var(--height-fit));
   }
+  .pack-deck[data-mixed] { --cols: 3; }
+  .pack-deck[data-occupied=true] .pack-card-seat[data-active=false] .pack-card-motion { opacity: 0; }
 }
 
 @media (max-width: 350px) {
-  .pack-deck {
+  .pack-deck[data-dense=false] {
+    --cols: 2;
+    --gaps: 1;
     --rows: var(--rows-narrow);
-    --seat-width: min((100% - var(--gap)) / 2, 13dvh, var(--height-fit));
   }
 }
 
@@ -315,6 +387,7 @@ html:has(.pack-reveal[open]) {
 @keyframes pack-appear {
   from { opacity: 0; transform: translateY(34px) scale(.67) rotate(-9deg); }
   60% { opacity: 1; }
+  to { opacity: 1; transform: none; }
 }
 
 @keyframes pack-float {
@@ -353,6 +426,8 @@ html:has(.pack-reveal[open]) {
   to { visibility: hidden; }
 }
 
+@keyframes pack-clear-mouth { to { z-index: 0; } }
+
 @keyframes pack-deal {
   from {
     transform: translate(var(--deal-x), var(--deal-y)) rotate(var(--deal-rotation)) scale(.3);
@@ -374,6 +449,19 @@ html:has(.pack-reveal[open]) {
 }
 
 @keyframes pack-card-recoil { 28% { translate: 0 -1%; } }
+@keyframes pack-turn {
+  0%,100% { transform: rotateY(0deg); }
+  49.99% { transform: rotateY(89.5deg); }
+  50% { transform: rotateY(-89.5deg); }
+}
+@keyframes pack-show-face { 0% { visibility: hidden; } 50%,100% { visibility: visible; } }
+@keyframes pack-hide-back { 0% { visibility: visible; } 50%,100% { visibility: hidden; } }
+@keyframes pack-gather { 45% { translate: 0 -4px; } }
+@keyframes pack-gather-row {
+  from { transform: translate(calc(-1 * var(--gather-x)), calc(-1 * var(--gather-y))); }
+  30% { transform: translateY(calc(-1 * var(--gather-y))); }
+  to { transform: none; }
+}
 @keyframes pack-mark {
   0%,20%,100% { opacity: 0; }
   33%,68% { opacity: 1; }
@@ -382,7 +470,7 @@ html:has(.pack-reveal[open]) {
 @keyframes pack-spark { to { opacity: 0; transform: translateY(-200%) scale(.7); } }
 @keyframes pack-final-rim { 35% { box-shadow: 0 0 17px color-mix(in srgb,var(--ns-fill) 35%,transparent); } }
 
-.pack-reveal-shell[data-reduced=true] :is(.pack-wrapper, .pack-opening-scene, .pack-card-motion, .card-surface) {
+.pack-reveal-shell[data-reduced=true] :is(.pack-wrapper, .pack-opening-scene, .pack-card-motion, .pack-card-scale, .card-surface) {
   animation: none;
   transition: none;
 }

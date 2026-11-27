@@ -1,4 +1,9 @@
-.card-surface{touch-action:pan-y pinch-zoom;position:relative;aspect-ratio:2/3;width:100%;perspective:1000px}.card-surface-tilt,.card-surface-turn{height:100%;transform-style:preserve-3d;transition:transform .4s cubic-bezier(.2,.7,.2,1)}.card-surface-tilt{transform:translateX(var(--drag-x,0px)) rotateX(var(--tilt-x,0deg)) rotateY(var(--tilt-y,0deg))}.card-surface[data-revealed=true] .card-surface-turn{transform:rotateY(180deg)}.card-surface-front,.card-surface-back{position:absolute;inset:0;backface-visibility:hidden;-webkit-backface-visibility:hidden}.card-surface-front{transform:rotateY(180deg)}.card-surface-back{display:grid;place-content:center;justify-items:center;gap:20px;color:var(--ns-ink);border:1px solid var(--ns-paper-line);border-radius:calc(var(--ns-radius) * .5);background:var(--ns-paper);box-shadow:inset 0 0 0 8px var(--ns-paper),inset 0 0 0 9px var(--ns-paper-line);text-align:center;letter-spacing:.18em;font-size:12px}.card-surface-back [data-regalia]{width:40%;height:auto}.card-surface .card-surface-control{position:absolute;inset:0;width:100%;height:100%;padding:0!important;border:0!important;border-radius:calc(var(--ns-radius) * .5);background:transparent!important;touch-action:pan-y pinch-zoom;user-select:none;cursor:pointer}.card-surface img{pointer-events:none}.archive-favorite{display:inline-flex;gap:8px;align-items:center}.archive-favorite[aria-pressed=true]{color:var(--ns-accent)}@media(prefers-reduced-motion:reduce){.card-surface-tilt{transform:none!important}.card-surface-tilt,.card-surface-turn{transition:none!important}.card-surface-shine{display:none}}
+.card-surface{touch-action:pan-y pinch-zoom;position:relative;aspect-ratio:2/3;width:100%}
+.card-surface-tilt,.card-surface-turn{height:100%}
+.card-surface-tilt{perspective:1100px;transform:translateX(var(--drag-x,0px)) rotateX(var(--tilt-x,0deg)) rotateY(var(--tilt-y,0deg))}
+.card-surface-front,.card-surface-back{position:absolute;inset:0}
+.card-surface[data-revealed=true] .card-surface-back,.card-surface[data-revealed=false] .card-surface-front{visibility:hidden}
+.card-surface-back{display:grid;place-content:center;justify-items:center;gap:20px;color:var(--ns-ink);border:1px solid var(--ns-paper-line);border-radius:calc(var(--ns-radius) * .5);background:var(--ns-paper);box-shadow:inset 0 0 0 8px var(--ns-paper),inset 0 0 0 9px var(--ns-paper-line);text-align:center;letter-spacing:.18em;font-size:12px}.card-surface-back [data-regalia]{width:40%;height:auto}.card-surface .card-surface-control{position:absolute;inset:0;width:100%;height:100%;padding:0!important;border:0!important;border-radius:calc(var(--ns-radius) * .5);background:transparent!important;touch-action:pan-y pinch-zoom;user-select:none;cursor:pointer}.card-surface img{pointer-events:none}.archive-favorite{display:inline-flex;gap:8px;align-items:center}.archive-favorite[aria-pressed=true]{color:var(--ns-accent)}
 .card-surface-tilt { transition: transform .12s ease-out; }
 .card-surface-shine, .card-surface-glare,
 .card-surface-shine::before, .card-surface-shine::after {
@@ -12,9 +17,6 @@
 }
 .card-surface[data-revealed=true] .card-surface-shine {
   opacity: calc(.10 + var(--shine-active,0) * .43);
-}
-.card-surface[data-material-arrival] .card-surface-shine {
-  animation: card-foil-arrive .5s ease-out;
 }
 .card-surface[data-revealed=true] .card-surface-glare {
   opacity: calc(.06 + var(--shine-active,0) * .34);
@@ -74,15 +76,11 @@
 }
 .card-surface:focus-within { --shine-active: .65; }
 .card-surface[data-reduced=true] .card-surface-tilt { transform: none !important; }
-.card-surface[data-reduced=true] .card-surface-tilt,
-.card-surface[data-reduced=true] .card-surface-turn { transition: none !important; }
+.card-surface[data-reduced=true] .card-surface-tilt { transition: none !important; }
 .card-surface[data-reduced=true] .card-surface-shine,
 .card-surface[data-reduced=true] .card-surface-glare { display: none; }
 @keyframes card-foil-arrive {
   from { background-position: 0% 80%; opacity: .7; }
   to { background-position: 50% 25%; }
-}
-@media (prefers-reduced-motion: reduce) {
-  .card-surface-shine, .card-surface-glare { display: none !important; animation: none !important; }
 }
 .card-surface[data-category=BASE] { aspect-ratio:8/5; }

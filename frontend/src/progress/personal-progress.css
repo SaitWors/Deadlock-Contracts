@@ -133,6 +133,3 @@ html[data-theme] .personal-progress .progress-mode-control .dc-v3-mode-tabs butt
   .progress-comparisons thead th { font-size: 12px; }
   .progress-debrief-footer .progress-action { width: 100%; }
 }
-@media (prefers-reduced-motion: reduce) {
-  .personal-progress *, .personal-progress *::before, .personal-progress *::after { animation: none !important; transition: none !important; }
-}

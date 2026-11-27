@@ -296,11 +296,7 @@
     display: none;
   }
 }
-@media (prefers-reduced-motion: reduce) {
-  .bureau-header,.bureau-app .bureau-profile-popover,.bureau-app .dc-mobile-bottom-nav {
-    backdrop-filter: none;
-  }
-}
+html[data-motion="reduced"] :is(.bureau-header,.bureau-app .bureau-profile-popover,.bureau-app .dc-mobile-bottom-nav) { backdrop-filter: none; }
 
 .bureau-app .bureau-profile-section .guild-emblem{width:38px;height:38px;min-width:38px;border-width:2px;border-radius:10px;box-shadow:none}.bureau-app .bureau-profile-section .guild-emblem>svg{width:19px;height:19px}.dossier-bureau .guild-emblem{width:64px;height:64px;border-width:3px;border-radius:15px}.dossier-bureau .guild-emblem>svg{width:30px;height:30px}
 .guild-emblem.shape-circle,.guild-preview .guild-emblem.shape-circle,.guild-directory-card .guild-emblem.shape-circle{border-radius:50%}.guild-emblem.shape-shield,.guild-preview .guild-emblem.shape-shield,.guild-directory-card .guild-emblem.shape-shield{border-radius:22px 22px 48% 48%}

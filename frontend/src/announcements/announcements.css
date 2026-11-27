@@ -254,15 +254,3 @@
   .dc-announcement p { font-size: 10px; }
   .dc-announcement-center-toggle { right: 6px; bottom: 6px; }
 }
-
-@media (prefers-reduced-motion: reduce) {
-  .dc-announcement,
-  .dc-announcement::before,
-  .dc-announcement::after,
-  .dc-announcement-center,
-  .dc-announcement-center-toggle {
-    animation: none !important;
-    transition: none !important;
-    scroll-behavior: auto !important;
-  }
-}

@@ -108,6 +108,4 @@ html[data-theme] .ritual-public .collection-daily-preview > header h2 {
   .collection-preview-cards .archive-card-edition { display: none; }
 }
 
-@media (prefers-reduced-motion: reduce) {
-  .collection-preview-cards { scroll-behavior: auto; scroll-snap-type: none; }
-}
+html[data-motion="reduced"] .collection-preview-cards { scroll-snap-type: none; }

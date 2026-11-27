@@ -127,11 +127,6 @@
   .dc-v3 .dc-admin-shell .dc-announcement-admin__preview-controls select { grid-column: 1 / -1; }
   .dc-v3 .dc-admin-shell .dc-announcement-admin__preview { padding: 13px; }
 }
-@media (prefers-reduced-motion: reduce) {
-  .dc-v3 .dc-admin-shell .dc-announcement-admin__preview .notice,
-  .dc-v3 .dc-admin-shell .dc-announcement-admin__preview .notice::before,
-  .dc-v3 .dc-admin-shell .dc-announcement-admin__preview .notice::after { animation: none !important; transition: none !important; }
-}
 html[data-motion="reduced"] .dc-announcement-admin__preview .notice,
 html[data-motion="reduced"] .dc-announcement-admin__preview .notice::before,
 html[data-motion="reduced"] .dc-announcement-admin__preview .notice::after,

@@ -7,30 +7,40 @@ import { WAVE_EFFECTS } from "./wave-effects"
 const ARCHIVE_EFFECTS = [
   {
     name: "patron-seal",
-    kind: "light",
-    // The project’s Ritual pentagram appears behind the card and dissolves into the turn.
-    seconds: 1.4,
+    // The same Ritual pentagram rotates through the charge, turn, and outward pulse.
+    seconds: 1.3,
     play(stage, tl) {
       const seal = part(stage, "patron-seal")
+      const turn = stage.chargeSeconds ?? 0.8
+      const appear = Math.min(0.56, turn * 0.59)
+      const crest = turn + 0.34
       tl.fromTo(
         seal,
-        { opacity: 0, scale: 0.72, rotate: -12 },
-        { opacity: 0.88, scale: 1, rotate: 0, duration: 0.72, ease: "power2.out" },
+        { opacity: 0, scale: 0.75, rotate: -24 },
+        { opacity: 0.83, scale: 1, rotate: -11, duration: appear, ease: "power2.out" },
         0,
       )
-      tl.to(seal, { opacity: 0, scale: 1.12, duration: 0.52, ease: "power1.in" }, 0.86)
+      tl.to(seal, { rotate: 9, duration: turn - appear, ease: "none" }, appear)
+      tl.to(
+        seal,
+        { opacity: 0.96, scale: 1.055, rotate: 21, duration: 0.34, ease: "power2.in" },
+        turn,
+      )
+      tl.to(seal, { opacity: 0, scale: 1.17, rotate: 37, duration: 0.61, ease: "power1.in" }, crest)
     },
   },
   {
     name: "archive-seal",
-    kind: "light",
     // An archival impression that frames the wide exhibit.
     seconds: 1.25,
     play(stage, tl) {
       const seal = figure(
         stage,
         "archive-seal",
-        '<ellipse cx="0" cy="0" rx="97" ry="66"/><ellipse cx="0" cy="0" rx="91" ry="60" stroke-dasharray="2 5"/><path d="M-88-38V-52H-75M75-52H88V-38M88 38V52H75M-75 52H-88V38"/>',
+        `<g class="rco-fx-archive-seal-line" fill="none" transform="scale(1 ${Math.min(1.28, stage.ratio / 0.68)})">
+           <ellipse rx="97" ry="66"/><ellipse rx="91" ry="60" stroke-dasharray="2 5"/>
+           <path d="M-88-38V-52H-75M75-52H88V-38M88 38V52H75M-75 52H-88V38"/>
+         </g>`,
       )
       tl.fromTo(
         seal,

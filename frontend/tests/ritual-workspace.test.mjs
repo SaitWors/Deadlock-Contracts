@@ -155,6 +155,37 @@ test("daily response loss keeps the exact key and retry recovers the receipt", a
   )
   assert.ok(button(env.doc, "Reveal cards"))
 })
+test("a language refresh keeps the saved daily pack open and never claims it again", async () => {
+  const saved = {
+    ...receipt,
+    items: [{ id: "saved-item", card: { id: "saved-card", rank: "F", title: "Saved card" } }],
+  }
+  const env = await mount({
+    fetcher(_, init) {
+      if (init.method === "POST") return response(saved)
+    },
+    setup(w) {
+      w.matchMedia = () => ({ matches: false, addEventListener() {}, removeEventListener() {} })
+    },
+  })
+  await env.api.act(async () => button(env.doc, "Claim daily pack").click())
+  await env.api.act(async () => button(env.doc, "Reveal cards").click())
+  const dialog = env.doc.querySelector("dialog[open]")
+  assert.equal(dialog.querySelector(".pack-reveal-shell").dataset.stage, "sealed")
+  await env.api.act(async () => {
+    env.w.localStorage.setItem("dc.ui.language", "ru")
+    env.w.dispatchEvent(new env.w.StorageEvent("storage", { key: "dc.ui.language" }))
+  })
+  assert.ok(
+    dialog.isConnected && dialog.open,
+    "the receipt dialog must survive local retranslation",
+  )
+  const seal = dialog.querySelector('button[aria-label="Вскрыть конверт"]')
+  assert.ok(seal)
+  await env.api.act(async () => seal.click())
+  assert.equal(dialog.querySelector(".pack-reveal-shell").dataset.stage, "opening")
+  assert.equal(env.calls.filter(({ init }) => init.method === "POST").length, 1)
+})
 test("unavailable pool never exposes a claim action and provides a status refresh", async () => {
   const env = await mount({
     fetcher(url) {

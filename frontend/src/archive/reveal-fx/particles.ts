@@ -63,7 +63,6 @@ export interface Particle {
 /** A field with nowhere to draw: on a server, in a test DOM, or when the browser has no canvas to give. */
 export interface ParticleField {
   emit(particles: readonly Particle[]): void
-  clear(): void
   destroy(): void
   /** How many particles are alive or waiting. */
   count(): number
@@ -83,10 +82,10 @@ function paintGlow(
   colour: string,
 ): void {
   const falloff = ctx.createRadialGradient(32, 32, 0, 32, 32, 32)
-  falloff.addColorStop(0, "rgba(0, 0, 0, 1)")
-  falloff.addColorStop(0.22, "rgba(0, 0, 0, 0.62)")
-  falloff.addColorStop(0.55, "rgba(0, 0, 0, 0.2)")
-  falloff.addColorStop(1, "rgba(0, 0, 0, 0)")
+  falloff.addColorStop(0, "#000")
+  falloff.addColorStop(0.22, "rgba(0,0,0,.62)")
+  falloff.addColorStop(0.55, "rgba(0,0,0,.2)")
+  falloff.addColorStop(1, "#0000")
   ctx.fillStyle = falloff
   ctx.fillRect(0, 0, 64, 64)
   ctx.globalCompositeOperation = "source-in"
@@ -155,7 +154,7 @@ function step(p: Particle, dt: number): void {
   p.rotation += p.spin * dt
 }
 
-function draw(ctx: CanvasRenderingContext2D, p: Particle, add: boolean): void {
+function draw(ctx: CanvasRenderingContext2D, p: Particle): void {
   if (p.age < 0) return
   const t = Math.min(1, p.age / p.life)
   let alpha = p.alpha
@@ -172,7 +171,7 @@ function draw(ctx: CanvasRenderingContext2D, p: Particle, add: boolean): void {
     if (sprite) {
       const light = p.shape === "puff" ? 1 : Math.max(p.glow, 0.6)
       const reach = p.shape === "puff" ? size : size * (p.shape === "mote" ? 4.2 : 2.8)
-      ctx.globalCompositeOperation = add && p.shape !== "puff" ? "lighter" : "source-over"
+      ctx.globalCompositeOperation = p.shape === "puff" ? "source-over" : "lighter"
       ctx.globalAlpha = Math.min(1, alpha * light)
       ctx.drawImage(sprite, x - reach, y - reach, reach * 2, reach * 2)
     }
@@ -259,24 +258,23 @@ const MAX_SIDE = 8192
 
 const NOWHERE: ParticleField = {
   emit: () => {},
-  clear: () => {},
   destroy: () => {},
   count: () => 0,
 }
 
-/**
- * A canvas over `layer` and the particles on it. `add` lets lights add up where they cross, which is what makes a
- * burst glow on a dark page; on a light one it would wash them out, so there they are simply painted.
- */
-export function createParticleField(layer: HTMLElement, add = true, maxDpr = 2): ParticleField {
-  if (typeof document === "undefined") return NOWHERE
+/** A dark-scene canvas. Lit particles add where they cross; smoke remains translucent. */
+export function createParticleField(
+  layer: HTMLElement,
+  maxDpr: number,
+  onIdle: () => void,
+): ParticleField {
   const canvas = document.createElement("canvas")
   canvas.className = "rco-fx-canvas"
   canvas.setAttribute("aria-hidden", "true")
   // A test DOM has a canvas element and no way to draw on one. It says so by throwing or by answering null.
   let ctx: CanvasRenderingContext2D | null = null
   try {
-    ctx = typeof canvas.getContext === "function" ? canvas.getContext("2d") : null
+    ctx = canvas.getContext("2d")
   } catch {
     ctx = null
   }
@@ -318,7 +316,7 @@ export function createParticleField(layer: HTMLElement, add = true, maxDpr = 2):
     for (const particle of alive) {
       step(particle, dt)
       if (particle.age < particle.life) {
-        draw(pen, particle, add)
+        draw(pen, particle)
         alive[kept] = particle
         kept += 1
       }
@@ -327,7 +325,7 @@ export function createParticleField(layer: HTMLElement, add = true, maxDpr = 2):
     pen.globalAlpha = 1
     pen.globalCompositeOperation = "source-over"
     if (kept > 0) frame = requestAnimationFrame(tick)
-    else wipe()
+    else onIdle()
   }
 
   function stop() {
@@ -348,10 +346,6 @@ export function createParticleField(layer: HTMLElement, add = true, maxDpr = 2):
         lastFrame = performance.now()
         frame = requestAnimationFrame(tick)
       }
-    },
-    clear() {
-      alive = []
-      stop()
     },
     destroy() {
       alive = []

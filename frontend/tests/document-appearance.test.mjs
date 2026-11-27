@@ -14,16 +14,33 @@ const luminosity = (hex) =>
 const contrast = (a, b) =>
   (Math.max(luminosity(a), luminosity(b)) + 0.05) / (Math.min(luminosity(a), luminosity(b)) + 0.05)
 
-function render(preference = {}) {
+function render(preference = {}, systemReduced = false) {
   const dom = new JSDOM(
     '<html><head><meta name="theme-color"></head><body><select data-document-theme><option>dark</option><option>custom</option><option>system</option><option>light</option><option>black</option></select></body></html>',
     { url: "https://qa.invalid/en/privacy", runScripts: "outside-only" },
   )
-  const media = { matches: false, addEventListener() {} }
-  dom.window.matchMedia = () => media
+  const motionListeners = new Set()
+  dom.window.matchMedia = (query) =>
+    query.includes("prefers-reduced-motion")
+      ? {
+          get matches() {
+            return systemReduced
+          },
+          addEventListener(_, listener) {
+            motionListeners.add(listener)
+          },
+        }
+      : { matches: false, addEventListener() {} }
   dom.window.localStorage.setItem("dc.ui.appearance", JSON.stringify(preference))
   dom.window.eval(script)
-  return { dom, doc: dom.window.document, media }
+  return {
+    dom,
+    doc: dom.window.document,
+    setSystemReduced(value) {
+      systemReduced = value
+      for (const listener of motionListeners) listener({ matches: value })
+    },
+  }
 }
 
 test("standalone custom appearance keeps saved choices and is readable on its elevated surface", () => {
@@ -62,7 +79,9 @@ test("web custom appearance keeps mid-tone saved fills readable", async () => {
     const { dom, doc } = render()
     const exports = {}
     vm.runInNewContext(compiled, { exports, window: dom.window, document: doc })
-    exports.applyAppearance({ theme: "custom", accent, radius: 24, motion: false })
+    exports.applyAppearance(
+      exports.normalizeAppearance({ theme: "custom", accent, radius: 24, motion: false }),
+    )
     const style = doc.documentElement.style
     assert.equal(style.getPropertyValue("--ns-fill"), accent)
     assert.ok(
@@ -78,7 +97,14 @@ test("web custom appearance keeps mid-tone saved fills readable", async () => {
 })
 
 test("standalone theme switches preserve manual preferences and update Ritual browser color", () => {
-  const { dom, doc } = render({ theme: "custom", accent: "#785d83", radius: 24, motion: false })
+  const { dom, doc } = render({
+    theme: "custom",
+    accent: "#785d83",
+    radius: 24,
+    motion: false,
+    effectsQuality: "LITE",
+    packSound: true,
+  })
   const select = doc.querySelector("select")
   for (const [theme, color] of Object.entries({
     dark: "#0b0d0d",
@@ -94,8 +120,29 @@ test("standalone theme switches preserve manual preferences and update Ritual br
       theme,
       accent: "#785d83",
       radius: 8,
-      motion: false,
+      motion: "OFF",
+      effectsQuality: "LITE",
+      packSound: true,
     })
   }
   dom.window.close()
+})
+
+test("standalone documents follow system motion unless a manual setting overrides it", () => {
+  for (const [preference, afterOsChange] of [
+    [{}, "reduced"],
+    [{ motion: true }, "reduced"],
+    [{ motion: "SYSTEM" }, "reduced"],
+    [{ motion: "FULL" }, "full"],
+    [{ motion: "OFF" }, "reduced"],
+  ]) {
+    const { dom, doc, setSystemReduced } = render(preference)
+    assert.equal(
+      doc.documentElement.dataset.motion,
+      preference.motion === "OFF" ? "reduced" : "full",
+    )
+    setSystemReduced(true)
+    assert.equal(doc.documentElement.dataset.motion, afterOsChange)
+    dom.window.close()
+  }
 })

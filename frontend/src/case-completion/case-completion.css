@@ -60,7 +60,7 @@
 @keyframes cf-wave{0%{opacity:0;scale:.6}20%{opacity:.9}100%{opacity:0;scale:1.55}}
 @media(max-width:760px){.cf-stage{width:min(87vw,500px);grid-template-columns:1fr;align-content:center;gap:45px;height:100%;padding:40px 0}.cc-profile{padding:28px}.cf-identity{margin-bottom:26px;gap:20px}.cf-avatar{width:68px}.cf-name-level{padding-left:20px}.cf-name{font-size:24px}.cc-level{font-size:23px}.cf-bar{height:12px}.cc-total{font-size:20px;margin-top:10px}.cf-tasks{gap:26px}.cc-task,.cc-shard{font-size:16px;min-height:70px;padding:18px 20px;gap:14px}.cf-task-title{padding-left:14px}.cc-task svg,.cc-shard svg{width:21px;height:21px}.cf-impact--level .cf-spark{--distance:130px}}
 @media(max-height:650px) and (max-width:760px){.cf-stage{gap:24px;padding:24px 0}.cf-tasks{gap:18px}.cc-profile{padding:22px}}
-@media(prefers-reduced-motion:reduce){.case-completion::backdrop{animation-duration:.18s}.case-completion .cf-impact,.case-completion .cf-trail{display:none}}
+html[data-motion="reduced"] .case-completion :is(.cf-impact,.cf-trail){display:none}
 
 [data-static=true] [data-state=absorbed],[data-static=true] [data-state=broken]{visibility:visible}
 

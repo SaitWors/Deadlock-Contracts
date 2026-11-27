@@ -22,4 +22,3 @@ body{background:var(--dc-bg);color:var(--dc-paper);font-family:var(--font-body)}
 
 @media(max-width:1100px){.dc-menu-button>span:not(.sr-only){display:block;height:1px;margin:6px 0;background:currentColor}
 }
-@media(prefers-reduced-motion:reduce){html{scroll-behavior:auto}}

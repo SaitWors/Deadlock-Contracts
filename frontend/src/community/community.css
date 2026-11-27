@@ -161,8 +161,7 @@
 .dossier-cover-id{display:none}
 .leaderboard-player img{display:none}
 .leaderboard-player .community-avatar{display:none}}
-@media(prefers-reduced-motion:reduce){.community-page *{scroll-behavior:auto!important;transition:none!important;animation:none!important}
-.bureau-directory-card:hover{transform:none}}
+html[data-motion="reduced"] .bureau-directory-card:hover{transform:none}
 .operation-card{padding-block:22px;border-top:1px solid var(--ns-line);overflow-wrap:anywhere}
 .operation-card progress{display:block;width:100%;accent-color:var(--ns-accent)}
 .bureau-safety > summary{cursor:pointer}

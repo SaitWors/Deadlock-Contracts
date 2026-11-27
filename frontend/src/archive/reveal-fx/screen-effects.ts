@@ -7,7 +7,6 @@ import { type Effect, part, piece } from "./stage"
 export const SCREEN_EFFECTS = [
   {
     name: "vignette",
-    kind: "screen",
     // The edges of the stage close in with the tier's colour and open again.
     seconds: 1.5,
     play: (stage, tl) => {
@@ -23,7 +22,6 @@ export const SCREEN_EFFECTS = [
   },
   {
     name: "chroma",
-    kind: "screen",
     // Two flashes, one in the tier's colour and one in the accent, thrown apart and pulled back into one.
     seconds: 0.6,
     play: (stage, tl) => {

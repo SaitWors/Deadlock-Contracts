@@ -1,10 +1,10 @@
-import { useEffect, useRef, type PointerEvent } from "react"
-import { useLanguage } from "../i18n"
+import { useEffect, useRef, type PointerEvent, type ReactNode } from "react"
 import { useReducedMotion } from "../Appearance"
 import Icon from "../icons/Icon"
 import CardPreview from "./CardPreview"
-import { revealProfile } from "./reveal-profiles"
-import { RANKS, type Card } from "./types"
+import { wideCard } from "./pack-layout"
+import { REVEAL_PROFILES } from "./reveal-profiles"
+import type { Card } from "./types"
 import "./card-surface.css"
 
 type Gesture = {
@@ -23,7 +23,7 @@ export default function CardSurface({
   reduced: forceReduced = false,
   disabled = false,
   preloadArtwork = false,
-  animateMaterial = false,
+  edgeMark,
   actionLabel,
   onFlip,
   onSwipe,
@@ -33,19 +33,16 @@ export default function CardSurface({
   reduced?: boolean
   disabled?: boolean
   preloadArtwork?: boolean
-  animateMaterial?: boolean
+  edgeMark?: ReactNode
   actionLabel?: string
   onFlip?: () => void
   onSwipe?: (direction: "left" | "right") => void
 }) {
-  const { language } = useLanguage()
   const reducedPreference = useReducedMotion()
   const reduced = forceReduced || reducedPreference
-  const ru = language === "ru"
   const surface = useRef<HTMLDivElement>(null)
   const gesture = useRef<Gesture | null>(null)
   const suppressClick = useRef(false)
-  const rank = card.rank === "EX" ? 9 : RANKS.indexOf(card.rank)
   const reset = () => {
     const style = surface.current?.style
     for (const key of [
@@ -104,12 +101,10 @@ export default function CardSurface({
       ref={surface}
       className="card-surface"
       data-rank={revealed ? card.rank : undefined}
-      data-category={card.rank === "EX" || card.category === "BASE" ? "BASE" : "HERO"}
+      data-category={wideCard(card) ? "BASE" : "HERO"}
       data-revealed={revealed}
       data-reduced={reduced}
-      data-finish={rank >= 6 ? "holo" : rank >= 3 ? "foil" : "matte"}
-      data-material={revealed ? revealProfile(card).material : undefined}
-      data-material-arrival={animateMaterial || undefined}
+      data-material={revealed ? REVEAL_PROFILES[card.rank].material : undefined}
       onPointerDown={(event) => {
         if (!event.isPrimary || event.button !== 0 || disabled) return
         const target = event.target as Element
@@ -131,8 +126,6 @@ export default function CardSurface({
         gesture.current = null
         suppressClick.current = active.moved
         reset()
-        if ((event.target as Element).hasPointerCapture?.(event.pointerId))
-          (event.target as Element).releasePointerCapture(event.pointerId)
         if (
           revealed &&
           !disabled &&
@@ -170,22 +163,14 @@ export default function CardSurface({
                 </>
               }
             />
+            {edgeMark}
           </div>
         </div>
       </div>
       {onFlip && (
         <button
           className="card-surface-control"
-          aria-label={
-            actionLabel ??
-            (revealed
-              ? ru
-                ? "Показать рубашку"
-                : "Show card back"
-              : ru
-                ? "Перевернуть карточку"
-                : "Reveal card")
-          }
+          aria-label={actionLabel}
           disabled={disabled}
           onClick={(event) => {
             if (suppressClick.current && event.detail !== 0) {

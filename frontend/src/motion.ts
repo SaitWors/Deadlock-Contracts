@@ -1,8 +1,10 @@
 import { useCallback, useLayoutEffect, type RefObject } from "react"
+import { SYSTEM_MOTION_QUERY } from "./appearance-state"
 
-export const prefersReducedMotion = () =>
-  document.documentElement.dataset.motion === "reduced" ||
-  window.matchMedia("(prefers-reduced-motion: reduce)").matches
+export function prefersReducedMotion() {
+  const motion = document.documentElement.dataset.motion
+  return motion ? motion === "reduced" : window.matchMedia(SYSTEM_MOTION_QUERY).matches
+}
 
 export function useRipple() {
   return useCallback((event: React.MouseEvent<HTMLButtonElement>) => {
@@ -50,7 +52,7 @@ export function useSceneEntrance(
   reduced: boolean,
 ) {
   useLayoutEffect(() => {
-    if (!ref.current || reduced || prefersReducedMotion()) return
+    if (!ref.current || reduced) return
     const animations = Array.from(ref.current.querySelectorAll<HTMLElement>("[data-intro]"))
       .filter((element) => typeof element.animate === "function")
       .map((element, index) =>

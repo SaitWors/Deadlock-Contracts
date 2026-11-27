@@ -135,7 +135,6 @@ html[data-theme] .bureau-app.ritual-workspace .ritual-daily-receipt p { margin-b
   html[data-theme] .bureau-app.ritual-workspace .ritual-daily-pack { grid-template-columns:1fr; padding:24px 20px; gap:32px; }
   html[data-theme] .bureau-app.ritual-workspace .ritual-pack-art { max-width:260px; }
 }
-@media(prefers-reduced-motion:reduce) { html[data-theme] .bureau-app.ritual-workspace * { scroll-behavior:auto!important; } html[data-theme] .bureau-app.ritual-workspace progress::-webkit-progress-value { transition:none; } }
 html[data-motion="reduced"] .bureau-app.ritual-workspace progress::-webkit-progress-value { transition:none; }
 html[data-theme] .bureau-app.ritual-workspace .archive-heading>div:first-child>small { padding:0; background:transparent; color:var(--ns-accent); }
 html[data-theme] .bureau-app.ritual-workspace .archive-collection-overview :is(span,small,p) { color:var(--ns-muted); }
