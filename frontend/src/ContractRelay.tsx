@@ -7,6 +7,9 @@ type RelayConnection = {
   id: string
   consented_at: string
   friendship_confirmed_at: string | null
+  status?: "pending" | "connected" | "disconnected" | "error" | "unknown"
+  friendship_source?: "manual" | "relay_manual" | null
+  friendship_observed_at?: string | null
 }
 
 type RelayResponse = { connection: RelayConnection | null }
@@ -59,6 +62,36 @@ export default function ContractRelay({
       timeStyle: "short",
     }).format(new Date(value))
 
+  const reportIsUnknown =
+    connection?.status === "pending" &&
+    connection.friendship_source === "relay_manual" &&
+    connection.friendship_observed_at
+  const friendshipStatus = reportIsUnknown
+    ? "unknown"
+    : (connection?.status ?? (confirmed ? "connected" : "pending"))
+  const observed = connection?.friendship_observed_at ?? confirmed
+  const statusLabels = {
+    connected:
+      connection?.friendship_source === "relay_manual"
+        ? ru
+          ? "Дружба подтверждена на узле Relay."
+          : "Friendship confirmed on the Relay node."
+        : ru
+          ? "Дружба подтверждена вручную."
+          : "Friendship confirmed manually.",
+    pending: ru ? "Дружба ожидает проверки." : "Friendship is awaiting confirmation.",
+    disconnected: ru
+      ? "Дружба со Steam-профилем Relay не найдена."
+      : "Steam friendship with Relay was not found.",
+    error: ru ? "Relay не удалось проверить дружбу." : "Relay could not verify the friendship.",
+    unknown: ru ? "Состояние дружбы неизвестно." : "Friendship status is unknown.",
+  }
+  const statusText = connection
+    ? (statusLabels[friendshipStatus] ?? statusLabels.unknown)
+    : ru
+      ? "Участие выключено."
+      : "Opted out."
+
   return (
     <section className="dc-panel">
       <h3>Contract Relay</h3>
@@ -68,17 +101,13 @@ export default function ContractRelay({
       ) : (
         <>
           <p role="status">
-            {confirmed
-              ? ru
-                ? `Дружба подтверждена вручную · ${date(confirmed)}`
-                : `Friendship confirmed manually · ${date(confirmed)}`
-              : connection
-                ? ru
-                  ? "Участие включено. Дружба пока не подтверждена."
-                  : "Opted in. Friendship is awaiting confirmation."
-                : ru
-                  ? "Участие выключено."
-                  : "Opted out."}
+            {statusText}
+            {observed && (
+              <>
+                {" · "}
+                <time dateTime={observed}>{date(observed)}</time>
+              </>
+            )}
           </p>
           {!userId && (
             <p>
@@ -95,9 +124,15 @@ export default function ContractRelay({
             </p>
           )}
           {userId && connection && (
-            <p>
-              {ru ? "Согласие получено" : "Opted in"} · {date(connection.consented_at)}
-            </p>
+            <>
+              <p>
+                {ru ? "Согласие получено" : "Opted in"} · {date(connection.consented_at)}
+              </p>
+              <p>
+                {ru ? "ID согласия" : "Consent ID"}{" "}
+                <code className="dc-relay-consent-id">{connection.id}</code>
+              </p>
+            </>
           )}
           <div className="dc-admin-user-actions">
             {userId && connection && (

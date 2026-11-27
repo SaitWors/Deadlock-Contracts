@@ -32,6 +32,7 @@ export function useResource<T>(url: string, { reloadOnLanguageChange = true } = 
   const requestLanguage = reloadOnLanguageChange ? language : null
   const [data, setData] = useState<T | null>(null)
   const [error, setError] = useState("")
+  const [errorStatus, setErrorStatus] = useState<number | null>(null)
   const [loading, setLoading] = useState(true)
   const [revision, setRevision] = useState(0)
   useEffect(() => {
@@ -39,6 +40,7 @@ export function useResource<T>(url: string, { reloadOnLanguageChange = true } = 
     let active = true
     setData(null)
     setError("")
+    setErrorStatus(null)
     setLoading(true)
     // Release the loading state even when a proxy or fetch implementation never
     // settles. The aborted signal also prevents a late response from winning.
@@ -53,7 +55,9 @@ export function useResource<T>(url: string, { reloadOnLanguageChange = true } = 
         if (active && !controller.signal.aborted) setData(value)
       })
       .catch((reason) => {
-        if (active && !controller.signal.aborted) setError((reason as Error).message)
+        if (!active || controller.signal.aborted) return
+        setError((reason as Error).message)
+        if (reason instanceof ApiError) setErrorStatus(reason.status)
       })
       .finally(() => {
         window.clearTimeout(timeout)
@@ -65,5 +69,12 @@ export function useResource<T>(url: string, { reloadOnLanguageChange = true } = 
       controller.abort()
     }
   }, [url, requestLanguage, revision])
-  return { data, error, loading, setData, reload: () => setRevision((value) => value + 1) }
+  return {
+    data,
+    error,
+    errorStatus,
+    loading,
+    setData,
+    reload: () => setRevision((value) => value + 1),
+  }
 }

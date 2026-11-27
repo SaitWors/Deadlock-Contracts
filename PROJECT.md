@@ -97,6 +97,8 @@ flowchart TD
 | `compose.yaml` | Локальная среда с mock-провайдером |
 | `compose.prod.yaml`, `Caddyfile` | Производственная конфигурация |
 
+Пилот Contract Relay связывает сайт с отдельным менеджером на домашнем сервере по исходящему HTTPS. Запуск сайта и проверка контрактов не требуют доступности Relay. Настройка Timeweb, служебный протокол и методика измерений описаны в [руководстве по пилоту](docs/contract-relay-pilot.md).
+
 Стек backend: Python 3.13, FastAPI, Uvicorn, SQLAlchemy 2, psycopg, PostgreSQL 17 и Alembic. Для HTTP-интеграций используется httpx. Точные зависимости закреплены в `requirements.txt`.
 
 Frontend использует React 19, TypeScript, Vite, Tailwind CSS и обычные CSS-файлы. Версии зависимостей закрепляются через `frontend/pnpm-lock.yaml`. Companion написан на JavaScript с HTML/CSS и API Overwolf; его тесты работают на встроенном Node.js test runner.

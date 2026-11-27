@@ -31,6 +31,7 @@ from .community import router as community_router
 from .case_completion import router as case_completion_router
 from .companion_feedback import router as companion_feedback_router
 from .contract_relay import build_admin_router as build_contract_relay_admin_router, player_router as contract_relay_player_router
+from .relay_protocol import build_admin_router as build_relay_protocol_admin_router, router as relay_protocol_router
 from .personal_progress import router as personal_progress_router
 from .services.personal_progress import build_personal_progress
 from .services.achievements import achievement_collection, awarded_contract_filter
@@ -578,6 +579,7 @@ app.include_router(case_completion_router)
 app.include_router(companion_feedback_router)
 app.include_router(personal_progress_router)
 app.include_router(contract_relay_player_router)
+app.include_router(relay_protocol_router)
 
 
 @app.exception_handler(Exception)
@@ -1420,6 +1422,7 @@ from .arena_metrics import build_router as build_arena_metrics_router
 app.include_router(build_card_battle_router(_require_permission, _effective_access_role))
 app.include_router(build_arena_metrics_router(_require_permission))
 app.include_router(build_contract_relay_admin_router(_require_admin))
+app.include_router(build_relay_protocol_admin_router(_require_admin, _require_owner))
 
 def _companion_from_request(
     request: Request,
