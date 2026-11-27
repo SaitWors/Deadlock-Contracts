@@ -5,6 +5,7 @@ from typing import Any
 
 
 RU_TO_EN = {
+    "В пилоте Relay заняты все 30 мест. Попробуйте позже.": "All 30 Relay pilot places are taken. Try again later.",
     "Укажите ссылку Quick Invite из Steam": "Enter a Steam Quick Invite link",
     "Для приглашения требуется активный аккаунт Steam": "An active Steam account is required for an invite",
     "Ссылка Quick Invite уже назначена": "This Quick Invite link is already assigned",
@@ -114,6 +115,7 @@ RU_TO_EN = {
 }
 
 DETAIL_ERROR_CODES = {
+    "В пилоте Relay заняты все 30 мест. Попробуйте позже.": "RELAY_PILOT_FULL",
     "Требуется вход через Steam": "AUTH_REQUIRED",
     "Проверка безопасности запроса не пройдена": "CSRF_REJECTED",
     "Аккаунт заблокирован": "ACCOUNT_SUSPENDED",

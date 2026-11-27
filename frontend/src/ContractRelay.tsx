@@ -156,8 +156,8 @@ export default function ContractRelay({
           {!userId && (
             <p>
               {ru
-                ? "Участие добровольное. Оно разрешает команде сверить дружбу со Steam-профилем Relay для пилота по проверке матчей."
-                : "Opt in to let the team check your Steam friendship with Relay for the match verification pilot."}{" "}
+                ? "Участие добровольное. Оно разрешает команде сверить дружбу со Steam-профилем Relay для пилота по проверке матчей. В пилоте 30 мест."
+                : "Opt in to let the team check your Steam friendship with Relay for the match verification pilot. The pilot has 30 places."}{" "}
               <a href="https://steamcommunity.com/id/deadlock-contracts-relay/">
                 {ru ? "Открыть профиль Relay в Steam" : "Open the Relay profile on Steam"}
               </a>
