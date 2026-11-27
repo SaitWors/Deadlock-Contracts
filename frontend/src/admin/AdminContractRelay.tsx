@@ -90,16 +90,6 @@ function makeCopy(language: Language) {
 
 type Copy = ReturnType<typeof makeCopy>
 
-function localTime(value: string | null | undefined, language: Language) {
-  if (!value) return null
-  const parsed = new Date(value)
-  if (Number.isNaN(parsed.getTime())) return null
-  return new Intl.DateTimeFormat(language, {
-    dateStyle: "medium",
-    timeStyle: "short",
-  }).format(parsed)
-}
-
 function ObservationTime({
   value,
   language,
@@ -109,17 +99,11 @@ function ObservationTime({
   language: Language
   unknown: string
 }) {
-  const text = localTime(value, language)
-  return text ? <time dateTime={value ?? undefined}>{text}</time> : unknown
-}
-
-function adminActionLabel(action: NodeAction, copy: Copy) {
-  const labels = {
-    enable: copy("Включить узел", "Enable node"),
-    disable: copy("Отключить узел", "Disable node"),
-    revoke: copy("Отозвать ключ", "Revoke key"),
-  }
-  return labels[action]
+  if (!value) return unknown
+  const parsed = new Date(value)
+  if (Number.isNaN(parsed.getTime())) return unknown
+  const format = new Intl.DateTimeFormat(language, { dateStyle: "medium", timeStyle: "short" })
+  return <time dateTime={value}>{format.format(parsed)}</time>
 }
 
 function NodePanel({
@@ -171,12 +155,12 @@ function NodePanel({
   }
   const state = (value?: string | null) => (value && states[value.toLowerCase()]) || unknown
   const eventLabels: Record<string, string> = {
-    host_snapshot_invalid: copy("Некорректный отчёт хоста", "Invalid host report"),
+    host_snapshot_invalid: copy("Неверный отчёт хоста", "Invalid host report"),
     host_snapshot_unavailable: copy("Отчёт хоста недоступен", "Host report unavailable"),
-    participant_sync_failed: copy("Ошибка получения участников", "Participant sync failed"),
-    friendship_sync_failed: copy("Ошибка отправки статусов дружбы", "Friendship sync failed"),
-    steam_enrollment_failed: copy("Сбой автоподключения через Steam", "Steam enrollment failed"),
-    scheduler_sync_failed: copy("Очередь планировщика недоступна", "Scheduler queue unavailable"),
+    participant_sync_failed: copy("Сбой загрузки участников", "Participant sync failed"),
+    friendship_sync_failed: copy("Сбой сверки дружбы", "Friendship sync failed"),
+    steam_enrollment_failed: copy("Сбой автоподключения Steam", "Steam enrollment failed"),
+    scheduler_sync_failed: copy("Очередь недоступна", "Scheduler queue unavailable"),
     docker_inspect_failed: copy("Состояние Docker недоступно", "Docker state unavailable"),
     docker_logs_failed: copy("Журнал Docker недоступен", "Docker log unavailable"),
   }
@@ -196,29 +180,23 @@ function NodePanel({
       .join(" · ")
   }
   const rows = [
-    [copy("Последний сигнал узла", "Last heartbeat"), date(node.last_heartbeat_at)],
-    [copy("Последний успешный цикл", "Last successful cycle"), date(node.last_successful_cycle_at)],
-    [copy("Версия Relay Manager", "Relay Manager version"), node.agent_version ?? unknown],
+    [copy("Сигнал узла", "Last heartbeat"), date(node.last_heartbeat_at)],
+    [copy("Успешный цикл", "Last successful cycle"), date(node.last_successful_cycle_at)],
+    ["Relay Manager", node.agent_version ?? unknown],
     [
       copy("Ключ узла", "Node key"),
       node.has_token ? copy("Зарегистрирован", "Registered") : copy("Отсутствует", "Missing"),
     ],
     [
-      copy("Запись статуса дружбы", "Friendship status reports"),
+      copy("Отчёты о дружбе", "Friendship reports"),
       node.friendship_writes ? copy("Разрешена", "Enabled") : copy("Выключена", "Disabled"),
     ],
-    [
-      copy("Состояние отчёта Ingest", "Ingest report status"),
-      ingestStatuses[node.ingest_status ?? "unknown"],
-    ],
+    [copy("Отчёт Ingest", "Ingest report"), ingestStatuses[node.ingest_status ?? "unknown"]],
     [copy("Наблюдение Ingest", "Ingest observed at"), date(ingest?.observed_at)],
     [copy("Версия Ingest", "Ingest version"), ingest?.ingest_version ?? unknown],
     [copy("Контейнер", "Container"), state(ingest?.container_status)],
-    [copy("Журнал Game Coordinator", "Game Coordinator log"), state(ingest?.gc_logs)],
-    [
-      copy("Последнее событие Game Coordinator", "Last Game Coordinator event"),
-      date(ingest?.last_gc_event_at),
-    ],
+    [copy("Журнал GC", "GC log"), state(ingest?.gc_logs)],
+    [copy("Последнее событие GC", "Last GC event"), date(ingest?.last_gc_event_at)],
     [copy("Сессия Steam", "Steam session"), state(ingest?.steam_session)],
     ...(!ingest?.scheduler || ingest.scheduler.mode === "legacy"
       ? ([
@@ -233,15 +211,12 @@ function NodePanel({
         ] as const)
       : []),
     [
-      copy("Последний сигнал о квоте метаданных", "Last metadata quota signal"),
+      copy("Сигнал о квоте метаданных", "Metadata quota signal"),
       date(ingest?.last_metadata_quota_signal_at),
     ],
+    [copy("Лимит истории", "Last history rate limit"), date(ingest?.last_history_rate_limit_at)],
     [
-      copy("Последнее ограничение истории", "Last history rate limit"),
-      date(ingest?.last_history_rate_limit_at),
-    ],
-    [
-      copy("Последняя успешная отправка", "Last successful upload"),
+      copy("Успешная отправка", "Last successful upload"),
       ingest?.last_salt_upload ? (
         <>
           {date(ingest.last_salt_upload.at)} · {number.format(ingest.last_salt_upload.count)}
@@ -250,12 +225,9 @@ function NodePanel({
         unknown
       ),
     ],
+    ["CPU", metrics?.cpu_percent == null ? unknown : `${number.format(metrics.cpu_percent)}%`],
     [
-      copy("Нагрузка CPU контейнера", "Container CPU"),
-      metrics?.cpu_percent == null ? unknown : `${number.format(metrics.cpu_percent)}%`,
-    ],
-    [
-      copy("Память контейнера", "Container memory"),
+      copy("Память", "Memory"),
       metrics?.ram_bytes == null
         ? unknown
         : copy(
@@ -295,7 +267,7 @@ function NodePanel({
         </Suspense>
       )}
       <details>
-        <summary>{copy("Последние события синхронизации", "Recent sync events")}</summary>
+        <summary>{copy("События синхронизации", "Sync events")}</summary>
         {node.history.length ? (
           <ul className="dc-relay-events">
             {node.history.map((item, index) => (
@@ -310,7 +282,7 @@ function NodePanel({
             ))}
           </ul>
         ) : (
-          <p>{copy("Событий пока нет.", "No events have been reported.")}</p>
+          <p>{copy("Событий пока нет.", "No events yet.")}</p>
         )}
       </details>
       {canManage && (
@@ -322,7 +294,9 @@ function NodePanel({
               disabled={busy}
               onClick={() => void onAction(node, toggle)}
             >
-              {adminActionLabel(toggle, copy)}
+              {node.enabled
+                ? copy("Отключить узел", "Disable node")
+                : copy("Включить узел", "Enable node")}
             </button>
           )}
           {node.has_token && (
@@ -332,7 +306,7 @@ function NodePanel({
               disabled={busy}
               onClick={() => void onAction(node, "revoke")}
             >
-              {adminActionLabel("revoke", copy)}
+              {copy("Отозвать ключ", "Revoke key")}
             </button>
           )}
         </div>
