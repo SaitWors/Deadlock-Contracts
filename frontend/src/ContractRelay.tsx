@@ -10,6 +10,7 @@ type RelayConnection = {
   status?: "pending" | "connected" | "disconnected" | "error" | "unknown"
   friendship_source?: "manual" | "relay_manual" | "steam_web_api" | null
   friendship_observed_at?: string | null
+  quick_invite_expires_at?: string | null
 }
 
 type RelayResponse = { connection: RelayConnection | null }
@@ -30,6 +31,7 @@ export default function ContractRelay({
   const resource = useResource<RelayResponse>(url, { reloadOnLanguageChange: false })
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState("")
+  const [inviteUrl, setInviteUrl] = useState("")
   const connection = resource.data?.connection
 
   async function update(action: ReviewAction | "join") {
@@ -55,6 +57,25 @@ export default function ContractRelay({
     }
   }
 
+  async function updateInvite(method: "PUT" | "DELETE") {
+    if (!connection) return
+    setBusy(true)
+    setError("")
+    try {
+      const result = await request<RelayResponse>(`${url}/${connection.id}/quick-invite`, csrf, {
+        method,
+        body: method === "PUT" ? JSON.stringify({ url: inviteUrl.trim() }) : undefined,
+      })
+      resource.setData(result)
+      setInviteUrl("")
+    } catch (reason) {
+      if (reason instanceof ApiError && reason.status === 409) resource.reload()
+      setError((reason as Error).message)
+    } finally {
+      setBusy(false)
+    }
+  }
+
   const confirmed = connection?.friendship_confirmed_at
   const date = (value: string) =>
     new Intl.DateTimeFormat(language, {
@@ -71,6 +92,7 @@ export default function ContractRelay({
     : (connection?.status ?? (confirmed ? "connected" : "pending"))
   const observed = connection?.friendship_observed_at ?? confirmed
   const canClear = Boolean(confirmed || friendshipStatus === "connected")
+  const inviteExpires = connection?.quick_invite_expires_at
   const statusLabels = {
     connected:
       connection?.friendship_source === "steam_web_api"
@@ -128,6 +150,19 @@ export default function ContractRelay({
                   : " Disconnecting on this site leaves the Steam friendship in place.")}
             </p>
           )}
+          {!userId && inviteExpires && (
+            <p>
+              <a
+                href={`${url}/quick-invite`}
+                rel="external noreferrer"
+                referrerPolicy="no-referrer"
+              >
+                {ru ? "Открыть Quick Invite в Steam" : "Open Quick Invite in Steam"}
+              </a>{" "}
+              {ru ? "Доступно до" : "Available until"}{" "}
+              <time dateTime={inviteExpires}>{date(inviteExpires)}</time>
+            </p>
+          )}
           {userId && connection && (
             <>
               <p>
@@ -137,6 +172,48 @@ export default function ContractRelay({
                 {ru ? "ID согласия" : "Consent ID"}{" "}
                 <code className="dc-relay-consent-id">{connection.id}</code>
               </p>
+              {inviteExpires && (
+                <p>
+                  {ru
+                    ? "Quick Invite доступен игроку до"
+                    : "Quick Invite available to the player until"}{" "}
+                  <time dateTime={inviteExpires}>{date(inviteExpires)}</time>
+                </p>
+              )}
+              {friendshipStatus !== "connected" && (
+                <form
+                  onSubmit={(event) => {
+                    event.preventDefault()
+                    void updateInvite("PUT")
+                  }}
+                >
+                  <label>
+                    {ru ? "Новая ссылка Quick Invite из Steam" : "New Steam Quick Invite link"}{" "}
+                    <input
+                      type="password"
+                      value={inviteUrl}
+                      onChange={(event) => setInviteUrl(event.target.value)}
+                      autoComplete="off"
+                      maxLength={128}
+                      required
+                      disabled={busy}
+                    />
+                  </label>{" "}
+                  <button type="submit" className="dc-ghost" disabled={busy || !inviteUrl.trim()}>
+                    {ru ? "Показать игроку" : "Share with player"}
+                  </button>
+                </form>
+              )}
+              {inviteExpires && (
+                <button
+                  type="button"
+                  className="dc-ghost"
+                  disabled={busy}
+                  onClick={() => void updateInvite("DELETE")}
+                >
+                  {ru ? "Отозвать Quick Invite на сайте" : "Revoke Quick Invite on this site"}
+                </button>
+              )}
             </>
           )}
           <div className="dc-admin-user-actions">
