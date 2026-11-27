@@ -721,10 +721,10 @@ test("an existing Steam friend can explicitly opt in without sending another inv
   })
   assert.deepEqual(mutations, [])
   assert.ok(doc.querySelector('a[href="https://steamcommunity.com/id/deadlock-contracts-relay/"]'))
-  await api.act(async () => button(doc, "Я уже в друзьях, согласен участвовать").click())
+  await api.act(async () => button(doc, "Уже в друзьях? Участвовать").click())
   assert.deepEqual(mutations, [["PUT", "relay-csrf"]])
   assert.equal(doc.querySelector('[role="status"]').textContent, "Ожидает проверки")
-  assert.equal(button(doc, "Я уже в друзьях, согласен участвовать"), undefined)
+  assert.equal(button(doc, "Уже в друзьях? Участвовать"), undefined)
   await api.act(async () => root.unmount())
 })
 

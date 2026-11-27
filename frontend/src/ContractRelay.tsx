@@ -195,8 +195,8 @@ export default function ContractRelay({
         <p role="status">{compactStatus}</p>
         <p>
           {ru
-            ? "Отправьте Relay заявку в друзья с привязанного аккаунта Steam. Это согласие на автопоиск ваших матчей в пилоте на 30 мест. Список друзей Relay открыт."
-            : "Send Relay a friend request from your linked Steam account to opt in to automatic match discovery. The pilot has 30 places. Relay’s friends list is public."}
+            ? "Добавьте Relay с привязанного аккаунта Steam, чтобы разрешить поиск матчей. В пилоте 30 мест. Список друзей Relay открыт."
+            : "Add Relay from your linked Steam account to allow match discovery. The pilot has 30 places and a public friends list."}
         </p>
         {autoEnrollment.blocked ? (
           <button
@@ -228,26 +228,20 @@ export default function ContractRelay({
                   {ru ? "Добавить в друзья Steam" : "Add on Steam"}
                 </a>
               ))}
-            {!connection && (
-              <button
-                type="button"
-                className="dc-ghost"
-                disabled={busy}
-                onClick={() => void update("join")}
-              >
-                {ru ? "Я уже в друзьях, согласен участвовать" : "Already friends? Opt in"}
-              </button>
-            )}
-            {connection && (
-              <button
-                type="button"
-                className="dc-ghost"
-                disabled={busy}
-                onClick={() => void update("disconnect")}
-              >
-                {ru ? "Отключить участие" : "Disconnect"}
-              </button>
-            )}
+            <button
+              type="button"
+              className="dc-ghost"
+              disabled={busy}
+              onClick={() => void update(connection ? "disconnect" : "join")}
+            >
+              {connection
+                ? ru
+                  ? "Отключить участие"
+                  : "Disconnect"
+                : ru
+                  ? "Уже в друзьях? Участвовать"
+                  : "Already friends? Opt in"}
+            </button>
           </div>
         )}
       </section>
