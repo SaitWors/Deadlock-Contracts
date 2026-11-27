@@ -27,10 +27,13 @@ check_ingest_compose() {
     local -a docker_cli=(env -u DOCKER_CONTEXT docker --host unix:///var/run/docker.sock)
     "${docker_cli[@]}" version --format '{{.Server.Version}}' >/dev/null 2>&1 || fail 'Local Docker Engine is unavailable.'
     "${docker_cli[@]}" compose version >/dev/null 2>&1 || fail 'Docker Compose v2 is unavailable.'
-    # Validate the existing merged files without resolving credentials or producing a rendered manifest.
-    "${docker_cli[@]}" compose --project-directory "$ingest_root" --env-file /dev/null \
-        -f "$ingest_root/compose.yaml" -f "$ingest_root/compose.production.yaml" \
-        config --quiet --no-env-resolution --no-interpolate >/dev/null 2>&1 || fail 'Existing Ingest Compose files failed structural validation.'
+    # Keep Compose's project interpolation and avoid reading service env files or printing configuration.
+    (
+        cd "$ingest_root"
+        "${docker_cli[@]}" compose --project-directory "$ingest_root" \
+            -f "$ingest_root/compose.yaml" -f "$ingest_root/compose.production.yaml" \
+            config --quiet --no-env-resolution
+    ) >/dev/null 2>&1 || fail 'Existing Ingest Compose files failed validation.'
 }
 
 [[ $# == 2 ]] || usage

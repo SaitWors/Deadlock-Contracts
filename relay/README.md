@@ -24,16 +24,17 @@ RELAY_API_ORIGIN=https://contracts.example.org
 RELAY_INGEST_CONTAINER=contract-relay-ingest
 ```
 
-Создайте файл `/etc/contract-relay-manager/token` один раз на MCG server. В примере `mcg-home` должен совпасть с именем узла на Timeweb. Команда пишет файл с правами `0600` без перевода строки и печатает SHA-256 для регистрации узла. Если файл уже существует, команда завершится без перезаписи. Сам токен хранится на MCG server. На Timeweb для регистрации передаётся только SHA-256.
+При первой установке создайте файл `/etc/contract-relay-manager/token` на MCG server. В примере `mcg` должен совпасть с именем узла на Timeweb. Команда пишет файл с правами `0600` без перевода строки и печатает SHA-256 для регистрации узла. Если файл уже существует, команда завершится без перезаписи. Сам токен хранится на MCG server. На Timeweb для регистрации передаётся только SHA-256.
 
 ```bash
-sudo python3 - <<'PY'
+sudo python3 - /etc/contract-relay-manager/token <<'PY'
 import hashlib
 import os
 import secrets
+import sys
 
-token = ('mcg-home.' + secrets.token_urlsafe(32)).encode('ascii')
-descriptor = os.open('/etc/contract-relay-manager/token', os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+token = ('mcg.' + secrets.token_urlsafe(32)).encode('ascii')
+descriptor = os.open(sys.argv[1], os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
 with os.fdopen(descriptor, 'wb') as handle:
     handle.write(token)
 print(hashlib.sha256(token).hexdigest())
@@ -48,7 +49,7 @@ sudo sh -c 'set -C; umask 077; printf "%s\n" "{\"observations\":[]}" > /etc/cont
 
 ## Запуск и проверка
 
-После регистрации узла и включения API оператор активирует проверенный релиз. Сохраните прежний хеш из `readlink /opt/contract-relay-manager/current`, если это обновление. Перед запуском скрипт проверяет существующие `/opt/contract-relay/compose.yaml` и `/opt/contract-relay/compose.production.yaml` командой `docker compose config --quiet`, без подстановки переменных из файлов секретов и без вывода конфигурации. Запуск затрагивает только службы Relay. Скрипт проверяет их состояние и свежесть локальной сводки. При временной недоступности Timeweb менеджер продолжает попытки доставки. [Документация Docker Compose](https://docs.docker.com/reference/cli/docker/compose/config/)
+После регистрации узла и включения API оператор активирует проверенный релиз. Сохраните прежний хеш из `readlink /opt/contract-relay-manager/current`, если это обновление. Перед запуском скрипт проверяет существующие `/opt/contract-relay/compose.yaml` и `/opt/contract-relay/compose.production.yaml` командой `docker compose config --quiet --no-env-resolution`. Compose применяет обычные настройки проекта из `.env`, пропускает `env_file` сервисов и ничего не выводит оператору. Запуск затрагивает только службы Relay. Скрипт проверяет их состояние и свежесть локальной сводки. При временной недоступности Timeweb менеджер продолжает попытки доставки. [Документация Docker Compose](https://docs.docker.com/reference/cli/docker/compose/config/)
 
 ```bash
 sudo bash relay/deploy.sh activate "$release_sha"
@@ -89,6 +90,15 @@ sudo bash relay/deploy.sh rollback '<полный хеш предыдущего 
 ```bash
 sudo systemctl disable --now contract-relay-manager.service contract-relay-publisher.timer
 sudo systemctl stop contract-relay-publisher.service
+```
+
+## Ротация токена
+
+Выполните команду генерации с тем же именем узла, указав `/etc/contract-relay-manager/token.next` вместо `/etc/contract-relay-manager/token`. Установите на Timeweb новый SHA-256 с нужными правами узла. Затем атомарно замените старый файл и перезапустите менеджер. Повторный запуск Ingest не требуется. После ротации проверьте новый heartbeat на сайте.
+
+```bash
+sudo mv -Tf /etc/contract-relay-manager/token.next /etc/contract-relay-manager/token
+sudo systemctl restart contract-relay-manager.service
 ```
 
 Проверки без подключения к Steam или сайту можно запустить из корня репозитория командой `python3 -m unittest relay.test_manager`.
