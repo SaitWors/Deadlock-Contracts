@@ -37,6 +37,15 @@ class User(Base):
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
 
 
+class ContractRelayConnection(Base):
+    __tablename__ = "contract_relay_connections"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uuid4)
+    user_id: Mapped[str] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), unique=True)
+    consented_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    friendship_confirmed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
 class ArchiveCard(Base):
     __tablename__ = "archive_cards"
     __table_args__ = (CheckConstraint("revision > 0", name="ck_archive_card_revision"),)
