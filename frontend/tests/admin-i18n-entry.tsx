@@ -6,6 +6,7 @@ import BureauModerationDesk from "../src/admin/BureauModerationDesk"
 import ReviewDesk from "../src/admin/ReviewDesk"
 import OwnerRewards from "../src/admin/OwnerRewards"
 import { AdminConsole } from "../src/Dashboard"
+import ContractRelay from "../src/ContractRelay"
 
 export { act }
 
@@ -25,6 +26,7 @@ export function mount(element: HTMLElement, page: string, props: Record<string, 
     reviews: ReviewDesk,
     console: AdminConsole,
     rewards: OwnerRewards,
+    relayProfile: ContractRelay,
   }[page] as React.ComponentType<Record<string, unknown>>
   const root = createRoot(element)
   root.render(

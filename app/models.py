@@ -44,6 +44,7 @@ class ContractRelayConnection(Base):
     user_id: Mapped[str] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), unique=True)
     consented_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
     friendship_confirmed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    friendship_cleared_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
 
 class ArchiveCard(Base):
@@ -821,6 +822,7 @@ class Match(Base):
     external_match_id: Mapped[int] = mapped_column(BigInteger, unique=True, index=True)
     provider: Mapped[str] = mapped_column(String(64))
     provider_payload_hash: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    relay_provider_metadata_observed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True, index=True)
     ended_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     duration_s: Mapped[int | None] = mapped_column(Integer, nullable=True)
@@ -1296,3 +1298,5 @@ from . import coin_models as coin_models  # noqa: E402,F401
 from . import economy_models as economy_models  # noqa: E402,F401
 from . import battle_models as battle_models  # noqa: E402,F401
 from . import pack_models as pack_models  # noqa: E402,F401
+from . import relay_models as relay_models  # noqa: E402,F401
+from . import relay_measurement_models as relay_measurement_models  # noqa: E402,F401

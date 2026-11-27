@@ -12,7 +12,7 @@ from typing import Any
 from sqlalchemy import and_, func, or_, select, update
 from sqlalchemy.dialects.postgresql import insert as postgresql_insert
 from sqlalchemy.dialects.sqlite import insert as sqlite_insert
-from sqlalchemy.exc import IntegrityError
+from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from sqlalchemy.orm import Session
 
 from .config import settings
@@ -696,6 +696,11 @@ def store_normalized_match(db: Session, data: dict) -> Match:
     incoming_has_independent = provider_has_independent_source(incoming_provider)
     incoming_has_client = provider_has_client_source(incoming_provider)
     existing_is_independent = existing_has_independent and not existing_has_client
+    metadata_observed_at = data.get("relay_provider_metadata_observed_at")
+    if incoming_provider == "deadlock_api" and isinstance(metadata_observed_at, datetime):
+        previous_observation = aware(match.relay_provider_metadata_observed_at)
+        if previous_observation is None or aware(metadata_observed_at) < previous_observation:
+            match.relay_provider_metadata_observed_at = metadata_observed_at
     incoming_is_independent = incoming_has_independent and not incoming_has_client
     replace_tainted_facts = bool(incoming_is_independent and existing_has_client)
     ignore_incoming_facts = bool(
@@ -2294,6 +2299,14 @@ def _capture_or_bind_match(
         candidate.attempt_no = int(board.attempts_used)
         candidate.bound_at = utcnow()
         candidate.ignored_reason = None
+        if settings.provider == "deadlock_api":
+            from .services.relay_effectiveness import record_bound_attempt
+
+            try:
+                with db.begin_nested():
+                    record_bound_attempt(db, board, match, candidate.bound_at)
+            except SQLAlchemyError as exc:
+                log.warning("Contract Relay measurement unavailable: %s", type(exc).__name__)
         db.commit()
         return "BOUND"
 

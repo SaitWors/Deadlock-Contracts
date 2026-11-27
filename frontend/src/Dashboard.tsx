@@ -20,6 +20,7 @@ import "./contract-board.css"
 import { signSelection, selectionState, type SigningSelection } from "./contract-signing"
 import { prefersReducedMotion, useRipple } from "./motion"
 import AnnouncementCenter from "./admin/AnnouncementCenter"
+import AdminContractRelay from "./admin/AdminContractRelay"
 import ReviewDesk from "./admin/ReviewDesk"
 import type { AdminReview } from "./admin/admin-types"
 import ArchiveNextStep from "./archive/ArchiveNextStep"
@@ -612,6 +613,7 @@ type AdminSection =
   | "matches"
   | "boards"
   | "companions"
+  | "contract_relay"
   | "missions"
   | "generator"
   | "jobs"
@@ -631,6 +633,7 @@ const ADMIN_SECTION_PERMISSIONS: Record<AdminSection, string> = {
   matches: "matches.read",
   boards: "boards.read",
   companions: "companions.read",
+  contract_relay: "system.read",
   missions: "missions.read",
   generator: "generator.preview",
   jobs: "jobs.read",
@@ -657,6 +660,7 @@ const ADMIN_SECTION_ORDER: Array<[AdminSection, string]> = [
   ["outbox", "Outbox"],
   ["audit", "Аудит"],
   ["system", "Система"],
+  ["contract_relay", "Contract Relay"],
 ]
 
 function hasAdminPermission(permissions: string[], permission: string) {
@@ -3094,6 +3098,12 @@ function AdminConsole({
     }
   }
 
+  const expireAdmin = useCallback(() => {
+    setAuth((previous) =>
+      previous ? { ...previous, elevated: false, expires_at: null } : previous,
+    )
+  }, [])
+
   const lockAdmin = async () => {
     try {
       await api("/api/admin/auth/lock", csrf, { method: "POST" })
@@ -5103,6 +5113,22 @@ function AdminConsole({
             ))}
           </div>
         </>
+      )}
+
+      {section === "contract_relay" && (
+        <AdminContractRelay
+          csrf={csrf}
+          canManage={auth.admin.access_role === "OWNER"}
+          onAuthExpired={expireAdmin}
+          onShowParticipants={
+            hasAdminPermission(auth.permissions, "users.read")
+              ? () => {
+                  setUserRelayOptedIn(true)
+                  setSection("users")
+                }
+              : undefined
+          }
+        />
       )}
 
       {section === "system" && (

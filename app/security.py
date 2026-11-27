@@ -111,6 +111,12 @@ async def rate_limiter_ready() -> bool:
     return await _limiter.ping()
 
 
+async def rate_limit_allow(identity: str, limit: int, window: int) -> tuple[bool, int]:
+    if _limiter is not None:
+        return await _limiter.allow(identity, limit, window)
+    return _local_limiter.allow(identity, limit, window)
+
+
 def _peer_is_trusted_proxy(scope: Scope) -> bool:
     client = scope.get("client")
     if not client:
@@ -158,6 +164,8 @@ def _rate_rule(path: str) -> tuple[str, int, int] | None:
         return "companion-heartbeat", 180, 60
     if path.startswith("/api/desktop/v1/"):
         return "companion-desktop", 240, 60
+    if path.startswith("/api/internal/relay/"):
+        return "relay-network", 120, 60
     return "global", settings.global_rate_limit_per_minute, 60
 
 
@@ -220,10 +228,13 @@ class RequestSecurityMiddleware:
             request_id = secrets.token_hex(12)
         scope.setdefault("state", {})["request_id"] = request_id
 
+        body_limit = settings.max_request_body_bytes
+        if path.startswith("/api/internal/relay/"):
+            body_limit = min(body_limit, 32768)
         content_length = headers.get("content-length")
         if content_length:
             try:
-                if int(content_length) > settings.max_request_body_bytes:
+                if int(content_length) > body_limit:
                     await self._reject(send, 413, "Запрос слишком большой", request_id)
                     return
             except ValueError:
@@ -240,10 +251,7 @@ class RequestSecurityMiddleware:
             bucket, limit, window = rule
             ip = _client_ip(scope, headers)
             for identity in _rate_identities(bucket, ip, headers):
-                if _limiter is not None:
-                    allowed, retry_after = await _limiter.allow(identity, limit, window)
-                else:
-                    allowed, retry_after = _local_limiter.allow(identity, limit, window)
+                allowed, retry_after = await rate_limit_allow(identity, limit, window)
                 if not allowed:
                     await self._reject(send, 429, "Слишком много запросов. Повторите позже.", request_id, retry_after)
                     return
@@ -255,7 +263,7 @@ class RequestSecurityMiddleware:
             message = await receive()
             if message["type"] == "http.request":
                 received += len(message.get("body", b""))
-                if received > settings.max_request_body_bytes:
+                if received > body_limit:
                     raise RequestBodyTooLarge
             return message
 

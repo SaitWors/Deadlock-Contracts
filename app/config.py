@@ -65,6 +65,7 @@ class Settings:
     trust_proxy_headers: bool = _bool("TRUST_PROXY_HEADERS", False)
     trusted_proxy_networks: tuple[str, ...] = _csv("TRUSTED_PROXY_NETWORKS", "127.0.0.1/32,::1/128")
     rate_limit_redis_url: str = os.getenv("RATE_LIMIT_REDIS_URL", "").strip()
+    relay_enabled: bool = _bool("CONTRACT_RELAY_ENABLED")
     docs_enabled: bool = _bool("DOCS_ENABLED", True)
 
     allow_demo_auth: bool = _bool("ALLOW_DEMO_AUTH", False)

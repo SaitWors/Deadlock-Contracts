@@ -1,0 +1,72 @@
+.dc-relay-console,
+.dc-relay-nodes {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 14px;
+}
+
+.dc-relay-console :is(h2, h3) {
+  margin-block: 0 0.65rem;
+}
+
+.dc-relay-node .dc-admin-user-actions {
+  margin-top: 1rem;
+}
+
+.dc-relay-facts,
+.dc-relay-counts {
+  margin: 0 0 1rem;
+}
+
+.dc-relay-facts dd,
+.dc-relay-counts dd {
+  margin: 0;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.dc-relay-facts dt,
+.dc-relay-facts dd {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.dc-relay-facts dd {
+  text-align: end;
+}
+
+.dc-relay-counts {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 9rem), 1fr));
+  gap: 0.9rem;
+}
+
+.dc-relay-counts dd {
+  font-size: 1.35rem;
+}
+
+.dc-relay-events li + li {
+  margin-top: 0.65rem;
+}
+
+.dc-relay-table-scroll {
+  overflow-x: auto;
+}
+
+.dc-relay-table {
+  width: 100%;
+  min-width: 58rem;
+  border-collapse: collapse;
+}
+
+.dc-relay-table :is(th, td) {
+  border-bottom: 1px solid var(--admin-line-soft, currentColor);
+  padding: 0.65rem 0.45rem;
+  text-align: start;
+  vertical-align: top;
+}
+
+.dc-relay-consent-id {
+  overflow-wrap: anywhere;
+  user-select: text;
+}

@@ -328,7 +328,8 @@ def normalize_deadlock_match(
         else metadata_root
     )
 
-    player = _find_player(metadata_root, account_id) or history
+    metadata_player = _find_player(metadata_root, account_id)
+    player = metadata_player or history
 
     root = provider_match or history
     match_id = _to_int(
@@ -339,6 +340,14 @@ def normalize_deadlock_match(
     )
     if match_id is None:
         raise ValueError("Provider response has no match_id")
+    metadata_match_id = _to_int(_pick(provider_match, "match_id", "matchId"))
+    has_match_metadata = metadata_match_id in (None, match_id) and (
+        metadata_player is not None
+        or (
+            metadata_match_id == match_id
+            and _pick(provider_match, "start_time", "startTime", "started_at", "duration_s", "match_duration_s") is not None
+        )
+    )
 
     duration_s = _bounded_int(
         _coalesce(
@@ -509,6 +518,7 @@ def normalize_deadlock_match(
         "external_match_id": match_id,
         "provider": "deadlock_api",
         "provider_payload_hash": payload_hash,
+        "relay_provider_metadata_observed_at": datetime.now(timezone.utc) if has_match_metadata else None,
         "started_at": started_at,
         "ended_at": ended_at,
         "duration_s": duration_s,

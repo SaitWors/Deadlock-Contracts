@@ -259,7 +259,7 @@ test("review language changes retain queue filters and their API codes", async (
   await api.act(async () => root.unmount())
 })
 
-test("the admin console keeps all 17 sections and the selected user filter when language changes", async () => {
+test("the admin console keeps all 18 sections and the selected user filter when language changes", async () => {
   const requests = []
   const { w, doc, api } = runtime(async (url) => {
     requests.push(url)
@@ -311,6 +311,7 @@ test("the admin console keeps all 17 sections and the selected user filter when 
     "outbox",
     "audit",
     "system",
+    "contract_relay",
   ]
   assert.deepEqual(sections(), expectedSections)
   await api.act(async () => button(doc, "Игроки").click())
@@ -324,7 +325,7 @@ test("the admin console keeps all 17 sections and the selected user filter when 
   assert.equal(doc.querySelector(".dc-admin-filterbar input").value, "Mandarin")
   assert.equal(doc.querySelector(".dc-admin-filterbar select").value, "MODERATOR")
   assert.deepEqual(sections(), expectedSections)
-  assert.equal(doc.querySelectorAll(".dc-admin-tabs button").length, 17)
+  assert.equal(doc.querySelectorAll(".dc-admin-tabs button").length, 18)
   assert.ok(button(doc, "Hero votes"))
   await api.act(async () => button(doc, "Apply").click())
   assert.ok(
@@ -333,5 +334,291 @@ test("the admin console keeps all 17 sections and the selected user filter when 
       return query.get("query") === "Mandarin" && query.get("role") === "MODERATOR"
     }),
   )
+  await api.act(async () => root.unmount())
+})
+
+const relayEndpoint = "/api/admin/contract-relay"
+const relayObservedAt = "2026-11-27T12:00:00Z"
+const emptyEffectiveness = {
+  window_start: "2026-11-20T12:00:00Z",
+  window_end: relayObservedAt,
+  observed_until: relayObservedAt,
+  sample_size: 0,
+  truncated: false,
+  quota_at_match_time: "unobserved",
+  cohorts: [],
+}
+const relayNode = {
+  id: "mcg-node",
+  enabled: true,
+  has_token: true,
+  friendship_writes: true,
+  status: "online",
+  agent_version: "1.2.3",
+  last_heartbeat_at: relayObservedAt,
+  last_observed_at: relayObservedAt,
+  last_successful_cycle_at: null,
+  ingest_status: "stale",
+  ingest: {
+    container_status: "running",
+    gc_logs: "stale",
+    observed_at: relayObservedAt,
+    metrics: { metadata_used: 0 },
+  },
+  history: [
+    {
+      observed_at: relayObservedAt,
+      received_at: relayObservedAt,
+      events: ["friendship_sync_failed"],
+      container_status: "running",
+    },
+  ],
+}
+const relayOverview = {
+  integration_enabled: true,
+  nodes: [relayNode],
+  participants: { connected: 2, pending: 1, disconnected: 0, error: 0 },
+}
+
+function relayAuth(accessRole, permissions, elevated = true) {
+  return {
+    configured: true,
+    elevated,
+    expires_at: elevated ? relayObservedAt : null,
+    ttl_minutes: 30,
+    is_staff: true,
+    permissions,
+    admin: {
+      id: "operator",
+      display_name: "Operator",
+      steam_id64: "76561198000000000",
+      access_role: accessRole,
+      badges: [],
+    },
+  }
+}
+
+const mountRelayConsole = ({ doc, api }) =>
+  api.mount(doc.getElementById("mount"), "console", {
+    csrf: "relay-csrf",
+    setError: assert.fail,
+    setNotice() {},
+    reloadAll: async () => {},
+  })
+
+test("Relay operations show independent host freshness and require confirmation and CSRF", async () => {
+  const mutations = []
+  let nodes = relayOverview.nodes
+  const view = runtime(async (url, init) => {
+    if (url === "/api/admin/auth/status") return response(relayAuth("OWNER", ["*"]))
+    if (url === relayEndpoint) return response({ ...relayOverview, nodes })
+    if (url === `${relayEndpoint}/effectiveness`) return response(emptyEffectiveness)
+    if (url === `${relayEndpoint}/nodes/mcg-node`) {
+      const action = JSON.parse(init.body).action
+      mutations.push({ action, csrf: init.headers.get("X-CSRF-Token"), method: init.method })
+      nodes = [{ ...relayNode, enabled: false, has_token: action !== "revoke", status: "disabled" }]
+      return response({ ok: true })
+    }
+    return response(list)
+  }, "/admin/reviews")
+  const { w, doc, api } = view
+  let root
+  await api.act(async () => {
+    root = mountRelayConsole(view)
+  })
+  await api.act(async () => button(doc, "Contract Relay").click())
+  const remote = doc.querySelector(".dc-relay-node")
+  assert.match(remote.textContent, /На связи/)
+  assert.match(remote.textContent, /Устаревший отчёт/)
+  assert.match(remote.textContent, /Квота метаданныхИспользовано 0/)
+  assert.match(remote.textContent, /Квота истории матчейНеизвестно/)
+  assert.equal(remote.querySelector("time").dateTime, relayObservedAt)
+  assert.match(doc.querySelector(".dc-relay-console").textContent, /Пока нет наблюдений/)
+  assert.ok(remote.querySelector("details summary"))
+
+  w.confirm = () => false
+  await api.act(async () => button(doc, "Отключить узел").click())
+  assert.deepEqual(mutations, [])
+
+  let question
+  w.confirm = (value) => {
+    question = value
+    return true
+  }
+  await api.act(async () => button(doc, "Отключить узел").click())
+  assert.match(question, /mcg-node.*ключ можно снова включить/)
+  assert.deepEqual(mutations[0], { action: "disable", csrf: "relay-csrf", method: "POST" })
+  assert.ok(button(doc, "Включить узел"))
+
+  await api.act(async () => button(doc, "Отозвать ключ").click())
+  assert.match(question, /mcg-node.*нужен новый ключ/)
+  assert.deepEqual(mutations[1], { action: "revoke", csrf: "relay-csrf", method: "POST" })
+  assert.equal(button(doc, "Включить узел"), undefined)
+  assert.equal(button(doc, "Отозвать ключ"), undefined)
+  await api.act(async () => root.unmount())
+})
+
+test("Relay admin visibility follows system permission and elevation, and admins cannot change node keys", async () => {
+  for (const [auth, tabExpected] of [
+    [relayAuth("ADMIN", ["users.read"]), false],
+    [relayAuth("OWNER", ["*"], false), false],
+    [relayAuth("ADMIN", ["system.read"]), true],
+  ]) {
+    let relayRequests = 0
+    const view = runtime(async (url) => {
+      if (url === "/api/admin/auth/status") return response(auth)
+      if (url === "/api/admin/system") return response(null)
+      if (url === relayEndpoint) {
+        relayRequests++
+        return response(relayOverview)
+      }
+      if (url === `${relayEndpoint}/effectiveness`) return response(emptyEffectiveness)
+      return response(list)
+    }, "/admin/reviews")
+    const { doc, api } = view
+    let root
+    await api.act(async () => {
+      root = mountRelayConsole(view)
+    })
+    assert.equal(Boolean(button(doc, "Contract Relay")), tabExpected)
+    assert.equal(relayRequests, 0)
+    if (tabExpected) {
+      await api.act(async () => button(doc, "Contract Relay").click())
+      assert.equal(relayRequests, 1)
+      assert.ok(doc.querySelector(".dc-relay-node"))
+      assert.equal(button(doc, "Отключить узел"), undefined)
+      assert.equal(button(doc, "Отозвать ключ"), undefined)
+    }
+    await api.act(async () => root.unmount())
+  }
+})
+
+test("an expired Relay admin session returns to TOTP", async () => {
+  const view = runtime(async (url) => {
+    if (url === "/api/admin/auth/status") return response(relayAuth("OWNER", ["*"]))
+    if (url === relayEndpoint)
+      return { ok: false, status: 403, json: async () => ({ detail: "TOTP" }) }
+    if (url === `${relayEndpoint}/effectiveness`) return response(emptyEffectiveness)
+    return response(list)
+  }, "/admin/reviews")
+  const { doc, api } = view
+  let root
+  await api.act(async () => {
+    root = mountRelayConsole(view)
+  })
+  await api.act(async () => button(doc, "Contract Relay").click())
+  assert.ok(doc.querySelector('input[autocomplete="one-time-code"]'))
+  assert.equal(doc.querySelector(".dc-relay-console"), null)
+  await api.act(async () => root.unmount())
+})
+
+test("player Relay status preserves opt-out and distinguishes sync from manual confirmation", async () => {
+  const connection = {
+    id: "connection-id",
+    consented_at: relayObservedAt,
+    friendship_confirmed_at: null,
+    status: "connected",
+    friendship_source: "relay_manual",
+    friendship_observed_at: relayObservedAt,
+  }
+  const requests = []
+  const statuses = [
+    [{ ...connection }, /подтверждена на узле Relay/],
+    [{ ...connection, friendship_source: "manual" }, /подтверждена вручную/],
+    [
+      { ...connection, status: "pending", friendship_source: null, friendship_observed_at: null },
+      /ожидает проверки/,
+    ],
+    [{ ...connection, status: "error" }, /не удалось проверить/],
+    [{ ...connection, status: "disconnected" }, /не найдена/],
+    [{ ...connection, status: "pending" }, /состояние дружбы неизвестно/i],
+  ]
+  for (const [data, expected] of statuses) {
+    const { doc, api } = runtime(async (url, init) => {
+      assert.equal(url, "/api/profile/contract-relay")
+      if (init.method === "DELETE") {
+        requests.push(init.headers.get("X-CSRF-Token"))
+        return response({ connection: null })
+      }
+      return response({ connection: data })
+    })
+    let root
+    await api.act(async () => {
+      root = api.mount(doc.getElementById("mount"), "relayProfile", { csrf: "relay-csrf" })
+    })
+    assert.match(doc.querySelector('[role="status"]').textContent, expected)
+    assert.equal(doc.querySelector(".dc-relay-consent-id"), null)
+    assert.equal(doc.querySelector("time")?.dateTime ?? null, data.friendship_observed_at)
+    await api.act(async () => button(doc, "Отключить участие").click())
+    assert.match(doc.querySelector('[role="status"]').textContent, /Участие выключено/)
+    await api.act(async () => root.unmount())
+  }
+  assert.deepEqual(requests, Array(statuses.length).fill("relay-csrf"))
+})
+
+test("Relay cohort latency renders only observed values and exposes missing outcomes", async () => {
+  const observed = { observed_count: 1, median_seconds: 30, p90_seconds: 30 }
+  const unobserved = { observed_count: 0, median_seconds: null, p90_seconds: null }
+  const effectiveness = {
+    ...emptyEffectiveness,
+    sample_size: 2,
+    unknown_match_end_count: 1,
+    cohorts: [
+      {
+        relay: "unknown",
+        companion: "unobserved",
+        mode: "STANDARD",
+        sample_size: 2,
+        metadata_unobserved_count: 1,
+        unresolved_count: 2,
+        confirmed_share: 0,
+        discovery: observed,
+        verification: unobserved,
+        after_discovery: unobserved,
+      },
+    ],
+  }
+  const view = runtime(async (url) => {
+    if (url === "/api/admin/auth/status") return response(relayAuth("OWNER", ["*"]))
+    if (url === relayEndpoint) return response(relayOverview)
+    if (url === `${relayEndpoint}/effectiveness`) return response(effectiveness)
+    return response(list)
+  }, "/admin/reviews")
+  const { doc, api } = view
+  let root
+  await api.act(async () => {
+    root = mountRelayConsole(view)
+  })
+  await api.act(async () => button(doc, "Contract Relay").click())
+  const row = doc.querySelector(".dc-relay-table tbody tr")
+  assert.match(row.querySelector("th").textContent, /Статус Relay неизвестен/)
+  assert.match(row.textContent, /Сигнал не зафиксирован/)
+  assert.match(row.textContent, /30.*n=1/)
+  assert.match(row.textContent, /— \/ — · n=0/)
+  assert.match(doc.querySelector(".dc-relay-console").textContent, /Без времени окончания · 1/)
+  await api.act(async () => root.unmount())
+})
+
+test("Relay exposes the current consent ID on the admin player detail only", async () => {
+  const consentId = "0f6b25d7-bac1-4f82-8979-b46996274f61"
+  const { doc, api } = runtime(async (url) => {
+    assert.equal(url, "/api/admin/users/player-id/contract-relay")
+    return response({
+      connection: {
+        id: consentId,
+        consented_at: relayObservedAt,
+        friendship_confirmed_at: null,
+        status: "pending",
+      },
+    })
+  })
+  let root
+  await api.act(async () => {
+    root = api.mount(doc.getElementById("mount"), "relayProfile", {
+      csrf: "relay-csrf",
+      userId: "player-id",
+    })
+  })
+  assert.equal(doc.querySelector(".dc-relay-consent-id").textContent, consentId)
   await api.act(async () => root.unmount())
 })
