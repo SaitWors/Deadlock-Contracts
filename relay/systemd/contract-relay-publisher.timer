@@ -1,0 +1,11 @@
+[Unit]
+Description=Refresh local Contract Relay observation each minute
+
+[Timer]
+OnBootSec=10s
+OnUnitActiveSec=60s
+AccuracySec=5s
+RandomizedDelaySec=5s
+
+[Install]
+WantedBy=timers.target

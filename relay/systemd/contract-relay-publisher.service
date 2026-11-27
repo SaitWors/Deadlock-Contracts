@@ -1,0 +1,27 @@
+[Unit]
+Description=Publish local Contract Relay Docker observation
+
+[Service]
+Type=oneshot
+WorkingDirectory=/opt/contract-relay-manager/current
+Environment=RELAY_INGEST_CONTAINER=contract-relay-ingest
+EnvironmentFile=/etc/contract-relay-manager/config
+UnsetEnvironment=DOCKER_HOST DOCKER_CONFIG DOCKER_CONTEXT DOCKER_TLS_VERIFY DOCKER_CERT_PATH
+ExecStart=/usr/bin/env DOCKER_HOST=unix:///var/run/docker.sock DOCKER_CONFIG=/run/contract-relay-observation/empty-docker-config /usr/bin/python3 -E -s -B -m relay.publisher --container ${RELAY_INGEST_CONTAINER} --output /run/contract-relay-observation/status.json
+RuntimeDirectory=contract-relay-observation
+RuntimeDirectoryMode=0755
+RuntimeDirectoryPreserve=yes
+TimeoutStartSec=40s
+UMask=0022
+NoNewPrivileges=yes
+PrivateNetwork=yes
+PrivateDevices=yes
+PrivateTmp=yes
+ProtectSystem=strict
+ProtectHome=yes
+ProtectKernelModules=yes
+ProtectKernelTunables=yes
+ProtectControlGroups=yes
+RestrictAddressFamilies=AF_UNIX
+CapabilityBoundingSet=
+InaccessiblePaths=/etc/contract-relay-manager/token /etc/contract-relay-manager/friend-observations.json
