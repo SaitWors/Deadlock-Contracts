@@ -8,7 +8,7 @@ type RelayConnection = {
   consented_at: string
   friendship_confirmed_at: string | null
   status?: "pending" | "connected" | "disconnected" | "error" | "unknown"
-  friendship_source?: "manual" | "relay_manual" | null
+  friendship_source?: "manual" | "relay_manual" | "steam_web_api" | null
   friendship_observed_at?: string | null
 }
 
@@ -70,16 +70,20 @@ export default function ContractRelay({
     ? "unknown"
     : (connection?.status ?? (confirmed ? "connected" : "pending"))
   const observed = connection?.friendship_observed_at ?? confirmed
-  const canClear = Boolean(confirmed || status === "connected")
+  const canClear = Boolean(confirmed || friendshipStatus === "connected")
   const statusLabels = {
     connected:
-      connection?.friendship_source === "relay_manual"
+      connection?.friendship_source === "steam_web_api"
         ? ru
-          ? "Дружба подтверждена на узле Relay."
-          : "Friendship confirmed on the Relay node."
-        : ru
-          ? "Дружба подтверждена вручную."
-          : "Friendship confirmed manually.",
+          ? "Дружба подтверждена через Steam."
+          : "Friendship confirmed through Steam."
+        : connection?.friendship_source === "relay_manual"
+          ? ru
+            ? "Дружба подтверждена на узле Relay."
+            : "Friendship confirmed on the Relay node."
+          : ru
+            ? "Дружба подтверждена вручную."
+            : "Friendship confirmed manually.",
     pending: ru ? "Дружба ожидает проверки." : "Friendship is awaiting confirmation.",
     disconnected: ru
       ? "Дружба со Steam-профилем Relay не найдена."
