@@ -29,6 +29,7 @@ class User(Base):
     locale: Mapped[str] = mapped_column(String(16), default="ru")
     timezone: Mapped[str] = mapped_column(String(64), default="UTC")
     status: Mapped[str] = mapped_column(String(32), default="ACTIVE")
+    relay_auto_enrollment_blocked: Mapped[bool] = mapped_column(Boolean, default=False, server_default=text("false"))
     xp: Mapped[int] = mapped_column(Integer, default=0)
     # Authorization role and presentation-only public badges. OWNER is never stored here.
     access_role: Mapped[str] = mapped_column(String(24), default="PLAYER", index=True)
