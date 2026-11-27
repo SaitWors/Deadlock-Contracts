@@ -136,17 +136,19 @@ def opt_in(response: Response, user: User = Depends(require_user), db: Session =
         connection = ContractRelayConnection(user_id=user.id, consented_at=now)
         db.add(connection)
         queue_application(db, user_id=user.id, now=now)
-        db.commit()
+    user.relay_auto_enrollment_blocked = False
+    db.commit()
     return _payload(response, db, connection, player=True)
 
 
 @player_router.delete(PROFILE_PATH, dependencies=[Depends(require_csrf)])
 def opt_out(response: Response, user: User = Depends(require_user), db: Session = Depends(get_db)) -> dict:
-    _lock_user(db, user.id)
+    user = _lock_user(db, user.id)
+    user.relay_auto_enrollment_blocked = True
     connection = _connection(db, user.id)
     if connection is not None:
         db.delete(connection)
-        db.commit()
+    db.commit()
     return _payload(response, db, None)
 
 
@@ -172,6 +174,7 @@ def build_admin_router(require_admin) -> APIRouter:
             raise HTTPException(409, "Подтверждение доступно для активного игрока")
 
         if review.action == "disconnect":
+            user.relay_auto_enrollment_blocked = True
             db.delete(connection)
             connection = None
         elif review.action == "confirm":
