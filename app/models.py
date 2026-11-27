@@ -39,12 +39,15 @@ class User(Base):
 
 class ContractRelayConnection(Base):
     __tablename__ = "contract_relay_connections"
+    __table_args__ = (Index("uq_relay_quick_invite_url", "quick_invite_url", unique=True),)
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uuid4)
     user_id: Mapped[str] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), unique=True)
     consented_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
     friendship_confirmed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     friendship_cleared_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    quick_invite_url: Mapped[str | None] = mapped_column(String(128), deferred=True)
+    quick_invite_expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
 
 class ArchiveCard(Base):

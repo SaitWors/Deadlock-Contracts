@@ -556,6 +556,42 @@ test("player Relay status preserves opt-out and distinguishes sync from manual c
   assert.deepEqual(requests, Array(statuses.length).fill("relay-csrf"))
 })
 
+test("Quick Invite opens Steam only after the player invokes the protected action", async () => {
+  const inviteUrl = "https://s.team/p/abcd-efgh/AbC123XY"
+  const actionCalls = []
+  const { w, doc, api } = runtime(async (url, init) => {
+    if (url === "/api/profile/contract-relay/quick-invite") {
+      actionCalls.push([init.method, init.headers.get("X-CSRF-Token")])
+      return response({ url: inviteUrl })
+    }
+    assert.equal(url, "/api/profile/contract-relay")
+    return response({
+      connection: {
+        id: "connection-id",
+        consented_at: relayObservedAt,
+        friendship_confirmed_at: null,
+        status: "pending",
+        quick_invite_expires_at: relayObservedAt,
+      },
+    })
+  })
+  const navigations = []
+  w.HTMLAnchorElement.prototype.click = function () {
+    navigations.push([this.href, this.referrerPolicy])
+  }
+  let root
+  await api.act(async () => {
+    root = api.mount(doc.getElementById("mount"), "relayProfile", { csrf: "relay-csrf" })
+  })
+  assert.deepEqual(actionCalls, [])
+  assert.ok(doc.querySelector('a[href="https://steamcommunity.com/id/deadlock-contracts-relay/"]'))
+  assert.equal(doc.querySelector(`a[href="${inviteUrl}"]`), null)
+  await api.act(async () => button(doc, "Открыть Quick Invite в Steam").click())
+  assert.deepEqual(actionCalls, [["POST", "relay-csrf"]])
+  assert.deepEqual(navigations, [[inviteUrl, "no-referrer"]])
+  await api.act(async () => root.unmount())
+})
+
 test("Relay cohort latency renders only observed values and exposes missing outcomes", async () => {
   const observed = { observed_count: 1, median_seconds: 30, p90_seconds: 30 }
   const unobserved = { observed_count: 0, median_seconds: null, p90_seconds: null }
