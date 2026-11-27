@@ -1,14 +1,29 @@
-import { useEffect, useRef, useState, type CSSProperties } from "react"
+import { useEffect, useRef, useState, type CSSProperties, type PointerEvent } from "react"
 import Icon from "../icons/Icon"
 import { useLanguage } from "../i18n"
-import { useReducedMotion } from "../Appearance"
+import { useAppearance, useReducedMotion } from "../Appearance"
 import CardSurface from "./CardSurface"
 import { FavoriteButton, FavoriteError, type FavoriteControls } from "./favorites"
-import type { Receipt } from "./types"
+import { createPackAudio } from "./pack-audio"
+import { createRevealEffects, prewarmRevealEffects } from "./reveal-effects"
+import { PACK_REVEAL_PROFILE, revealProfile, type RevealProfile } from "./reveal-profiles"
+import { RANKS, type Receipt } from "./types"
 import "./pack-reveal.css"
 import "./nightshift-archive.css"
 
 type Stage = "sealed" | "opening" | "cards" | "results"
+type Flight = {
+  id: string
+  phase: "lifting" | "charging" | "revealing" | "inspect" | "returning"
+  first: boolean
+  starred?: boolean
+  position: CSSProperties
+}
+
+const TEAR_MS = 420
+const DEAL_MS = 660
+const LAND_MS = 600
+const STAGGER_MS = 70
 
 export default function PackReveal({
   receipt,
@@ -19,148 +34,309 @@ export default function PackReveal({
 }) {
   const { language } = useLanguage()
   const ru = language === "ru"
+  const reduced = useReducedMotion()
+  const { appearance } = useAppearance()
   const dialogRef = useRef<HTMLDialogElement>(null)
   const triggerRef = useRef<HTMLButtonElement>(null)
-  const stageActionRef = useRef<HTMLButtonElement>(null)
-  const closeActionRef = useRef<HTMLButtonElement>(null)
-  const timerRef = useRef<number | null>(null)
+  const sealRef = useRef<HTMLButtonElement>(null)
+  const seats = useRef(new Map<string, HTMLElement>())
+  const effectsLayer = useRef<HTMLDivElement>(null)
+  const effects = useRef<ReturnType<typeof createRevealEffects> | null>(null)
+  const audio = useRef<ReturnType<typeof createPackAudio>>(undefined)
   const session = useRef(0)
-  const actionLocked = useRef(false)
-  const opening = useRef(false)
+  const saving = useRef(false)
+  const favoriteRequest = useRef(0)
   const [stage, setStage] = useState<Stage>("sealed")
-  const [cardIndex, setCardIndex] = useState(0)
-  const [faceUp, setFaceUp] = useState(false)
-  const [departure, setDeparture] = useState<"left" | "right" | null>(null)
-  const [saving, setSaving] = useState(false)
+  const [isOpen, setIsOpen] = useState(false)
+  const [revealed, setRevealed] = useState<string[]>([])
+  const [flight, setFlight] = useState<Flight | null>(null)
   const [completed, setCompleted] = useState(false)
   const [showInlineResults, setShowInlineResults] = useState(false)
-  const reduced = useReducedMotion()
+  const [favoriteError, setFavoriteError] = useState<string | null>(null)
+  const results = stage === "results" || reduced
+  const title = receipt.pack?.title || (ru ? "Карточки архива" : "Archive cards")
+  const activeItem = receipt.items.find(({ id }) => flight?.id === id)
+  const profile = activeItem && revealProfile(activeItem.card)
+  const dealTime = DEAL_MS + LAND_MS + STAGGER_MS * Math.max(0, receipt.items.length - 1)
+  const lite =
+    window.matchMedia("(pointer: coarse)").matches ||
+    (navigator.hardwareConcurrency > 0 && navigator.hardwareConcurrency <= 4)
+  const chargeMs = (profile?.chargeMs ?? 0) * (lite ? 0.6 : 1)
+  const highlight = results
+    ? receipt.items.reduce<Receipt["items"][number] | undefined>((best, item) => {
+        const rank = item.card.rank
+        if (rank === "EX") return best
+        return !best ||
+          RANKS.indexOf(rank) > RANKS.indexOf(best.card.rank as (typeof RANKS)[number])
+          ? item
+          : best
+      }, undefined)?.id
+    : undefined
 
-  const clearTimer = () => {
-    if (timerRef.current !== null) window.clearTimeout(timerRef.current)
-    timerRef.current = null
-  }
-  const invalidate = () => {
-    ++session.current
-    opening.current = false
-    clearTimer()
-    actionLocked.current = false
-  }
-  const results = () => {
-    invalidate()
-    setSaving(false)
-    setDeparture(null)
-    setStage("results")
-    setCompleted(true)
-  }
   useEffect(() => {
-    if (reduced && dialogRef.current?.open) results()
+    if (reduced && dialogRef.current?.open) {
+      stopSession()
+      setFlight(null)
+      setStage("results")
+    }
   }, [reduced])
-  useEffect(() => () => invalidate(), [])
+
   useEffect(() => {
-    invalidate()
-    setStage("sealed")
-    setCardIndex(0)
-    setFaceUp(false)
-    setCompleted(false)
-    setShowInlineResults(false)
-    setSaving(false)
-    setDeparture(null)
-    if (dialogRef.current?.open) dialogRef.current.close()
-  }, [receipt.id])
+    if (!appearance.packSound) stopAudio()
+  }, [appearance.packSound])
+
+  useEffect(() => () => stopSession(), [])
+
   useEffect(() => {
-    if (!dialogRef.current?.open) return
-    if (stage === "cards" || stage === "sealed") stageActionRef.current?.focus()
-    if (stage === "results") closeActionRef.current?.focus()
-  }, [stage, cardIndex, faceUp])
+    if (!isOpen) return
+    if (stage === "sealed") sealRef.current?.focus()
+    if (stage === "cards") {
+      const seat = seats.current.values().next().value
+      seat?.querySelector("button")?.focus({ preventScroll: true })
+    }
+  }, [stage, isOpen])
+
+  useEffect(() => {
+    if (!isOpen || reduced) return
+    const phase = flight?.phase
+    const phaseDelay = {
+      lifting: 850,
+      charging: chargeMs,
+      revealing: (profile?.turnMs ?? 600) + 110,
+      returning: 700,
+      inspect: undefined,
+    }
+    const delay = stage === "opening" ? dealTime + 150 : phase && phaseDelay[phase]
+    if (delay === undefined) return
+    const epoch = session.current
+    const timer = window.setTimeout(() => {
+      if (epoch !== session.current) return
+      if (stage === "opening") finishOpening()
+      else if (phase) finishFlight(phase)
+    }, delay)
+    return () => window.clearTimeout(timer)
+  }, [isOpen, reduced, stage, flight?.id, flight?.phase, dealTime, chargeMs, profile?.turnMs])
+
+  useEffect(() => {
+    if (!isOpen || reduced) return
+    const epoch = session.current
+    const play = (cue: "pack" | "hum" | "reveal", anchor: HTMLElement, recipe: RevealProfile) => {
+      if (epoch !== session.current || !effectsLayer.current) return
+      const handle = (effects.current ??= createRevealEffects(effectsLayer.current))
+      handle.play(cue, anchor, recipe, lite ? "lite" : "full", anchor)
+    }
+
+    if (stage === "opening") {
+      const count = receipt.items.length
+      audio.current?.play("press")
+      audio.current?.play("tear", TEAR_MS / 1000)
+      for (let i = 0; i < count; i++) {
+        const launch = DEAL_MS + STAGGER_MS * i
+        audio.current?.play("deal", launch / 1000)
+        audio.current?.play("land", (launch + LAND_MS - 70) / 1000)
+      }
+      const timer = window.setTimeout(() => {
+        if (sealRef.current) play("pack", sealRef.current, PACK_REVEAL_PROFILE)
+      }, TEAR_MS)
+      return () => window.clearTimeout(timer)
+    }
+
+    const subject =
+      flight && seats.current.get(flight.id)?.querySelector<HTMLElement>(".card-surface")
+    if (!flight || !profile || !subject) return
+    if (flight.phase === "lifting") audio.current?.play("lift")
+    if (flight.phase === "charging") {
+      play("hum", subject, profile)
+      audio.current?.play("hum", 0, profile.sound, chargeMs / 1000)
+    }
+    if (flight.phase === "revealing") {
+      play("reveal", subject, profile)
+      audio.current?.play("reveal", Math.min(0.12, profile.turnMs / 5000), profile.sound)
+    }
+    if (flight.phase === "returning") {
+      effects.current?.clear()
+      audio.current?.play("return")
+    }
+  }, [isOpen, reduced, stage, flight?.id, flight?.phase])
+
+  useEffect(() => {
+    if (!flight || flight.phase === "returning") return
+    const { id } = flight
+    const recenter = () => {
+      effects.current?.clear()
+      const position = flightPosition(id)
+      setFlight((current) =>
+        current?.id === id && current.phase !== "returning" ? { ...current, position } : current,
+      )
+    }
+    window.addEventListener("resize", recenter)
+    return () => window.removeEventListener("resize", recenter)
+  }, [flight?.id, flight?.phase])
+
+  function stopAudio() {
+    audio.current?.close()
+    audio.current = undefined
+  }
+
+  function stopSession() {
+    ++session.current
+    saving.current = false
+    effects.current?.clear()
+    effects.current = null
+    stopAudio()
+  }
+
+  function finishOpening() {
+    if (dialogRef.current?.open) setStage((current) => (current === "opening" ? "cards" : current))
+  }
+
+  function markRevealed(id: string) {
+    setRevealed((ids) => (ids.includes(id) ? ids : [...ids, id]))
+  }
+
+  function finishFlight(expected: Flight["phase"]) {
+    if (flight?.phase !== expected || !dialogRef.current?.open) return
+    if (expected === "returning") {
+      setFlight((current) =>
+        current?.id === flight.id && current.phase === expected ? null : current,
+      )
+      if (revealed.length === receipt.items.length) setStage("results")
+      return
+    }
+    const phase =
+      expected === "revealing" || !flight.first
+        ? "inspect"
+        : expected === "lifting" && chargeMs > 0
+          ? "charging"
+          : "revealing"
+    if (phase === "revealing") markRevealed(flight.id)
+    setFlight((current) =>
+      current?.id === flight.id && current.phase === expected ? { ...current, phase } : current,
+    )
+  }
 
   const open = () => {
-    invalidate()
-    setCardIndex(0)
-    setFaceUp(false)
-    setDeparture(null)
-    setSaving(false)
+    if (dialogRef.current?.open) return
+    stopSession()
+    setRevealed([])
+    setFlight(null)
+    setFavoriteError(null)
     setShowInlineResults(false)
     setStage(reduced || !receipt.items.length ? "results" : "sealed")
-    if (reduced || !receipt.items.length) setCompleted(true)
     dialogRef.current?.showModal()
-    stageActionRef.current?.focus()
-  }
-  const finishOpening = () => {
-    if (!opening.current || !dialogRef.current?.open) return
-    opening.current = false
-    clearTimer()
-    actionLocked.current = false
-    setStage(receipt.items.length ? "cards" : "results")
-    if (!receipt.items.length) setCompleted(true)
-  }
-  const breakSeal = () => {
-    if (actionLocked.current) return
-    if (reduced) return results()
-    actionLocked.current = true
-    opening.current = true
-    setStage("opening")
-    clearTimer()
-    // animationend owns the transition; recover if CSS or the event is unavailable.
-    timerRef.current = window.setTimeout(finishOpening, 3600)
-  }
-  const next = async (direction: "left" | "right") => {
-    if (stage !== "cards" || !faceUp || actionLocked.current) return
-    const item = receipt.items[cardIndex]
-    if (
-      !item ||
-      (direction === "left" && (!favorites?.ids || favorites.loading || favorites.pendingId))
-    )
-      return
-    const epoch = session.current
-    actionLocked.current = true
-    if (direction === "left") {
-      setSaving(true)
-      const saved = await favorites!.setFavorite(item.card.id, true)
-      if (epoch !== session.current || !dialogRef.current?.open) return
-      setSaving(false)
-      if (!saved) {
-        actionLocked.current = false
-        return
+    setIsOpen(true)
+    if (!reduced) {
+      void prewarmRevealEffects()
+      if (appearance.packSound) {
+        audio.current = createPackAudio()
+        audio.current?.play("appear")
       }
     }
-    if (epoch !== session.current || !dialogRef.current?.open) return
-    setDeparture(direction)
-    clearTimer()
-    timerRef.current = window.setTimeout(
-      () => {
-        timerRef.current = null
-        if (cardIndex + 1 >= receipt.items.length) results()
-        else {
-          setFaceUp(false)
-          setDeparture(null)
-          setCardIndex((index) => index + 1)
-          actionLocked.current = false
-        }
-      },
-      reduced ? 0 : 240,
+  }
+
+  function positionFromCenter(id: string) {
+    const seat = seats.current.get(id)?.getBoundingClientRect()
+    const scene = dialogRef.current?.getBoundingClientRect()
+    if (!seat || !scene) return { x: 0, y: 0, scale: 1 }
+    const ratio = seat.width ? seat.height / seat.width : 1.5
+    const width = Math.min(ratio < 1 ? 460 : 320, scene.width * 0.8, (scene.height * 0.78) / ratio)
+    return {
+      x: scene.left + (scene.width - seat.width) / 2 - seat.left,
+      y: scene.top + (scene.height - seat.height) / 2 - seat.top,
+      scale: seat.width ? width / seat.width : 1,
+    }
+  }
+
+  function flightPosition(id: string) {
+    const { x, y, scale } = positionFromCenter(id)
+    return {
+      "--flight-x": `${x}px`,
+      "--flight-y": `${y}px`,
+      "--flight-scale": scale,
+    } as CSSProperties
+  }
+
+  const breakSeal = () => {
+    audio.current?.resume()
+    const exitOffset = (sealRef.current?.getBoundingClientRect().height ?? 0) * 0.24
+    for (const [id, seat] of seats.current) {
+      const { x, y } = positionFromCenter(id)
+      seat.style.setProperty("--deal-x", `${x}px`)
+      seat.style.setProperty("--deal-y", `${y - exitOffset}px`)
+    }
+    setStage("opening")
+  }
+
+  const inspect = (id: string) => {
+    if (flight || stage === "opening" || stage === "sealed") return
+    audio.current?.resume()
+    setFavoriteError(null)
+    const position = flightPosition(id)
+    setFlight(
+      (current) =>
+        current ?? {
+          id,
+          phase: "lifting",
+          position,
+          first: !results && !revealed.includes(id),
+        },
     )
   }
-  const close = () => dialogRef.current?.close()
-  const current = receipt.items[cardIndex]
-  const itemLabel = (item: Receipt["items"][number]) =>
-    `${item.duplicate ? (ru ? "Дубль" : "Duplicate") : ru ? "Новая карточка" : "New card"}${item.test_grant ? (ru ? " · Тестовый экземпляр" : " · Sandbox copy") : ""}`
-  const itemSummary = (item: Receipt["items"][number]) => (
-    <article key={item.id} data-rank={item.card.rank}>
-      <CardSurface card={item.card} reduced={reduced} />
-      <p>
-        {itemLabel(item)}
-        {item.forced && (
-          <span>
-            {" "}
-            · {ru ? "Гарантированный ранг" : "Guaranteed rank"}: {item.card.rank} (
-            {ru ? "исходный" : "natural"}: {item.natural_rank})
-          </span>
-        )}
-      </p>
-      {favorites && <FavoriteButton controls={favorites} cardId={item.card.id} />}
-    </article>
-  )
+
+  const returnCard = async (direction: "left" | "right" = "right") => {
+    if (flight?.phase !== "inspect") return
+    setFavoriteError(null)
+    if (direction === "left") {
+      if (saving.current) return
+      if (!activeItem || !favorites?.ids || favorites.loading || favorites.pendingId) return
+      const epoch = session.current
+      const request = ++favoriteRequest.current
+      saving.current = true
+      const saved = await favorites.setFavorite(activeItem.card.id, true).catch(() => false)
+      if (
+        epoch !== session.current ||
+        request !== favoriteRequest.current ||
+        !dialogRef.current?.open
+      )
+        return
+      saving.current = false
+      if (!saved) {
+        setFavoriteError(ru ? "Не удалось сохранить" : "Could not save favorite")
+        return
+      }
+      audio.current?.play("favorite")
+    }
+    favoriteRequest.current++
+    saving.current = false
+    setFlight((current) =>
+      current?.id === flight.id && current.phase === "inspect"
+        ? { ...current, phase: "returning", starred: direction === "left" }
+        : current,
+    )
+  }
+
+  const tiltSeal = (event: PointerEvent<HTMLButtonElement>) => {
+    if (event.pointerType !== "mouse" || stage !== "sealed" || reduced) return
+    const { left, top, width, height } = event.currentTarget.getBoundingClientRect()
+    if (!width || !height) return
+    const x = (event.clientX - left) / width
+    const y = (event.clientY - top) / height
+    event.currentTarget.style.setProperty("--pack-x", `${x * 100}%`)
+    event.currentTarget.style.setProperty("--pack-y", `${y * 100}%`)
+    event.currentTarget.style.setProperty("--pack-rx", `${(0.5 - y) * 12}deg`)
+    event.currentTarget.style.setProperty("--pack-ry", `${(x - 0.5) * 14}deg`)
+  }
+
+  const backdropAction = () => {
+    if (!flight) {
+      dialogRef.current?.close()
+    } else if (flight.phase === "inspect") {
+      void returnCard()
+    } else if (flight.phase !== "returning") {
+      markRevealed(flight.id)
+      setFlight({ ...flight, phase: "returning", first: false })
+    }
+  }
 
   return (
     <>
@@ -178,214 +354,244 @@ export default function PackReveal({
           className="pack-reveal-inline archive-grid"
           aria-label={ru ? "Полученные карточки" : "Received cards"}
         >
-          {receipt.items.map(itemSummary)}
+          {receipt.items.map((item) => (
+            <article key={item.id} data-rank={item.card.rank}>
+              <CardSurface card={item.card} reduced={reduced} />
+              <p>
+                {item.duplicate ? (ru ? "Дубль" : "Duplicate") : ru ? "Новая карточка" : "New card"}
+                {item.test_grant && (ru ? " · Тестовый экземпляр" : " · Sandbox copy")}
+                {item.forced && (
+                  <span>
+                    {" · "}
+                    {ru ? "Гарантированный ранг" : "Guaranteed rank"}: {item.card.rank} (
+                    {ru ? "исходный" : "natural"}: {item.natural_rank})
+                  </span>
+                )}
+              </p>
+              {favorites && <FavoriteButton controls={favorites} cardId={item.card.id} />}
+            </article>
+          ))}
         </div>
       )}
       {showInlineResults && favorites && <FavoriteError controls={favorites} />}
       <dialog
         ref={dialogRef}
         className="pack-reveal"
-        data-theme="archive"
-        aria-labelledby={`pack-reveal-title-${receipt.id}`}
+        data-reduced={reduced}
+        aria-label={title}
+        onClick={(event) => {
+          if (!(event.target as Element).closest(".pack-opening-scene, .pack-card-seat"))
+            backdropAction()
+        }}
         onClose={() => {
-          invalidate()
+          if (dialogRef.current?.open) return
+          stopSession()
+          setIsOpen(false)
+          setFlight(null)
           setShowInlineResults(true)
           setCompleted(true)
           triggerRef.current?.focus()
         }}
-        onCancel={invalidate}
       >
-        <div className="pack-reveal-shell" data-stage={stage}>
-          <header>
-            <div>
-              <small>{ru ? "АРХИВНАЯ ДОСТАВКА" : "ARCHIVE DELIVERY"}</small>
-              <h2 id={`pack-reveal-title-${receipt.id}`}>
-                {receipt.pack?.title || (ru ? "Карточки архива" : "Archive cards")}
-              </h2>
-            </div>
-            <button onClick={close} aria-label={ru ? "Закрыть показ" : "Close reveal"}>
-              <Icon name="x" />
-            </button>
-          </header>
-
-          {(stage === "sealed" || stage === "opening") && (
-            <div className="pack-reveal-envelope" aria-live="polite">
-              <div
-                className="pack-opening-scene"
-                aria-hidden="true"
-                onAnimationEnd={(event) => {
-                  if (event.target === event.currentTarget && event.animationName === "pack-scene")
-                    finishOpening()
+        {isOpen && (
+          <div
+            className="pack-reveal-shell"
+            data-stage={stage}
+            data-reduced={reduced}
+            style={{ "--tear-at": `${TEAR_MS}ms` } as CSSProperties}
+          >
+            <div
+              className="pack-effects-layer rco-fx-layer"
+              ref={effectsLayer}
+              aria-hidden="true"
+              data-phase={
+                flight?.phase === "charging"
+                  ? "hum"
+                  : flight?.phase === "revealing"
+                    ? "turn"
+                    : undefined
+              }
+            />
+            <span className="sr-only" role="status">
+              {flight?.phase === "inspect" && activeItem
+                ? `${activeItem.card.title} · ${activeItem.card.rank}`
+                : ""}
+            </span>
+            {(stage === "sealed" || stage === "opening") && (
+              <button
+                ref={sealRef}
+                type="button"
+                className="pack-opening-scene pack-envelope-art"
+                aria-label={ru ? "Вскрыть конверт" : "Break the seal"}
+                aria-disabled={stage === "opening"}
+                onPointerMove={tiltSeal}
+                onPointerLeave={(event) => {
+                  for (const name of ["--pack-x", "--pack-y", "--pack-rx", "--pack-ry"]) {
+                    event.currentTarget.style.removeProperty(name)
+                  }
                 }}
+                onClick={() => {
+                  if (stage === "sealed") breakSeal()
+                }}
+                onAnimationEnd={(event) => {
+                  if (
+                    stage === "opening" &&
+                    event.target === event.currentTarget &&
+                    event.animationName === "pack-burst"
+                  ) {
+                    finishOpening()
+                  }
+                }}
+                style={{ "--deal-time": `${dealTime}ms` } as CSSProperties}
               >
-                <div className="pack-opening-fan">
-                  {receipt.items.slice(0, 4).map((item, index, items) => (
-                    <div
-                      key={item.id}
-                      className="pack-fan-back"
-                      style={{ "--fan-offset": index - (items.length - 1) / 2 } as CSSProperties}
-                    >
-                      <Icon name="layers" size={42} />
-                      <span>
-                        DEADLOCK
-                        <br />
-                        CONTRACTS
-                      </span>
-                    </div>
-                  ))}
-                </div>
-                <div className="pack-envelope-art">
-                  <div className="pack-tear-strip">
-                    <b>DEAD</b>
-                    <span>
-                      <b>LOCK</b>
-                      <span>
-                        <b>CON</b>
-                        <span>
-                          <b>TRACTS</b>
-                        </span>
-                      </span>
+                <span className="pack-wrapper" aria-hidden="true">
+                  <span className="pack-wrapper-pose">
+                    <span className="pack-envelope-body">
+                      <Icon name="layers" size={70} />
+                      <span>{receipt.pack?.title || "THE ARCHIVE"}</span>
+                      <small>
+                        {String(receipt.items.length).padStart(2, "0")} · COLLECTION FILES
+                      </small>
                     </span>
-                  </div>
-                  <div className="pack-envelope-body">
-                    <Icon name="layers" size={70} />
-                    <span>{receipt.pack?.title || "THE ARCHIVE"}</span>
-                    <small>
-                      {String(receipt.items.length).padStart(2, "0")} · COLLECTION FILES
-                    </small>
-                  </div>
-                  <span className="pack-open-light" />
-                </div>
-              </div>
-              <p>
-                {ru
-                  ? "Карточки уже сохранены в коллекции"
-                  : "Cards are already saved to your collection"}
-              </p>
-              {stage === "sealed" && (
-                <button ref={stageActionRef} className="archive-primary" onClick={breakSeal}>
-                  {ru ? "Вскрыть конверт" : "Break the seal"}
-                </button>
-              )}
-            </div>
-          )}
-
-          {stage === "cards" && current && (
-            <article
-              key={current.id}
-              className="pack-reveal-card"
-              aria-live="polite"
-              onKeyDown={(event) => {
-                if (faceUp && (event.key === "ArrowLeft" || event.key === "ArrowRight")) {
-                  event.preventDefault()
-                  if (!event.repeat) void next(event.key === "ArrowLeft" ? "left" : "right")
-                }
-              }}
-            >
-              <div className="pack-card-stack">
-                {[0, 1].slice(0, Math.min(2, receipt.items.length - cardIndex - 1)).map((layer) => (
-                  <span key={layer} className="pack-stack-back" aria-hidden="true" />
-                ))}
-                <div className="pack-card-moving" data-departure={departure}>
-                  <CardSurface
-                    card={current.card}
-                    revealed={faceUp}
-                    reduced={reduced}
-                    disabled={saving || !!departure}
-                    actionRef={!faceUp ? stageActionRef : undefined}
-                    onFlip={() => setFaceUp((value) => !value)}
-                    onSwipe={(direction) => void next(direction)}
-                  />
-                </div>
-              </div>
-              <p className="pack-card-status">
-                {cardIndex + 1} / {receipt.items.length} ·{" "}
-                {faceUp
-                  ? itemLabel(current)
-                  : ru
-                    ? "Нажми на карточку, чтобы раскрыть"
-                    : "Tap the card to reveal it"}
-              </p>
-              {faceUp && current.forced && (
-                <p className="pack-card-status">
-                  {ru ? "Гарантированный ранг" : "Guaranteed rank"}: {current.card.rank} ·{" "}
-                  {ru ? "Исходный ранг" : "Natural rank"}: {current.natural_rank}
-                </p>
-              )}
-              {faceUp && (
-                <div className="pack-card-actions">
-                  {favorites && (
-                    <button
-                      disabled={
-                        saving ||
-                        !!departure ||
-                        favorites.loading ||
-                        !favorites.ids ||
-                        !!favorites.pendingId
-                      }
-                      onClick={() => void next("left")}
-                    >
-                      <Icon name="star" size={18} />
-                      {saving
-                        ? ru
-                          ? "Сохраняем…"
-                          : "Saving…"
-                        : ru
-                          ? "В избранное и дальше"
-                          : "Favorite & next"}
-                    </button>
-                  )}
-                  <button
-                    ref={stageActionRef}
-                    className="archive-primary"
-                    disabled={saving || !!departure}
-                    onClick={() => void next("right")}
-                  >
-                    {cardIndex + 1 === receipt.items.length
-                      ? ru
-                        ? "Итоги"
-                        : "Results"
-                      : ru
-                        ? "Следующая"
-                        : "Next card"}
-                    <Icon name="arrow-up-right" size={18} />
-                  </button>
-                </div>
-              )}
-              {faceUp && (
-                <small>
-                  {ru
-                    ? favorites
-                      ? "Влево — в избранное · вправо — дальше"
-                      : "Вправо — следующая карточка"
-                    : favorites
-                      ? "Swipe left to favorite · right to continue"
-                      : "Swipe right to continue"}
-                </small>
-              )}
-            </article>
-          )}
-
-          {stage === "results" && (
-            <div className="pack-reveal-results" aria-live="polite">
-              <p>
-                {ru ? `Получено: ${receipt.items.length}` : `Received: ${receipt.items.length}`}
-              </p>
-              <div className="archive-grid">{receipt.items.map(itemSummary)}</div>
-            </div>
-          )}
-          <footer>
-            {favorites && <FavoriteError controls={favorites} />}
-            <div>
-              {stage !== "results" && (
-                <button onClick={results}>{ru ? "Сразу к итогам" : "Skip to results"}</button>
-              )}
-              <button ref={closeActionRef} onClick={close}>
-                {ru ? "Закрыть показ" : "Close reveal"}
+                    <span className="pack-tear-light" />
+                    <span className="pack-tear-strip">
+                      <b>DEAD</b>
+                      <b>LOCK</b>
+                      <b>CON</b>
+                      <b>TRACTS</b>
+                    </span>
+                  </span>
+                </span>
               </button>
+            )}
+
+            <div
+              className={results ? "pack-deck pack-reveal-results" : "pack-deck"}
+              data-pentagon={receipt.items.length === 5}
+              data-dim={
+                !!profile?.background &&
+                (flight?.phase === "charging" || flight?.phase === "revealing")
+              }
+              style={
+                {
+                  "--rows-mobile": Math.max(1, Math.ceil(receipt.items.length / 3)),
+                  "--rows-narrow": Math.max(1, Math.ceil(receipt.items.length / 2)),
+                } as CSSProperties
+              }
+              inert={stage === "sealed" || stage === "opening"}
+            >
+              {receipt.items.map((item, index) => {
+                const itemFlight = flight?.id === item.id ? flight : null
+                const faceUp = results || revealed.includes(item.id)
+                const config = revealProfile(item.card)
+                const label = itemFlight
+                  ? ru
+                    ? "Вернуть карточку в раскладку"
+                    : "Return card to pack"
+                  : faceUp
+                    ? ru
+                      ? "Рассмотреть карточку"
+                      : "Inspect card"
+                    : ru
+                      ? "Перевернуть карточку"
+                      : "Reveal card"
+                return (
+                  <article
+                    key={item.id}
+                    className="pack-card-seat"
+                    data-active={!!itemFlight}
+                    data-highlight={item.id === highlight && !reduced}
+                    ref={(node) => {
+                      if (node) seats.current.set(item.id, node)
+                      else seats.current.delete(item.id)
+                    }}
+                    style={
+                      {
+                        "--deal-delay": `${DEAL_MS + STAGGER_MS * index}ms`,
+                        "--deal-rotation": `${[28, -34, 15, 38, -22][index % 5]}deg`,
+                      } as CSSProperties
+                    }
+                    onKeyDown={(event) => {
+                      if (!itemFlight || (event.key !== "ArrowLeft" && event.key !== "ArrowRight"))
+                        return
+                      event.preventDefault()
+                      if (!event.repeat)
+                        void returnCard(event.key === "ArrowLeft" ? "left" : "right")
+                    }}
+                  >
+                    <div
+                      className="pack-card-motion"
+                      data-flight={itemFlight?.phase}
+                      style={
+                        itemFlight
+                          ? ({
+                              ...itemFlight.position,
+                              "--turn-time": `${config.turnMs}ms`,
+                              "--reveal-color": config.color,
+                              "--charge-time": `${chargeMs}ms`,
+                              "--charge-glow": config.glow,
+                            } as CSSProperties)
+                          : undefined
+                      }
+                      onTransitionEnd={(event) => {
+                        if (!itemFlight || event.propertyName !== "transform") return
+                        if (
+                          itemFlight.phase === "revealing" &&
+                          (event.target as Element).classList.contains("card-surface-turn")
+                        )
+                          finishFlight("revealing")
+                        if (
+                          event.target === event.currentTarget &&
+                          (itemFlight.phase === "lifting" || itemFlight.phase === "returning")
+                        )
+                          finishFlight(itemFlight.phase)
+                      }}
+                    >
+                      <CardSurface
+                        card={item.card}
+                        revealed={faceUp}
+                        reduced={reduced}
+                        preloadArtwork
+                        animateMaterial={itemFlight?.phase === "revealing"}
+                        disabled={!!flight && !itemFlight}
+                        actionLabel={label}
+                        onFlip={
+                          reduced
+                            ? undefined
+                            : () => {
+                                if (itemFlight) void returnCard()
+                                else inspect(item.id)
+                              }
+                        }
+                        onSwipe={itemFlight ? (direction) => void returnCard(direction) : undefined}
+                      />
+                      {itemFlight?.first &&
+                        (itemFlight.phase === "revealing" || itemFlight.phase === "inspect") && (
+                          <span
+                            className="pack-receipt-mark"
+                            data-duplicate={item.duplicate}
+                            aria-hidden="true"
+                          >
+                            {item.duplicate ? (ru ? "ДУБЛЬ" : "COPY") : ru ? "НОВАЯ" : "NEW"}
+                          </span>
+                        )}
+                      {itemFlight?.starred && (
+                        <span className="pack-favorite-spark" aria-hidden="true">
+                          <Icon name="star" size={18} />
+                        </span>
+                      )}
+                      {itemFlight && favoriteError && (
+                        <span className="pack-favorite-notice" role="alert">
+                          {favoriteError}
+                        </span>
+                      )}
+                    </div>
+                  </article>
+                )
+              })}
             </div>
-          </footer>
-        </div>
+          </div>
+        )}
       </dialog>
     </>
   )

@@ -1,6 +1,5 @@
 /* Card artwork is an independent print surface; rarity keeps its own palette in every theme. */
 .archive-card {
-  --rank: #96aaa1;
   position: relative;
   width: 100%;
   min-width: 0;
@@ -14,15 +13,8 @@
   background: var(--ns-paper);
   box-shadow: 4px 5px 0 #0003;
 }
-.archive-card[data-rank=E] { --rank: #b4b595; }
-.archive-card[data-rank=D] { --rank: #8db697; }
-.archive-card[data-rank=C] { --rank: #79bcba; }
-.archive-card[data-rank=B] { --rank: #91abd6; }
-.archive-card[data-rank=A] { --rank: #b798cc; }
-.archive-card[data-rank=S] { --rank: #d9b765; }
-.archive-card[data-rank=SS] { --rank: #e6c3a0; }
-.archive-card[data-rank=SSS] { --rank: #d2ef96; box-shadow: 0 0 0 1px #d2ef9644, 0 4px 22px #d2ef9615; }
-.archive-card[data-category=BASE] { --rank:#d8ba77;aspect-ratio:8/5;border-radius:10px;box-shadow:0 0 0 2px #d8ba77,0 4px 18px #0005; }
+.archive-card[data-rank=SSS] { box-shadow: 0 0 0 1px color-mix(in srgb,var(--rank) 27%,transparent), 0 4px 22px color-mix(in srgb,var(--rank) 8%,transparent); }
+.archive-card[data-category=BASE] { aspect-ratio:8/5;border-radius:10px;box-shadow:0 0 0 2px var(--rank),0 4px 18px #0005; }
 .archive-card[data-category=BASE] figcaption { inset:auto 6% 10%; }
 .archive-card[data-category=BASE] figcaption strong { font-size:5.6cqw; }
 .archive-card[data-category=BASE] .archive-rank { font-size:5cqw; }

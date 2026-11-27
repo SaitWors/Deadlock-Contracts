@@ -269,6 +269,16 @@ function AppearanceDialog({ onClose }: { onClose: () => void }) {
           ? "Выбор сохраняется в этом браузере. Системное уменьшение движения имеет приоритет."
           : "Saved in this browser. Your device’s reduced motion setting takes priority."}
       </p>
+      <label className="ns-motion-control">
+        <span>
+          <b>{ru ? "Звуки открытия паков" : "Pack opening sounds"}</b>
+        </span>
+        <input
+          type="checkbox"
+          checked={appearance.packSound}
+          onChange={(e) => update({ packSound: e.target.checked })}
+        />
+      </label>
     </dialog>
   )
 }

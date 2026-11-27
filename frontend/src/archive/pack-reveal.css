@@ -1,67 +1,388 @@
-/* Base geometry and state rules not replaced by the archive presentation. */
-.pack-reveal[data-theme=archive]{margin:auto;max-height:94dvh;width:min(940px,calc(100% - 24px));padding:0;overflow:auto;overscroll-behavior:contain}
-.pack-reveal-shell{box-sizing:border-box;min-height:min(850px,92dvh);padding:clamp(12px,3vw,28px);display:grid;grid-template-rows:auto auto auto;font-family:var(--font-body)}
-.pack-reveal[data-theme=archive] header{display:flex;align-items:center;justify-content:space-between;gap:16px}
-.pack-reveal[data-theme=archive] header>div{min-width:0}
-.pack-reveal[data-theme=archive] h2{overflow-wrap:anywhere}
-.pack-reveal[data-theme=archive] button{min-height:44px;cursor:pointer;padding:.65rem 1rem;white-space:normal;overflow-wrap:anywhere}
-.pack-reveal[data-theme=archive] button:disabled{opacity:.45;cursor:default}
-.pack-reveal[data-theme=archive] button:focus-visible{outline:3px solid var(--mint);outline-offset:3px}
-.pack-reveal-envelope{min-height:0;display:grid;justify-items:center;align-content:start;align-content:safe center;gap:12px;text-align:center;overflow-x:clip;padding:24px 16px}
-.pack-reveal-card{min-height:0;display:grid;justify-items:center;align-content:start;align-content:safe center;gap:12px;text-align:center;overflow-x:clip;padding:24px 16px}
-.pack-reveal-results{min-height:0;display:grid;justify-items:center;align-content:start;align-content:safe center;gap:12px;text-align:center;overflow-x:clip;padding:24px 16px}
-.pack-card-stack{position:relative;width:min(280px,64vw);margin:10px 0}
-.pack-stack-back{position:absolute;inset:0;border:1px solid var(--ns-paper-line);border-radius:16px;transform:translate(9px,-6px) rotate(4deg)}
-.pack-stack-back:nth-child(2){transform:translate(-8px,4px) rotate(-4deg)}
-.pack-card-moving{position:relative;animation:pack-arrive .35s ease-out both}
-.pack-card-moving[data-departure=left]{animation:pack-left .24s ease-in both}
-.pack-card-moving[data-departure=right]{animation:pack-right .24s ease-in both}
-.pack-card-actions{display:flex;flex-wrap:wrap;gap:10px;justify-content:center}
-.pack-reveal[data-theme=archive] footer>div{display:flex;flex-wrap:wrap;gap:10px;justify-content:center}
-.pack-card-actions button{display:inline-flex;align-items:center;justify-content:center;gap:8px;max-width:100%}
-.pack-reveal[data-theme=archive] .pack-card-status{margin:0;max-width:38ch;color:var(--paper)}
-.pack-reveal-results{align-content:start}
-.pack-reveal-results>.archive-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(180px,100%),1fr));gap:20px;width:100%}
-.pack-reveal[data-theme=archive] footer p{margin:0 0 8px}
-.pack-reveal-inline{margin-top:16px}
-@keyframes pack-arrive{from{opacity:0;transform:translateY(24px) rotate(-5deg)}to{opacity:1;transform:none}}
-@keyframes pack-left{to{opacity:0;transform:translateX(-110px) rotate(-14deg)}}
-@keyframes pack-right{to{opacity:0;transform:translateX(110px) rotate(14deg)}}
-@media(prefers-reduced-motion:reduce){.pack-reveal[data-theme=archive] *{animation:none!important;transition:none!important}}
-.pack-opening-scene{position:relative;width:min(520px, 100%);height:clamp(280px, 48vh, 390px);perspective:1400px}
-.pack-envelope-art{position:absolute;width:min(240px, 58%);aspect-ratio:4 / 5;left:50%;top:50%;transform:translate(-50%, -50%);z-index:2}
-.pack-envelope-body{position:absolute;inset:15% 0 0;display:flex;flex-direction:column;align-items:center;justify-content:center;letter-spacing:.2em;font-size:12px}
-.pack-envelope-body [data-regalia]{width:40%;height:auto}
-.pack-envelope-body small{font-size:8px}
-.pack-tear-strip{position:absolute;inset:0 0 auto;height:15%;display:flex;transform-origin:left bottom;z-index:3}
-.pack-tear-strip span{display:flex;width:75%;transform-origin:left bottom}
-.pack-tear-strip span span{width:66.666%}
-.pack-tear-strip span span span{width:50%}
-.pack-tear-strip b{display:grid;place-items:center;flex:1;font:700 clamp(7px, 1.8vw, 10px)/1 var(--font-body);letter-spacing:.08em;border-top:5px solid var(--ns-ink);border-bottom:2px dashed var(--ns-ink)}
-.pack-open-light{position:absolute;width:60px;height:60px;left:0;top:15%;margin:-30px;border-radius:50%;opacity:0;z-index:4;background:radial-gradient(ellipse, #fffce4, #ffe0a199 12%, #ffc56744 32%, transparent 70%)}
-.pack-opening-fan{position:absolute;inset:0}
-.pack-fan-back{position:absolute;width:min(156px, 30%);aspect-ratio:2 / 3;left:50%;top:50%;display:grid;align-content:center;justify-items:center;gap:12px;border:1px solid var(--ns-paper-line);border-radius:10px;transform:translate(-50%, -50%);opacity:0;font-size:8px;letter-spacing:.16em}
-.pack-fan-back [data-regalia]{width:42%;height:auto}
-.pack-reveal-shell[data-stage=opening] .pack-opening-scene{animation:pack-scene 3.2s linear both}
-.pack-reveal-shell[data-stage=opening] .pack-open-light{animation:pack-cut .8s ease-in-out both}
-.pack-reveal-shell[data-stage=opening] .pack-tear-strip span{animation:pack-rip .6s .7s ease-in-out both}
-.pack-reveal-shell[data-stage=opening] .pack-tear-strip{animation:pack-strip-away .65s 1.2s ease-in both}
-.pack-reveal-shell[data-stage=opening] .pack-envelope-body{animation:pack-wrapper-away .9s 1.45s cubic-bezier(.6, 0, 1, 1) both}
-.pack-reveal-shell[data-stage=opening] .pack-fan-back{animation:pack-fan 1.5s 1.7s cubic-bezier(.2, .7, .2, 1) both}
-@keyframes pack-scene{ from { opacity: 1; } to { opacity: 1; } }
-@keyframes pack-cut{
-  0% { opacity: 0; left: 0; }
-  20%, 75% { opacity: 1; }
-  100% { opacity: 0; left: 100%; transform: scale(1.5); }
+/* Motion timings adapted from BetterTyped's CardPack and CardOpening demos (MIT). */
+.pack-reveal {
+  box-sizing: border-box;
+  inset: 0;
+  margin: 0;
+  width: 100%;
+  height: 100dvh;
+  max-width: none;
+  max-height: none;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  overflow-x: clip;
+  overscroll-behavior: contain;
 }
-@keyframes pack-rip{ to { transform: rotate(-32deg); } }
-@keyframes pack-strip-away{ to { transform: translate(-55%, -120%) rotate(-110deg); opacity: 0; } }
-@keyframes pack-wrapper-away{ to { transform: translateY(150%) rotate(8deg); opacity: 0; } }
-@keyframes pack-fan{
-  0% { opacity: 0; transform: translate(-50%, -50%) scale(.92); }
-  20% { opacity: 1; transform: translate(-50%, -50%) scale(1); }
-  65%, 82% { opacity: 1; transform: translate(calc(-50% + var(--fan-offset) * 62%), -55%) rotate(calc(var(--fan-offset) * 9deg)); }
-  100% { opacity: 0; transform: translate(-50%, -50%) scale(1.08); }
+
+.pack-reveal::backdrop {
+  background: #100f0e;
 }
-@media (prefers-reduced-motion: reduce){.pack-reveal-shell[data-stage=opening] .pack-opening-scene{animation:none !important}
-.pack-reveal-shell[data-stage=opening] .pack-opening-scene *{animation:none !important}}
+
+.pack-reveal[data-reduced=false]::backdrop {
+  animation: pack-stage-dim .42s ease-out both;
+}
+
+html:has(.pack-reveal[open]) {
+  overflow: hidden;
+}
+
+.pack-reveal-shell {
+  box-sizing: border-box;
+  position: relative;
+  min-height: 100%;
+  display: grid;
+  place-items: center;
+  padding: 16px;
+}
+
+.pack-reveal button:focus-visible {
+  outline: 3px solid var(--ns-fill, #e5b26c);
+  outline-offset: 4px;
+}
+
+.pack-reveal-inline {
+  margin-top: 16px;
+}
+
+.pack-effects-layer {
+  position: absolute;
+  z-index: 1;
+  inset: 0;
+  pointer-events: none;
+  overflow: hidden;
+}
+
+.pack-opening-scene {
+  position: relative;
+  grid-area: 1 / 1;
+  width: min(240px, 70vw, 60dvh);
+  aspect-ratio: 4 / 5;
+  z-index: 3;
+  border: 0;
+  padding: 0;
+  background: transparent;
+  cursor: pointer;
+  font-family: var(--font-body);
+  perspective: 900px;
+}
+
+[data-stage=sealed] .pack-opening-scene {
+  animation: pack-appear .48s cubic-bezier(.2,1.21,.45,1) both;
+}
+
+.pack-wrapper {
+  position: absolute;
+  inset: 0;
+  animation: pack-float 3.2s .48s ease-in-out infinite;
+}
+
+.pack-wrapper-pose {
+  position: absolute;
+  inset: 0;
+  transform: rotateX(var(--pack-rx,0deg)) rotateY(var(--pack-ry,0deg));
+  transition: transform .18s ease-out;
+}
+
+[data-stage=sealed] .pack-opening-scene:active .pack-wrapper-pose {
+  transform: translateY(2px) scale(.98);
+}
+
+.pack-envelope-body {
+  position: absolute;
+  inset: 15% 0 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  letter-spacing: .2em;
+  font-size: 12px;
+}
+
+.pack-tear-strip {
+  position: absolute;
+  inset: 0 0 auto;
+  height: 15%;
+  display: flex;
+  transform-origin: 12% 100%;
+}
+
+.pack-envelope-body::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: radial-gradient(ellipse at var(--pack-x,50%) var(--pack-y,50%), #fff3, transparent 64%);
+  opacity: 0;
+  transition: opacity .2s;
+}
+
+.pack-opening-scene:hover .pack-envelope-body::after {
+  opacity: .65;
+}
+
+.pack-tear-light {
+  position: absolute;
+  inset: 11% -5% auto;
+  height: 11%;
+  opacity: 0;
+  background: radial-gradient(ellipse, #ffefd4 0 5%, #e5b26c66 28%, transparent 68%);
+}
+
+.pack-tear-strip b {
+  display: grid;
+  place-items: center;
+  flex: 1;
+  font: 700 clamp(7px, 1.8vw, 10px)/1 var(--font-body);
+  letter-spacing: .08em;
+  border-top: 5px solid;
+  border-bottom: 2px dashed;
+}
+
+.pack-reveal-shell[data-stage=opening] .pack-opening-scene {
+  animation: pack-burst var(--deal-time) step-end both;
+}
+
+.pack-reveal-shell[data-stage=opening] .pack-wrapper {
+  animation: pack-shake var(--tear-at) linear both;
+}
+
+[data-stage=opening] .pack-wrapper-pose {
+  transform: none;
+}
+
+[data-stage=opening] .pack-tear-strip {
+  clip-path: polygon(0 0,100% 0,100% 96%,93% 90%,80% 100%,71% 89%,50% 98%,39% 88%,25% 100%,14% 89%,0 98%);
+  animation: pack-strip-away .48s var(--tear-at) cubic-bezier(.21,.67,.46,1) both;
+}
+
+[data-stage=opening] .pack-envelope-body {
+  transform-origin: top center;
+  animation: pack-sleeve-away .58s var(--tear-at) cubic-bezier(.38,.05,.55,.96) both;
+}
+
+[data-stage=opening] .pack-tear-light {
+  animation: pack-seam-light .48s var(--tear-at) ease-out both;
+}
+
+.pack-deck {
+  --gap: clamp(8px, 2vw, 22px);
+  --seat-width: min(156px, (100% - 4 * var(--gap)) / 5, 30dvh);
+  grid-area: 1 / 1;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-items: center;
+  gap: var(--gap);
+  width: min(100%, 900px);
+}
+
+.pack-reveal-shell[data-stage=sealed] .pack-deck {
+  visibility: hidden;
+}
+
+.pack-card-seat {
+  position: relative;
+  min-width: 0;
+  width: var(--seat-width);
+  transition: opacity .25s;
+}
+
+.pack-deck[data-dim=true] .pack-card-seat[data-active=false] {
+  opacity: .19;
+}
+
+.pack-card-seat[data-active=true] {
+  z-index: 2;
+}
+
+.pack-card-motion {
+  transition: transform .6s cubic-bezier(.645, .045, .355, 1);
+}
+
+.pack-reveal-shell[data-stage=opening] .pack-card-motion {
+  animation: pack-deal .6s var(--deal-delay) cubic-bezier(.2,.65,.35,1) both;
+}
+
+.pack-card-motion[data-flight]:where(:not([data-flight=returning])) {
+  transform: translate(var(--flight-x), var(--flight-y)) scale(var(--flight-scale)) rotate(var(--flight-tilt, 0deg));
+  transition: transform .35s cubic-bezier(.333333, 1.533333, .666667, 1);
+}
+
+.pack-card-motion[data-flight=lifting] {
+  --flight-tilt: 4deg;
+  transition: transform .75s cubic-bezier(.19, 1, .22, 1);
+}
+
+.pack-deck .card-surface {
+  perspective: 1100px;
+}
+
+.pack-deck .card-surface-turn {
+  transition: transform var(--turn-time,.6s) cubic-bezier(.32,.68,.43,1.14);
+}
+
+.pack-card-motion[data-flight=charging] .card-surface-back {
+  animation: pack-card-hum var(--charge-time) ease-out both;
+}
+
+.pack-card-motion[data-flight=revealing] .card-surface-tilt {
+  animation: pack-card-recoil .42s ease-out;
+}
+
+.pack-deck .card-surface .card-surface-back {
+  gap: 0.55em;
+  font-size: clamp(6px, min(2vw, 2dvh), 12px);
+}
+
+.pack-deck .card-surface .card-surface-back > svg {
+  padding: 9%;
+}
+
+.pack-receipt-mark,
+.pack-favorite-spark,
+.pack-favorite-notice {
+  position: absolute;
+  z-index: 2;
+  pointer-events: none;
+  color: var(--reveal-color,#e5b26c);
+}
+
+.pack-receipt-mark {
+  right: 8%;
+  bottom: 3.5%;
+  padding: .15em .45em;
+  border: 1px solid currentColor;
+  font: 700 .38rem/1.1 var(--font-body);
+  letter-spacing: .12em;
+  background: #100f0e;
+  animation: pack-mark 1.25s both;
+}
+
+.pack-receipt-mark[data-duplicate=true] { opacity: .7; }
+.pack-favorite-spark { top: 8%; left: 10%; animation: pack-spark .6s ease-out both; }
+.pack-favorite-notice { top: 101%; width: 100%; text-align: center; font: 600 .38rem/1.2 var(--font-body); }
+
+.pack-reveal-shell[data-stage=results] [data-highlight=true] .card-surface-front {
+  animation: pack-final-rim .95s ease-out;
+}
+
+@media (hover: hover) {
+  [data-stage=cards] .pack-card-seat[data-active=false] .card-surface {
+    transition: transform .2s ease-out, box-shadow .2s ease-out;
+  }
+  [data-stage=cards] .pack-card-seat[data-active=false]:hover .card-surface {
+    transform: translateY(-4px) rotate(-1.5deg);
+    box-shadow: 0 8px 14px #0006;
+  }
+}
+
+@media (min-width: 601px) {
+  .pack-deck[data-pentagon=true] {
+    --seat-width: min(122px, 17dvh, (100vw - 32px) / 5);
+    width: auto;
+    display: grid;
+    grid-template-columns: repeat(10, calc(var(--seat-width) / 2));
+    gap: 0;
+  }
+
+  .pack-deck[data-pentagon=true] .pack-card-seat {
+    width: 100%;
+  }
+
+  .pack-deck[data-pentagon=true] .pack-card-seat:nth-child(1) { grid-area: 1 / 5 / 2 / 7; }
+  .pack-deck[data-pentagon=true] .pack-card-seat:nth-child(2) { grid-area: 2 / 2 / 3 / 4; }
+  .pack-deck[data-pentagon=true] .pack-card-seat:nth-child(3) { grid-area: 2 / 8 / 3 / 10; }
+  .pack-deck[data-pentagon=true] .pack-card-seat:nth-child(4) { grid-area: 3 / 3 / 4 / 5; }
+  .pack-deck[data-pentagon=true] .pack-card-seat:nth-child(5) { grid-area: 3 / 7 / 4 / 9; }
+}
+
+@media (max-width: 600px) {
+  .pack-deck {
+    --rows: var(--rows-mobile);
+    --height-fit: (100dvh - 32px - (var(--rows) - 1) * var(--gap)) / (1.5 * var(--rows));
+    --seat-width: min(144px, (100% - 2 * var(--gap)) / 3, var(--height-fit));
+  }
+}
+
+@media (max-width: 350px) {
+  .pack-deck {
+    --rows: var(--rows-narrow);
+    --seat-width: min((100% - var(--gap)) / 2, 13dvh, var(--height-fit));
+  }
+}
+
+@keyframes pack-stage-dim { from { background-color: #100f0e00; } }
+@keyframes pack-appear {
+  from { opacity: 0; transform: translateY(34px) scale(.67) rotate(-9deg); }
+  60% { opacity: 1; }
+}
+
+@keyframes pack-float {
+  50% { transform: translateY(-7px); }
+}
+
+@keyframes pack-shake {
+  14% { transform: rotate(-3deg) scale(1.01); }
+  28% { transform: rotate(3deg) scale(1.02); }
+  42% { transform: rotate(-4deg) scale(1.03); }
+  56% { transform: rotate(4deg) scale(1.04); }
+  70% { transform: rotate(-5deg) scale(1.06); }
+  100% { transform: rotate(0) scale(1.08); }
+}
+
+@keyframes pack-strip-away {
+  16% { transform: skewY(-13deg) translate(3%,-9%) rotate(-4deg); }
+  45% { opacity: 1; }
+  to { transform: translate(53%,-250%) rotate(-34deg) scale(.87); opacity: 0; }
+}
+
+@keyframes pack-sleeve-away {
+  20% { transform: rotate(-2deg) scale(1.06,.9); }
+  45% { opacity: 1; }
+  to { transform: translate(-14%,82%) rotate(12deg) scale(.85,.69); opacity: 0; }
+}
+
+@keyframes pack-seam-light {
+  16% { opacity: .86; transform: scaleX(.38) translateX(-60%); }
+  47% { opacity: .56; transform: scaleX(1.15); }
+  to { opacity: 0; transform: scale(1.4,2); }
+}
+
+@keyframes pack-burst {
+  from { visibility: visible; }
+  to { visibility: hidden; }
+}
+
+@keyframes pack-deal {
+  from {
+    transform: translate(var(--deal-x), var(--deal-y)) rotate(var(--deal-rotation)) scale(.3);
+    opacity: 0;
+  }
+  66% {
+    transform: translate(calc(var(--deal-x) * .13),calc(var(--deal-y) * .13 - 13px)) rotate(calc(var(--deal-rotation) * -.075)) scale(1.025);
+    opacity: 1;
+  }
+  to {
+    transform: none;
+    opacity: 1;
+  }
+}
+
+@keyframes pack-card-hum {
+  from { box-shadow: 0 0 0 transparent; }
+  to { box-shadow: 0 0 20px color-mix(in srgb,var(--reveal-color) calc(var(--charge-glow) * 65%),transparent), inset 0 0 10px color-mix(in srgb,var(--reveal-color) calc(var(--charge-glow) * 40%),transparent); }
+}
+
+@keyframes pack-card-recoil { 28% { translate: 0 -1%; } }
+@keyframes pack-mark {
+  0%,20%,100% { opacity: 0; }
+  33%,68% { opacity: 1; }
+  22% { transform: rotate(-12deg) scale(1.14); }
+}
+@keyframes pack-spark { to { opacity: 0; transform: translateY(-200%) scale(.7); } }
+@keyframes pack-final-rim { 35% { box-shadow: 0 0 17px color-mix(in srgb,var(--ns-fill) 35%,transparent); } }
+
+.pack-reveal-shell[data-reduced=true] :is(.pack-wrapper, .pack-opening-scene, .pack-card-motion, .card-surface) {
+  animation: none;
+  transition: none;
+}

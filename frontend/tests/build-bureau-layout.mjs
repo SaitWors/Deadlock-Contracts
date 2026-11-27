@@ -34,11 +34,21 @@ const cssNames = files
 let css = (
   await Promise.all(cssNames.map((name) => fs.readFile(path.join(assets, name), "utf8")))
 ).join("\n")
+// Chromium blocks external mask images when someone opens the offline HTML directly.
+const inlineMasks = new Map(
+  await Promise.all(
+    files
+      .filter((name) => /^patron-seal-.*\.webp$/.test(name))
+      .map(async (name) => [name, (await fs.readFile(path.join(assets, name))).toString("base64")]),
+  ),
+)
 const referenced = new Set()
 css = css.replace(
   /url\((['"]?)(?:\/(?:static\/)?assets\/|\.\/)?([^)'"/]+)\1\)/g,
   (match, quote, name) => {
     if (!files.includes(name)) return match
+    const mask = inlineMasks.get(name)
+    if (mask) return `url("data:image/webp;base64,${mask}")`
     referenced.add(name)
     return `url("assets/${name}")`
   },
@@ -119,9 +129,8 @@ for (const [name, entry, title] of [
     `<!doctype html><html lang="ru"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${title}</title><link rel="stylesheet" href="fixture.css"><body style="margin:0"><div id="root"></div><script src="${name}.js"></script><script>DesignPreview.mount(document.getElementById("root"));</script></body></html>`,
   )
 }
-// The offline pack fixture still references art.webp. Use the shipped hero
-// portrait instead of the removed mascot or a Vite-hashed dist filename.
-const demoArt = path.resolve("src/hero-votes/portraits/84.webp")
+// Use a full-size bundled illustration so foil and clipping can be judged offline.
+const demoArt = path.resolve("../app/data/archive/city-never-sleeps/nurse-harrow.webp")
 await fs.copyFile(demoArt, path.join(target, "art.webp"))
 await fs.writeFile(
   path.join(target, "README.txt"),
@@ -153,6 +162,10 @@ for (const [id, art] of entries) {
   await fs.writeFile(path.join(target, "regalia", `${id}.svg`), svg)
 }
 await fs.copyFile("public/licenses/lucide.txt", path.join(target, "LICENSE-lucide.txt"))
+await fs.copyFile(
+  "src/archive/reveal-fx/LICENSE.txt",
+  path.join(target, "LICENSE-react-cards-opening.txt"),
+)
 await fs.writeFile(
   path.join(target, "regalia", "manifest.json"),
   JSON.stringify(

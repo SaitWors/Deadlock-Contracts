@@ -1,0 +1,608 @@
+/*! MIT License — Copyright (c) 2026 BetterTyped
+ * https://github.com/BetterTyped/react-cards-opening
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a copy
+ * of this software and associated documentation files (the "Software"), to deal
+ * in the Software without restriction, including without limitation the rights
+ * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the Software is
+ * furnished to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included in all
+ * copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+ * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+ * SOFTWARE.
+ */
+
+[class^="rco-fx"] {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+  border: 0 solid;
+  font-style: normal;
+}
+
+/* Parts attached to the same measured point keep placement separate from effect drawing. */
+.rco-fx,
+.rco-fx-cover {
+  position: absolute;
+  display: block;
+  translate: -50% -50%;
+  scale: var(--fx-zoom);
+  opacity: 0;
+  will-change: transform, opacity;
+}
+
+.rco-fx-canvas,
+.rco-fx-play {
+  position: absolute;
+  inset: 0;
+  display: block;
+}
+
+.rco-fx-flare-streak,
+.rco-fx-flare-cross,
+.rco-fx-flare-core,
+.rco-fx-flare-ghost,
+.rco-fx-echo-card {
+  position: absolute;
+  top: 0;
+  left: 0;
+  display: block;
+  translate: -50% -50%;
+}
+
+.rco-fx-flare-streak,
+.rco-fx-flare-cross,
+.rco-fx-flare-core,
+.rco-fx-flare-ghost {
+  mix-blend-mode: screen;
+  will-change: transform, opacity;
+}
+
+.rco-fx-flare-core,
+.rco-fx-flare-ghost {
+  aspect-ratio: 1;
+  border-radius: 9999px;
+}
+
+svg.rco-fx {
+  overflow: visible;
+}
+
+.rco-fx-lightning-line,
+.rco-fx-frost-line,
+.rco-fx-hex-line,
+.rco-fx-diamond-line,
+.rco-fx-cracks-line,
+.rco-fx-sigil-line {
+  fill: none;
+  stroke-linejoin: round;
+}
+
+.rco-fx-lightning-line,
+.rco-fx-frost-line,
+.rco-fx-hex-line,
+.rco-fx-diamond-line {
+  stroke-width: calc(max(2px, calc(0.014 * var(--fx-size))) + var(--fx-wide, 0px));
+}
+
+.rco-fx,
+.rco-fx-ripples-ring,
+.rco-fx-converge-ring {
+  aspect-ratio: 1;
+}
+
+.rco-fx-play {
+  --fx-highlight: color-mix(in oklch, var(--fx-tone) 70%, white);
+}
+
+.rco-fx-layer {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.rco-fx-canvas {
+  width: 100%;
+  height: 100%;
+}
+
+.rco-fx {
+  top: var(--fx-y);
+  left: var(--fx-x);
+}
+
+.rco-fx-cover {
+  top: 50%;
+  left: 50%;
+  width: calc(100% / var(--fx-zoom));
+  height: calc(100% / var(--fx-zoom));
+  overflow: hidden;
+}
+
+.rco-fx-rays-light,
+.rco-fx-beams-light,
+.rco-fx-halo-light,
+.rco-fx-nova-light {
+  position: absolute;
+  inset: 25%;
+  display: block;
+  border-radius: 9999px;
+  scale: 2;
+  will-change: transform;
+}
+
+.rco-fx-glow-far {
+  --fx-ink: var(--fx-tone);
+  --fx-wide: calc(0.085 * var(--fx-size));
+  opacity: 0.07;
+}
+
+.rco-fx-glow-mid {
+  --fx-ink: var(--fx-tone);
+  --fx-wide: calc(0.036 * var(--fx-size));
+  opacity: 0.13;
+}
+
+.rco-fx-glow-near {
+  --fx-ink: var(--fx-tone);
+  --fx-wide: calc(0.011 * var(--fx-size));
+  opacity: 0.26;
+}
+
+.rco-fx-rays {
+  width: calc(3.4 * var(--fx-size));
+}
+
+.rco-fx-rays-light {
+  background: repeating-conic-gradient(
+    from 0deg,
+    rgb(var(--fx-rgb) / 0.38) 0deg 7deg,
+    #0000 7deg 20deg
+  );
+  -webkit-mask-image: radial-gradient(circle, black 10%, #0000 66%);
+  mask-image: radial-gradient(circle, black 10%, #0000 66%);
+}
+
+.rco-fx-beams {
+  width: calc(4.6 * var(--fx-size));
+  mix-blend-mode: screen;
+}
+
+.rco-fx-beams-light {
+  background: conic-gradient(
+    from 0deg,
+    #0000 0% 4%,
+    rgb(var(--fx-rgb) / 0.46) 10%,
+    #0000 17% 29%,
+    rgb(var(--fx-rgb) / 0.3) 36%,
+    #0000 44% 54%,
+    rgb(var(--fx-rgb) / 0.52) 61%,
+    #0000 69% 79%,
+    rgb(var(--fx-rgb) / 0.28) 87%,
+    #0000 95%
+  );
+  -webkit-mask-image: radial-gradient(circle, black 0%, #0000 68%);
+  mask-image: radial-gradient(circle, black 0%, #0000 68%);
+}
+
+.rco-fx-halo {
+  width: calc(2.5 * var(--fx-size));
+}
+
+.rco-fx-halo-light {
+  background: radial-gradient(
+    circle,
+    #0000 36%,
+    rgb(var(--fx-rgb) / 0.2) 43%,
+    color-mix(in oklch, var(--fx-tone) 78%, white) 51%,
+    rgb(var(--fx-rgb) / 0.28) 59%,
+    #0000 72%
+  );
+}
+
+.rco-fx-flare {
+  width: 0;
+  height: 0;
+}
+
+.rco-fx-flare-streak {
+  width: calc(4.8 * var(--fx-size));
+  height: calc(0.066 * var(--fx-size));
+  background: linear-gradient(
+    90deg,
+    #0000,
+    rgb(var(--fx-rgb) / 0.6) 25%,
+    white 50%,
+    rgb(var(--fx-rgb) / 0.6) 75%,
+    #0000
+  );
+
+  -webkit-mask-image: linear-gradient(180deg, #0000 0%, black 38%, black 62%, #0000 100%);
+  mask-image: linear-gradient(180deg, #0000 0%, black 38%, black 62%, #0000 100%);
+}
+
+.rco-fx-flare-cross {
+  width: calc(0.042 * var(--fx-size));
+  height: calc(1.7 * var(--fx-size));
+  background: linear-gradient(
+    180deg,
+    #0000,
+    rgb(var(--fx-rgb) / 0.6) 30%,
+    white 50%,
+    rgb(var(--fx-rgb) / 0.6) 70%,
+    #0000
+  );
+  -webkit-mask-image: linear-gradient(90deg, #0000 0%, black 38%, black 62%, #0000 100%);
+  mask-image: linear-gradient(90deg, #0000 0%, black 38%, black 62%, #0000 100%);
+}
+
+.rco-fx-flare-core {
+  width: calc(0.9 * var(--fx-size));
+  background: radial-gradient(
+    circle,
+    white 0%,
+    var(--fx-highlight) 14%,
+    rgb(var(--fx-rgb) / 0.4) 34%,
+    #0000 68%
+  );
+}
+
+.rco-fx-flare-ghost {
+  width: calc(0.34 * var(--fx-size));
+  background: radial-gradient(
+    circle,
+    #0000 42%,
+    rgb(var(--fx-rgb) / 0.45) 58%,
+    rgb(var(--fx-accent-rgb) / 0.3) 66%,
+    #0000 72%
+  );
+}
+
+.rco-fx-spotlight {
+  top: 0;
+  width: calc(3 * var(--fx-size));
+  height: calc(var(--fx-y) / var(--fx-zoom) + calc(0.9 * var(--fx-size)));
+  translate: -50% 0;
+  transform-origin: 50% 0;
+  mix-blend-mode: screen;
+  background: conic-gradient(
+    from 160deg at 50% 0%,
+    #0000 0deg,
+    color-mix(in oklch, var(--fx-tone) 50%, white) 13deg,
+    color-mix(in oklch, var(--fx-tone) 64%, white) 20deg,
+    color-mix(in oklch, var(--fx-tone) 50%, white) 27deg,
+    #0000 40deg
+  );
+  -webkit-mask-image: linear-gradient(180deg, black 0%, black 55%, #0000 100%);
+  mask-image: linear-gradient(180deg, black 0%, black 55%, #0000 100%);
+}
+
+.rco-fx-sunburst {
+  width: calc(4.2 * var(--fx-size));
+  border-radius: 9999px;
+  background: repeating-conic-gradient(
+    from 0deg,
+    color-mix(in oklch, var(--fx-tone) 35%, white) 0deg 1.1deg,
+    #0000 1.1deg 9deg
+  );
+  -webkit-mask-image: radial-gradient(circle, #0000 12%, black 20%, #0000 62%);
+  mask-image: radial-gradient(circle, #0000 12%, black 20%, #0000 62%);
+
+  will-change: opacity;
+}
+
+.rco-fx-starburst {
+  width: calc(2.8 * var(--fx-size));
+  background: radial-gradient(
+    circle,
+    rgb(var(--fx-rgb) / 0.62) 0%,
+    rgb(var(--fx-rgb) / 0.26) 14%,
+    rgb(var(--fx-rgb) / 0.08) 30%,
+    #0000 46%
+  );
+}
+
+.rco-fx-starburst-star {
+  position: absolute;
+  inset: 0;
+  display: block;
+  background: radial-gradient(
+    circle,
+    white 0%,
+    color-mix(in oklch, var(--fx-tone) 45%, white) 26%,
+    var(--fx-tone) 64%
+  );
+  clip-path: polygon(50% 0%, 53% 47%, 100% 50%, 53% 53%, 50% 100%, 47% 53%, 0% 50%, 47% 47%);
+}
+
+.rco-fx-starburst-small {
+  rotate: 45deg;
+  scale: 0.5;
+}
+
+.rco-fx-pillar {
+  top: 0;
+  width: calc(0.95 * var(--fx-size));
+  height: calc(100% / var(--fx-zoom));
+  translate: -50% 0;
+  transform-origin: 50% 0;
+  mix-blend-mode: screen;
+  background: linear-gradient(
+    90deg,
+    #0000 0%,
+    rgb(var(--fx-rgb) / 0.22) 22%,
+    color-mix(in oklch, var(--fx-tone) 62%, white) 44%,
+    white 50%,
+    color-mix(in oklch, var(--fx-tone) 62%, white) 56%,
+    rgb(var(--fx-rgb) / 0.22) 78%,
+    #0000 100%
+  );
+  -webkit-mask-image: linear-gradient(180deg, #0000 0%, black 16%, black 84%, #0000 100%);
+  mask-image: linear-gradient(180deg, #0000 0%, black 16%, black 84%, #0000 100%);
+}
+
+.rco-fx-lightning {
+  width: calc(3.6 * var(--fx-size));
+}
+
+.rco-fx-lightning-line {
+  stroke: var(--fx-ink, color-mix(in oklch, var(--fx-tone) 22%, white));
+  stroke-linecap: round;
+}
+
+.rco-fx-rim {
+  width: var(--fx-size);
+  aspect-ratio: 1 / var(--fx-ratio);
+  border-radius: 9.4% / 7%;
+  box-shadow:
+    0 0 0 calc(0.012 * var(--fx-size)) color-mix(in oklch, var(--fx-tone) 55%, white),
+    0 0 calc(0.1 * var(--fx-size)) calc(0.045 * var(--fx-size)) var(--fx-tone),
+    0 0 calc(0.5 * var(--fx-size)) calc(0.16 * var(--fx-size)) rgb(var(--fx-rgb) / 0.55);
+}
+
+.rco-fx-frost {
+  width: calc(3.3 * var(--fx-size));
+}
+
+.rco-fx-frost-line {
+  stroke: var(--fx-ink, color-mix(in oklch, var(--fx-tone) 35%, white));
+  stroke-linecap: round;
+}
+
+.rco-fx-sigil {
+  width: calc(3 * var(--fx-size));
+}
+
+.rco-fx-sigil-inner {
+  width: calc(2.06 * var(--fx-size));
+}
+
+.rco-fx-sigil-line {
+  stroke: var(--fx-ink, color-mix(in oklch, var(--fx-tone) 55%, white));
+  stroke-width: calc(max(1.5px, calc(0.009 * var(--fx-size))) + var(--fx-wide, 0px));
+}
+
+.rco-fx-sigil-dash {
+  fill: none;
+  stroke: var(--fx-ink, color-mix(in oklch, var(--fx-tone) 80%, white));
+  stroke-width: calc(max(1.5px, calc(0.008 * var(--fx-size))) + var(--fx-wide, 0px));
+  stroke-dasharray: 2 5;
+  stroke-linecap: round;
+}
+
+.rco-fx-cracks {
+  width: calc(4.2 * var(--fx-size));
+}
+
+.rco-fx-cracks-line {
+  stroke: var(--fx-ink, color-mix(in oklch, var(--fx-tone) 30%, white));
+  stroke-width: calc(max(2px, calc(0.013 * var(--fx-size))) + var(--fx-wide, 0px));
+  stroke-linecap: round;
+}
+
+.rco-fx-shockwave {
+  --fx-inner: calc((0.5 - var(--fx-line, 0.09)) / 0.65 * 100%);
+  width: calc(1.3 * var(--fx-size));
+  aspect-ratio: 1 / 1;
+  border-radius: 9999px;
+  background: radial-gradient(
+    circle closest-side,
+    #0000 calc(var(--fx-inner) - 12%),
+    rgb(var(--fx-rgb) / 0.14) calc(var(--fx-inner) - 5%),
+    rgb(var(--fx-rgb) / 0.52) calc(var(--fx-inner) - 0.5%),
+    var(--fx-highlight) var(--fx-inner),
+    var(--fx-highlight) 76.6%,
+    rgb(var(--fx-rgb) / 0.52) 77.2%,
+    rgb(var(--fx-rgb) / 0.14) 83%,
+    #0000 92%
+  );
+
+  will-change: opacity;
+}
+
+.rco-fx-ripples,
+.rco-fx-converge,
+.rco-fx-echo {
+  width: 0;
+  height: 0;
+}
+
+.rco-fx-ripples-ring,
+.rco-fx-converge-ring {
+  position: absolute;
+  top: 0;
+  left: 0;
+  display: block;
+  width: calc(1.14 * var(--fx-size));
+  margin: calc(-0.57 * var(--fx-size)) 0 0 calc(-0.57 * var(--fx-size));
+  border-radius: 9999px;
+  opacity: 0;
+  background: radial-gradient(
+    circle closest-side,
+    #0000 84.6%,
+    color-mix(in oklch, var(--fx-tone) 75%, white) 85.3%,
+    color-mix(in oklch, var(--fx-tone) 75%, white) 87.5%,
+    rgb(var(--fx-rgb) / 0.3) 88.1%,
+    rgb(var(--fx-rgb) / 0.09) 91.5%,
+    #0000 96%
+  );
+}
+
+.rco-fx-pulse {
+  width: var(--fx-size);
+  border-radius: 9999px;
+  background: radial-gradient(
+    circle,
+    rgb(var(--fx-rgb) / 0.08) 0%,
+    rgb(var(--fx-rgb) / 0.34) 52%,
+    color-mix(in oklch, var(--fx-tone) 60%, white) 67%,
+    #0000 70%
+  );
+
+  will-change: opacity;
+}
+
+.rco-fx-hex,
+.rco-fx-diamond {
+  width: var(--fx-size);
+
+  will-change: opacity;
+}
+
+.rco-fx-hex-line,
+.rco-fx-diamond-line {
+  stroke: var(--fx-ink, var(--fx-highlight));
+}
+
+.rco-fx-slam {
+  top: calc(var(--fx-y) + var(--fx-ratio) * calc(0.5 * var(--fx-size) * var(--fx-zoom)));
+  width: var(--fx-size);
+  aspect-ratio: 1 / 0.24;
+  border: calc(var(--fx-line, 0.07) * var(--fx-size)) solid var(--fx-highlight);
+  border-radius: 50%;
+  box-shadow: 0 0 calc(0.08 * var(--fx-size)) var(--fx-tone);
+
+  will-change: opacity;
+}
+
+.rco-fx-slam-hit {
+  top: calc(var(--fx-y) + var(--fx-ratio) * calc(0.5 * var(--fx-size) * var(--fx-zoom)));
+  width: calc(1.6 * var(--fx-size));
+  aspect-ratio: 1 / 0.24;
+  border-radius: 50%;
+  mix-blend-mode: screen;
+  background: radial-gradient(
+    ellipse,
+    white 0%,
+    rgb(var(--fx-rgb) / 0.6) 30%,
+    #0000 70%
+  );
+}
+
+.rco-fx-echo-card {
+  width: var(--fx-size);
+  aspect-ratio: 1 / var(--fx-ratio);
+  border-radius: 9.4% / 7%;
+  opacity: 0;
+  box-shadow:
+    inset 0 0 0 max(1.5px, calc(0.01 * var(--fx-size))) var(--fx-highlight),
+    0 0 calc(0.08 * var(--fx-size)) rgb(var(--fx-rgb) / 0.55);
+}
+
+.rco-fx-nova {
+  width: calc(3.8 * var(--fx-size));
+}
+
+.rco-fx-nova-light {
+  --fx-edge: calc(var(--fx-hole, 0) * 1%);
+  background: radial-gradient(
+    circle,
+    #0000 var(--fx-edge),
+    white calc(var(--fx-edge) + 2%),
+    color-mix(in oklch, var(--fx-tone) 60%, white) calc(var(--fx-edge) + 7%),
+    rgb(var(--fx-rgb) / 0.45) calc(var(--fx-edge) + 13%),
+    #0000 calc(var(--fx-edge) + 20%)
+  );
+}
+
+.rco-fx-chroma {
+  pointer-events: none;
+}
+
+.rco-fx-vignette {
+  background: radial-gradient(
+    ellipse at 50% 50%,
+    #0000 40%,
+    rgb(var(--fx-rgb) / 0.38) 76%,
+    color-mix(in oklch, var(--fx-tone) 70%, black) 100%
+  );
+}
+
+.rco-fx-chroma-half {
+  position: absolute;
+  inset: 0;
+  display: block;
+  will-change: transform, opacity;
+  mix-blend-mode: screen;
+  background: radial-gradient(
+    circle at var(--fx-cx) var(--fx-cy),
+    rgb(var(--fx-rgb) / 0.95) 0%,
+    rgb(var(--fx-rgb) / 0.45) 30%,
+    #0000 66%
+  );
+}
+
+.rco-fx-chroma-other {
+  background: radial-gradient(
+    circle at var(--fx-cx) var(--fx-cy),
+    rgb(var(--fx-accent-rgb) / 0.95) 0%,
+    rgb(var(--fx-accent-rgb) / 0.45) 30%,
+    #0000 66%
+  );
+}
+
+/* Alpha mask from the project's original Ritual contract seal (PR #55). */
+.rco-fx-patron-seal {
+  width: calc(var(--fx-size) * 1.96);
+  aspect-ratio: 400 / 395;
+  background: radial-gradient(circle, var(--fx-accent) 22%, var(--fx-tone) 68%, var(--fx-accent));
+  mask: url("./patron-seal.webp") center / contain no-repeat;
+}
+
+.rco-fx-archive-seal {
+  width: calc(var(--fx-size) * 1.62);
+  aspect-ratio: 1;
+}
+
+.rco-fx-archive-seal :is(ellipse, path) {
+  fill: none;
+  stroke: var(--fx-accent);
+  stroke-width: 1.2;
+}
+
+.rco-fx-beams-back {
+  position: absolute;
+  inset: 8%;
+  display: block;
+  border-radius: 9999px;
+  will-change: transform;
+  background: conic-gradient(
+    from 40deg,
+    #0000 0% 12%,
+    rgb(var(--fx-accent-rgb) / 0.34) 19%,
+    #0000 27% 48%,
+    rgb(var(--fx-accent-rgb) / 0.26) 56%,
+    #0000 64% 82%,
+    rgb(var(--fx-accent-rgb) / 0.3) 90%,
+    #0000 97%
+  );
+}
