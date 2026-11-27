@@ -43,3 +43,4 @@ class RelayFriendship(Base):
     node_id: Mapped[str] = mapped_column(ForeignKey("relay_nodes.id", ondelete="CASCADE"), primary_key=True)
     observed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     state: Mapped[str] = mapped_column(String(16))
+    source: Mapped[str] = mapped_column(String(16), server_default="manual")

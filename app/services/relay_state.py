@@ -39,7 +39,7 @@ def summarize_connection(connection: ContractRelayConnection, observations: list
     if connection.friendship_confirmed_at:
         latest.append((utc(connection.friendship_confirmed_at), "connected", "manual"))
     latest.extend(
-        (utc(row.observed_at), row.state, "relay_manual")
+        (utc(row.observed_at), row.state, "steam_web_api" if row.source == "steam_web_api" else "relay_manual")
         for row in observations
         if utc(row.observed_at) >= cutoff and observation_allowed(connection, row.observed_at)
     )

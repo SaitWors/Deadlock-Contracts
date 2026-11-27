@@ -203,6 +203,25 @@ def test_rate_body_and_production_https_boundaries(relay, monkeypatch):
     assert limited.status_code == 429 and int(limited.headers["retry-after"]) > 0
 
 
+def test_steam_friendship_keeps_its_source_and_requires_definitive_state(relay):
+    factory, player = relay
+    _, client = steam_player(factory, player, "Participant", 23456)
+    connection = client.put(PROFILE).json()["connection"]["id"]
+    route = API + "/friendship-status"
+    assert client.post(route, headers=auth(), json=friendship(connection, source="steam_web_api")).json() == {
+        "protocol_version": 1, "applied": 1,
+    }
+    status = client.get(PROFILE).json()["connection"]
+    assert (status["status"], status["friendship_source"]) == ("connected", "steam_web_api")
+    invalid = friendship(connection, "error", source="steam_web_api")
+    assert client.post(route, headers=auth(), json=invalid).status_code == 422
+    assert client.get(PROFILE).json()["connection"]["status"] == "connected"
+
+    observed = friendship(connection, "disconnected", source="steam_web_api")
+    assert client.post(route, headers=auth(), json=observed).json()["applied"] == 1
+    assert client.get(PROFILE).json()["connection"]["status"] == "disconnected"
+
+
 def test_clear_discards_relay_only_confirmation_and_old_retries(relay):
     factory, player = relay
     target_id, player_client = steam_player(factory, player, "Participant", 23456)

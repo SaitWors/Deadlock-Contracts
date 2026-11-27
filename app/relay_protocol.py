@@ -97,7 +97,7 @@ class Friendship(Strict):
     connection_id: UUID
     observed_at: AwareDatetime
     state: Literal["connected", "disconnected", "unknown", "error"]
-    source: Literal["manual"]
+    source: Literal["manual", "steam_web_api"]
 
 
 class FriendshipBatch(Strict):
@@ -218,6 +218,8 @@ def friendship_status(payload: FriendshipBatch, request: Request, response: Resp
     now = utcnow()
     for item in payload.observations:
         _check_time(item.observed_at, now)
+        if item.source == "steam_web_api" and item.state not in ("connected", "disconnected"):
+            raise HTTPException(422, "Steam friendship observations require a definitive result")
 
     # Lock the consent row while deciding whether the observation is still authorized.
     ids = {str(item.connection_id) for item in payload.observations}
@@ -235,7 +237,7 @@ def friendship_status(payload: FriendshipBatch, request: Request, response: Resp
         other = latest.get(key)
         if other is None or item.observed_at > other.observed_at:
             latest[key] = item
-        elif item.observed_at == other.observed_at and item.state != other.state:
+        elif item.observed_at == other.observed_at and (item.state, item.source) != (other.state, other.source):
             raise HTTPException(422, "Conflicting Relay observations")
 
     applied = 0
@@ -251,6 +253,7 @@ def friendship_status(payload: FriendshipBatch, request: Request, response: Resp
             continue
         observation.state = item.state
         observation.observed_at = item.observed_at
+        observation.source = item.source
         applied += 1
 
     if applied:

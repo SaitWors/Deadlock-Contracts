@@ -6,9 +6,10 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from unittest.mock import Mock, patch
+from urllib.error import HTTPError
 from urllib.request import Request
 
-from relay import manager, protocol, publisher
+from relay import manager, protocol, publisher, steam_friends
 
 
 NOW = datetime(2026, 11, 27, 10, tzinfo=timezone.utc)
@@ -130,6 +131,71 @@ class RelayTest(unittest.TestCase):
             {"connection_id": ONE, "observed_at": (NOW - timedelta(days=1)).isoformat(), "state": "connected"},
         ]})
         self.assertEqual(manager.manual_observations(self.manual, NOW), [])
+
+    def test_steam_sync_submits_only_consented_connections_and_persists_its_interval(self):
+        self.status()
+        protocol.atomic_json(self.manual, {"observations": []})
+        self.client.request.side_effect = lambda path, payload=None, after=None: (
+            {"participants": [
+                {"connection_id": ONE, "steam_id64": "76561198000000111"},
+                {"connection_id": TWO, "steam_id64": "76561198000000222"},
+            ], "next_cursor": None} if path == "/participants" else {"applied": 2}
+        )
+        steam = Mock()
+        steam.friend_ids.return_value = {"76561198000000111", "76561198000000333"}
+        self.cycle(steam=steam).tick(NOW)
+        submitted = next(call.args[1] for call in self.client.request.call_args_list if call.args[0] == "/friendship-status")
+        self.assertEqual(submitted["observations"], [
+            {"connection_id": ONE, "observed_at": NOW.isoformat(), "state": "connected", "source": "steam_web_api"},
+            {"connection_id": TWO, "observed_at": NOW.isoformat(), "state": "disconnected", "source": "steam_web_api"},
+        ])
+        state = self.state.read_text()
+        for private in (ONE, TWO, "76561198"):
+            self.assertNotIn(private, state)
+        self.cycle(steam=steam).tick(NOW + timedelta(minutes=1))
+        steam.friend_ids.assert_called_once_with()
+
+    def test_unavailable_steam_preserves_manual_observation_and_honors_retry_after(self):
+        self.status()
+        protocol.atomic_json(self.manual, {"observations": [
+            {"connection_id": ONE, "observed_at": NOW.isoformat(), "state": "connected"},
+        ]})
+        self.client.request.side_effect = lambda path, payload=None, after=None: (
+            {"participants": [{"connection_id": ONE, "steam_id64": "76561198000000111"}], "next_cursor": None}
+            if path == "/participants" else {"applied": 1}
+        )
+        steam = Mock()
+        steam.friend_ids.side_effect = protocol.RequestFailed(429, 7200)
+        self.assertEqual(self.cycle(steam=steam).tick(NOW), 60)
+        self.assertEqual(self.client.request.call_args.args[1]["events"], ["friendship_sync_failed"])
+        submitted = [call.args[1] for call in self.client.request.call_args_list if call.args[0] == "/friendship-status"]
+        self.assertEqual(len(submitted), 1)
+        self.assertEqual(submitted[0]["observations"][0]["source"], "manual")
+        self.cycle(steam=steam).tick(NOW + timedelta(hours=1, seconds=1))
+        steam.friend_ids.assert_called_once_with()
+
+    def test_steam_client_requests_public_api_and_accepts_only_a_complete_friend_list(self):
+        key = "a" * 32
+        key_file = self.root / "steam-key"
+        key_file.write_text(key)
+        steam = steam_friends.SteamFriends("76561198000000444", key_file)
+        with patch.object(steam.opener, "open") as open_request:
+            response = open_request.return_value.__enter__.return_value
+            response.read.return_value = b'{"friendslist":{"friends":[{"steamid":"76561198000000555","relationship":"friend"}]}}'
+            self.assertEqual(steam.friend_ids(), {"76561198000000555"})
+            self.assertEqual(open_request.call_args.args[0].full_url,
+                             "https://api.steampowered.com/ISteamUser/GetFriendList/v1/?steamid=76561198000000444&relationship=friend")
+            self.assertEqual(open_request.call_args.args[0].get_header("X-webapi-key"), key)
+            response.read.return_value = b'{"friendslist":{"friends":[]}}'
+            self.assertEqual(steam.friend_ids(), set())
+            for invalid in (b'<html>', b'{}', b'{"friendslist":{}}', b'{"friendslist":{"friends":[{}]}}'):
+                response.read.return_value = invalid
+                with self.assertRaises(protocol.RequestFailed):
+                    steam.friend_ids()
+            open_request.side_effect = HTTPError("", 401, "private", {}, None)
+            with self.assertRaises(protocol.RequestFailed) as error:
+                steam.friend_ids()
+            self.assertEqual(error.exception.status, 401)
 
     def test_https_transport_uses_certificate_validation_and_no_redirect(self):
         token_path = self.root / "token"

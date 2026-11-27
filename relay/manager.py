@@ -6,6 +6,7 @@ import argparse
 import hashlib
 import json
 import math
+import os
 import random
 import re
 import sys
@@ -17,9 +18,11 @@ from .protocol import (
     DOCKER_ERRORS, FRIEND_STATES, PROTOCOL, RelayClient, RequestFailed, atomic_json,
     identifier, ingest_snapshot, read_json, utc,
 )
+from .steam_friends import SteamFriends, steam_id64
 
-AGENT_VERSION = "1.0.0"
+AGENT_VERSION = "1.1.0"
 INTERVAL = 60
+STEAM_INTERVAL = 60 * 60
 MAX_RETRY = 15 * 60
 MAX_REPORT_AGE = timedelta(hours=23)
 MAX_MANUAL_AGE = timedelta(hours=23)
@@ -88,9 +91,9 @@ def manual_observations(path: Path | None, now: datetime) -> list[dict]:
     return [observations[key] for key in sorted(observations)]
 
 
-def eligible_ids(client: RelayClient, wanted: set[str]) -> set[str]:
-    """Use consent IDs only. Steam IDs in the HTTPS response stay in memory."""
-    eligible = set()
+def eligible_participants(client: RelayClient, wanted: set[str] | None) -> dict[str, str | None]:
+    """Use current consent IDs. Steam IDs stay in memory and are only needed for automatic sync."""
+    eligible = {}
     after = None
     for _ in range(MAX_PARTICIPANT_PAGES):
         page = client.request("/participants", after=after)
@@ -100,9 +103,13 @@ def eligible_ids(client: RelayClient, wanted: set[str]) -> set[str]:
         try:
             for row in rows:
                 connection_id = identifier(row.get("connection_id"))
-                if connection_id in wanted:
-                    eligible.add(connection_id)
-            if page.get("next_cursor") is None or wanted <= eligible:
+                if wanted is None:
+                    if connection_id in eligible:
+                        raise ValueError("duplicate participant")
+                    eligible[connection_id] = steam_id64(row.get("steam_id64"))
+                elif connection_id in wanted:
+                    eligible[connection_id] = None
+            if page.get("next_cursor") is None or (wanted is not None and wanted <= eligible.keys()):
                 return eligible
             cursor = identifier(page["next_cursor"])
             if after is not None and cursor <= after:
@@ -130,6 +137,9 @@ def load_state(path: Path) -> dict:
         digest = data.get("friendship_digest")
         if isinstance(digest, str) and re.fullmatch("[a-f0-9]{64}", digest):
             state["friendship_digest"] = digest
+        steam_next = data.get("steam_next_at")
+        if type(steam_next) in (int, float) and math.isfinite(steam_next) and steam_next >= 0:
+            state["steam_next_at"] = steam_next
         return state
     except FileNotFoundError:
         return {}
@@ -152,12 +162,14 @@ def schedule(state: dict, now: datetime, failure: RequestFailed | None) -> float
 
 
 class Manager:
-    def __init__(self, client: RelayClient, state_path: Path, snapshot: Path, observations: Path | None, heartbeat_only=False):
+    def __init__(self, client: RelayClient, state_path: Path, snapshot: Path, observations: Path | None,
+                 heartbeat_only=False, steam: SteamFriends | None = None):
         self.client = client
         self.state_path = state_path
         self.snapshot = snapshot
         self.observations = observations
         self.heartbeat_only = heartbeat_only
+        self.steam = steam
         self.state = load_state(state_path)
 
     def tick(self, now: datetime) -> float:
@@ -199,30 +211,59 @@ class Manager:
         return encode_heartbeat(report), failure
 
     def sync_friendships(self, now: datetime, events: list[str]) -> RequestFailed | None:
+        steam_due = self.steam is not None and now.timestamp() >= self.state.get("steam_next_at", 0)
         try:
             observations = manual_observations(self.observations, now)
         except (OSError, ValueError, TypeError):
             events.append("friendship_sync_failed")
-            return None
+            observations = []
+            if not steam_due:
+                return None
         try:
-            eligible = eligible_ids(self.client, {entry["connection_id"] for entry in observations})
+            wanted = None if steam_due else {entry["connection_id"] for entry in observations}
+            eligible = eligible_participants(self.client, wanted)
         except RequestFailed as error:
             events.append("participant_sync_failed")
             return error
         entries = [entry for entry in observations if entry["connection_id"] in eligible]
-        if not entries:
-            return None
-        body = {"protocol_version": PROTOCOL, "observations": entries}
-        digest = hashlib.sha256(json.dumps(body, sort_keys=True).encode()).hexdigest()
-        if digest == self.state.get("friendship_digest"):
-            return None
+        manual_ids = set()
         try:
-            self.client.request("/friendship-status", body)
-            self.state["friendship_digest"] = digest
+            if entries:
+                body = {"protocol_version": PROTOCOL, "observations": entries}
+                digest = hashlib.sha256(json.dumps(body, sort_keys=True).encode()).hexdigest()
+                if digest != self.state.get("friendship_digest"):
+                    self.client.request("/friendship-status", body)
+                    self.state["friendship_digest"] = digest
+                    manual_ids = {entry["connection_id"] for entry in entries}
+            if steam_due and self.steam is not None:
+                self.sync_steam(now, events, self.steam, eligible, manual_ids)
         except RequestFailed as error:
             events.append("friendship_sync_failed")
             return error
         return None
+
+    def sync_steam(self, now: datetime, events: list[str], steam: SteamFriends,
+                   eligible: dict[str, str | None], manual_ids: set[str]) -> None:
+        # Persist the interval before contacting Steam so a service restart cannot repeat the call early.
+        self.state["steam_next_at"] = now.timestamp() + STEAM_INTERVAL
+        atomic_json(self.state_path, self.state)
+        if not eligible:
+            return
+        try:
+            friends = steam.friend_ids()
+        except RequestFailed as error:
+            self.state["steam_next_at"] = now.timestamp() + max(STEAM_INTERVAL, error.retry_after)
+            events.append("friendship_sync_failed")
+            return
+
+        entries = [
+            {"connection_id": connection_id, "observed_at": now.isoformat(),
+             "state": "connected" if account in friends else "disconnected", "source": "steam_web_api"}
+            for connection_id, account in eligible.items() if connection_id not in manual_ids
+        ]
+        for start in range(0, len(entries), 100):
+            self.client.request("/friendship-status",
+                                {"protocol_version": PROTOCOL, "observations": entries[start:start + 100]})
 
 
 def main() -> int:
@@ -232,14 +273,21 @@ def main() -> int:
     parser.add_argument("--state-directory", required=True, type=Path)
     parser.add_argument("--host-snapshot", required=True, type=Path)
     parser.add_argument("--friend-observations", type=Path)
+    parser.add_argument("--steam-id64", help="enable GetFriendList for this Relay account")
     parser.add_argument("--heartbeat-only", action="store_true")
     parser.add_argument("--once", action="store_true")
     args = parser.parse_args()
     try:
         client = RelayClient(args.api_base_url, args.token_file)
+        steam = None
+        if args.steam_id64 and not args.heartbeat_only:
+            credentials = os.environ.get("CREDENTIALS_DIRECTORY")
+            if not credentials:
+                raise ValueError("expected systemd credentials directory")
+            steam = SteamFriends(args.steam_id64, Path(credentials) / "steam-web-api-key")
         manager = Manager(
             client, args.state_directory / "delivery.json", args.host_snapshot,
-            args.friend_observations, heartbeat_only=args.heartbeat_only,
+            args.friend_observations, heartbeat_only=args.heartbeat_only, steam=steam,
         )
         while True:
             delay = manager.tick(datetime.now(timezone.utc))
