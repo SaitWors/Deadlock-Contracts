@@ -95,7 +95,7 @@ sudo journalctl -u contract-relay-manager.service -u contract-relay-publisher.se
 
 ## Автоподключение и сбор матчей участников
 
-Для этого режима нужны проверенный Timeweb с миграцией `0035`, узел с правом записи дружбы и выделенный Steam-аккаунт Relay. Менеджер читает входящие заявки через `IFriendsListService/GetFriendsList` и принимает только одобренные заявки через Steam Community. Это веб-сессия без второго входа в Steam Client или Game Coordinator. До эксплуатации нужно согласовать использование автоматизации с Valve и проверить эти интерфейсы на выделенном тестовом аккаунте. [Условия Steam, раздел 4](https://store.steampowered.com/subscriber_agreement/#4) · [Формат списка Steam](https://github.com/SteamDatabase/Protobufs/blob/master/webui/service_friendslist.proto)
+Для этого режима нужны проверенный Timeweb с миграцией `0035`, узел с правом записи дружбы и выделенный Steam-аккаунт Relay. Менеджер читает список отношений непосредственно через Steam Community (`/textfilter/ajaxgetfriendslist`) и принимает только одобренные входящие заявки. Это веб-сессия без второго входа в Steam Client или Game Coordinator. До эксплуатации нужно согласовать использование автоматизации с Valve и проверить эти интерфейсы на выделенном тестовом аккаунте. [Условия Steam, раздел 4](https://store.steampowered.com/subscriber_agreement/#4) · [Формат списка Steam](https://github.com/SteamDatabase/Protobufs/blob/master/webui/service_friendslist.proto)
 
 1. Подготовьте образ Ingest из зафиксированной версии исходного проекта. Патч применяется с проверкой к ревизии `d8d51587253c25e09368010d959e7618e0f7a345`. Хранилище Steam и журнал квот Ingest при обновлении остаются на прежних томах.
 
@@ -111,7 +111,7 @@ sudo journalctl -u contract-relay-manager.service -u contract-relay-publisher.se
 
    [Исходный код Ingest и лицензия MIT](https://github.com/deadlock-api/deadlock-api-ingest/tree/d8d51587253c25e09368010d959e7618e0f7a345)
 
-2. На MCG создайте системную группу `contract-relay-collector`. В файл `/etc/contract-relay-manager/steam-login-secure` с правами `0600` и владельцем `root` поместите значение `steamLoginSecure` из веб-сессии выделенного аккаунта на `steamcommunity.com`. Менеджер получает отдельный токен для чтения списка через `/chat/clientjstoken` и хранит его в памяти. При истечении браузерной сессии обновите файл и перезапустите менеджер. Дополнение systemd для `contract-relay-manager.service`:
+2. На MCG создайте системную группу `contract-relay-collector`. В файл `/etc/contract-relay-manager/steam-login-secure` с правами `0600` и владельцем `root` поместите значение `steamLoginSecure` из веб-сессии выделенного аккаунта на `steamcommunity.com`. Менеджер использует веб-сессию непосредственно на Steam Community, без обмена на токен через `/chat/clientjstoken`. Этот интерфейс не является публично документированным Steam Web API; его доступность и полноту ответа необходимо подтвердить на выделенном аккаунте. При ошибке менеджер не считает список пустым и не публикует допуск к сбору. При истечении браузерной сессии обновите файл и перезапустите менеджер. Дополнение systemd для `contract-relay-manager.service`:
 
    ```ini
    [Service]
