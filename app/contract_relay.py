@@ -7,7 +7,7 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Response
 from pydantic import BaseModel, ConfigDict, Field, SecretStr
-from sqlalchemy import func, select
+from sqlalchemy import func, select, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, undefer
 
@@ -24,6 +24,8 @@ ADMIN_REVIEW_PATH = ADMIN_PATH + "/{connection_id}"
 QUICK_INVITE_PATH = "/quick-invite"
 RELAY_STEAM_PROFILE = "https://steamcommunity.com/id/deadlock-contracts-relay/"
 QUICK_INVITE_URL = re.compile(r"https://s\.team/p/[A-Za-z0-9]+(?:-[A-Za-z0-9]+)*/[A-Za-z0-9]+")
+PILOT_CAPACITY = 30
+PILOT_ADMISSION_LOCK = 440013
 player_router = APIRouter()
 
 
@@ -53,6 +55,15 @@ def _lock_user(db: Session, user_id: str) -> User:
     if user is None:
         raise HTTPException(404, "Пользователь не найден")
     return user
+
+
+def _lock_pilot_admission(db: Session) -> None:
+    if db.get_bind().dialect.name == "postgresql":
+        # All applicants share this transaction lock, even if their user rows differ.
+        db.execute(select(func.pg_advisory_xact_lock(PILOT_ADMISSION_LOCK)))
+    else:
+        # SQLite takes its writer lock for this statement without modifying any records.
+        db.execute(update(ContractRelayConnection).where(False).values(id=ContractRelayConnection.id))
 
 
 def _current_connection(db: Session, user: User, connection_id: UUID) -> ContractRelayConnection:
@@ -111,11 +122,15 @@ def open_quick_invite(
 
 @player_router.put(PROFILE_PATH, dependencies=[Depends(require_csrf)])
 def opt_in(response: Response, user: User = Depends(require_user), db: Session = Depends(get_db)) -> dict:
+    _lock_pilot_admission(db)
     user = _lock_user(db, user.id)
     if user.status != "ACTIVE" or not user.steam_id64 or not user.account_id:
         raise HTTPException(409, "Для участия требуется активный аккаунт Steam")
     connection = _connection(db, user.id)
     if connection is None:
+        count = db.scalar(select(func.count()).select_from(ContractRelayConnection))
+        if count >= PILOT_CAPACITY:
+            raise HTTPException(409, "В пилоте Relay заняты все 30 мест. Попробуйте позже.")
         connection = ContractRelayConnection(user_id=user.id)
         db.add(connection)
         db.commit()
