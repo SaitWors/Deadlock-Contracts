@@ -4,6 +4,7 @@ import SvgIcon, { type IconName } from "./icons/Icon"
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { NightshiftNav } from "./nightshift-layout"
 import ProfileStudio from "./ProfileStudio"
+import ContractRelay from "./ContractRelay"
 import BureauHeader from "./BureauHeader"
 import AccountMenu from "./AccountMenu"
 import BureauBottomNav from "./BureauBottomNav"
@@ -2574,8 +2575,8 @@ export default function Dashboard({ initialSession }: { initialSession: SessionP
               <details className="profile-account-settings">
                 <summary>
                   {language === "ru"
-                    ? "Настройки аккаунта · Компаньон и данные"
-                    : "Account settings · Companion and data"}
+                    ? "Настройки аккаунта · Компаньон, Relay и данные"
+                    : "Account settings · Companion, Relay and data"}
                 </summary>
                 <button
                   type="button"
@@ -2591,6 +2592,7 @@ export default function Dashboard({ initialSession }: { initialSession: SessionP
                       ? "Обновить данные Steam"
                       : "Refresh Steam data"}
                 </button>
+                <ContractRelay csrf={csrf} />
                 <section className="dc-profile-page-grid dc-v3-profile-grid">
                   <article className="dc-system-card dc-companion-card">
                     <p className="dc-eyebrow">COMPANION / OVERWOLF</p>
@@ -2847,6 +2849,7 @@ function AdminConsole({
   const [userRole, setUserRole] = useState("ALL")
   const [userStatus, setUserStatus] = useState("ALL")
   const [userCompanion, setUserCompanion] = useState("ALL")
+  const [userRelayOptedIn, setUserRelayOptedIn] = useState(false)
   const [userSort, setUserSort] = useState("NEWEST")
   const [selectedUserId, setSelectedUserId] = useState<string | null>(null)
   const [detail, setDetail] = useState<AdminUserDetail | null>(null)
@@ -2920,6 +2923,7 @@ function AdminConsole({
             role: userRole,
             status: userStatus,
             companion: userCompanion,
+            relay_opted_in: String(userRelayOptedIn),
             sort: userSort,
             limit: "100",
           })
@@ -3033,6 +3037,7 @@ function AdminConsole({
       userRole,
       userStatus,
       userCompanion,
+      userRelayOptedIn,
       userSort,
       jobStatus,
       jobType,
@@ -3688,6 +3693,18 @@ function AdminConsole({
               <option value="XP">{copy("По XP")}</option>
               <option value="NAME">{copy("По имени")}</option>
             </select>
+            <select
+              aria-label="Contract Relay"
+              value={String(userRelayOptedIn)}
+              onChange={(event) => setUserRelayOptedIn(event.target.value === "true")}
+            >
+              <option value="false">
+                {language === "ru" ? "Любой статус Relay" : "Any Relay status"}
+              </option>
+              <option value="true">
+                {language === "ru" ? "Участники Relay" : "Relay participants"}
+              </option>
+            </select>
             <button className="dc-ghost" onClick={() => void loadSection("users")}>
               {copy("Применить")}
             </button>
@@ -3784,6 +3801,12 @@ function AdminConsole({
                       )}
                     </div>
                   </header>
+                  <ContractRelay
+                    key={detail.user.id}
+                    userId={detail.user.id}
+                    csrf={csrf}
+                    onDisconnected={() => void loadSection("users")}
+                  />
                   {auth.can_grant_rewards && (
                     <Suspense fallback={<p role="status">{copy("Загрузка…")}</p>}>
                       <OwnerRewards

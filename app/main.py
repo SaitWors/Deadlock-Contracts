@@ -30,6 +30,7 @@ from .db import Base, SessionLocal, engine, get_db
 from .community import router as community_router
 from .case_completion import router as case_completion_router
 from .companion_feedback import router as companion_feedback_router
+from .contract_relay import build_admin_router as build_contract_relay_admin_router, player_router as contract_relay_player_router
 from .personal_progress import router as personal_progress_router
 from .services.personal_progress import build_personal_progress
 from .services.achievements import achievement_collection, awarded_contract_filter
@@ -46,6 +47,7 @@ from .models import (
     CompanionMatchEvidence,
     CompanionPairing,
     ContractBoard,
+    ContractRelayConnection,
     Evaluation,
     Job,
     Match,
@@ -575,6 +577,7 @@ app.include_router(community_router)
 app.include_router(case_completion_router)
 app.include_router(companion_feedback_router)
 app.include_router(personal_progress_router)
+app.include_router(contract_relay_player_router)
 
 
 @app.exception_handler(Exception)
@@ -1416,6 +1419,7 @@ from .card_battle import build_router as build_card_battle_router
 from .arena_metrics import build_router as build_arena_metrics_router
 app.include_router(build_card_battle_router(_require_permission, _effective_access_role))
 app.include_router(build_arena_metrics_router(_require_permission))
+app.include_router(build_contract_relay_admin_router(_require_admin))
 
 def _companion_from_request(
     request: Request,
@@ -3271,12 +3275,15 @@ def admin_users(
     sort: str = "NEWEST",
     offset: int = 0,
     limit: int = 50,
+    relay_opted_in: bool = False,
     admin: User = Depends(_require_admin),
     db: Session = Depends(get_db),
 ) -> dict:
     limit = max(1, min(int(limit), 100))
     offset = max(0, min(int(offset), 100000))
     stmt = select(User)
+    if relay_opted_in:
+        stmt = stmt.where(exists(select(1).where(ContractRelayConnection.user_id == User.id)))
     value = query.strip()[:120]
     if value:
         clauses = [User.display_name.ilike(f"%{value}%")]
