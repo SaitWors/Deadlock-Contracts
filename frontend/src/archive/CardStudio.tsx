@@ -30,6 +30,7 @@ export default function CardStudio({
     artist: card?.artist || "",
     source_url: card?.source_url || "",
     rights_confirmed: card?.rights_confirmed || false,
+    banner_artwork: card?.banner_artwork || false,
     crop_x: card?.crop_x ?? 50,
     crop_y: card?.crop_y ?? 50,
     zoom: card?.zoom || 1,
@@ -233,6 +234,18 @@ export default function CardStudio({
               ? "У меня есть право использовать изображение. Согласен на публикацию дизайна и указанной подписи."
               : "I may use this artwork and agree to publish the design and its credit."}
           </label>
+          {!base && form.rights_confirmed && (
+            <label className="archive-check">
+              <input
+                type="checkbox"
+                checked={form.banner_artwork}
+                onChange={(event) => change({ banner_artwork: event.target.checked })}
+              />
+              {ru
+                ? "Иллюстрация без текста и рамки. Разрешаю показывать её на главной с указанием автора."
+                : "This artwork has no lettering or frame. It may appear on the overview with its credit."}
+            </label>
+          )}
           <div className="archive-actions">
             <button className="archive-primary" type="submit">
               {busy ? "…" : ru ? "Сохранить черновик" : "Save draft"}

@@ -33,6 +33,7 @@ class Design(Strict):
     artist: str = Field(default="", max_length=100)
     source_url: str = Field(default="", max_length=500)
     rights_confirmed: bool = False
+    banner_artwork: bool = False
     crop_x: int = Field(default=50, ge=0, le=100, strict=True)
     crop_y: int = Field(default=50, ge=0, le=100, strict=True)
     zoom: float = Field(default=1, ge=1, le=2, allow_inf_nan=False)
@@ -59,6 +60,10 @@ class Revision(Strict):
 class Decision(Revision):
     action: Literal["PUBLISH", "REJECT", "ARCHIVE"]
     note: str = Field(min_length=3, max_length=600)
+
+
+class BannerPermission(Revision):
+    enabled: bool
 
 
 class Guess(Revision):
@@ -258,10 +263,21 @@ def build_router(require_permission, effective_role):
         db.commit()
         return {"card": service.card_payload(card, private=True)}
 
-    def serve_image(card):
-        if not card or not card.image_data:
-            raise HTTPException(404, "Image not found")
-        return Response(card.image_data, media_type="image/webp", headers={"Cache-Control": "private, no-store", "X-Content-Type-Options": "nosniff"})
+    @router.put("/archive/cards/{card_id}/banner-permission", dependencies=[Depends(require_csrf)])
+    def banner_permission(card_id: UUID, payload: BannerPermission,
+                          user: User = Depends(require_user), db: Session = Depends(get_db)):
+        card = own_card(db, card_id, user, payload.revision)
+        if card.status != "PUBLISHED" or (payload.enabled and not (
+            card.hero in service.HEROES and card.image_digest and card.artist.strip() and card.rights_confirmed
+        )):
+            raise HTTPException(422, "Иллюстрация недоступна для баннера / Artwork is unavailable for banners")
+        if card.banner_artwork != payload.enabled:
+            card.banner_artwork = payload.enabled
+            card.updated_at = utcnow()
+            card.revision += 1
+            service.audit(db, user.id, card, "banner_permission", enabled=payload.enabled)
+        db.commit()
+        return {"card": service.card_payload(card, private=True)}
 
     @router.get("/archive/cards/{card_id}/image")
     def image(card_id: UUID, user: User = Depends(require_user), db: Session = Depends(get_db)):
@@ -270,7 +286,7 @@ def build_router(require_permission, effective_role):
                                                     and not packs.owns_card(db, user.id, card.id)
                                                     and not packs.owns_card(db, user.id, card.id, "SANDBOX")):
             raise HTTPException(404, "Image not found")
-        return serve_image(card)
+        return service.serve_archive_image(card)
 
     @router.get("/admin/archive/cards")
     def queue(response: Response, status: Literal["PENDING", "PUBLISHED", "REJECTED", "ARCHIVED"] = "PENDING",
@@ -284,7 +300,7 @@ def build_router(require_permission, effective_role):
         card = db.get(ArchiveCard, str(card_id))
         if not card or card.status not in {"PENDING", "PUBLISHED", "REJECTED", "ARCHIVED"}:
             raise HTTPException(404, "Image not found")
-        return serve_image(card)
+        return service.serve_archive_image(card)
 
     @router.post("/admin/archive/cards/{card_id}/decision", dependencies=[Depends(require_csrf)])
     def decide(card_id: UUID, payload: Decision, staff: User = Depends(require_permission("cards.publish")), db: Session = Depends(get_db)):

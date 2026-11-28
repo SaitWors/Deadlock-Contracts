@@ -96,19 +96,3 @@ html[data-theme] .bureau-app :is(.bureau-profile-links button, .bureau-profile-s
 html[data-theme] .bureau-app :is(.bureau-profile-links svg, .bureau-profile-section svg, .bureau-profile-links button span, .bureau-profile-section button span) { color: var(--ns-accent); }
 html[data-theme] .bureau-app .bureau-profile-logout { color: var(--ns-status-danger); }
 html[data-theme] .bureau-app .bureau-profile-popover [role="alert"] { color: var(--ns-status-danger); }
-
-html[data-theme] .bureau-guide {
-  border-color: var(--ns-line);
-  border-radius: calc(var(--ns-radius) + 4px);
-  background: var(--ns-surface);
-  color: var(--ns-text);
-  color-scheme: inherit;
-}
-html[data-theme] .bureau-guide h2 { color: var(--ns-text); }
-html[data-theme] .bureau-guide :is(p, .bureau-guide-note small) { color: var(--ns-muted); }
-html[data-theme] .bureau-guide :is(.bureau-guide-top > span, .bureau-guide-index) { color: var(--ns-accent); }
-html[data-theme] .bureau-guide .bureau-guide-top > button { border-radius: var(--ns-small); color: var(--ns-text); }
-html[data-theme] .bureau-guide :is(.bureau-guide-note, .bureau-guide-footer) { background: var(--ns-elevated); border-color: var(--ns-line); }
-html[data-theme] .bureau-guide .bureau-guide-note p { color: var(--ns-text); }
-html[data-theme] .bureau-guide .bureau-guide-pages span { background: var(--ns-line); }
-html[data-theme] .bureau-guide .bureau-guide-pages button[aria-current] span { background: var(--ns-accent); }

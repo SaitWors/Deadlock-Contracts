@@ -367,6 +367,7 @@ export default function PersonalProgress({
   onOpenCase,
   activeCaseCount = 0,
   modeStatuses = {},
+  onOpenProgress,
 }: {
   accountId: string
   mode: MatchMode
@@ -378,6 +379,7 @@ export default function PersonalProgress({
   onOpenCase?: () => void
   activeCaseCount?: number
   modeStatuses?: Partial<Record<MatchMode, string>>
+  onOpenProgress?: () => void
 }) {
   const { language } = useLanguage()
   const copy = progressCopy(language)
@@ -453,6 +455,54 @@ export default function PersonalProgress({
     tabRefs.current[next]?.focus()
   }
   const tabNames = { goal: copy.goalTab, debrief: copy.debriefTab, heroes: copy.heroesTab }
+  if (onOpenProgress) {
+    const ru = language === "ru"
+    const goal = data?.goal
+    return (
+      <section
+        className="foundation-panel foundation-recommendation"
+        aria-labelledby={`${id}-heading`}
+      >
+        <header>
+          <h2 id={`${id}-heading`}>{ru ? "Рекомендация для вас" : "Recommended for you"}</h2>
+          <button className="foundation-link" type="button" onClick={onOpenProgress}>
+            {ru ? "Личный прогресс" : "Personal progress"}
+          </button>
+        </header>
+        {loading && <p role="status">{ru ? "Подбираем цель…" : "Finding a goal…"}</p>}
+        {(error || stale || selectionChanged) && (
+          <p role="status">
+            {error
+              ? ru
+                ? "Рекомендация недоступна."
+                : "The recommendation is unavailable."
+              : copy.terminalHint}{" "}
+            <button className="foundation-link" type="button" onClick={refresh}>
+              {ru ? "Обновить" : "Refresh"}
+            </button>
+          </p>
+        )}
+        {goal && !stale && (
+          <>
+            <h3>{progressText(goal.title_i18n, language)}</h3>
+            <p>
+              {goal.conditions.map((condition) => conditionText(condition, language)).join(" · ")}
+            </p>
+            <p>{progressText(goal.reason, language)}</p>
+            <footer>
+              <strong>+{progressNumber(goal.reward_xp, language)} XP</strong>
+              {canChoose(goal) && (
+                <button className="dc-ghost" type="button" onClick={() => choose(goal)}>
+                  {copy.choose}
+                </button>
+              )}
+            </footer>
+          </>
+        )}
+        {!loading && !error && !goal && <p>{copy.noGoal}</p>}
+      </section>
+    )
+  }
   return (
     <section className="personal-progress" aria-labelledby={`${id}-heading`}>
       <header className="progress-heading">

@@ -66,6 +66,7 @@ export type Card = {
   status: "DRAFT" | "PENDING" | "PUBLISHED" | "REJECTED" | "ARCHIVED" | "REMOVED"
   revision: number
   rights_confirmed?: boolean
+  banner_artwork?: boolean
   review_note?: string
 }
 export type Meta = {

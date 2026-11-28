@@ -24,8 +24,11 @@
       <p>Authentication, daily-board creation, locating the first eligible match after a case is locked, evaluating structured conditions, preventing duplicate rewards, troubleshooting and protecting the service.</p>
       <h2>Sources and processors</h2>
       <p>Identity is verified through Steam OpenID. Public name and avatar may be retrieved through the Steam Web API. Final match statistics come from a community-operated Deadlock API. The service runs with the hosting provider selected by the project owner.</p>
+      <p>For automatic overview artwork, Deadlock API receives the numeric Steam account ID and returns hero statistics. The service stores the selected hero, the lookup date and your artwork preferences in your account. Deleting your account removes these records.</p>
       <h2>Companion telemetry</h2>
       <p>The Overwolf Companion transmits your own supported GEP signals, Match ID, mode, phase and bounded diagnostic statistics. Client telemetry is provisional and cannot independently complete a contract or grant XP. Diagnostic output redacts roster and Steam identifiers.</p>
+      <h2>Product analytics</h2>
+      <p>To understand usage and improve the service, we record when signed-in players open the dashboard, visit certain sections, and take onboarding or contract actions. A record contains an internal account ID, event type, time, and an event ID. A daily job removes detailed events older than 90 days. Account deletion also removes these events. The admin console shows aggregate metrics.</p>
       <h2>Retention and deletion</h2>
       <p>Data is retained until account deletion or the end of testing unless longer retention is required for security or dispute handling. Account deletion is available in Data &amp; Account. Backups may remain until scheduled rotation completes.</p>
       <h2>Security and contact</h2>

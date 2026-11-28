@@ -415,6 +415,10 @@ html[data-motion="reduced"] .ns-private .dc-contract-dossier :is(*, .dc-motion-c
 }
 :root .ns-private .dc-contract-dossier .dc-motion-selected-pills li {
   max-width: 100%;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 4px;
   border: 1px solid var(--ns-line);
   border-radius: var(--board-radius);
   background: var(--ns-surface);
@@ -422,6 +426,25 @@ html[data-motion="reduced"] .ns-private .dc-contract-dossier :is(*, .dc-motion-c
   padding: 3px 7px;
   font: 500 12px/1.5 var(--font-body);
   overflow-wrap: anywhere;
+}
+:root .ns-private .dc-contract-dossier .dc-motion-selected-pills li > button {
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  inline-size: 44px;
+  min-block-size: 44px;
+  border: 0;
+  border-radius: var(--board-radius);
+  background: transparent;
+  color: var(--ns-text);
+  cursor: pointer;
+}
+:root .ns-private .dc-contract-dossier .dc-motion-selected-pills li > button:hover {
+  color: var(--ns-accent);
+  background: var(--ns-soft);
+}
+:root .ns-private .dc-contract-dossier .dc-motion-selected-pills li > button:focus-visible {
+  outline-offset: -3px;
 }
 :root .ns-private .dc-contract-dossier .dc-motion-selection-actions {
   display: flex;

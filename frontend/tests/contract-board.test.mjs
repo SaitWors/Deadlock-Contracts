@@ -102,7 +102,11 @@ test("failed initial board can be retried without changing selection APIs", asyn
   assert.equal(doc.querySelectorAll(".dc-motion-contract-card").length, 6)
   assert.equal(doc.querySelector('[role="alert"]'), null)
   assert.equal(calls.filter((c) => c.url === "/api/boards/today").length, 2)
-  assert.equal(calls.filter((c) => c.init.method === "POST").length, 0)
+  assert.equal(
+    calls.filter(({ url, init }) => url !== "/api/foundation/events" && init.method === "POST")
+      .length,
+    0,
+  )
 })
 
 for (const language of ["ru", "en"])

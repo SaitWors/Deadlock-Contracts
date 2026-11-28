@@ -247,19 +247,6 @@
   border-radius: 16px;
   overflow: hidden;
 }
-.bureau-app .dc-home-archive-callout {
-  border-radius: 18px;
-  border: 1px solid #ffffff18;
-  background: linear-gradient(110deg, #283c2b, #17231c);
-  box-shadow: none;
-}
-.bureau-app .dc-home-archive-callout::after {
-  display: none;
-}
-.bureau-app .dc-home-archive-callout strong {
-  font: 650 24px/1.3 var(--font-body);
-  letter-spacing: -0.025em;
-}
 .bureau-app .bureau-action {
   border-radius: 11px;
   font-family: var(--font-body);

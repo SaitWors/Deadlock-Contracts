@@ -103,8 +103,13 @@ await fs.writeFile(
   firstVisit[0].output.find((item) => item.type === "chunk").code,
 )
 await fs.writeFile(
+  path.join(target, "first-visit.css"),
+  firstVisit[0].output.find((item) => item.type === "asset" && item.fileName.endsWith(".css"))
+    .source,
+)
+await fs.writeFile(
   path.join(target, "first-visit.html"),
-  '<!doctype html><html lang="ru"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>First visit QA</title><link rel="stylesheet" href="fixture.css"><body style="margin:0"><a href="index.html">К макету бюро / Back to bureau fixture</a><div id="root"></div><script src="first-visit.js"></script><script>FirstVisitLayout.mount(document.getElementById("root"));</script></body></html>',
+  '<!doctype html><html lang="ru"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>First visit QA</title><link rel="stylesheet" href="fixture.css"><link rel="stylesheet" href="first-visit.css"><body style="margin:0"><a href="index.html">К макету бюро / Back to bureau fixture</a><div id="root"></div><script src="first-visit.js"></script><script>FirstVisitLayout.mount(document.getElementById("root"));</script></body></html>',
 )
 
 // These pages are a reviewable model of the shipped components, not another UI.

@@ -190,6 +190,10 @@ export default function DossierView({
                 <span>
                   {levelXp.toLocaleString(locale)} / {nextLevelXp.toLocaleString(locale)} XP
                 </span>
+                <span>
+                  {Math.max(0, nextLevelXp - levelXp).toLocaleString(locale)}{" "}
+                  {ru ? "XP до следующего уровня" : "XP to next level"}
+                </span>
               </>
             )}
           </div>

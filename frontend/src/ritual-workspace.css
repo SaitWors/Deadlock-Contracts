@@ -34,28 +34,14 @@ html[data-theme] .bureau-app.ritual-workspace .bureau-profile-trigger img, html[
 html[data-theme] .bureau-app.ritual-workspace .bureau-profile-popover { border-radius:var(--ns-radius); border:1px solid var(--ns-line); background:var(--ns-surface); box-shadow:0 16px 50px #0009; color:var(--ns-text); }
 html[data-theme] .bureau-app.ritual-workspace .bureau-profile-popover header { background:var(--ns-elevated); border-bottom:1px solid var(--ns-line); }
 html[data-theme] .bureau-app.ritual-workspace .bureau-profile-links button, html[data-theme] .bureau-app.ritual-workspace .bureau-profile-section button { min-height:44px; border-radius:min(3px,var(--ns-radius)); font-size:14px; }
-html[data-theme] .bureau-app.ritual-workspace .ns-home-heading { display:flex; align-items:flex-end; justify-content:space-between; gap:20px; margin-bottom:32px; }
-html[data-theme] .bureau-app.ritual-workspace .ns-home-heading h1 { font-size:clamp(30px,3.3vw,46px); line-height:1.12; margin:10px 0 12px; color:var(--ns-text); }
-html[data-theme] .bureau-app.ritual-workspace .ns-home-heading p { font-size:16px; line-height:1.6; color:var(--ns-muted); }
-html[data-theme] .bureau-app.ritual-workspace .ns-home-heading .ns-eyebrow { font-size:10px; letter-spacing:.13em; color:var(--ns-accent); }
 html[data-theme] .bureau-app.ritual-workspace .personal-progress { background:var(--ns-surface); border:1px solid var(--ns-line); border-top:3px solid var(--ns-accent); border-radius:var(--ns-radius); padding:28px; box-shadow:none; }
 html[data-theme] .bureau-app.ritual-workspace .progress-focus-grid>article, html[data-theme] .bureau-app.ritual-workspace .progress-hero-card { background:var(--ns-elevated); border:1px solid var(--ns-line); border-radius:var(--ns-small); box-shadow:none; }
 html[data-theme] .bureau-app.ritual-workspace .progress-focus-head h2 { font-size:30px; }
 html[data-theme] .bureau-app.ritual-workspace .progress-card-label, html[data-theme] .bureau-app.ritual-workspace .progress-eyebrow { color:var(--ns-accent); }
-html[data-theme] .bureau-app.ritual-workspace .ritual-account-summary { display:grid; grid-template-columns:1fr 1fr auto; gap:36px; align-items:center; padding:28px; margin:24px 0; background:var(--ns-surface); border:1px solid var(--ns-line); border-inline-start:3px solid var(--ns-accent); border-radius:var(--ns-small); }
-html[data-theme] .bureau-app.ritual-workspace .ritual-account-summary>div { display:grid; gap:7px; }
-html[data-theme] .bureau-app.ritual-workspace .ritual-account-summary small, html[data-theme] .bureau-app.ritual-workspace .ritual-next-step small { color:var(--ns-muted); font-size:10px; letter-spacing:.12em; }
-html[data-theme] .bureau-app.ritual-workspace .ritual-account-summary strong { color:var(--ns-text); font:600 29px/1.2 var(--font-number); }
-html[data-theme] .bureau-app.ritual-workspace .ritual-account-summary span { color:var(--ns-accent); font-size:14px; font-variant-numeric:tabular-nums; }
 html[data-theme] .bureau-app.ritual-workspace progress { display:block; width:100%; height:8px; border:1px solid var(--ns-line); border-radius:0; background:var(--ns-deep); accent-color:var(--ns-accent); overflow:hidden; }
 html[data-theme] .bureau-app.ritual-workspace progress::-webkit-progress-bar { background:var(--ns-deep); }
 html[data-theme] .bureau-app.ritual-workspace progress::-webkit-progress-value { background:var(--ns-accent); transition:width .4s ease; }
 html[data-theme] .bureau-app.ritual-workspace progress::-moz-progress-bar { background:var(--ns-accent); }
-html[data-theme] .bureau-app.ritual-workspace .ritual-next-step { display:grid; grid-template-columns:48px 1fr auto; align-items:center; gap:24px; padding:28px; border:1px solid var(--ns-line); border-radius:var(--ns-radius); background:var(--ns-soft); margin-top:24px; }
-html[data-theme] .bureau-app.ritual-workspace .ritual-next-step>svg { color:var(--ns-accent); }
-html[data-theme] .bureau-app.ritual-workspace .ritual-next-step h2 { font-size:23px; margin:5px 0; }
-html[data-theme] .bureau-app.ritual-workspace .ritual-next-step p { color:var(--ns-muted); font-size:15px; margin:0; }
-html[data-theme] .bureau-app.ritual-workspace .ritual-next-step button { display:inline-flex; gap:12px; align-items:center; }
 
 /* Contract cards and their states are owned by contract-board.css. */
 html[data-theme] .bureau-app.ritual-workspace :is(.dc-panel,.dc-case-file,.community-panel,.community-card,.archive-panel) { background:var(--ns-surface); background-image:none; border:1px solid var(--ns-line); border-radius:var(--ns-small); box-shadow:none; }
@@ -104,10 +90,6 @@ html[data-theme] .bureau-app.ritual-workspace .ritual-daily-receipt p { margin-b
   html[data-theme] .bureau-app.ritual-workspace .dc-app-shell-topnav { width:calc(100% - 200px); margin-left:200px!important; padding-inline:24px!important; }
   html[data-theme] .bureau-app.ritual-workspace .bureau-header-inner { padding-inline:24px; }
   html[data-theme] .bureau-app.ritual-workspace .ns-header-help { display:none; }
-  html[data-theme] .bureau-app.ritual-workspace .ritual-next-step { grid-template-columns:36px 1fr; }
-  html[data-theme] .bureau-app.ritual-workspace .ritual-next-step button { grid-column:2; width:fit-content; }
-  html[data-theme] .bureau-app.ritual-workspace .ritual-account-summary { grid-template-columns:1fr 1fr; gap:24px; }
-  html[data-theme] .bureau-app.ritual-workspace .ritual-account-summary>button { grid-column:1/-1; width:fit-content; }
 }
 @media(max-width:767px) {
   html[data-theme] .bureau-app.ritual-workspace .ns-sidebar { display:none; }
@@ -120,14 +102,7 @@ html[data-theme] .bureau-app.ritual-workspace .ritual-daily-receipt p { margin-b
   html[data-theme] .bureau-app.ritual-workspace .dc-mobile-bottom-nav { background:var(--ns-deep); border-top:1px solid var(--ns-line); padding-bottom:env(safe-area-inset-bottom); }
   html[data-theme] .bureau-app.ritual-workspace .dc-mobile-bottom-nav>button { color:var(--ns-muted); }
   html[data-theme] .bureau-app.ritual-workspace .dc-mobile-bottom-nav>button.active { background:var(--ns-soft); color:var(--ns-accent); border-radius:min(3px,var(--ns-radius)); box-shadow:none; }
-  html[data-theme] .bureau-app.ritual-workspace .ns-home-heading { display:block; margin-bottom:24px; }
-  html[data-theme] .bureau-app.ritual-workspace .ns-home-heading h1 { font-size:32px; }
-  html[data-theme] .bureau-app.ritual-workspace .ns-home-heading>button { margin-top:16px; }
   html[data-theme] .bureau-app.ritual-workspace .personal-progress { padding:20px 16px; }
-  html[data-theme] .bureau-app.ritual-workspace .ritual-account-summary { padding:20px; gap:20px; }
-  html[data-theme] .bureau-app.ritual-workspace .ritual-account-summary strong { font-size:22px; }
-  html[data-theme] .bureau-app.ritual-workspace .ritual-next-step { padding:22px; gap:16px; }
-  html[data-theme] .bureau-app.ritual-workspace .ritual-next-step h2 { font-size:21px; }
   html[data-theme] .bureau-app.ritual-workspace .archive-heading h1 { font-size:32px; }
   html[data-theme] .bureau-app.ritual-workspace .archive-tabs button { padding-inline:12px; }
   html[data-theme] .bureau-app.ritual-workspace .archive-grid { gap:14px; }
@@ -139,6 +114,3 @@ html[data-motion="reduced"] .bureau-app.ritual-workspace progress::-webkit-progr
 html[data-theme] .bureau-app.ritual-workspace .archive-heading>div:first-child>small { padding:0; background:transparent; color:var(--ns-accent); }
 html[data-theme] .bureau-app.ritual-workspace .archive-collection-overview :is(span,small,p) { color:var(--ns-muted); }
 html[data-theme] .bureau-app.ritual-workspace .archive-collection-overview .archive-rarity-summary :is(b,small) { color:var(--ns-accent); }
-html[data-theme] .bureau-app.ritual-workspace .bureau-guide { border-radius:var(--ns-radius); border-color:var(--ns-line); background:var(--ns-surface); }
-html[data-theme] .bureau-app.ritual-workspace .bureau-guide-note { background:var(--ns-soft); border:1px solid var(--ns-line); border-radius:var(--ns-small); }
-html[data-theme] .bureau-app.ritual-workspace .bureau-guide-footer { background:var(--ns-surface); border-top:1px solid var(--ns-line); }

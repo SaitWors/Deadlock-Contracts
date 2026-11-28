@@ -8,9 +8,11 @@ import { apiLanguage, LanguageProvider, useLanguage } from "./i18n"
 import AnnouncementLayer from "./announcements/AnnouncementLayer"
 import { AnnouncementProvider, useAnnouncements } from "./announcements/AnnouncementProvider"
 import { PublicNavigationProvider, usePublicNavigation } from "./public-navigation"
+import { BannerAccountProvider } from "./foundation/banner"
 
 type SessionPayload = {
   authenticated: boolean
+  returning?: boolean
   user: null | {
     id: string
     display_name: string
@@ -70,7 +72,11 @@ function SessionApp({ onSession }: { onSession: (authenticated: boolean) => void
     fetch("/api/me", {
       credentials: "same-origin",
       signal: controller.signal,
-      headers: { Accept: "application/json", "Accept-Language": apiLanguage() },
+      headers: {
+        Accept: "application/json",
+        "Accept-Language": apiLanguage(),
+        "X-DC-Foundation": "1",
+      },
     })
       .then(async (response) => {
         if (!response.ok) throw new Error(`HTTP ${response.status}`)
@@ -141,13 +147,16 @@ function SessionApp({ onSession }: { onSession: (authenticated: boolean) => void
     )
   }
   return (
-    <Dashboard
-      initialSession={{
-        ...session,
-        user: session.user,
-        csrf_token: session.csrf_token,
-      }}
-    />
+    <BannerAccountProvider account={{ id: session.user.id, csrf: session.csrf_token }}>
+      <Dashboard
+        key={session.user.id}
+        initialSession={{
+          ...session,
+          user: session.user,
+          csrf_token: session.csrf_token,
+        }}
+      />
+    </BannerAccountProvider>
   )
 }
 function AppRoutes({ onSession }: { onSession: (authenticated: boolean) => void }) {

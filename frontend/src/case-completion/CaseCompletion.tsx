@@ -11,9 +11,11 @@ type TaskState = "pending" | "flying" | "absorbed" | "breaking" | "broken"
 export default function CaseCompletion({
   boardId,
   onClose,
+  onReady,
 }: {
   boardId: string
   onClose: () => void
+  onReady?: (boardId: string) => void
 }) {
   const { language, locale } = useLanguage()
   const ru = language === "ru"
@@ -22,6 +24,8 @@ export default function CaseCompletion({
   const stage = useRef<HTMLDivElement>(null)
   const closeRef = useRef(onClose)
   closeRef.current = onClose
+  const readyRef = useRef(onReady)
+  readyRef.current = onReady
   const id = useId()
   const [receipt, setReceipt] = useState<CompletionReceipt | null>(null)
   const [status, setStatus] = useState<"loading" | "waiting" | "error" | "ready">("loading")
@@ -87,6 +91,7 @@ export default function CaseCompletion({
         if (!active) return
         setReceipt(next)
         setStatus(next.ready ? "ready" : "waiting")
+        if (next.ready) readyRef.current?.(boardId)
       })
       .catch(() => {
         if (active) setStatus("error")

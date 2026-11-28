@@ -1,195 +1,197 @@
-import Icon from "./icons/Icon"
-import { useEffect, useId, useRef, useState } from "react"
+import { useId } from "react"
 import { useLanguage } from "./i18n"
-import Regalia from "./regalia/Regalia"
+import { useResource } from "./community/api"
+import Icon, { type IconName } from "./icons/Icon"
+import matchCity from "./imports/city/uptown_02.webp"
+import city from "./imports/city/header_city.webp"
+import { publicUrl } from "./publicRoutes"
+import guideCopyUrl from "./foundation/guide-copy.json?url&no-inline"
+import "./bureau-guide.css"
 
-export const guideKey = (account: string) => `dc.bureau.guide.v1.${account}`
-export function hasSeenGuide(account: string) {
-  try {
-    return window.localStorage.getItem(guideKey(account)) === "seen"
-  } catch {
-    return false
-  }
-}
-export function rememberGuide(account: string) {
-  try {
-    window.localStorage.setItem(guideKey(account), "seen")
-  } catch {
-    /* Browsing still works with storage disabled. */
-  }
+type GuideSection = "quests" | "active" | "history" | "packs" | "profile" | "collection"
+type Navigate = (section: GuideSection) => void
+type Copy = [ru: string, en: string]
+type GuideCopy = {
+  steps: { icon: IconName; title: Copy; description: Copy; image?: "match" }[]
+  questions: { question: Copy; answer: Copy; support?: boolean }[]
 }
 
 export default function BureauGuide({
-  onClose,
   onNavigate,
+  onBack,
+  onResume,
 }: {
-  onClose: () => void
-  onNavigate: (tab: "quests" | "active" | "packs" | "bureaus") => void
+  onNavigate?: Navigate
+  onBack?: () => void
+  onResume?: () => void
 }) {
   const { language } = useLanguage()
   const ru = language === "ru"
-  const [step, setStep] = useState(0)
-  const dialog = useRef<HTMLDialogElement>(null)
-  const heading = useRef<HTMLHeadingElement>(null)
-  const titleId = useId()
-  const textId = useId()
-  const steps = ru
-    ? [
-        {
-          title: "Ваш матч. Новое дело.",
-          text: "Контракт — дополнительная цель в Deadlock. За выполненные условия бюро выдаёт XP, уровни и достижения. Они видны в профиле и рейтинге сайта.",
-          detail:
-            "Откройте «Контракты», выберите режим матча и до трёх условий из шести. Прочитайте договор и поставьте печать до игры.",
-          note: "После подписания выбор зафиксирован. На дело — 24 часа и до трёх подходящих матчей. Прогресс разных матчей не складывается.",
-          action: "Выбрать контракт",
-        },
-        {
-          title: "Сыграйте. Проверьте результат.",
-          text: "Запустите Deadlock и выполните подписанные условия в выбранном режиме. XP начисляется после проверки матча и подтверждения выполненных контрактов.",
-          detail:
-            "Откройте «Активное дело», чтобы увидеть попытки, срок и состояние проверки. На дело — 24 часа и до трёх подходящих матчей; прогресс разных матчей не складывается.",
-          note: "Компаньон проходит QA. Если результат ещё проверяется, дождитесь подтверждения в деле: награда не начисляется сразу после игры.",
-          action: "Открыть активное дело",
-        },
-        {
-          title: "Есть дело и без игры.",
-          text: "Собирайте карточки героев из бесплатных ежедневных конвертов. В коллекции можно выбрать избранное и витрину профиля.",
-          detail:
-            "Откройте «Ежедневный конверт», проверьте доступность и получите карточки. Полученный конверт сохраняется на сервере; повтор запроса не выдаёт второй.",
-          note: "Новый конверт доступен каждый день в полночь UTC. Карточки появляются в коллекции сразу после подтверждения получения сервером.",
-          action: "Открыть ежедневный конверт",
-        },
-        {
-          title: "Оставьте свой след.",
-          text: "Выберите медаль и до трёх карточек для витрины, настройте профиль и найдите своих людей в разделе «Сообщества».",
-          detail:
-            "У каждого достижения есть условия и прогресс. Совместные операции дают цель всей команде. Своё место в рейтинге можно посмотреть, оставаясь в аккаунте.",
-          note: "Бюро — сообщество игроков. Вступите в подходящее или создайте своё; личные контракты, карточки и достижения остаются в вашем профиле.",
-          action: "Открыть сообщества",
-        },
-      ]
-    : [
-        {
-          title: "Your match. A new case.",
-          text: "A contract is an extra objective in Deadlock. Verified objectives earn XP, levels and achievements for your profile and the site's leaderboard.",
-          detail:
-            "Open Contracts, choose your match mode and up to three of six objectives. Read the document and seal it before playing.",
-          note: "Signing locks your selection. A case lasts 24 hours and allows up to three eligible matches. Progress does not add up across matches.",
-          action: "Choose a contract",
-        },
-        {
-          title: "Play. Check your result.",
-          text: "Launch Deadlock and complete the signed objectives in your chosen mode. XP arrives after match verification confirms your completed contracts.",
-          detail:
-            "Open Active case to see attempts, the deadline and verification status. A case lasts 24 hours and allows up to three eligible matches; progress does not add up across matches.",
-          note: "The Companion is in QA. If your result is still being checked, wait for confirmation in your case: rewards do not arrive immediately after a match.",
-          action: "Open active case",
-        },
-        {
-          title: "A case without a match.",
-          text: "Collect hero cards from free daily packs. Save favorites and choose a showcase for your profile in Collection.",
-          detail:
-            "Open Daily pack, check availability and claim your cards. Your claim is saved on the server; retrying cannot grant a second pack.",
-          note: "A new pack is available each day at midnight UTC. Cards appear in your collection as soon as the server confirms your claim.",
-          action: "Open daily pack",
-        },
-        {
-          title: "Leave your mark.",
-          text: "Feature a medal and up to three cards, personalise your profile, and find your people in Communities.",
-          detail:
-            "Every achievement has conditions and progress. Joint operations give your team a shared goal. Check your rank without signing out.",
-          note: "A bureau is a player community. Join one or create your own; personal contracts, cards and achievements stay in your profile.",
-          action: "Explore communities",
-        },
-      ]
-  useEffect(() => {
-    const element = dialog.current!
-    const trigger = document.activeElement as HTMLElement | null
-    element.showModal()
-    return () => {
-      element.close()
-      if (trigger?.isConnected && !trigger.matches(":disabled")) trigger.focus()
-    }
-  }, [])
-  useEffect(() => {
-    heading.current?.focus()
-    dialog.current?.querySelector(".bureau-guide-content")?.scrollTo?.({ top: 0 })
-  }, [step])
-  const current = steps[step]
-  return (
-    <dialog
-      ref={dialog}
-      className="bureau-guide"
-      aria-labelledby={titleId}
-      aria-describedby={textId}
-      onCancel={(event) => {
-        event.preventDefault()
-        onClose()
-      }}
+  const copy = (text: Copy) => text[ru ? 0 : 1]
+  const { data, loading, reload } = useResource<GuideCopy>(guideCopyUrl, {
+    reloadOnLanguageChange: false,
+  })
+  const heading = useId()
+  const boardLabel = ru ? "Открыть доску" : "Open contract board"
+  const boardAction = onNavigate ? (
+    <button
+      type="button"
+      className="guide-button guide-button-primary"
+      onClick={() => onNavigate("quests")}
     >
-      <header className="bureau-guide-top">
-        <span>{ru ? "ПАМЯТКА ОПЕРАТИВНИКА" : "OPERATIVE BRIEFING"}</span>
-        <button onClick={onClose} aria-label={ru ? "Закрыть вступление" : "Close introduction"}>
-          <Icon name="x" />
-        </button>
-      </header>
-      <div
-        className="bureau-guide-pages"
-        aria-label={ru ? "Страницы вступления" : "Introduction pages"}
-      >
-        {steps.map((item, i) => (
-          <button
-            key={i}
-            onClick={() => setStep(i)}
-            aria-current={i === step ? "step" : undefined}
-            aria-label={`${i + 1}. ${item.title}`}
-          >
-            <span />
-          </button>
-        ))}
-      </div>
-      <div className="bureau-guide-content">
-        <Regalia
-          id={(["medal-first", "medal-first", "seal-archive", "seal-team"] as const)[step]}
-        />
-        <p className="bureau-guide-index">
-          {ru ? "ШАГ" : "STEP"} 0{step + 1} / 0{steps.length}
-        </p>
-        <h2 ref={heading} tabIndex={-1} id={titleId}>
-          {current.title}
-        </h2>
-        <p id={textId}>{current.text}</p>
-        <div className="bureau-guide-note">
-          <p>{current.detail}</p>
-          <small>{current.note}</small>
+      <Icon name="file-text" size={17} />
+      {boardLabel}
+    </button>
+  ) : (
+    <a className="guide-button guide-button-primary" href={publicUrl("contracts", language)}>
+      <Icon name="file-text" size={17} />
+      {ru ? "Посмотреть контракты" : "Browse contracts"}
+    </a>
+  )
+
+  return (
+    <section className="foundation-guide" aria-labelledby={heading}>
+      <header className="guide-hero">
+        <img className="guide-hero-art" src={city} alt="" decoding="async" />
+        <div>
+          <h1 id={heading}>{ru ? "Как это работает" : "How it works"}</h1>
+          <p>
+            {ru
+              ? "Выбери цель до матча, подпиши дело и получи результат после проверки. Между матчами собирай карточки героев."
+              : "Pick an objective before the match, sign a case, and get your result after verification. Collect hero cards between matches."}
+          </p>
+          <div className="guide-actions">
+            {boardAction}
+            {onBack ? (
+              <button type="button" className="guide-button" onClick={onBack}>
+                {ru ? "К обзору" : "Back to overview"}
+              </button>
+            ) : (
+              <a className="guide-button" href="/auth/steam">
+                {ru ? "Войти через Steam" : "Sign in with Steam"}
+              </a>
+            )}
+            {onResume && (
+              <button type="button" className="guide-button" onClick={onResume}>
+                {ru ? "Продолжить обучение" : "Resume onboarding"}
+              </button>
+            )}
+          </div>
         </div>
-        <button
-          className="bureau-action bureau-action-secondary"
-          onClick={() => onNavigate((["quests", "active", "packs", "bureaus"] as const)[step])}
-        >
-          {current.action}
-        </button>
-      </div>
-      <footer className="bureau-guide-footer">
-        <button
-          className="bureau-action bureau-action-secondary"
-          onClick={step ? () => setStep(step - 1) : onClose}
-        >
-          {step ? (ru ? "Назад" : "Back") : ru ? "Осмотрюсь сам" : "Explore myself"}
-        </button>
-        <button
-          className="bureau-action"
-          onClick={step < steps.length - 1 ? () => setStep(step + 1) : onClose}
-        >
-          {step < steps.length - 1
-            ? ru
-              ? "Дальше →"
-              : "Next →"
-            : ru
-              ? "Открыть бюро"
-              : "Enter the bureau"}
-        </button>
-      </footer>
-    </dialog>
+      </header>
+      {!data && (
+        <div role={loading ? "status" : "alert"}>
+          <p>
+            {loading
+              ? ru
+                ? "Загружаем справку…"
+                : "Loading the guide…"
+              : ru
+                ? "Не удалось загрузить справку."
+                : "Could not load the guide."}
+          </p>
+          {!loading && (
+            <button type="button" className="guide-button" onClick={reload}>
+              {ru ? "Повторить" : "Try again"}
+            </button>
+          )}
+        </div>
+      )}
+      {data && (
+        <>
+          <h2>{ru ? "От выбора режима до награды" : "From choosing a mode to earning a reward"}</h2>
+          <ol className="guide-journey" role="list">
+            {data.steps.map((item) => (
+              <li key={item.icon}>
+                <h3>{copy(item.title)}</h3>
+                <div className="guide-step-visual">
+                  {item.image ? (
+                    <img src={matchCity} alt="" loading="lazy" decoding="async" />
+                  ) : (
+                    <Icon name={item.icon} size={31} />
+                  )}
+                </div>
+                <p>{copy(item.description)}</p>
+              </li>
+            ))}
+          </ol>
+          <div className="guide-lower">
+            <section className="guide-links">
+              <div className="guide-links-intro">
+                <img
+                  src="/static/assets/ritual/sealed-scroll.webp"
+                  alt=""
+                  loading="lazy"
+                  width={84}
+                  height={92}
+                />
+                <div>
+                  <h2>{ru ? "Попробуй на практике" : "Try it for yourself"}</h2>
+                  <p>
+                    {ru
+                      ? "Выбери режим и прочитай условия первого контракта."
+                      : "Choose a mode and read the conditions of your first contract."}
+                  </p>
+                </div>
+              </div>
+              {onNavigate ? (
+                <div className="guide-section-links">
+                  <button
+                    type="button"
+                    className="guide-button"
+                    onClick={() => onNavigate("active")}
+                  >
+                    <Icon name="briefcase-business" size={17} />
+                    {ru ? "Активное дело" : "Active case"}
+                  </button>
+                  <button
+                    type="button"
+                    className="guide-button"
+                    onClick={() => onNavigate("packs")}
+                  >
+                    <Icon name="mail" size={17} />
+                    {ru ? "Ежедневный конверт" : "Daily pack"}
+                  </button>
+                  <button
+                    type="button"
+                    className="guide-button"
+                    onClick={() => onNavigate("collection")}
+                  >
+                    <Icon name="layers" size={17} />
+                    {ru ? "Моя коллекция" : "My collection"}
+                  </button>
+                </div>
+              ) : (
+                <div className="guide-section-links">
+                  <a className="guide-button" href={publicUrl("contracts", language)}>
+                    <Icon name="feather" size={17} />
+                    {ru ? "Попробовать подписание" : "Try signing"}
+                  </a>
+                  <a className="guide-button" href={publicUrl("cards", language)}>
+                    <Icon name="layers" size={17} />
+                    {ru ? "Посмотреть коллекцию" : "Explore collection"}
+                  </a>
+                </div>
+              )}
+            </section>
+            <section className="guide-faq">
+              <h2>{ru ? "Частые вопросы" : "Frequently asked questions"}</h2>
+              {data.questions.map((item) => (
+                <details key={item.question[1]}>
+                  <summary>
+                    <span>{copy(item.question)}</span>
+                    <Icon name="chevron-down" size={17} />
+                  </summary>
+                  <p>{copy(item.answer)}</p>
+                  {item.support && (
+                    <a href={ru ? "/ru/support" : "/en/support"}>{ru ? "Поддержка" : "Support"}</a>
+                  )}
+                </details>
+              ))}
+            </section>
+          </div>
+        </>
+      )}
+    </section>
   )
 }

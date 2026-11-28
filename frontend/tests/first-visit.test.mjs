@@ -3,6 +3,7 @@ import assert from "node:assert/strict"
 import path from "node:path"
 import { build } from "vite"
 import { JSDOM } from "jsdom"
+import { boardsPayload } from "./contract-board-fixtures.mjs"
 
 let code
 const environments = []
@@ -29,7 +30,14 @@ function response(data) {
   return { ok: true, json: async () => data }
 }
 
-function runtime({ hash = "", pathname = "/", language = "ru", fetchImpl } = {}) {
+function runtime({
+  hash = "",
+  pathname = "/",
+  language = "ru",
+  fetchImpl,
+  available = true,
+  boards = [],
+} = {}) {
   const dom = new JSDOM('<main id="mount"></main>', {
     url: `https://qa.invalid${pathname}${hash}`,
     runScripts: "outside-only",
@@ -70,13 +78,15 @@ function runtime({ hash = "", pathname = "/", language = "ru", fetchImpl } = {})
         server_time: "2026-09-12T10:00:00Z",
         date: "2026-09-12",
         refresh: { remaining: 1, reset_at: "2026-09-13T00:00:00Z" },
-        boards: [],
+        boards,
       })
     if (String(url).startsWith("/api/history")) return response({ cases: [], total: 0 })
     if (String(url).startsWith("/api/progression"))
       return response({
         level: 1,
         total_xp: 0,
+        level_xp: 0,
+        next_level_xp: 100,
         xp_to_next: 100,
         contracts_completed: 0,
         progress_pct: 0,
@@ -84,6 +94,25 @@ function runtime({ hash = "", pathname = "/", language = "ru", fetchImpl } = {})
     if (String(url).startsWith("/api/reviews/mine")) return response({ items: [] })
     if (String(url).startsWith("/api/companion/status"))
       return response({ device: null, devices: [] })
+    if (url === "/api/foundation/overview")
+      return response({
+        completed_cases: 0,
+        weekly: [],
+        collection: { items: 0, designs: 0 },
+        bureau: null,
+        has_signed_case: false,
+        has_verified_result: false,
+        has_claimed_daily_pack: false,
+      })
+    if (String(url).startsWith("/api/archive/daily-pack"))
+      return response({
+        available,
+        claimed_at: null,
+        next_reset_at: "2030-01-01T00:00:00Z",
+        pack: null,
+      })
+    if (String(url).startsWith("/api/archive/"))
+      return response({ items: [], total: 0, card_ids: [], heroes: [], ranks: [] })
     if (String(url).startsWith("/api/archive/wallet"))
       return response({
         balance: 73,
@@ -292,7 +321,7 @@ test("dashboard directs players to the free daily pack without requesting coin s
   await api.act(async () => {
     root = api.mountDashboard(doc.getElementById("mount"), session)
   })
-  assert.match(doc.querySelector(".ritual-next-step").textContent, /новый конверт/)
+  assert.match(doc.querySelector(".foundation-tiles").textContent, /Ежедневный конверт.*Доступен/)
   assert.doesNotMatch(doc.body.textContent, /Продолжить шифр|монеты|Шифры и каталог/i)
   assert.equal(
     calls.some(({ url }) => url.includes("archive/wallet")),
@@ -301,22 +330,46 @@ test("dashboard directs players to the free daily pack without requesting coin s
   await api.act(async () => root.unmount())
 })
 
+test("additional review takes priority while all active cases and the daily pack remain accessible", async () => {
+  const { boards } = boardsPayload()
+  for (const [board, status] of [
+    [boards[0], "LOCKED"],
+    [boards[2], "REVIEW_REQUIRED"],
+  ]) {
+    board.status = status
+    board.options[0].selected = true
+    board.options[0].status = status
+  }
+  const { api, doc } = runtime({ hash: "#home", boards })
+  let root
+  await api.act(async () => {
+    root = api.mountDashboard(doc.getElementById("mount"), session)
+  })
+  const hero = doc.querySelector(".foundation-hero")
+  assert.match(hero.textContent, /Посмотреть дополнительную проверку/)
+  assert.match(doc.querySelector(".foundation-tiles").textContent, /Ежедневный конверт.*Доступен/)
+  await api.act(async () => button(hero, "Посмотреть дополнительную проверку").click())
+  assert.equal(doc.querySelectorAll(".dc-active-case-card").length, 2)
+  await api.act(async () => root.unmount())
+})
+
 for (const language of ["ru", "en"])
-  test(`${language}: home collection callout opens the daily pack and makes no economic claim`, async () => {
-    const destinations = []
-    const { api, doc, calls } = runtime({ language })
+  test(`${language}: overview uses server availability and opens the existing daily pack page`, async () => {
+    const { api, doc, w, calls } = runtime({ language, hash: "#home", available: false })
     let root
     await api.act(async () => {
-      root = api.mountNextStep(doc.getElementById("mount"), {
-        revision: 4,
-        onNavigate: (destination) => destinations.push(destination),
-      })
+      root = api.mountDashboard(doc.getElementById("mount"), session)
     })
-    assert.equal(calls.length, 0)
-    assert.doesNotMatch(doc.body.textContent, /coins|cipher|монет|шифр/i)
-    await api.act(async () =>
-      button(doc, language === "ru" ? "Открыть конверт" : "Open daily pack").click(),
+    assert.ok(calls.some(({ url }) => url === "/api/archive/daily-pack?scope=REAL&compact=true"))
+    const tiles = doc.querySelector(".foundation-tiles")
+    assert.match(
+      tiles.textContent,
+      language === "ru" ? /Сейчас недоступен/ : /Currently unavailable/,
     )
-    assert.deepEqual(destinations, ["packs"])
+    assert.doesNotMatch(tiles.textContent, /coins|cipher|монет|шифр/i)
+    await api.act(async () =>
+      button(tiles, language === "ru" ? "К конверту" : "Go to daily pack").click(),
+    )
+    assert.equal(w.location.hash, "#packs")
     await api.act(async () => root.unmount())
   })

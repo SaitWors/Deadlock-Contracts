@@ -150,6 +150,10 @@ def _rate_rule(path: str) -> tuple[str, int, int] | None:
         return "overwolf-qa", 6, 900
     if path == "/api/feedback/companion-uninstall":
         return "companion-feedback", 5, 3600
+    if path == "/api/foundation/events":
+        return "foundation-events", 120, 60
+    if path == "/api/admin/foundation-analytics":
+        return "foundation-report", 15, 60
     if path == "/api/admin/auth/totp":
         return "admin-totp", 8, 600
     if path == "/api/matches/sync":
@@ -229,6 +233,8 @@ class RequestSecurityMiddleware:
         scope.setdefault("state", {})["request_id"] = request_id
 
         body_limit = settings.max_request_body_bytes
+        if path == "/api/foundation/events":
+            body_limit = min(body_limit, 1024)
         if path.startswith("/api/internal/relay/"):
             body_limit = min(body_limit, 32768)
         content_length = headers.get("content-length")

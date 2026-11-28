@@ -515,6 +515,7 @@ test("visitor preview honors privacy and profile save prevents duplicate posts",
   assert.match(doc.body.textContent, /Deadlock Hidden Membership/)
   assert.equal(doc.querySelector(".dossier-level progress").value, 17)
   assert.equal(doc.querySelector(".dossier-level progress").max, 350)
+  assert.match(doc.querySelector(".dossier-level").textContent, /333 XP to next level/)
   assert.equal(doc.querySelector(".dossier-sidebar dd").textContent, "3")
   assert.match(doc.body.textContent, /8,115 XP/)
   assert.match(doc.body.textContent, /Hidden from visitors/)
@@ -533,6 +534,7 @@ test("visitor preview honors privacy and profile save prevents duplicate posts",
     form.dispatchEvent(new w.Event("submit", { bubbles: true, cancelable: true }))
   })
   assert.equal(posts, 1)
+  assert.equal(form.getAttribute("aria-busy"), "true")
   assert.equal(savedBody.is_public, false)
   assert.equal(savedBody.show_stats, false)
   assert.deepEqual(savedBody.showcase_order, ["contracts", "achievements", "bureau"])
@@ -558,7 +560,15 @@ test("profile draft survives locale change, guest preview and a rejected save", 
     })
   })
   await api.act(async () => button(doc, "Share").click())
-  assert.equal(fieldByLabel(doc, "Profile link").value, "https://qa.invalid/u/profile-test")
+  const link = fieldByLabel(doc, "Profile link")
+  assert.equal(link.value, "https://qa.invalid/u/profile-test")
+  assert.equal(doc.activeElement, link)
+  await api.act(async () => button(doc, "Copy link").click())
+  assert.equal(
+    doc.querySelector(".dossier-share [role=status]").textContent,
+    "Copy the selected link",
+  )
+  assert.equal(link.selectionEnd, link.value.length)
   await api.act(async () => button(doc, "Edit profile").click())
   const editedHeadline = "My unsaved profile headline"
   await api.act(async () => inputValue(w, fieldByLabel(doc, "Headline"), editedHeadline))

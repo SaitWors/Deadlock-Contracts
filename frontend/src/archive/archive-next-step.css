@@ -1,28 +1,5 @@
 /* Archive entry is a ruled field note in the shared case workspace. */
-html[data-theme] .bureau-app .dc-home-archive-callout {
-  display:grid;grid-template-columns:minmax(0,1fr) minmax(210px,280px);gap:28px;
-  padding:28px;border:1px solid var(--ns-line);border-radius:calc(var(--ns-radius) * .5);
-  background:var(--ns-surface);color:var(--ns-text);box-shadow:5px 5px 0 var(--ns-deep);
-}
-html[data-theme] .dc-home-archive-callout .bureau-callout-label {
-  display:inline-block;padding:5px 8px;background:var(--ns-stamp);color:var(--ns-on-accent);font:700 10px/1.5 var(--font-body);letter-spacing:.1em;margin-bottom:10px;
-}
-html[data-theme] .bureau-app .dc-home-archive-callout strong {
-  font:400 32px/1.15 var(--font-poster);letter-spacing:-.035em;color:var(--ns-text);
-}
-html[data-theme] .bureau-app .dc-home-archive-callout p {
-  font:400 12px/1.8 var(--font-body);color:var(--ns-muted);margin:8px 0 0;
-}
 .bureau-callout-stats {display:flex;flex-wrap:wrap;gap:12px 26px;margin:20px 0 0;}
 .bureau-callout-stats div {min-width:90px;}
 html[data-theme] .bureau-callout-stats dt {color:var(--ns-muted);font:400 10px/1.6 var(--font-body);letter-spacing:0;text-transform:none;}
 html[data-theme] .bureau-callout-stats dd {margin:4px 0 0;color:var(--ns-text);font:650 14px/1.5 var(--font-body);}
-html[data-theme] .dc-home-archive-callout .bureau-callout-actions {align-content:center;}
-html[data-theme] .dc-home-archive-callout .bureau-action {
-  min-height:44px;padding:11px 16px;border:1px solid transparent;border-radius:var(--ns-small);
-  color:var(--ns-on-accent);background:var(--ns-fill);font:600 12px/1.5 var(--font-body);box-shadow:none;
-}
-html[data-theme] .dc-home-archive-callout .bureau-action-secondary {border-color:var(--ns-line);color:var(--ns-text);background:var(--ns-elevated);}
-html[data-theme] .dc-home-archive-callout .bureau-action:hover {filter:brightness(1.06);}
-html[data-theme] .dc-home-archive-callout .bureau-callout-link {color:var(--ns-muted);font:500 11px/1.5 var(--font-body);}
-@media(max-width:760px){html[data-theme] .bureau-app .dc-home-archive-callout{grid-template-columns:1fr;gap:22px;padding:24px;}}

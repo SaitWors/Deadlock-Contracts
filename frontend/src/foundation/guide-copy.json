@@ -1,0 +1,129 @@
+{
+  "steps": [
+    {
+      "icon": "compass",
+      "title": ["Выбери режим", "Choose a mode"],
+      "description": [
+        "На доске доступны Standard, Ranked и Street Brawl.",
+        "The board offers Standard, Ranked and Street Brawl."
+      ]
+    },
+    {
+      "icon": "file-text",
+      "title": ["Возьми до трёх контрактов", "Pick up to three contracts"],
+      "description": [
+        "Сверь условия, сложность и награду на каждой карточке.",
+        "Check the conditions, difficulty and reward on each card."
+      ]
+    },
+    {
+      "icon": "feather",
+      "title": ["Подпиши дело", "Sign the case"],
+      "description": [
+        "Поставь печать до начала матча, чтобы зафиксировать выбор.",
+        "Seal the case before playing to lock in your choice."
+      ]
+    },
+    {
+      "icon": "swords",
+      "title": ["Сыграй матч", "Play a match"],
+      "description": [
+        "Выполни условия в подходящем матче выбранного режима.",
+        "Complete the objectives in an eligible match in your chosen mode."
+      ],
+      "image": "match"
+    },
+    {
+      "icon": "circle-check",
+      "title": ["Дождись подтверждения", "Wait for verification"],
+      "description": [
+        "После матча проверь состояние активного дела.",
+        "Check your active case after the match."
+      ]
+    },
+    {
+      "icon": "layers",
+      "title": ["Развивай профиль", "Build your profile"],
+      "description": [
+        "Получай XP за выполненные задания и собирай карточки для витрины.",
+        "Earn XP for completed objectives and collect cards for your showcase."
+      ]
+    }
+  ],
+  "questions": [
+    {
+      "question": ["Что такое контракт?", "What is a contract?"],
+      "answer": [
+        "Контракт — дополнительная цель для матча Deadlock. Подписанные контракты одного режима образуют дело.",
+        "A contract is an extra objective for a Deadlock match. Signed contracts for one mode form a case."
+      ]
+    },
+    {
+      "question": ["Как подписать дело?", "How do I sign a case?"],
+      "answer": [
+        "Открой «Контракты», выбери режим и от одного до трёх заданий. Нажми «Подписать дело» и подтверди выбор до матча.",
+        "Open Contracts, choose a mode and one to three objectives, then select Sign case and confirm before playing."
+      ]
+    },
+    {
+      "question": ["Как учитываются попытки?", "How do attempts work?"],
+      "answer": [
+        "Сервер засчитывает подходящие матчи после подписания. Лимит и срок показаны в активном деле. Если есть оставшиеся попытки, можно продолжить невыполненные задания.",
+        "The server counts eligible matches played after signing. Your active case shows its limit and deadline. Remaining attempts can be used for unfinished contracts."
+      ]
+    },
+    {
+      "question": [
+        "Складывается ли прогресс разных матчей?",
+        "Does progress add up across matches?"
+      ],
+      "answer": [
+        "Каждое задание проверяется по данным одного матча. Например, для цели на 12 ассистов нужны все 12 за одну игру.",
+        "Each objective is evaluated against one match. An objective for 12 assists requires all 12 in the same match."
+      ]
+    },
+    {
+      "question": ["Что делать, если результат задерживается?", "What if my result is delayed?"],
+      "answer": [
+        "Проверь статус активного дела и дождись данных матча. Если понадобится дополнительная проверка, её состояние появится в деле. При повторяющейся проблеме укажи режим и ID матча в обращении.",
+        "Check the active case and wait for match data. Any additional review will appear in the case. If the issue persists, include the mode and Match ID when contacting support."
+      ]
+    },
+    {
+      "question": ["Когда доступен ежедневный конверт?", "When is the daily pack available?"],
+      "answer": [
+        "Выдача обновляется в 00:00 UTC. Текущая доступность и время следующего обновления показаны в разделе «Ежедневный конверт».",
+        "Daily pack eligibility resets at 00:00 UTC. The Daily pack page shows current availability and the next reset."
+      ]
+    },
+    {
+      "question": ["Что такое XP?", "What is XP?"],
+      "answer": [
+        "XP — опыт профиля Deadlock Contracts. За подтверждённые условия начисляется указанная в контракте награда. Текущий уровень и общий опыт видны в профиле.",
+        "XP is your Deadlock Contracts profile experience. Verified objectives grant the reward shown on the contract. Your profile shows your current level and total XP."
+      ]
+    },
+    {
+      "question": ["Что такое Компаньон?", "What is the Companion?"],
+      "answer": [
+        "Компаньон — дополнительное приложение для Deadlock Contracts. Оно может передавать поддерживаемые сигналы матча с привязанного устройства. Возможность подключения и статус видны в профиле.",
+        "The Companion is an optional app for Deadlock Contracts. It can send supported match signals from a paired device. Your profile shows pairing and connection status."
+      ]
+    },
+    {
+      "question": ["Что такое бюро?", "What is a bureau?"],
+      "answer": [
+        "Бюро — сообщество игроков. В разделе «Сообщества» можно вступить в существующее бюро или создать своё и участвовать в совместных операциях.",
+        "A bureau is a player community. Open Communities to join or create a bureau and take part in shared operations."
+      ]
+    },
+    {
+      "question": ["Как обратиться в поддержку?", "How do I contact support?"],
+      "answer": [
+        "На странице поддержки есть контакты и описание того, что приложить к обращению.",
+        "The support page lists contact options and what to include in your report."
+      ],
+      "support": true
+    }
+  ]
+}

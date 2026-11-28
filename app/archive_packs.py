@@ -168,10 +168,10 @@ def build_router(require_permission, effective_role, require_reward_owner):
         return {"items": [service.pack_payload(db, row, user_id=user_id, scope=scope) for row in rows], "total": total}
 
     @router.get("/archive/daily-pack")
-    def daily_pack(response: Response, scope: Literal["REAL"] = "REAL",
+    def daily_pack(response: Response, scope: Literal["REAL"] = "REAL", compact: bool = False,
                    user: User = Depends(require_user), db: Session = Depends(get_db)):
         no_store(response)
-        return service.daily_status(db, user.id, scope)
+        return service.daily_status(db, user.id, scope, compact=compact)
 
     @router.post("/archive/daily-pack/claim", dependencies=[Depends(require_csrf)])
     def claim_daily_pack(payload: DailyPackClaim, response: Response,

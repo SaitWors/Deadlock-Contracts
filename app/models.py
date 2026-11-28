@@ -65,6 +65,7 @@ class ArchiveCard(Base):
     artist: Mapped[str] = mapped_column(String(100), default="")
     source_url: Mapped[str] = mapped_column(String(500), default="")
     rights_confirmed: Mapped[bool] = mapped_column(Boolean, default=False)
+    banner_artwork: Mapped[bool] = mapped_column(Boolean, default=False, server_default=text("false"))
     image_data: Mapped[bytes | None] = mapped_column(LargeBinary, nullable=True, deferred=True)
     image_digest: Mapped[str | None] = mapped_column(String(64), nullable=True)
     crop_x: Mapped[int] = mapped_column(Integer, default=50)
@@ -1305,3 +1306,5 @@ from . import battle_models as battle_models  # noqa: E402,F401
 from . import pack_models as pack_models  # noqa: E402,F401
 from . import relay_models as relay_models  # noqa: E402,F401
 from . import relay_measurement_models as relay_measurement_models  # noqa: E402,F401
+from . import foundation_analytics_models as foundation_analytics_models  # noqa: E402,F401
+from . import foundation_banner_models as foundation_banner_models  # noqa: E402,F401

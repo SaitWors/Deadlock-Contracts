@@ -18,6 +18,30 @@ html[data-theme] .bureau-steam-button{border-radius:var(--ns-small);font:700 13p
 html[data-theme] .bureau-steam-button.btn-ghost{background:var(--ns-elevated);color:var(--ns-text);border-color:var(--ns-line)}
 html[data-theme] .bureau-menu-toggle{border-radius:7px;background:var(--ns-surface);color:var(--ns-text);border-color:var(--ns-line)}
 html[data-theme] .bureau-mobile-nav{background:var(--ns-surface);border-color:var(--ns-line)}
+.bureau-nav-status {
+  display: inline-block;
+  flex: 0 0 auto;
+  inline-size: 7px;
+  block-size: 7px;
+  margin-inline-start: auto;
+  border-radius: 50%;
+  background: var(--ns-accent);
+}
+.ns-nav-group button .bureau-nav-status ~ i {
+  margin-inline-start: 0;
+}
+.bureau-app .dc-mobile-bottom-nav > button {
+  position: relative;
+  min-block-size: 44px;
+}
+.dc-mobile-bottom-nav > button > .bureau-nav-status {
+  position: absolute;
+  inset-block-start: 7px;
+  inset-inline-start: calc(50% + 11px);
+}
+.ns-header-help[aria-current="page"] {
+  color: var(--ns-accent);
+}
 .ns-private .bureau-header-inner{max-width:none}.ns-private .bureau-nav{display:none}.ns-private .bureau-brand{min-width:190px}
 .ns-sidebar{position:fixed;z-index:70;left:0;top:0;bottom:0;width:228px;padding:24px 17px 18px;background:var(--ns-deep);background-image:var(--ns-grain);border-right:2px solid var(--ns-line);display:flex;flex-direction:column;gap:24px;overflow-y:auto;scrollbar-width:thin}
 .ns-sidebar-brand{display:flex;align-items:center;gap:12px;padding:7px 3px 19px;text-align:left;color:var(--ns-text);cursor:pointer;flex-shrink:0;border-bottom:3px double var(--ns-line)}.ns-sidebar-brand img{display:block;width:min(168px,100%);height:auto;border-radius:4px}.ns-sidebar>nav{flex:1}

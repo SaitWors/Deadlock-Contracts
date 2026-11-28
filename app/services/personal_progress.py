@@ -254,17 +254,23 @@ def _debrief(
     }
 
 
+def group_hero_matches(
+    recent: list[tuple[Match, MatchParticipant]],
+) -> dict[int, list[tuple[Match, MatchParticipant]]]:
+    grouped: dict[int, list[tuple[Match, MatchParticipant]]] = {}
+    for row in recent:
+        if row[1].hero_id is not None:
+            grouped.setdefault(row[1].hero_id, []).append(row)
+    return grouped
+
+
 def _heroes(
     recent: list[tuple[Match, MatchParticipant]],
     evaluations: dict[tuple[str, str], tuple[Evaluation, BoardOption, MissionDefinition]],
     awarded_match: dict[str, str],
 ) -> list[dict[str, Any]]:
-    grouped: dict[int, list[tuple[Match, MatchParticipant]]] = {}
-    for row in recent:
-        if row[1].hero_id is not None:
-            grouped.setdefault(row[1].hero_id, []).append(row)
     heroes = []
-    for hero_id, rows in grouped.items():
+    for hero_id, rows in group_hero_matches(recent).items():
         match_ids = {match.id for match, _ in rows}
         completed = {
             assignment_id for (assignment_id, match_id), (evaluation, _, __) in evaluations.items()
