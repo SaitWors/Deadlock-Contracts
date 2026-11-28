@@ -164,9 +164,9 @@ function deferred() {
   })
   return { promise, resolve }
 }
-function runtime({ language = "ru", boardData = boards(), getProgress } = {}) {
+function runtime({ language = "ru", boardData = boards(), getProgress, tab = "progress" } = {}) {
   const dom = new JSDOM('<main id="mount"></main>', {
-    url: "https://qa.invalid/#home",
+    url: `https://qa.invalid/#${tab}`,
     runScripts: "outside-only",
   })
   environments.push(dom)
@@ -248,14 +248,13 @@ function runtime({ language = "ru", boardData = boards(), getProgress } = {}) {
   }
   w.eval(code)
   const api = w.ProgressUX
-  api.rememberGuide("account-one")
   return { w, doc: w.document, api, calls }
 }
 const findButton = (element, text) =>
   [...element.querySelectorAll("button")].find((item) => item.textContent.includes(text))
 function panel(doc) {
   const element = doc.querySelector(".personal-progress")
-  assert.ok(element, "home should show the personal goal, debrief and hero panel")
+  assert.ok(element, "personal progress should show the goal, debrief and hero panel")
   return element
 }
 async function mount(env) {
@@ -267,16 +266,18 @@ async function mount(env) {
 }
 
 // Removing the exact option handoff would open/sign a different contract.
-test("personal goal leads the workspace and signs exactly one offered option through Dashboard", async () => {
-  const env = runtime()
+test("the compact overview goal signs exactly one offered option through Dashboard", async () => {
+  const env = runtime({ tab: "home" })
   const root = await mount(env)
-  const p = panel(env.doc)
+  const p = env.doc.querySelector(".foundation-recommendation")
   assert.ok(
-    p.compareDocumentPosition(env.doc.querySelector(".ritual-account-summary")) &
-      env.w.Node.DOCUMENT_POSITION_FOLLOWING,
+    p.compareDocumentPosition(env.doc.querySelector(".foundation-profile")) &
+      env.w.Node.DOCUMENT_POSITION_PRECEDING,
   )
+  assert.ok(findButton(p, "Личный прогресс"))
   assert.match(p.textContent, /Цель STANDARD 0/)
-  assert.match(p.textContent, /10/)
+  assert.match(p.textContent, /8 ассистов/)
+  assert.match(p.textContent, /\+30 XP/)
   await env.api.act(async () => findButton(p, "Выбрать цель").click())
   assert.equal(env.doc.querySelectorAll(".signing-terms li").length, 1)
   assert.match(env.doc.querySelector(".signing-terms").textContent, /Цель STANDARD 0/)
@@ -286,7 +287,7 @@ test("personal goal leads the workspace and signs exactly one offered option thr
   const lock = env.calls.find(({ url }) => url === "/api/board/today/lock")
   assert.deepEqual(JSON.parse(lock.init.body), { option_ids: ["STANDARD-0"], mode: "STANDARD" })
   assert.equal(env.doc.querySelector(".signing-dialog").dataset.state, "signed")
-  assert.match(env.doc.querySelector(".ritual-account-summary").textContent, /80 XP/)
+  assert.match(env.doc.querySelector(".foundation-profile").textContent, /80 XP/)
   await env.api.act(async () => root.unmount())
 })
 

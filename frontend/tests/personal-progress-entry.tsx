@@ -6,7 +6,6 @@ import { AnnouncementProvider } from "../src/announcements/AnnouncementProvider"
 import PersonalProgress from "../src/progress/PersonalProgress"
 
 export { act }
-export { rememberGuide } from "../src/BureauGuide"
 
 export function mountDashboard(
   element: HTMLElement,
