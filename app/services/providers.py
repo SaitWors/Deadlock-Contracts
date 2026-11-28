@@ -3,6 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 import json
 from datetime import datetime, timezone
+from email.utils import parsedate_to_datetime
 from typing import Any
 
 import httpx
@@ -81,6 +82,7 @@ class DeadlockApiProvider:
         params: dict[str, Any] | None = None,
         *,
         accept_429_fallback: bool = False,
+        honor_load_shedding: bool = False,
     ) -> ProviderResponse:
         if not path.startswith("/v1/") or ".." in path:
             raise ProviderError("Запрос к недопустимому адресу поставщика данных")
@@ -114,6 +116,18 @@ class DeadlockApiProvider:
 
         if status_code == 404:
             return ProviderResponse(None, status_code, headers)
+
+        if honor_load_shedding and status_code in {429, 503, 504}:
+            retry_after = headers.get("retry-after", "60")
+            try:
+                delay = int(retry_after)
+            except ValueError:
+                try:
+                    retry_at = parsedate_to_datetime(retry_after)
+                    delay = int((retry_at - datetime.now(timezone.utc)).total_seconds()) + 1
+                except (TypeError, ValueError, OverflowError):
+                    delay = 60
+            raise ProviderRateLimited(retry_after=max(1, min(delay, 365 * 86_400)))
 
         if status_code == 429 and not accept_429_fallback:
             try:
@@ -188,6 +202,35 @@ class DeadlockApiProvider:
         if not isinstance(response.payload, dict):
             raise ProviderError("Неожиданный формат ранга Deadlock")
         return response.payload
+
+    def hero_stats(self, account_id: int, min_unix_timestamp: int | None) -> list[dict[str, int]]:
+        """Read the provider's indexed standard matchmaking sample.
+
+        The schema defines the numeric Steam account ID and the normal game
+        mode's ranked/unranked filter at https://api.deadlock-api.com/openapi.json.
+        """
+        if not 0 < account_id <= 2**32 - 1:
+            raise ProviderError("Некорректный account_id")
+        params: dict[str, Any] = {
+            "account_ids": str(account_id), "game_mode": "normal", "match_mode": "ranked,unranked",
+        }
+        if min_unix_timestamp is not None:
+            params["min_unix_timestamp"] = min_unix_timestamp
+        response = self._get("/v1/players/hero-stats", params=params, honor_load_shedding=True)
+        if not isinstance(response.payload, list) or len(response.payload) > 1000:
+            raise ProviderError("Неожиданный формат статистики героев Deadlock")
+        fields = ("account_id", "hero_id", "matches_played", "last_played")
+        hero_ids = set()
+        rows = []
+        for row in response.payload:
+            if not isinstance(row, dict) or any(
+                type(row.get(key)) is not int or not 0 <= row[key] <= 2**63 - 1
+                for key in fields
+            ) or row["account_id"] != account_id or row["hero_id"] in hero_ids:
+                raise ProviderError("Неожиданный формат статистики героев Deadlock")
+            hero_ids.add(row["hero_id"])
+            rows.append({key: row[key] for key in fields})
+        return rows
 
     def rank_asset(self, tier: int) -> dict[str, Any] | None:
         if not 0 <= tier <= 11:

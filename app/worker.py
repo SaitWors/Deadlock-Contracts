@@ -3382,8 +3382,20 @@ def run() -> None:
     init()
     log.info("Worker %s started; provider=%s", WORKER_ID, settings.provider)
     next_maintenance_at = time.monotonic() + 60
+    next_analytics_cleanup_at = next_maintenance_at
     while True:
         did_work = False
+        if time.monotonic() >= next_analytics_cleanup_at:
+            try:
+                from .services.foundation_analytics import purge_expired_events
+
+                with SessionLocal() as db:
+                    purge_expired_events(db)
+                    db.commit()
+                next_analytics_cleanup_at = time.monotonic() + 86400
+            except Exception:
+                log.exception("Foundation analytics retention cleanup failed")
+                next_analytics_cleanup_at = time.monotonic() + 600
         if time.monotonic() >= next_maintenance_at:
             try:
                 with SessionLocal() as db:

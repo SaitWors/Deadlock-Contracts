@@ -23,6 +23,8 @@ def test_daily_free_replays_receipt_and_keeps_wallet_unchanged(community, owner)
     pack(owner[1], published(factory))
     before = client.get('/api/archive/daily-pack').json()
     assert before['available'] and before['claimed_at'] is None and before['pack']['price'] == 0
+    compact = client.get('/api/archive/daily-pack?compact=true').json()
+    assert compact == {**before, "pack": {"title": before["pack"]["title"]}}
     key = str(uuid4())
     response = claim(client, key)
     assert response.status_code == 200, response.text
@@ -34,6 +36,8 @@ def test_daily_free_replays_receipt_and_keeps_wallet_unchanged(community, owner)
     assert other.get('/api/archive/requests/' + key).json()['operation'] is None
     status = client.get('/api/archive/daily-pack').json()
     assert not status['available'] and status['operation_id'] == receipt['id'] and status['claimed_at']
+    compact = client.get('/api/archive/daily-pack?compact=true').json()
+    assert compact == {**status, "pack": {"title": status["pack"]["title"]}}
     with factory() as db:
         assert db.scalar(select(func.count()).select_from(ArchiveItem).where(ArchiveItem.user_id == uid)) == 2
         assert db.scalar(select(func.count()).select_from(ArchiveOperation).where(ArchiveOperation.user_id == uid, ArchiveOperation.kind == "DAILY_PACK")) == 1

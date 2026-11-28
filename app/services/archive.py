@@ -8,7 +8,7 @@ import io
 import warnings
 from datetime import datetime, timedelta, timezone
 
-from fastapi import HTTPException
+from fastapi import HTTPException, Response
 from PIL import Image, ImageOps, UnidentifiedImageError
 from sqlalchemy import func, select
 
@@ -94,7 +94,8 @@ def card_payload(card, *, private=False, staff=False, battle=None):
     result["image_url"] = f"{prefix}/{card.id}/image?r={card.revision}" if card.image_digest else None
     result["published_at"] = aware(card.published_at).isoformat() if card.published_at else None
     if private:
-        result.update(rights_confirmed=card.rights_confirmed, review_note=card.review_note)
+        result.update(rights_confirmed=card.rights_confirmed, banner_artwork=card.banner_artwork,
+                      review_note=card.review_note)
     return result
 
 
@@ -110,10 +111,19 @@ def set_design(card, payload):
         raise HTTPException(422, "Ранг EX предназначен для баз покровителей / EX is reserved for patron bases")
     for field in ("hero", "rank", "title", "description", "artist", "source_url", "rights_confirmed", "crop_x", "crop_y", "zoom"):
         setattr(card, field, getattr(payload, field))
+    card.banner_artwork = payload.banner_artwork and payload.rights_confirmed and payload.hero in HEROES
     if payload.image is not None:
         card.image_data = image_bytes(payload.image)
         card.image_digest = hashlib.sha256(card.image_data).hexdigest()
     card.updated_at = utcnow()
+
+
+def serve_archive_image(card):
+    if not card or not card.image_data:
+        raise HTTPException(404, "Image not found")
+    return Response(card.image_data, media_type="image/webp", headers={
+        "Cache-Control": "private, no-store", "X-Content-Type-Options": "nosniff",
+    })
 
 
 def feedback(solution, symbols):

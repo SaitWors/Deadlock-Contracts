@@ -593,11 +593,15 @@ def _daily_pool(db, *, lock=False, metadata_only=False):
     return None
 
 
-def daily_status(db, user_id, scope="REAL"):
+def daily_status(db, user_id, scope="REAL", *, compact=False):
     _, key, reset = _daily_window(scope)
     claimed = _daily_operation(db, user_id, key)
-    pool = _daily_pool(db)
-    pack = {**pack_payload(db, pool[0], version=pool[1], user_id=user_id, scope=scope), "price": 0} if pool else None
+    pool = _daily_pool(db, metadata_only=compact)
+    pack = None
+    if pool:
+        pack = {"title": pool[1].config.get("title") or pool[0].title} if compact else {
+            **pack_payload(db, pool[0], version=pool[1], user_id=user_id, scope=scope), "price": 0,
+        }
     return {"available": claimed is None and pool is not None, "next_reset_at": reset,
             "claimed_at": aware(claimed.created_at).isoformat() if claimed else None,
             "pack": pack, "operation_id": claimed.id if claimed else None}

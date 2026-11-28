@@ -33,6 +33,8 @@ from .companion_feedback import router as companion_feedback_router
 from .contract_relay import build_admin_router as build_contract_relay_admin_router, player_router as contract_relay_player_router
 from .relay_protocol import build_admin_router as build_relay_protocol_admin_router, router as relay_protocol_router
 from .personal_progress import router as personal_progress_router
+from .foundation_banner import router as foundation_banner_router
+from .foundation_overview import router as foundation_overview_router
 from .services.personal_progress import build_personal_progress
 from .services.achievements import achievement_collection, awarded_contract_filter
 from .services.bureaus import leave_for_account_deletion, profile_bureau
@@ -579,6 +581,8 @@ app.include_router(community_router)
 app.include_router(case_completion_router)
 app.include_router(companion_feedback_router)
 app.include_router(personal_progress_router)
+app.include_router(foundation_banner_router)
+app.include_router(foundation_overview_router)
 app.include_router(contract_relay_player_router)
 app.include_router(relay_protocol_router)
 
@@ -989,8 +993,17 @@ def update_preferences(
 
 
 @app.get("/api/me")
-def me(request: Request, user: User | None = Depends(current_user_optional)) -> dict:
+def me(request: Request, user: User | None = Depends(current_user_optional),
+       db: Session = Depends(get_db)) -> dict:
+    overview = {}
+    if user and request.headers.get("X-DC-Foundation") == "1":
+        from .services.foundation_analytics import last_foundation_activity
+
+        now = datetime.now(timezone.utc)
+        last_visit = last_foundation_activity(db, user.id, now)
+        overview["returning"] = bool(last_visit and now - last_visit >= timedelta(days=7))
     return {
+        **overview,
         "authenticated": bool(user),
         "user": serialize_user(user) if user else None,
         "csrf_token": csrf_for_request(request) if user else None,
@@ -1414,8 +1427,10 @@ app.include_router(build_archive_router(_require_permission, _effective_access_r
 app.include_router(build_coin_rewards_router(_require_permission))
 from .card_battle import build_router as build_card_battle_router
 from .arena_metrics import build_router as build_arena_metrics_router
+from .foundation_analytics import build_router as build_foundation_analytics_router
 app.include_router(build_card_battle_router(_require_permission, _effective_access_role))
 app.include_router(build_arena_metrics_router(_require_permission))
+app.include_router(build_foundation_analytics_router(_require_admin))
 app.include_router(build_contract_relay_admin_router(_require_admin))
 app.include_router(build_relay_protocol_admin_router(_require_admin, _require_owner))
 
@@ -4909,6 +4924,8 @@ def delete_account(
     leave_for_account_deletion(db, user.id)
     from .services.arena_privacy import purge_account_battles
     purge_account_battles(db, user.id)
+    from .services.foundation_analytics import purge_account_events
+    purge_account_events(db, user.id)
     from .models import ArchiveCard
     db.execute(delete(ArchiveCard).where(ArchiveCard.creator_id == user.id, ArchiveCard.status.notin_(["PUBLISHED", "ARCHIVED"])))
     account_id = user.account_id
