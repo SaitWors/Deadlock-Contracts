@@ -599,7 +599,7 @@ def daily_status(db, user_id, scope="REAL", *, compact=False):
     pool = _daily_pool(db, metadata_only=compact)
     pack = None
     if pool:
-        pack = {"title": pool[1].config.get("title") or pool[0].title} if compact else {
+        pack = {"title": pool[1].config["title"]} if compact else {
             **pack_payload(db, pool[0], version=pool[1], user_id=user_id, scope=scope), "price": 0,
         }
     return {"available": claimed is None and pool is not None, "next_reset_at": reset,
