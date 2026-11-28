@@ -5,6 +5,7 @@ import { useLanguage } from "../i18n"
 import PackReveal from "./PackReveal"
 import type { FavoriteControls } from "./favorites"
 import type { Pack, Receipt } from "./types"
+import { savedKey, saveKey } from "./daily-pack-storage"
 
 type DailyStatus = {
   available: boolean
@@ -12,22 +13,6 @@ type DailyStatus = {
   claimed_at: string | null
   operation_id: string | null
   pack: Pack | null
-}
-const storageName = (account: string) => `dc-daily-pack:${account}`
-function savedKey(account: string) {
-  try {
-    return sessionStorage.getItem(storageName(account)) || ""
-  } catch {
-    return ""
-  }
-}
-function saveKey(account: string, key: string) {
-  try {
-    if (key) sessionStorage.setItem(storageName(account), key)
-    else sessionStorage.removeItem(storageName(account))
-  } catch {
-    /* Claims remain idempotent on the server when storage is blocked. */
-  }
 }
 function countdown(reset: string, clock: number) {
   const seconds = Math.max(0, Math.ceil((Date.parse(reset) - clock) / 1000))

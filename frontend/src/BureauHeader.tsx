@@ -5,11 +5,13 @@ import BrandLogo from "./BrandLogo"
 import { LanguageSwitch, useLanguage } from "./i18n"
 import { usePublicNavigation } from "./public-navigation"
 import NavigationIcon, { type NavigationIconName } from "./icons/NavigationIcon"
+import { BureauNavigationStatus } from "./bureau-navigation"
 
 type HeaderItem = {
   id: string
   label: string
   badge?: string
+  status?: string
   href?: string
   icon?: NavigationIconName
 }
@@ -43,7 +45,10 @@ export default function BureauHeader({
   useEffect(() => {
     if (!open) return
     const escape = (event: KeyboardEvent) => {
-      if (event.key === "Escape") {
+      if (
+        event.key === "Escape" &&
+        !(event.target instanceof Element && event.target.closest("dialog[open]"))
+      ) {
         setOpen(false)
         toggle.current?.focus()
       }
@@ -70,16 +75,19 @@ export default function BureauHeader({
         {item.icon && <NavigationIcon name={item.icon} />}
         {item.label}
         {item.badge && <small>{item.badge}</small>}
+        <BureauNavigationStatus label={item.status} />
       </a>
     ) : (
       <button
         key={item.id}
+        type="button"
         aria-current={active === item.id ? "page" : undefined}
         onClick={() => navigate(item.id)}
       >
         {item.icon && <NavigationIcon name={item.icon} />}
         {item.label}
         {item.badge && <small>{item.badge}</small>}
+        <BureauNavigationStatus label={item.status} />
       </button>
     )
   return (
@@ -114,7 +122,12 @@ export default function BureauHeader({
           </div>
         )}
         {onHelp && (
-          <button className="ns-header-help" onClick={onHelp}>
+          <button
+            type="button"
+            className="ns-header-help"
+            onClick={onHelp}
+            aria-current={active === "help" ? "page" : undefined}
+          >
             <Icon name="book-open" size={16} />
             {language === "ru" ? "Как это работает" : "How it works"}
           </button>
@@ -161,6 +174,7 @@ export default function BureauHeader({
         >
           {(mobileItems || items).map(itemLink)}
           <div className="bureau-mobile-preferences">
+            <AppearanceButton />
             <LanguageSwitch />
             {mobileActions}
           </div>

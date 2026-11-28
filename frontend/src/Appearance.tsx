@@ -1,6 +1,8 @@
 import {
   createContext,
   Fragment,
+  lazy,
+  Suspense,
   useContext,
   useEffect,
   useId,
@@ -10,6 +12,7 @@ import {
   type ReactNode,
 } from "react"
 import Icon from "./icons/Icon"
+import { useBannerAccount } from "./foundation/banner"
 import { useLanguage } from "./i18n"
 import {
   APPEARANCE_KEY,
@@ -32,6 +35,7 @@ const Context = createContext({
   effectsQuality: undefined as Exclude<EffectsQuality, "AUTO"> | undefined,
 })
 const COARSE_POINTER_QUERY = "(pointer: coarse)"
+const BannerPreferences = lazy(() => import("./foundation/BannerPreferences"))
 
 function useMediaMatches(query: string, enabled = true) {
   const [matches, setMatches] = useState(() => enabled && window.matchMedia(query).matches)
@@ -173,6 +177,7 @@ function AppearanceDialog({ onClose }: { onClose: () => void }) {
     ru = language === "ru"
   const languageIndex = ru ? 1 : 0
   const { appearance, update } = useAppearance()
+  const bannerAccount = useBannerAccount()
   const dialog = useRef<HTMLDialogElement>(null),
     heading = useRef<HTMLHeadingElement>(null)
   const titleId = useId(),
@@ -344,6 +349,11 @@ function AppearanceDialog({ onClose }: { onClose: () => void }) {
           onChange={(e) => update({ packSound: e.target.checked })}
         />
       </label>
+      {bannerAccount && (
+        <Suspense fallback={null}>
+          <BannerPreferences key={bannerAccount.id} account={bannerAccount} ru={ru} />
+        </Suspense>
+      )}
     </dialog>
   )
 }

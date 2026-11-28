@@ -44,10 +44,6 @@ html[data-theme] .ns-private .ns-world h2{font:400 33px/1.15 var(--font-poster);
 html[data-theme] .ns-private .ns-world>header{margin-bottom:20px}
 html[data-theme] .ns-private .ns-world .ns-eyebrow{font:600 9px/1.5 var(--font-body);letter-spacing:.1em;color:var(--ns-muted)}
 html[data-theme] .ns-private .ns-world-card{height:240px;box-shadow:var(--ns-shadow)}
-html[data-theme] .bureau-guide h2{font:400 clamp(28px,3vw,36px)/1.15 var(--font-poster);letter-spacing:0}
-html[data-theme] .bureau-guide :is(p,.bureau-guide-note small){font-size:13px;line-height:1.8}
-html[data-theme] .bureau-guide .bureau-guide-note{border-radius:var(--ns-small);padding:18px}
-html[data-theme] .bureau-guide .bureau-guide-footer{border-radius:0 0 var(--ns-radius) var(--ns-radius)}
 html[data-theme] .ns-appearance h2{font:400 32px/1.2 var(--font-poster);letter-spacing:0}
 @media(max-width:1100px){html[data-theme] .bureau-public .public-document{margin-left:24px;margin-right:24px}}
 @media(max-width:700px){html[data-theme] .bureau-public .bureau-contract-preview{padding:90px 18px 40px}.ns-demo-modes{width:100%}.ns-demo-modes>button{flex:1;padding:10px 8px;font-size:10px}html[data-theme] .bureau-public .ns-demo-selection{padding:20px}html[data-theme] .bureau-public .ns-demo-selection>div:last-child{flex-wrap:wrap;width:100%}html[data-theme] .bureau-public .ns-demo-selection>div:last-child>button:last-child{flex:1}html[data-theme] .bureau-public .public-document{margin:88px 16px 45px}html[data-theme] .bureau-public .public-document-continuation{margin-top:24px}.ns-document-header{padding:26px}.ns-document-icon{margin-bottom:18px}html[data-theme] .bureau-public .public-document>section{padding:25px}.ns-document-number{position:static;display:block;margin-bottom:13px}html[data-theme] .bureau-public .public-document h2{font-size:20px}html[data-theme] .bureau-public .public-document p{font-size:13px}html[data-theme] .bureau-public .bureau-paths article{padding:25px}html[data-theme] .ns-private .ns-world h2{font-size:23px}}

@@ -8,9 +8,24 @@ import ContractRelay from "./ContractRelay"
 import BureauHeader from "./BureauHeader"
 import AccountMenu from "./AccountMenu"
 import BureauBottomNav from "./BureauBottomNav"
-import BureauGuide, { hasSeenGuide, rememberGuide } from "./BureauGuide"
+import BureauOnboarding from "./foundation/BureauOnboarding"
+import {
+  onboardingPreference,
+  onboardingVisited,
+  rememberOnboardingVisit,
+  resumeOnboarding,
+} from "./foundation/onboarding"
+import FoundationOverview from "./foundation/FoundationOverview"
+import {
+  useOverviewResource,
+  type DailyOverview,
+  type OverviewSummary,
+} from "./foundation/overview-resource"
+import { prioritizeCases } from "./foundation/overview-state"
+import { useFoundationBanner } from "./foundation/banner"
+import { trackFoundationEvent } from "./foundation/analytics"
+import ContractSelectionList from "./ContractSelectionList"
 import ModeSelector from "./ModeSelector"
-import { useAnnouncements } from "./announcements/AnnouncementProvider"
 import Leaderboard from "./community/Leaderboard"
 import Achievements from "./community/Achievements"
 import Bureaus from "./community/Bureaus"
@@ -23,7 +38,6 @@ import AnnouncementCenter from "./admin/AnnouncementCenter"
 import AdminContractRelay from "./admin/AdminContractRelay"
 import ReviewDesk from "./admin/ReviewDesk"
 import type { AdminReview } from "./admin/admin-types"
-import ArchiveNextStep from "./archive/ArchiveNextStep"
 import { useHeroVotes } from "./hero-votes/useHeroVotes"
 import PersonalProgress from "./progress/PersonalProgress"
 import CompletionButton, {
@@ -44,7 +58,9 @@ import {
 } from "./i18n"
 
 const ArchivePage = lazy(() => import("./archive/ArchivePage"))
+const BureauGuide = lazy(() => import("./BureauGuide"))
 const CardReviewDesk = lazy(() => import("./admin/CardReviewDesk"))
+const FoundationAnalytics = lazy(() => import("./admin/FoundationAnalytics"))
 const OwnerArchiveDesk = lazy(() => import("./admin/OwnerArchiveDesk"))
 const OwnerRewards = lazy(() => import("./admin/OwnerRewards"))
 const HeroVotesPage = lazy(() => import("./hero-votes/HeroVotesPage"))
@@ -81,6 +97,7 @@ type User = {
 }
 type SessionPayload = {
   authenticated: boolean
+  returning?: boolean
   user: User
   csrf_token: string
   release: {
@@ -602,6 +619,7 @@ type AdminSystem = {
   server_time: string
 }
 type AdminSection =
+  | "foundation_analytics"
   | "hero_votes"
   | "overview"
   | "users"
@@ -622,6 +640,7 @@ type AdminSection =
   | "system"
 
 const ADMIN_SECTION_PERMISSIONS: Record<AdminSection, string> = {
+  foundation_analytics: "admin.overview.read",
   hero_votes: "hero_votes.read",
   overview: "admin.overview.read",
   users: "users.read",
@@ -644,6 +663,7 @@ const ADMIN_SECTION_PERMISSIONS: Record<AdminSection, string> = {
 
 const ADMIN_SECTION_ORDER: Array<[AdminSection, string]> = [
   ["overview", "Обзор"],
+  ["foundation_analytics", "Аналитика"],
   ["users", "Игроки"],
   ["reviews", "Проверки"],
   ["bureau_reports", "Бюро игроков"],
@@ -705,6 +725,8 @@ type CompanionPairing = {
 type Tab =
   | "hero-votes"
   | "home"
+  | "help"
+  | "progress"
   | "quests"
   | "active"
   | "history"
@@ -981,17 +1003,6 @@ const joinLabel = (value?: string | null, language: Language = "ru") =>
       }).format(new Date(value))
     : "—"
 
-function Icon({ name }: { name: "hq" | "contract" | "case" | "profile" | "admin" }) {
-  const icons = {
-    hq: "house",
-    contract: "file-text",
-    case: "briefcase-business",
-    profile: "user-round",
-    admin: "shield-check",
-  } as const
-  return <SvgIcon name={icons[name]} className="dc-icon" />
-}
-
 function ModeTabs({
   value,
   onChange,
@@ -1033,6 +1044,8 @@ export default function Dashboard({ initialSession }: { initialSession: SessionP
     if (
       [
         "home",
+        "help",
+        "progress",
         "quests",
         "active",
         "history",
@@ -1051,22 +1064,28 @@ export default function Dashboard({ initialSession }: { initialSession: SessionP
     return window.location.pathname.startsWith("/admin/") ? "admin" : "home"
   }
   const [tab, setTabState] = useState<Tab>(tabFromLocation)
-  const { items: announcements } = useAnnouncements()
-  const [guideOpen, setGuideOpen] = useState(
-    () => tabFromLocation() === "home" && !hasSeenGuide(initialSession.user.id),
+  const [companionLink, setCompanionLink] = useState(
+    () => window.location.hash === "#profile/companion",
   )
-  const closeGuide = () => {
-    rememberGuide(user.id)
-    setGuideOpen(false)
-  }
+  const companionHeading = useRef<HTMLHeadingElement>(null)
   const [bureauSlug, setBureauSlug] = useState(
     () => window.location.hash.match(/^#bureaus\/([a-z0-9-]{3,32})$/)?.[1] || "",
   )
   const setTab = useCallback((next: Tab) => {
     setTabState(next)
+    setCompanionLink(false)
     window.location.hash = next === "leaderboard" ? "leaderboards" : next
     window.scrollTo({ top: 0, behavior: "instant" })
   }, [])
+  const openCompanion = () => {
+    setTabState("profile")
+    setCompanionLink(true)
+    window.location.hash = "profile/companion"
+    companionHeading.current?.focus()
+  }
+  useEffect(() => {
+    if (tab === "profile" && companionLink) companionHeading.current?.focus()
+  }, [tab, companionLink])
   const openBureau = (slug: string) => {
     setTabState("bureaus")
     setBureauSlug(slug)
@@ -1077,6 +1096,7 @@ export default function Dashboard({ initialSession }: { initialSession: SessionP
     const apply = () => {
       const next = tabFromLocation()
       setTabState(next)
+      setCompanionLink(window.location.hash === "#profile/companion")
       if (
         ["archive", "studio", "wallet", "cipher", "catalog", "catalogue", "arena"].includes(
           window.location.hash.slice(1).split("/")[0],
@@ -1084,20 +1104,50 @@ export default function Dashboard({ initialSession }: { initialSession: SessionP
       )
         window.history.replaceState(null, "", `#${next}`)
       setBureauSlug(window.location.hash.match(/^#bureaus\/([a-z0-9-]{3,32})$/)?.[1] || "")
-      window.scrollTo({ top: 0, behavior: "instant" })
+      if (window.location.hash !== "#profile/companion")
+        window.scrollTo({ top: 0, behavior: "instant" })
     }
     apply()
     window.addEventListener("hashchange", apply)
     return () => window.removeEventListener("hashchange", apply)
   }, [])
-  const [mode, setMode] = useState<Mode>("STANDARD")
+  const modePreference = "dc.contract-mode:" + initialSession.user.id
+  const [mode, setMode] = useState<Mode>(() => {
+    try {
+      const saved = sessionStorage.getItem(modePreference)
+      if (saved === "RANKED" || saved === "STREET_BRAWL") return saved
+    } catch {
+      // The mode is still remembered in the current tab.
+    }
+    return "STANDARD"
+  })
+  useEffect(() => {
+    try {
+      sessionStorage.setItem(modePreference, mode)
+    } catch {
+      // The current selection remains in memory.
+    }
+  }, [mode, modePreference])
   const [filter, setFilter] = useState<QuestFilter>("ALL")
   const [boardsPayload, setBoardsPayload] = useState<BoardsPayload | null>(null)
   const [boardsLoading, setBoardsLoading] = useState(true)
   const [boardsError, setBoardsError] = useState(false)
   const [historyCases, setHistoryCases] = useState<HistoryCase[]>([])
   const [historyTotal, setHistoryTotal] = useState(0)
+  const [seenResults, setSeenResults] = useState<string[]>(() => {
+    try {
+      const saved: unknown = JSON.parse(
+        localStorage.getItem("dc.result-viewed:" + initialSession.user.id) || "[]",
+      )
+      return Array.isArray(saved)
+        ? saved.filter((id): id is string => typeof id === "string").slice(-24)
+        : []
+    } catch {
+      return []
+    }
+  })
   const [progression, setProgression] = useState<Progression | null>(null)
+  const [progressionError, setProgressionError] = useState(false)
   const [refreshingSteam, setRefreshingSteam] = useState(false)
   const [progressRevision, setProgressRevision] = useState(0)
   const [reviews, setReviews] = useState<ReviewMine[]>([])
@@ -1121,6 +1171,50 @@ export default function Dashboard({ initialSession }: { initialSession: SessionP
   const historyMorePending = useRef(false)
   const xpRef = useRef<HTMLSpanElement>(null)
   const ripple = useRipple()
+  const overview = useOverviewResource<OverviewSummary>(
+    user.id,
+    "/api/foundation/overview",
+    archiveRevision,
+    tab === "home",
+  )
+  const daily = useOverviewResource<DailyOverview>(
+    user.id,
+    "/api/archive/daily-pack?scope=REAL&compact=true",
+    archiveRevision,
+    tab === "home",
+  )
+  const banner = useFoundationBanner(user.id, tab === "home")
+  const recordCompletionView = (boardId: string) => {
+    const updated = [...seenResults.filter((id) => id !== boardId), boardId].slice(-24)
+    setSeenResults(updated)
+    try {
+      localStorage.setItem("dc.result-viewed:" + user.id, JSON.stringify(updated))
+    } catch {
+      // The current session still remembers the result.
+    }
+    void trackFoundationEvent(user.id, csrf, "completion_viewed")
+  }
+  useEffect(() => {
+    const trackVisit = () => {
+      if (document.visibilityState !== "visible") return
+      void trackFoundationEvent(user.id, csrf, "session_started")
+      if (tab === "quests") void trackFoundationEvent(user.id, csrf, "contract_board_viewed")
+      if (tab === "collection" || tab === "all-collection")
+        void trackFoundationEvent(user.id, csrf, "collection_viewed")
+      if (tab === "bureaus") void trackFoundationEvent(user.id, csrf, "community_viewed")
+      if (tab === "profile" || tab === "collection") rememberOnboardingVisit(user.id, tab)
+    }
+    trackVisit()
+    document.addEventListener("visibilitychange", trackVisit)
+    return () => document.removeEventListener("visibilitychange", trackVisit)
+  }, [user.id, csrf, tab])
+  useEffect(() => {
+    const reset = Date.parse(daily.data?.next_reset_at ?? "")
+    if (!Number.isFinite(reset)) return
+    const delay = Math.max(1000, Math.min(86_401_000, reset - Date.now() + 250))
+    const timer = window.setTimeout(daily.retry, delay)
+    return () => window.clearTimeout(timer)
+  }, [daily.data?.next_reset_at, daily.retry])
   const history = useMemo(
     () => historyCases.flatMap((historyCase) => historyCase.items),
     [historyCases],
@@ -1212,10 +1306,14 @@ export default function Dashboard({ initialSession }: { initialSession: SessionP
       historyMorePending.current = false
     }
   }, [csrf, historyCases.length])
-  const loadProgression = useCallback(
-    async () => setProgression(await api<Progression>("/api/progression", csrf)),
-    [csrf],
-  )
+  const loadProgression = useCallback(async () => {
+    try {
+      setProgression(await api<Progression>("/api/progression", csrf))
+      setProgressionError(false)
+    } catch {
+      setProgressionError(true)
+    }
+  }, [csrf])
   const loadReviews = useCallback(
     async () => setReviews((await api<{ items: ReviewMine[] }>("/api/reviews/mine", csrf)).items),
     [csrf],
@@ -1286,12 +1384,35 @@ export default function Dashboard({ initialSession }: { initialSession: SessionP
   const pendingReviewForBoard = reviews.find(
     (item) => item.board_id === board?.id && item.status === "PENDING",
   )
-  const activeBoards = boards.filter(
-    (item) =>
-      ["LOCKED", "VERIFYING", "REVIEW_REQUIRED"].includes(item.status) &&
-      item.options.some((option) => option.selected),
+  const activeBoards = prioritizeCases(
+    boards.filter(
+      (item) =>
+        ["LOCKED", "VERIFYING", "REVIEW_REQUIRED"].includes(item.status) &&
+        item.options.some((option) => option.selected),
+    ),
   )
   const readyCases = historyCases.filter(canShowCompletion).slice(0, 6)
+  const recentResult = readyCases.find((item) => {
+    const date = Date.parse(item.settled_at || "")
+    return date <= clock && clock - date < 86_400_000 && !seenResults.includes(item.board_id)
+  })
+  const navBadges = {
+    active: activeBoards.length
+      ? language === "ru"
+        ? "Есть активное дело"
+        : "Active case available"
+      : undefined,
+    history: recentResult ? (language === "ru" ? "Новый результат" : "New result") : undefined,
+    packs:
+      daily.data?.available && !daily.error
+        ? language === "ru"
+          ? "Конверт доступен"
+          : "Daily pack available"
+        : undefined,
+  }
+  useEffect(() => {
+    if (tab === "quests" && board) rememberOnboardingVisit(user.id, "quests")
+  }, [tab, board?.id, user.id])
 
   useEffect(() => {
     if (!xpRef.current) return
@@ -1301,7 +1422,10 @@ export default function Dashboard({ initialSession }: { initialSession: SessionP
   }, [totalXp, mode])
 
   const toggle = (id: string) => {
-    if (!board || board.status !== "OFFERED") return
+    if (!board || board.status !== "OFFERED" || !board.options.some((option) => option.id === id))
+      return
+    if (!selectedSet.has(id) && selectedSet.size < 3)
+      void trackFoundationEvent(user.id, csrf, "contract_selected")
     setSelected((previous) => {
       const current = new Set(previous[mode])
       if (current.has(id)) current.delete(id)
@@ -1511,6 +1635,8 @@ export default function Dashboard({ initialSession }: { initialSession: SessionP
     language === "ru"
       ? {
           home: "Обзор",
+          help: "Как это работает",
+          progress: "Личный прогресс",
           quests: "Контракты",
           active: "Активное дело",
           history: "История дел",
@@ -1526,6 +1652,8 @@ export default function Dashboard({ initialSession }: { initialSession: SessionP
         }
       : {
           home: "Overview",
+          help: "How it works",
+          progress: "Personal progress",
           quests: "Contracts",
           active: "Active case",
           history: "Case history",
@@ -1539,42 +1667,59 @@ export default function Dashboard({ initialSession }: { initialSession: SessionP
           profile: "Profile",
           admin: "Staff console",
         }
-  const nav: Array<[Tab, string, "hq" | "contract" | "case" | "profile" | "admin"]> = [
-    ["home", language === "ru" ? "ГЛАВНАЯ" : "HOME", "hq"],
-    ["quests", language === "ru" ? "КОНТРАКТЫ" : "CONTRACTS", "contract"],
-    ["active", language === "ru" ? "АКТИВНОЕ ДЕЛО" : "ACTIVE CASE", "case"],
-    ["history", language === "ru" ? "ИСТОРИЯ ДЕЛ" : "CASE HISTORY", "case"],
-    ["collection", language === "ru" ? "КОЛЛЕКЦИЯ" : "COLLECTION", "case"],
-    ["packs", language === "ru" ? "ЕЖЕДНЕВНЫЙ КОНВЕРТ" : "DAILY PACK", "case"],
-    ["all-collection", language === "ru" ? "ВСЯ КОЛЛЕКЦИЯ" : "ALL COLLECTION", "case"],
-    ["achievements", language === "ru" ? "ДОСТИЖЕНИЯ" : "ACHIEVEMENTS", "case"],
-    ["bureaus", language === "ru" ? "СООБЩЕСТВА" : "COMMUNITIES", "hq"],
-    ["leaderboard", language === "ru" ? "РЕЙТИНГ" : "LEADERBOARD", "case"],
-    ["profile", language === "ru" ? "ПРОФИЛЬ" : "PROFILE", "profile"],
-  ]
-  if (user.is_staff) nav.push(["admin", "ADMIN", "admin"])
-  if (heroVotes.data?.enabled)
-    nav.splice(nav.length - (user.is_staff ? 1 : 0), 0, [
-      "hero-votes",
-      language === "ru" ? "ГОЛОСОВАНИЕ" : "HERO VOTES",
-      "hq",
-    ])
+  const nav = Object.entries(pageLabels)
+    .filter(
+      ([id]) =>
+        (id !== "admin" || user.is_staff) && (id !== "hero-votes" || heroVotes.data?.enabled),
+    )
+    .map(([id, label]) => ({
+      id,
+      label,
+      status: id === "active" || id === "history" || id === "packs" ? navBadges[id] : undefined,
+    }))
+
+  const renderProgress = (compact: boolean) => (
+    <PersonalProgress
+      accountId={user.id}
+      mode={mode}
+      currentBoard={board}
+      reloadKey={`${progressRevision}:${board?.id || ""}:${board?.generation ?? ""}:${board?.status || ""}`}
+      onModeChange={(next) => {
+        setMode(next)
+        setFilter("ALL")
+      }}
+      onRecommend={openGoalSigning}
+      onRefresh={reloadAll}
+      onOpenCase={() => setTab("active")}
+      onOpenProgress={compact ? () => setTab("progress") : undefined}
+      activeCaseCount={activeBoards.length}
+      modeStatuses={Object.fromEntries(
+        boards.map((item) => [item.game_match_mode, statusLabel(item.status, language)]),
+      )}
+    />
+  )
+  const onboardingFacts = {
+    createdAt: user.created_at,
+    signed: activeBoards.length > 0 ? true : (overview.data?.has_signed_case ?? null),
+    verified: overview.data?.has_verified_result ?? null,
+    openedDailyPack: daily.data?.claimed_at
+      ? true
+      : (overview.data?.has_claimed_daily_pack ?? null),
+    visitedBoard: onboardingVisited(user.id, "quests"),
+    visitedProfile: onboardingVisited(user.id, "profile"),
+    visitedCollection: onboardingVisited(user.id, "collection"),
+  }
+  const created = Date.parse(user.created_at ?? "")
+  const newPlayer =
+    onboardingFacts.signed === false && created <= clock && clock - created < 7 * 86_400_000
 
   return (
     <CompletionProvider
       key={user.id}
+      onViewed={recordCompletionView}
       className="dc-dashboard dc-redesign dc-v3 dc-vnext bureau-app ns-private ritual-workspace min-h-screen community-dashboard"
     >
       <BureauAtmosphere />
-      {guideOpen && !signing && !announcements.some((item) => item.presentation === "MODAL") && (
-        <BureauGuide
-          onClose={closeGuide}
-          onNavigate={(next) => {
-            closeGuide()
-            setTab(next)
-          }}
-        />
-      )}
       {signing && (
         <ContractSigning
           key={user.id}
@@ -1614,15 +1759,13 @@ export default function Dashboard({ initialSession }: { initialSession: SessionP
       )}
       <BureauHeader
         breadcrumb={pageLabels[tab]}
-        onHelp={() => setGuideOpen(true)}
+        onHelp={() => setTab("help")}
         active={tab}
-        mobileItems={Object.entries(pageLabels)
-          .filter(([id]) => id !== "admin" || user.is_staff)
-          .filter(([id]) => id !== "hero-votes" || heroVotes.data?.enabled)
-          .map(([id, label]) => ({ id, label }))}
-        items={nav
-          .filter(([id]) => !["profile", "active", "history", "achievements"].includes(id))
-          .map(([id, label]) => ({ id, label }))}
+        mobileItems={nav}
+        items={nav.filter(
+          ({ id }) =>
+            !["profile", "active", "history", "achievements", "help", "progress"].includes(id),
+        )}
         onNavigate={(id) => setTab(id as Tab)}
         mobileActions={
           <button
@@ -1641,7 +1784,7 @@ export default function Dashboard({ initialSession }: { initialSession: SessionP
                 companion?.online ? "online" : companion?.paired ? "paired" : ""
               }`}
               type="button"
-              onClick={() => setTab("profile")}
+              onClick={openCompanion}
               title={language === "ru" ? "Состояние Компаньона" : "Companion status"}
             >
               <i />
@@ -1668,7 +1811,7 @@ export default function Dashboard({ initialSession }: { initialSession: SessionP
               level={level}
               csrf={csrf}
               revision={archiveRevision}
-              onOpenGuide={() => setGuideOpen(true)}
+              onOpenGuide={() => setTab("help")}
               onNavigate={(next) => setTab(next as Tab)}
             />
           </>
@@ -1681,9 +1824,10 @@ export default function Dashboard({ initialSession }: { initialSession: SessionP
         votesEnabled={Boolean(heroVotes.data?.enabled)}
         user={user}
         level={level}
+        badges={navBadges}
         onNavigate={(next) => setTab(next as Tab)}
       />
-      <BureauBottomNav active={tab} onNavigate={(next) => setTab(next as Tab)} />
+      <BureauBottomNav active={tab} badges={navBadges} onNavigate={(next) => setTab(next as Tab)} />
 
       <div className="dc-app-shell dc-app-shell-topnav">
         <main className="dc-workspace">
@@ -1691,7 +1835,7 @@ export default function Dashboard({ initialSession }: { initialSession: SessionP
             <span>
               {language === "ru" ? "КАБИНЕТ ИГРОКА" : "PLAYER WORKSPACE"} / <b>{pageLabels[tab]}</b>
             </span>
-            <button type="button" onClick={() => setGuideOpen(true)}>
+            <button type="button" onClick={() => setTab("help")}>
               {language === "ru" ? "Как это работает?" : "How does it work?"}
             </button>
           </div>
@@ -1715,73 +1859,68 @@ export default function Dashboard({ initialSession }: { initialSession: SessionP
           )}
 
           {tab === "home" && (
-            <>
-              <section className="ns-home-heading">
-                <div>
-                  <p className="ns-eyebrow">
-                    {language === "ru"
-                      ? "DEADLOCK CONTRACTS / ЛИЧНЫЙ КАБИНЕТ"
-                      : "DEADLOCK CONTRACTS / YOUR WORKSPACE"}
-                  </p>
-                  <h1>
-                    {language === "ru" ? "На связи, " : "Welcome back, "}
-                    {shownName}
-                  </h1>
-                  <p>
-                    {language === "ru"
-                      ? "Выбирай контракты. Играй матчи. Собирай карточки."
-                      : "Choose contracts. Play matches. Collect cards."}
-                  </p>
-                </div>
-                <button className="dc-ghost" onClick={() => setTab("profile")}>
-                  <SvgIcon name="video" size={18} /> Companion{" "}
-                  <SvgIcon name="arrow-up-right" size={16} />
-                </button>
-              </section>
-              <PersonalProgress
-                accountId={user.id}
-                mode={mode}
-                currentBoard={board}
-                reloadKey={`${progressRevision}:${board?.id || ""}:${board?.generation ?? ""}:${board?.status || ""}`}
-                onModeChange={(next) => {
-                  setMode(next)
-                  setFilter("ALL")
-                }}
-                onRecommend={openGoalSigning}
-                onRefresh={reloadAll}
-                onOpenCase={() => setTab("active")}
-                activeCaseCount={activeBoards.length}
-                modeStatuses={Object.fromEntries(
-                  boards.map((item) => [item.game_match_mode, statusLabel(item.status, language)]),
-                )}
+            <FoundationOverview
+              accountId={user.id}
+              name={shownName}
+              profile={user}
+              progression={progression}
+              progressionError={progressionError}
+              retryProgression={loadProgression}
+              summary={overview}
+              pack={daily}
+              banner={banner}
+              boardsPending={!boardsPayload && boardsLoading}
+              boardsError={boardsError}
+              retryBoards={() => void loadBoards()}
+              activeCases={activeBoards.map((item) => ({
+                status: item.status,
+                provider_status: item.provider_status,
+                title:
+                  item.options
+                    .filter((option) => option.selected)
+                    .map((option) => localizedContractTitle(option, language))[0] ??
+                  pageLabels.active,
+                mode: MODE_META[item.game_match_mode].title,
+              }))}
+              recentResult={recentResult?.board_id ?? null}
+              isNew={newPlayer}
+              returning={Boolean(initialSession.returning)}
+              companion={companion}
+              onNavigate={setTab}
+              onBureau={openBureau}
+              onCompanion={openCompanion}
+              onboarding={
+                <BureauOnboarding
+                  accountId={user.id}
+                  csrf={csrf}
+                  facts={onboardingFacts}
+                  onNavigate={setTab}
+                  onHelp={() => setTab("help")}
+                />
+              }
+              recommendation={renderProgress(true)}
+            />
+          )}
+          {tab === "progress" && renderProgress(false)}
+          {tab === "help" && (
+            <Suspense
+              fallback={
+                <p role="status">{language === "ru" ? "Загружаем справку…" : "Loading guide…"}</p>
+              }
+            >
+              <BureauGuide
+                onNavigate={setTab}
+                onBack={() => setTab("home")}
+                onResume={
+                  onboardingPreference(user.id) === "paused"
+                    ? () => {
+                        resumeOnboarding(user.id)
+                        setTab("home")
+                      }
+                    : undefined
+                }
               />
-              <section className="ritual-account-summary">
-                <div>
-                  <small>{language === "ru" ? "ТВОЙ ПРОГРЕСС" : "YOUR PROGRESS"}</small>
-                  <strong>
-                    {language === "ru" ? "Уровень" : "Level"} {level}
-                  </strong>
-                  <span>
-                    {(progression?.total_xp ?? user.xp).toLocaleString(locale)} XP ·{" "}
-                    {language === "ru" ? "всего" : "total"}
-                  </span>
-                </div>
-                <div>
-                  <small>{language === "ru" ? "ДО СЛЕДУЮЩЕГО УРОВНЯ" : "TO NEXT LEVEL"}</small>
-                  <strong>{progression?.xp_to_next ?? "—"} XP</strong>
-                  <progress
-                    value={progression?.progress_pct ?? 0}
-                    max="100"
-                    aria-label={language === "ru" ? "Прогресс уровня" : "Level progress"}
-                  />
-                </div>
-                <button className="dc-ghost" onClick={() => setTab("profile")}>
-                  {language === "ru" ? "Открыть профиль" : "Open profile"}
-                  <SvgIcon name="arrow-up-right" size={18} />
-                </button>
-              </section>
-              <ArchiveNextStep revision={archiveRevision} onNavigate={(next) => setTab(next)} />
-            </>
+            </Suspense>
           )}
 
           {tab === "quests" && (
@@ -2046,7 +2185,7 @@ export default function Dashboard({ initialSession }: { initialSession: SessionP
                               </span>
                             )}
                             <span>
-                              {language === "ru" ? "Шанс" : "Drop chance"} ~
+                              {language === "ru" ? "Шанс появления" : "Draw chance"} ~
                               {number(option.drop_chance_pct, language)}%
                             </span>
                           </span>
@@ -2062,16 +2201,13 @@ export default function Dashboard({ initialSession }: { initialSession: SessionP
                     })}
                   </section>
 
-                  {selectedOptions.length > 0 && (
-                    <ul
-                      className="dc-motion-selected-pills"
-                      aria-label={language === "ru" ? "Выбранные контракты" : "Selected contracts"}
-                    >
-                      {selectedOptions.map((option) => (
-                        <li key={option.id}>{localizedContractTitle(option, language)}</li>
-                      ))}
-                    </ul>
-                  )}
+                  <ContractSelectionList
+                    items={selectedOptions.map((option) => ({
+                      id: option.id,
+                      title: localizedContractTitle(option, language),
+                    }))}
+                    onRemove={board.status === "OFFERED" && !busy ? toggle : undefined}
+                  />
 
                   <section
                     className={`dc-motion-selection-tray ${
@@ -2256,29 +2392,41 @@ export default function Dashboard({ initialSession }: { initialSession: SessionP
                                   )}
                                 </p>
                               </div>
-                              <strong>+{option.reward_xp} XP</strong>
+                              <div className="foundation-case-task">
+                                <strong>+{option.reward_xp} XP</strong>
+                                <span>{statusLabel(option.status, language)}</span>
+                              </div>
                             </div>
                           ))}
                         </div>
                         <div className="dc-active-meta">
                           <span>
-                            {language === "ru" ? "ПОПЫТКИ" : "ATTEMPTS"}
+                            {language === "ru" ? "ИСПОЛЬЗОВАНО ПОПЫТОК" : "ATTEMPTS USED"}
                             <b>
                               {activeBoard.attempts_used}/{activeBoard.max_attempts}
                             </b>
                           </span>
                           <span>
                             {language === "ru" ? "ДО ЗАКРЫТИЯ" : "EXPIRES IN"}
-                            <b>{countdownHms(expiry, clock)}</b>
+                            <b>
+                              <time dateTime={expiry} title={fmt(expiry, language)}>
+                                {countdownHms(expiry, clock)}
+                              </time>
+                            </b>
                           </span>
                           <span>
-                            {language === "ru" ? "КОМПАНЬОН" : "COMPANION"}
+                            {language === "ru" ? "ОСТАЛОСЬ ПОПЫТОК" : "ATTEMPTS LEFT"}
+                            <b>{activeBoard.attempts_remaining}</b>
+                          </span>
+                          <span>
+                            {language === "ru"
+                              ? "НАГРАДА ЗА ВСЕ ЗАДАНИЯ"
+                              : "REWARD FOR ALL CONTRACTS"}
                             <b>
-                              {companion?.online
-                                ? "ONLINE"
-                                : companion?.paired
-                                  ? "OFFLINE"
-                                  : "NOT PAIRED"}
+                              {lockedOptions
+                                .reduce((xp, option) => xp + option.reward_xp, 0)
+                                .toLocaleString(locale)}{" "}
+                              XP
                             </b>
                           </span>
                         </div>
@@ -2576,7 +2724,7 @@ export default function Dashboard({ initialSession }: { initialSession: SessionP
                 }}
                 progression={progression}
               />
-              <details className="profile-account-settings">
+              <details className="profile-account-settings" open={companionLink || undefined}>
                 <summary>
                   {language === "ru"
                     ? "Настройки аккаунта · Компаньон, Relay и данные"
@@ -2602,7 +2750,9 @@ export default function Dashboard({ initialSession }: { initialSession: SessionP
                     <p className="dc-eyebrow">COMPANION / OVERWOLF</p>
                     <div className="dc-companion-card-head">
                       <div>
-                        <h2>Deadlock Contracts Companion</h2>
+                        <h2 ref={companionHeading} tabIndex={-1}>
+                          Deadlock Contracts Companion
+                        </h2>
                         <p>
                           {t(
                             language,
@@ -2835,7 +2985,7 @@ function AdminConsole({
   setError: (value: string) => void
   setNotice: (value: string) => void
 }) {
-  const { copy, language } = useAdminCopy()
+  const { copy, language, catalogStatus, retryCatalog } = useAdminCopy()
 
   const [auth, setAuth] = useState<AdminAuthStatus | null>(null)
   const [code, setCode] = useState("")
@@ -3407,17 +3557,37 @@ function AdminConsole({
     }
   }
 
-  if (!auth)
+  if (!auth || catalogStatus === "idle" || catalogStatus === "loading")
     return (
       <section className="dc-admin-shell">
-        <article className="dc-panel">
-          <h2>{copy("Проверяем административную сессию…")}</h2>
+        <article className="dc-panel" role="status">
+          <h2>
+            {language === "ru"
+              ? "Открываем административную панель…"
+              : "Opening the admin console…"}
+          </h2>
         </article>
       </section>
     )
+  const catalogNotice =
+    catalogStatus === "retrying" ? (
+      <p role="status">{language === "ru" ? "Загружаем перевод…" : "Loading translations…"}</p>
+    ) : catalogStatus === "error" ? (
+      <div className="dc-panel" role="alert">
+        <p>
+          {language === "ru"
+            ? "Не удалось загрузить перевод панели."
+            : "Could not load the console translation."}
+        </p>
+        <button className="dc-ghost" type="button" onClick={retryCatalog}>
+          {language === "ru" ? "Повторить" : "Retry"}
+        </button>
+      </div>
+    ) : null
   if (!auth.elevated)
     return (
       <section className="dc-admin-shell">
+        {catalogNotice}
         <article className="dc-admin-unlock">
           <p className="dc-eyebrow">{copy("SECURE ZONE / TOTP")}</p>
           <h1>{copy("Admin console")}</h1>
@@ -3465,6 +3635,7 @@ function AdminConsole({
 
   return (
     <section className="dc-admin-shell">
+      {catalogNotice}
       <div className="dc-admin-head">
         <div>
           <p className="dc-eyebrow">{copy("OPERATIONS CONSOLE / ADMIN MAX")}</p>
@@ -3510,6 +3681,12 @@ function AdminConsole({
           ))}
         </select>
       </label>
+
+      {section === "foundation_analytics" && (
+        <Suspense fallback={<p role="status">{copy("Загрузка аналитики…")}</p>}>
+          <FoundationAnalytics csrf={csrf} />
+        </Suspense>
+      )}
 
       {section === "overview" && (
         <>

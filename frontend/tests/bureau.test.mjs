@@ -1,11 +1,15 @@
 import { after, before, test } from "node:test"
 import assert from "node:assert/strict"
+import { readFileSync } from "node:fs"
 import path from "node:path"
 import { build } from "vite"
 import { JSDOM } from "jsdom"
 
 let code
 const environments = []
+const guideCopy = JSON.parse(
+  readFileSync(new URL("../src/foundation/guide-copy.json", import.meta.url), "utf8"),
+)
 before(async () => {
   const result = await build({
     configFile: false,
@@ -23,7 +27,7 @@ before(async () => {
 })
 after(() => environments.forEach((dom) => dom.window.close()))
 const future = () => new Date(Date.now() + 86_400_000).toISOString()
-const session = (id = "account-one") => ({
+const session = (id = "account-one", experienced = false) => ({
   authenticated: true,
   csrf_token: "csrf",
   release: { version: "test" },
@@ -41,7 +45,7 @@ const session = (id = "account-one") => ({
     is_staff: false,
     permissions: [],
     can_manage_roles: false,
-    created_at: null,
+    created_at: experienced ? "2024-01-01T00:00:00Z" : new Date(Date.now() - 60_000).toISOString(),
   },
 })
 const boards = () => ({
@@ -75,7 +79,7 @@ const boards = () => ({
     })),
   })),
 })
-function runtime({ hash = "", language = "ru", announcements = [] } = {}) {
+function runtime({ hash = "", language = "ru", experienced = false } = {}) {
   const dom = new JSDOM('<button id="trigger">Help</button><main id="mount"></main>', {
     url: `https://qa.invalid/${hash}`,
     runScripts: "outside-only",
@@ -103,14 +107,37 @@ function runtime({ hash = "", language = "ru", announcements = [] } = {}) {
   const calls = []
   w.fetch = async (url, init = {}) => {
     calls.push({ url, init })
+    if (/guide-copy.*\.json/.test(url)) return { ok: true, json: async () => guideCopy }
+    if (url.startsWith("/api/foundation/overview")) {
+      return {
+        ok: true,
+        json: async () => ({
+          completed_cases: experienced ? 1 : 0,
+          weekly: [],
+          collection: { items: 0, designs: 0 },
+          bureau: null,
+          has_signed_case: experienced,
+          has_verified_result: experienced,
+          has_claimed_daily_pack: false,
+        }),
+      }
+    }
     const body = url.startsWith("/api/announcements/active")
-      ? { items: announcements, server_time: new Date().toISOString() }
+      ? { items: [], server_time: new Date().toISOString() }
       : url.startsWith("/api/boards/today")
         ? boards()
         : url.startsWith("/api/history")
           ? { cases: [], total: 0 }
           : url.startsWith("/api/progression")
-            ? { level: 1, total_xp: 0, xp_to_next: 100, contracts_completed: 0, progress_pct: 0 }
+            ? {
+                level: 1,
+                total_xp: 0,
+                level_xp: 0,
+                next_level_xp: 100,
+                xp_to_next: 100,
+                contracts_completed: 0,
+                progress_pct: 0,
+              }
             : url.startsWith("/api/reviews/mine")
               ? { items: [] }
               : url.startsWith("/api/companion/status")
@@ -120,7 +147,12 @@ function runtime({ hash = "", language = "ru", announcements = [] } = {}) {
                   : url.startsWith("/api/bureaus")
                     ? { my_bureau: null, items: [] }
                     : url.startsWith("/api/preferences")
-                      ? { user: session().user }
+                      ? {
+                          user: {
+                            ...session("account-one", experienced).user,
+                            ...JSON.parse(init.body || "{}"),
+                          },
+                        }
                       : null
     if (body === null) throw new Error(`Unexpected request ${url}`)
     return { ok: true, json: async () => body }
@@ -131,69 +163,34 @@ function runtime({ hash = "", language = "ru", announcements = [] } = {}) {
 const button = (doc, text) =>
   [...doc.querySelectorAll("button")].find((item) => item.textContent.includes(text))
 
-test("first visit explains the bureau, can skip, remembers this account and reopens on request", async () => {
-  const { api, doc } = runtime()
+test("first visit can skip the optional briefing and open the full help route later", async () => {
+  const { api, doc, w } = runtime()
   let root
   await api.act(async () => {
     root = api.mountDashboard(doc.getElementById("mount"), session())
   })
-  assert.ok(doc.querySelector(".bureau-guide[open]"))
-  assert.match(doc.activeElement.textContent, /Ваш матч/)
+  assert.ok(doc.querySelector(".foundation-onboarding"))
+  assert.ok(!doc.querySelector("dialog[open]"))
   assert.equal(doc.querySelector(".dc-mobile-bottom-nav [aria-current=page]").textContent, "Обзор")
   assert.equal(doc.querySelectorAll(".dc-mobile-bottom-nav button").length, 5)
-  assert.equal(doc.querySelector(".dc-home-archive-callout .dc-auth-account-button"), null)
-  await api.act(async () => button(doc, "Осмотрюсь сам").click())
-  assert.equal(doc.querySelector(".bureau-guide"), null)
-  assert.equal(api.hasSeenGuide("account-one"), true)
-  assert.equal(api.hasSeenGuide("account-two"), false)
+  await api.act(async () => button(doc, "Пропустить").click())
+  assert.ok(!doc.querySelector(".foundation-onboarding"))
+  assert.equal(api.onboardingPreference("account-one"), "skipped")
+  assert.equal(api.onboardingPreference("account-two"), "new")
   await api.act(async () => root.unmount())
   await api.act(async () => {
     root = api.mountDashboard(doc.getElementById("mount"), session())
   })
-  assert.equal(doc.querySelector(".bureau-guide"), null)
-  await api.act(async () => button(doc, "Как это работает?").click())
-  assert.ok(doc.querySelector(".bureau-guide[open]"))
+  assert.ok(!doc.querySelector(".foundation-onboarding"))
+  await api.act(async () => doc.querySelector(".ns-sidebar [data-nav=help]").click())
+  assert.equal(w.location.hash, "#help")
+  assert.equal(doc.querySelector(".foundation-guide h1").textContent, "Как это работает")
+  assert.equal(
+    doc.querySelector(".ns-sidebar [data-nav=help]").getAttribute("aria-current"),
+    "page",
+  )
   await api.act(async () => root.unmount())
 })
-
-for (const language of ["ru", "en"])
-  test(`${language} guide puts match verification before cards across four manual pages, actual destinations, Escape and focus restoration`, async () => {
-    const { api, doc, w } = runtime({ language })
-    const actions = []
-    let root
-    const props = { onClose: () => actions.push("close"), onNavigate: (tab) => actions.push(tab) }
-    doc.getElementById("trigger").focus()
-    await api.act(async () => {
-      root = api.mountGuide(doc.getElementById("mount"), props)
-    })
-    assert.equal(doc.querySelectorAll(".bureau-guide-pages button").length, 4)
-    await api.act(async () => doc.querySelector(".bureau-guide-content>.bureau-action").click())
-    assert.equal(actions.pop(), "quests")
-    await api.act(async () => button(doc, language === "ru" ? "Дальше" : "Next").click())
-    assert.match(
-      doc.querySelector(".bureau-guide-content").textContent,
-      language === "ru" ? /проверки матча/ : /match verification/,
-    )
-    await api.act(async () => doc.querySelector(".bureau-guide-content>.bureau-action").click())
-    assert.equal(actions.pop(), "active")
-    await api.act(async () => button(doc, language === "ru" ? "Дальше" : "Next").click())
-    assert.match(
-      doc.querySelector(".bureau-guide-note").textContent,
-      language === "ru" ? /полночь UTC/ : /midnight UTC/,
-    )
-    await api.act(async () => doc.querySelector(".bureau-guide-content>.bureau-action").click())
-    assert.equal(actions.pop(), "packs")
-    await api.act(async () => button(doc, language === "ru" ? "Дальше" : "Next").click())
-    await api.act(async () => doc.querySelector(".bureau-guide-content>.bureau-action").click())
-    assert.equal(actions.pop(), "bureaus")
-    assert.equal(doc.activeElement, doc.querySelector(".bureau-guide h2"))
-    await api.act(async () =>
-      doc.querySelector("dialog").dispatchEvent(new w.Event("cancel", { cancelable: true })),
-    )
-    assert.equal(actions.pop(), "close")
-    await api.act(async () => root.unmount())
-    assert.equal(doc.activeElement.id, "trigger")
-  })
 
 test("deep-linked board stays open; native mode changes board and resets category while keeping each mode's draft", async () => {
   const { api, doc, w, calls } = runtime({ hash: "#quests" })
@@ -201,7 +198,7 @@ test("deep-linked board stays open; native mode changes board and resets categor
   await api.act(async () => {
     root = api.mountDashboard(doc.getElementById("mount"), session())
   })
-  assert.equal(doc.querySelector(".bureau-guide"), null)
+  assert.ok(!doc.querySelector(".foundation-guide"))
   assert.equal(
     doc.querySelector(".dc-mobile-bottom-nav [aria-current=page]").textContent,
     "Контракты",
@@ -230,34 +227,35 @@ test("deep-linked board stays open; native mode changes board and resets categor
   })
   assert.equal(cards()[0].getAttribute("aria-pressed"), "true")
   assert.equal(cards()[1].getAttribute("aria-pressed"), "false")
-  assert.equal(calls.filter(({ init }) => init.method === "POST").length, 0)
+  assert.equal(
+    calls.filter(({ url, init }) => url.startsWith("/api/boards/") && init.method === "POST")
+      .length,
+    0,
+  )
   await api.act(async () => root.unmount())
 })
 
-test("pending mandatory announcements defer the introduction without marking it complete", async () => {
-  const { api, doc } = runtime({
-    announcements: [
-      { id: "notice", revision: 1, title: "Maintenance", presentation: "MODAL", ends_at: future() },
-    ],
-  })
+test("an experienced account opens the overview without a novice briefing", async () => {
+  const { api, doc } = runtime({ experienced: true })
   let root
   await api.act(async () => {
-    root = api.mountDashboard(doc.getElementById("mount"), session())
+    root = api.mountDashboard(doc.getElementById("mount"), session("account-one", true))
   })
-  assert.equal(doc.querySelector(".bureau-guide"), null)
-  assert.equal(api.hasSeenGuide("account-one"), false)
+  assert.ok(!doc.querySelector(".foundation-onboarding"))
+  assert.ok(!doc.querySelector("dialog[open]"))
+  assert.equal(api.onboardingPreference("account-one"), "new")
   await api.act(async () => root.unmount())
 })
 
-test("disabled storage never blocks the guide or account navigation", () => {
+test("disabled storage keeps onboarding and account navigation usable", () => {
   const { api, w } = runtime()
   Object.defineProperty(w, "localStorage", {
     get() {
       throw new Error("storage blocked")
     },
   })
-  assert.equal(api.hasSeenGuide("private"), false)
-  assert.doesNotThrow(() => api.rememberGuide("private"))
+  assert.equal(api.onboardingPreference("private"), "new")
+  assert.doesNotThrow(() => api.saveOnboardingPreference("private", "skipped"))
 })
 
 test("background history refresh retains all loaded pages and updates older verdicts", async () => {

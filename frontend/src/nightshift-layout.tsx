@@ -1,6 +1,7 @@
 import Icon, { type IconName } from "./icons/Icon"
 import BrandLogo from "./BrandLogo"
 import { useLanguage } from "./i18n"
+import { BureauNavigationStatus, type BureauNavigationBadges } from "./bureau-navigation"
 import { publicUrl } from "./publicRoutes"
 import daybreak from "./imports/city/uptown_02.webp"
 import archive from "./imports/city/central_park_01.webp"
@@ -12,6 +13,7 @@ export function NightshiftNav({
   votesEnabled = false,
   user,
   level,
+  badges = {},
   onNavigate,
 }: {
   active: string
@@ -19,6 +21,7 @@ export function NightshiftNav({
   votesEnabled?: boolean
   user?: { display_name: string; avatar_url: string | null }
   level?: number
+  badges?: BureauNavigationBadges
   onNavigate: (tab: string) => void
 }) {
   const { language } = useLanguage(),
@@ -28,6 +31,11 @@ export function NightshiftNav({
       label: ru ? "ИГРА" : "PLAY",
       links: [
         ["home", ru ? "Обзор" : "Overview", "house"],
+        [
+          "progress",
+          ru ? "Личный прогресс" : "Personal progress",
+          "chart-no-axes-column-increasing",
+        ],
         ["quests", ru ? "Контракты" : "Contracts", "file-text"],
         ["active", ru ? "Активное дело" : "Active case", "briefcase-business"],
         ["history", ru ? "История дел" : "Case history", "archive"],
@@ -56,7 +64,13 @@ export function NightshiftNav({
               ] as [string, string, IconName],
             ]
           : []),
+      ],
+    },
+    {
+      label: ru ? "КАБИНЕТ" : "ACCOUNT",
+      links: [
         ["profile", ru ? "Профиль" : "Profile", "user-round"],
+        ["help", ru ? "Как это работает" : "How it works", "book-open"],
         ...(staff
           ? [
               ["admin", ru ? "Управление" : "Staff console", "shield-check"] as [
@@ -93,7 +107,10 @@ export function NightshiftNav({
               >
                 <Icon name={icon} size={18} />
                 <span>{label}</span>
-                {active === id && <i />}
+                {(id === "active" || id === "history" || id === "packs") && (
+                  <BureauNavigationStatus label={badges[id]} />
+                )}
+                {active === id && <i aria-hidden="true" />}
               </button>
             ))}
           </div>

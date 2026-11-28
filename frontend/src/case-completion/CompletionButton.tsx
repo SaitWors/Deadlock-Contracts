@@ -33,7 +33,7 @@ export function canShowCompletion(value: CompletionCase): boolean {
   )
 }
 
-type CompletionProps = { boardId: string; onClose: () => void }
+type CompletionProps = { boardId: string; onClose: () => void; onReady?: (boardId: string) => void }
 type CompletionContextValue = {
   show: (boardId: string) => Promise<void>
   busy: boolean
@@ -48,9 +48,11 @@ const CompletionContext = createContext<CompletionContextValue | null>(null)
 export function CompletionProvider({
   children,
   className,
+  onViewed,
 }: {
   children: ReactNode
   className?: string
+  onViewed?: (boardId: string) => void
 }) {
   const { language } = useLanguage()
   const ru = language === "ru"
@@ -139,10 +141,13 @@ export function CompletionProvider({
         {openBoard && Scene && (
           <Scene
             boardId={openBoard}
+            onReady={(id) => {
+              setViewed((previous) => new Set(previous).add(id))
+              onViewed?.(id)
+            }}
             onClose={() => {
               pending.current = false
               setOpenBoard(null)
-              setViewed((previous) => new Set(previous).add(openBoard))
             }}
           />
         )}
@@ -151,7 +156,13 @@ export function CompletionProvider({
   )
 }
 
-export default function CompletionButton({ boardId }: { boardId: string }) {
+export default function CompletionButton({
+  boardId,
+  primary,
+}: {
+  boardId: string
+  primary?: boolean
+}) {
   const context = useContext(CompletionContext)
   const { language } = useLanguage()
   if (!context) throw new Error("CompletionButton requires CompletionProvider")
@@ -160,7 +171,7 @@ export default function CompletionButton({ boardId }: { boardId: string }) {
   return (
     <div className="case-completion-entry">
       <button
-        className="case-completion-trigger"
+        className={primary ? "dc-primary" : "case-completion-trigger"}
         type="button"
         aria-haspopup="dialog"
         aria-busy={context.openingBoard === boardId || context.openBoard === boardId}
@@ -169,13 +180,17 @@ export default function CompletionButton({ boardId }: { boardId: string }) {
         onClick={() => void context.show(boardId)}
       >
         <SvgIcon name={viewed ? "repeat" : "circle-check"} size={18} />
-        {viewed
+        {primary
           ? ru
-            ? "Повторить итог"
-            : "Replay result"
-          : ru
-            ? "Завершить контракт"
-            : "Finish contract"}
+            ? "Посмотреть результат"
+            : "View result"
+          : viewed
+            ? ru
+              ? "Повторить итог"
+              : "Replay result"
+            : ru
+              ? "Завершить контракт"
+              : "Finish contract"}
       </button>
     </div>
   )

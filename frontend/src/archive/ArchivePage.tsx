@@ -199,6 +199,26 @@ function PlayerCardStudio({ csrf, meta }: { csrf: string; meta: Meta }) {
       setBusy(false)
     }
   }
+  const changeBannerPermission = async (card: Card) => {
+    if (inFlight.current) return
+    inFlight.current = true
+    setBusy(true)
+    setError("")
+    setNotice("")
+    try {
+      await request(`/api/archive/cards/${card.id}/banner-permission`, csrf, {
+        method: "PUT",
+        body: JSON.stringify({ revision: card.revision, enabled: !card.banner_artwork }),
+      })
+      setNotice(ru ? "Настройка иллюстрации обновлена." : "Artwork preference updated.")
+    } catch (reason) {
+      setError((reason as Error).message)
+    } finally {
+      cards.reload()
+      inFlight.current = false
+      setBusy(false)
+    }
+  }
 
   return (
     <>
@@ -356,6 +376,19 @@ function PlayerCardStudio({ csrf, meta }: { csrf: string; meta: Meta }) {
                       <button disabled={busy} onClick={() => void authorAction(card, "withdraw")}>
                         {ru ? "Отозвать заявку" : "Withdraw"}
                       </button>
+                    )}
+                    {card.status === "PUBLISHED" && card.rank !== "EX" && card.rights_confirmed && (
+                      <label className="archive-check">
+                        <input
+                          type="checkbox"
+                          checked={card.banner_artwork ?? false}
+                          disabled={busy}
+                          onChange={() => void changeBannerPermission(card)}
+                        />
+                        {ru
+                          ? "Разрешаю показывать иллюстрацию на главной с указанием автора. На ней нет текста и рамки."
+                          : "Allow this artwork on the overview with its credit. It has no lettering or frame."}
+                      </label>
                     )}
                   </div>
                 </article>

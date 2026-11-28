@@ -53,6 +53,9 @@ export default function ProfileStudio({
     if (guest) visitorHeading.current?.focus()
     else if (editing) editorHeading.current?.focus()
   }, [editing, guest])
+  useEffect(() => {
+    if (sharing) shareInput.current?.focus()
+  }, [sharing])
 
   const saved = resource.data?.profile ?? resource.data?.draft
   if (!saved) return <LoadState error={resource.error} retry={resource.reload} />
@@ -172,7 +175,7 @@ export default function ProfileStudio({
           <h1 ref={editorHeading} tabIndex={-1}>
             {ru ? "Редактировать профиль" : "Edit profile"}
           </h1>
-          <form onSubmit={(event) => void save(event)}>
+          <form onSubmit={(event) => void save(event)} aria-busy={saving}>
             <fieldset disabled={saving}>
               <section>
                 <h2>{ru ? "Основное" : "Basics"}</h2>
@@ -409,9 +412,13 @@ export default function ProfileStudio({
           {guest && (
             <div className="profile-preview-note">
               <p>
-                {ru
-                  ? "Так выглядит профиль для посетителя после публикации."
-                  : "This is how the profile looks to a visitor after publishing."}
+                {profile.is_public
+                  ? ru
+                    ? "Предпросмотр профиля с текущими настройками приватности."
+                    : "Profile preview with the current privacy settings."
+                  : ru
+                    ? "Профиль скрыт. Ниже показано, как он будет выглядеть после публикации."
+                    : "The profile is private. This preview shows how it will look when published."}
               </p>
               <button
                 type="button"
@@ -477,7 +484,7 @@ export default function ProfileStudio({
                       <a className="dc-ghost" href={publicUrl}>
                         {ru ? "Открыть профиль" : "Open public profile"}
                       </a>
-                      {copyStatus && <span role="status">{copyStatus}</span>}
+                      <span role="status">{copyStatus}</span>
                     </div>
                   )}
                 </>

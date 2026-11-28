@@ -16,6 +16,7 @@ import "./guest-journey.css"
 
 const ContractSigning = lazy(() => import("./ContractSigning"))
 const Leaderboard = lazy(() => import("./community/Leaderboard"))
+const BureauGuide = lazy(() => import("./BureauGuide"))
 type Mode = "STANDARD" | "RANKED" | "STREET_BRAWL"
 type ExampleContract = {
   id: number
@@ -588,7 +589,7 @@ export default function Landing() {
             />
           </>
         )}
-        {!boardPage && !["home", "cards", "leaderboards"].includes(page) && (
+        {!boardPage && !["home", "cards", "leaderboards", "how"].includes(page) && (
           <PublicContent copy={copy} />
         )}
         {page === "leaderboards" && (
@@ -612,12 +613,17 @@ export default function Landing() {
           </>
         )}
         {page === "how" && (
-          <div className="ritual-container ritual-how-action">
-            <a className="btn-primary" href={publicUrl("contracts", language)}>
-              {ru ? "Попробовать подписание" : "Try signing"}
-              <Icon name="feather" size={17} />
-            </a>
-          </div>
+          <Suspense fallback={<PublicContent copy={copy} />}>
+            <div className="ritual-container">
+              <BureauGuide />
+            </div>
+            <PublicContent
+              copy={
+                copy ? { ...copy, sections: copy.sections.filter((section) => section.link) } : null
+              }
+              heading={false}
+            />
+          </Suspense>
         )}
       </main>
       <footer className="ritual-footer ritual-container">

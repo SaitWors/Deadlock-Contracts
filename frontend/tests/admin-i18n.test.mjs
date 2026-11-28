@@ -5,6 +5,8 @@ import { build, normalizePath } from "vite"
 import { JSDOM } from "jsdom"
 
 let code
+let catalog
+let catalogPath
 const environments = []
 before(async () => {
   const result = await build({
@@ -28,12 +30,19 @@ before(async () => {
       lib: { entry: "tests/admin-i18n-entry.tsx", name: "AdminI18nTest", formats: ["iife"] },
     },
   })
-  code = result[0].output.find((item) => item.type === "chunk").code
+  const assets = result[0].output
+  code = assets.find((item) => item.type === "chunk").code
+  const catalogAsset = assets.find(
+    (item) => item.type === "asset" && /admin-copy.*\.json$/.test(item.fileName),
+  )
+  assert.ok(catalogAsset, "the translation catalog must be a standalone Vite asset")
+  catalog = JSON.parse(Buffer.from(catalogAsset.source).toString("utf8"))
+  catalogPath = "/" + catalogAsset.fileName
 })
 after(() => {
   for (const dom of environments) dom.window.close()
 })
-function runtime(fetch, pathname = "/admin") {
+function runtime(fetch, pathname = "/admin", loadCatalog = () => response(catalog)) {
   const dom = new JSDOM('<main id="mount"></main>', {
     url: `https://qa.invalid${pathname}`,
     runScripts: "outside-only",
@@ -46,7 +55,7 @@ function runtime(fetch, pathname = "/admin") {
   }
   w.Headers = Headers
   w.AbortController = AbortController
-  w.fetch = fetch
+  w.fetch = (url, init) => (url === catalogPath ? Promise.resolve(loadCatalog()) : fetch(url, init))
   w.IS_REACT_ACT_ENVIRONMENT = true
   w.localStorage.setItem("dc.ui.language", "ru")
   w.matchMedia = () => ({ matches: true, addEventListener() {}, removeEventListener() {} })
@@ -259,7 +268,7 @@ test("review language changes retain queue filters and their API codes", async (
   await api.act(async () => root.unmount())
 })
 
-test("the admin console keeps all 18 sections and the selected user filter when language changes", async () => {
+test("the admin console keeps all 19 sections and the selected user filter when language changes", async () => {
   const requests = []
   const { w, doc, api } = runtime(async (url) => {
     requests.push(url)
@@ -295,6 +304,7 @@ test("the admin console keeps all 18 sections and the selected user filter when 
     [...doc.querySelectorAll(".dc-admin-mobile-section option")].map((item) => item.value)
   const expectedSections = [
     "overview",
+    "foundation_analytics",
     "users",
     "reviews",
     "bureau_reports",
@@ -325,8 +335,9 @@ test("the admin console keeps all 18 sections and the selected user filter when 
   assert.equal(doc.querySelector(".dc-admin-filterbar input").value, "Mandarin")
   assert.equal(doc.querySelector(".dc-admin-filterbar select").value, "MODERATOR")
   assert.deepEqual(sections(), expectedSections)
-  assert.equal(doc.querySelectorAll(".dc-admin-tabs button").length, 18)
+  assert.equal(doc.querySelectorAll(".dc-admin-tabs button").length, 19)
   assert.ok(button(doc, "Hero votes"))
+  assert.ok(button(doc, "Analytics"))
   await api.act(async () => button(doc, "Apply").click())
   assert.ok(
     requests.some((url) => {
@@ -405,6 +416,38 @@ const mountRelayConsole = ({ doc, api }) =>
     setNotice() {},
     reloadAll: async () => {},
   })
+
+test("the admin console loads its catalog lazily and can recover after a failed fetch", async () => {
+  let catalogRequests = 0
+  const view = runtime(
+    async (url) => {
+      assert.equal(url, "/api/admin/auth/status")
+      return response(relayAuth("OWNER", ["*"], false))
+    },
+    "/admin",
+    () => {
+      catalogRequests += 1
+      return catalogRequests === 1 ? { ok: false } : response(catalog)
+    },
+  )
+  const { doc, api } = view
+  assert.equal(catalogRequests, 0)
+  let root
+  await api.act(async () => {
+    root = mountRelayConsole(view)
+  })
+  assert.equal(catalogRequests, 1)
+  assert.match(doc.querySelector('[role="alert"]').textContent, /Не удалось загрузить перевод/)
+  assert.ok(button(doc, "Разблокировать"))
+  await api.act(async () => button(doc, "Повторить").click())
+  assert.equal(catalogRequests, 2)
+  assert.equal(doc.querySelector('[role="alert"]'), null)
+  assert.equal(doc.querySelector("h1").textContent, "Консоль администратора")
+  await api.act(async () => doc.getElementById("switch-language").click())
+  assert.ok(button(doc, "Unlock"))
+  assert.equal(catalogRequests, 2)
+  await api.act(async () => root.unmount())
+})
 
 test("Relay operations show independent host freshness and require confirmation and CSRF", async () => {
   const mutations = []

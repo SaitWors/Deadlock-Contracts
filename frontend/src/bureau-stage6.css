@@ -1,19 +1,12 @@
-/* City print: introduction, bureau actions and responsive controls. */
+/* City print: bureau actions and responsive controls. */
 .bureau-action{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-width:0;min-height:48px;height:auto;padding:12px 18px;border:1px solid transparent;border-radius:var(--ns-small);background:var(--ns-fill);color:var(--ns-on-accent);font:650 1rem/1.4 var(--font-body);text-align:center;white-space:normal;overflow-wrap:anywhere;cursor:pointer;transition:transform .16s,filter .16s}
 .bureau-action:hover{filter:brightness(1.08);transform:translateY(-1px)}
 .bureau-action-secondary{border-color:var(--ns-line);background:var(--ns-elevated);color:var(--ns-text)}
 .bureau-action-secondary:hover{background:var(--ns-surface);filter:none}
-.bureau-action:focus-visible,.bureau-guide button:focus-visible{outline:2px solid var(--ns-accent);outline-offset:3px}
+.bureau-action:focus-visible{outline:2px solid var(--ns-accent);outline-offset:3px}
 .bureau-location{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:0 0 22px;color:var(--ns-muted);font:600 .75rem/1.5 var(--font-body);letter-spacing:.07em}
 .bureau-location b{color:var(--ns-text)}
 .bureau-location button{min-height:44px;padding:8px 0 8px 10px;color:var(--ns-accent);background:none;border:0;font:500 .875rem/1.4 var(--font-body);text-decoration:underline;text-underline-offset:4px;cursor:pointer}
-.bureau-app .dc-home-archive-callout{display:grid;grid-template-columns:minmax(0,1fr) minmax(220px,320px);gap:24px;padding:clamp(20px,3vw,32px);border:1px solid var(--ns-line);border-top:3px double var(--ns-accent);border-radius:calc(var(--ns-radius) * .5);background:var(--ns-surface)}
-.bureau-app .dc-home-archive-callout>div{min-width:0}
-.bureau-callout-label{display:block;color:var(--ns-accent);font:600 .75rem var(--font-body);letter-spacing:.1em;margin-bottom:9px}
-.bureau-app .dc-home-archive-callout strong{display:block;font-size:clamp(26px,3vw,34px)}
-.bureau-app .dc-home-archive-callout p{font-size:1rem;line-height:1.65;margin:8px 0 0;max-width:52ch}
-.bureau-callout-actions{display:grid;gap:10px}
-.bureau-callout-link{border:0;background:none;color:var(--ns-muted);font:500 .875rem/1.4 var(--font-body);min-height:44px;cursor:pointer}
 .bureau-app .bureau-action{width:100%;height:auto;min-width:0}
 .bureau-app :is(.archive-filters,.community-form-grid)>*{min-width:0}
 .bureau-app :is(select,input,textarea){max-width:100%;color-scheme:inherit}
@@ -24,30 +17,8 @@
 .bureau-mode-selector legend{color:var(--ns-muted);font:600 .875rem var(--font-body);margin-bottom:10px}
 .bureau-mode-mobile{display:none}
 .bureau-app .bureau-mode-desktop button[aria-pressed=true]{border-color:var(--ns-accent)!important;box-shadow:inset 0 -3px var(--ns-accent)!important}
-.bureau-guide{position:fixed;inset:0;margin:auto;width:min(640px,calc(100% - 24px));height:min(780px,calc(100dvh - 32px));max-height:calc(100dvh - 32px);overflow:hidden;overscroll-behavior:contain;border:1px solid var(--ns-line);border-radius:var(--ns-radius);background:var(--ns-surface);color:var(--ns-text);box-shadow:0 24px 90px #000a;padding:0;font:400 1rem/1.6 var(--font-body);color-scheme:inherit}
-.bureau-guide[open]{display:grid;grid-template-rows:auto auto minmax(0,1fr) auto}
-.bureau-guide::backdrop{background:rgb(14 13 12 / 87%)}
-.bureau-guide-top{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:16px 24px 0}
-.bureau-guide-top>span{font:600 .75rem var(--font-body);letter-spacing:.13em;color:var(--ns-accent)}
-.bureau-guide-top>button{width:44px;height:44px;flex-shrink:0;background:none;border:1px solid var(--ns-line);border-radius:var(--ns-small);color:var(--ns-text);font-size:24px;cursor:pointer}
-.bureau-guide-pages{display:flex;gap:8px;padding:0 24px}
-.bureau-guide-pages button{flex:1;min-width:0;min-height:36px;padding:14px 0;border:0;background:none;cursor:pointer}
-.bureau-guide-pages span{display:block;height:4px;background:var(--ns-line);border-radius:2px}
-.bureau-guide-pages button[aria-current] span{background:var(--ns-accent)}
-.bureau-guide-content{padding:0 32px 24px;overflow-y:auto;min-height:0;overscroll-behavior:contain;scrollbar-gutter:stable}
-.bureau-guide-content>.bureau-regalia{float:right;margin:4px 0 16px 20px;width:96px;height:108px}
-.bureau-guide-index{font:600 .75rem var(--font-body);letter-spacing:.13em;color:var(--ns-accent)}
-.bureau-guide h2{font:400 clamp(28px,3vw,36px)/1.15 var(--font-poster);margin:12px 0 18px;color:var(--ns-text)}
-.bureau-guide h2:focus{outline:none}
-.bureau-guide p{margin:12px 0;color:var(--ns-muted);font-size:13px;line-height:1.8}
-.bureau-guide-note{clear:both;padding:18px;margin:22px 0;background:var(--ns-elevated);border:1px solid var(--ns-line);border-radius:var(--ns-small)}
-.bureau-guide-note p{color:var(--ns-text);margin:0 0 10px}
-.bureau-guide-note small{display:block;font-size:13px;line-height:1.8;color:var(--ns-muted)}
-.bureau-guide-content>.bureau-action{width:100%}
-.bureau-guide-footer{display:grid;grid-template-columns:1fr 1fr;gap:12px;padding:18px 32px 24px;border-top:1px solid var(--ns-line);background:var(--ns-elevated)}
-.bureau-guide-footer .bureau-action{font-size:.875rem}
+
 @media(max-width:767px){
-  .bureau-app .dc-home-archive-callout{grid-template-columns:1fr;gap:20px}
   .bureau-location{align-items:start;margin-bottom:14px;letter-spacing:.03em}
   .bureau-location>span{padding-top:12px}
   .bureau-location button{max-width:150px}
@@ -63,12 +34,8 @@
   .bureau-mode-mobile select{appearance:auto;width:100%;min-height:48px;border:1px solid var(--ns-line);border-radius:var(--ns-small);background:var(--ns-surface);color:var(--ns-text);font:600 1rem var(--font-body);padding:10px 12px}
   .bureau-mode-mobile small{color:var(--ns-muted);font-size:.875rem}
   .bureau-app .dc-motion-head-controls,.bureau-mode-selector{width:100%}
-  .bureau-guide-content{padding:0 22px 20px}
-  .bureau-guide-top,.bureau-guide-pages{padding-inline:22px}
-  .bureau-guide-footer{padding:16px 22px 20px;gap:8px}
-  .bureau-guide-content>.bureau-regalia{width:72px;height:80px;margin-left:12px}
 }
-@media(max-width:359px){.bureau-guide-footer{grid-template-columns:1fr}.bureau-guide-footer>.bureau-action:last-child{grid-row:1}.bureau-location button{font-size:.8rem}.bureau-guide-content>.bureau-regalia{float:none;width:64px;height:70px;margin:0}}
+@media(max-width:359px){.bureau-location button{font-size:.8rem}}
 
 @media (min-width:1200px) and (max-width:1399px) {
   .bureau-app .bureau-nav{display:none}
