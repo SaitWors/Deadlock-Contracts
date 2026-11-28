@@ -39,10 +39,9 @@ export function useOverviewResource<T>(
   const retry = useCallback(() => setAttempt((value) => value + 1), [])
   useEffect(() => {
     const controller = new AbortController()
+    const timeout = window.setTimeout(() => controller.abort(), 12_000)
     let active = true
-    request<T>(url, "", {
-      signal: AbortSignal.any([controller.signal, AbortSignal.timeout(12_000)]),
-    })
+    request<T>(url, "", { signal: controller.signal })
       .then((data) => {
         if (active) setResult({ accountId, data, error: false })
       })
@@ -54,9 +53,11 @@ export function useOverviewResource<T>(
           error: true,
         }))
       })
+      .finally(() => window.clearTimeout(timeout))
     return () => {
       active = false
       controller.abort()
+      window.clearTimeout(timeout)
     }
   }, [accountId, url, revision, attempt, watching])
   useEffect(() => {

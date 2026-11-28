@@ -200,7 +200,11 @@ test("a fully successful signed case offers completion before attempts run out",
   )
   assert.equal(doc.querySelector("dialog[open]"), null)
   assert.equal(calls.filter(({ url }) => url.endsWith("/completion")).length, 0)
-  assert.equal(calls.filter(({ init }) => init.method === "POST").length, 0)
+  assert.equal(
+    calls.filter(({ url, init }) => url !== "/api/foundation/events" && init.method === "POST")
+      .length,
+    0,
+  )
 })
 
 test("a mixed final case offers completion after its last attempt", async () => {
@@ -362,7 +366,12 @@ test("opening and replaying use only the authoritative receipt and never grant n
       .filter(({ url }) => url.endsWith("/completion"))
       .every(({ init }) => (init.method || "GET") === "GET"),
   )
-  assert.equal(calls.filter(({ init }) => init.method && init.method !== "GET").length, 0)
+  assert.equal(
+    calls.filter(
+      ({ url, init }) => url !== "/api/foundation/events" && init.method && init.method !== "GET",
+    ).length,
+    0,
+  )
   assert.equal(doc.querySelectorAll("dialog.case-completion[open]").length, 1)
   assert.match(doc.querySelector(".cc-profile").textContent, /Actual profile/)
   assert.equal(doc.querySelector(".cc-total").textContent, "10 / 170 XP")

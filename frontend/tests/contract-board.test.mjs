@@ -103,7 +103,8 @@ test("failed initial board can be retried without changing selection APIs", asyn
   assert.equal(doc.querySelector('[role="alert"]'), null)
   assert.equal(calls.filter((c) => c.url === "/api/boards/today").length, 2)
   assert.equal(
-    calls.filter((c) => c.init.method === "POST" && c.url.startsWith("/api/board")).length,
+    calls.filter(({ url, init }) => url !== "/api/foundation/events" && init.method === "POST")
+      .length,
     0,
   )
 })
